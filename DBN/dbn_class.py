@@ -5,7 +5,8 @@ __author__ = 'arjun'
 
 import pickle
 #import rbm_class as rc
-import rbm_cudaclass as rc
+#import rbm_cudaclass as rc
+import rbm_cudamatclass as rc #using cudamat directly
 import numpy as np
 import ipdb
 import time

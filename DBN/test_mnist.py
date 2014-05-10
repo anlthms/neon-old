@@ -13,7 +13,7 @@ trainLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/trai
 #initialize DBN with 1 hidden layer : 100 nodes
 opts = dict()
 opts['numFeatures'] = 784
-opts['sizes'] = [100, 100]
+opts['sizes'] = [100, 100] #[256, 256, 512]
 opts['eta'] = 0.01
 opts['momentum'] = 0.9
 opts['batchsize'] = 100
@@ -29,13 +29,17 @@ else:
     
 #train DBN using CD
 dbn = dbn.train(trainData, trainLabels, LOAD_EXISTING_DBN_MODEL)
-pickle.dump(dbn, open('mnist_dbn.pkl', 'w'))
+
+#have to figure out a way to pickle cudamat data
+#pickle.dump(dbn, open('mnist_dbn.pkl', 'w'))
 
 #predict function for rbm_class
 labels = dbn.test(trainData)
 
 errFrac = float(np.sum(np.not_equal(labels, trainLabels)))/len(trainLabels)
 print  'Training error= ' + str(errFrac)
+
+#cm.cublas_shutdown()
 
 #todo: cuda class for rbm_class & rbm_math
 #todo: visualize
