@@ -29,31 +29,36 @@ class rbm_class:
             self.numHidden = numHidden
             self.numVisible = numVisible
             
-            self.W = cm.CUDAMatrix(0.01*np.random.randn(numVisible, numHidden))
-            self.c = cm.CUDAMatrix(np.zeros((numVisible, 1)))
-            self.b = cm.CUDAMatrix(np.zeros((numHidden, 1)))
+            self.initwt = .01 
+            self.W = self.initwt*np.random.randn(numVisible, numHidden)
+            self.c = np.zeros((numVisible, 1))
+            self.b = np.zeros((numHidden, 1))
             #temporary variables for CD
-            self.Winc = cm.CUDAMatrix(np.zeros((numVisible, numHidden)))
-            self.binc = cm.CUDAMatrix(np.zeros((numHidden, 1)))
-            self.cinc = cm.CUDAMatrix(np.zeros((numVisible, 1)))
+            self.Winc = np.zeros((numVisible, numHidden))
+            self.binc = np.zeros((numHidden, 1))
+            self.cinc = np.zeros((numVisible, 1))
                     
         #parameters
-        self.penalty = .001
+        self.actfunc = 'sigmoid' #'relu', 'sigmoid'
+        self.penalty = .0002
         self.eta = opts['eta']
-        self.momentum = opts['momentum']
+        self.momentum = opts['momentum'] #initial momentum
+        self.finalmomentum = 0.9
         #avgstart=5
         self.maxEpoch = opts['maxEpoch']
         self.batchsize = opts['batchsize']
-
+        self.epochsRun = 0
+        self.SHUFFLE_FLAG = False
+        
     def save_rbm_weights(self, labelsFlag=False):
         if labelsFlag:
             with open('rbm_weights.pkl', 'w') as f:
-                pickle.dump([self.W.numpy_array, self.b.numpy_array, self.c.numpy_array, self.numHidden, 
-                                self.numVisible, self.Wc.numpy_array, self.cc.numpy_array, 
+                pickle.dump([self.W, self.b, self.c, self.numHidden, 
+                                self.numVisible, self.Wc, self.cc, 
                                 self.uniqueClasses, self.numClasses],f)
         else:
             with open('rbm_weights.pkl', 'w') as f:
-                pickle.dump([self.W.numpy_array, self.b.numpy_array, self.c.numpy_array, self.numHidden, self.numVisible],f)
+                pickle.dump([self.W, self.b, self.c, self.numHidden, self.numVisible],f)
     
     def load_rbm_weights(self, labelsFlag=False):
         if labelsFlag:
@@ -63,10 +68,50 @@ class rbm_class:
         else:
             with open('rbm_weights.pkl') as f:
                 [self.W, self.b, self.c, self.numHidden, self.numVisible] = pickle.load(f)
+
+    def to_cudamat(self, labelsFlag=False):
+        self.W = cm.CUDAMatrix(self.W)
+        self.b = cm.CUDAMatrix(self.b)
+        self.c = cm.CUDAMatrix(self.c)
+        self.Winc = cm.CUDAMatrix(self.Winc)
+        self.binc = cm.CUDAMatrix(self.binc)
+        self.cinc = cm.CUDAMatrix(self.cinc)
+        if labelsFlag:
+            self.Wc = cm.CUDAMatrix(self.Wc)
+            self.cc = cm.CUDAMatrix(self.cc)
+            self.Wcinc = cm.CUDAMatrix(self.Wcinc)
+            self.ccinc = cm.CUDAMatrix(self.ccinc)
+    
+    def to_numpy(self, labelsFlag=False):
+        self.W = self.W.asarray()
+        self.b = self.b.asarray()
+        self.c = self.c.asarray()
+        self.Winc = self.Winc.asarray()
+        self.binc = self.binc.asarray()
+        self.cinc = self.cinc.asarray()
+        if labelsFlag:
+            self.Wc = self.Wc.asarray()
+            self.cc = self.cc.asarray()
+            self.Wcinc = self.Wcinc.asarray()
+            self.ccinc = self.ccinc.asarray()
             
+    
+    def relu(self, x):
+        y = cm.empty((x.shape[0], x.shape[1]))
+        x.greater_than(0., target=y)
+        x.mult(y)
+        return x
+        
+    def apply_actfunc(self, x):
+        if self.actfunc == 'sigmoid':
+            return x.apply_sigmoid()
+        elif self.actfunc == 'relu':
+            return self.relu(x)
+        
     #CD-steps
     def applyCD(self, unitActivity):
         #change eta if changing batchsize
+        
         unitActivity = cm.CUDAMatrix(unitActivity)
          
         numTotalSamples = unitActivity.shape[1]
@@ -75,18 +120,26 @@ class rbm_class:
         
         t=1.
         
+        self.to_cudamat()
         #might need to move this in a clever way inside for loop if last batch is different size
         v = cm.empty((self.numVisible, self.batchsize))
         h = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
+        penaltyTerm = cm.empty((self.W.shape[0], self.W.shape[1]))
         
         for epochs in range(0,self.maxEpoch):
             #if (epochs+1) % 5 == 0: #save the parameters every 5 epochs
             #    self.save_rbm_weights()
+            if self.epochsRun == 5:
+                self.momentum = self.finalmomentum
             batchsize=self.batchsize
+            if self.SHUFFLE_FLAG:
+                shuffledIndices = np.random.permutation(range(numTotalSamples))
+                unitActivity = cm.CUDAMatrix(unitActivity.asarray()[:,shuffledIndices])
             
             print "Beginning CD epoch #", epochs
             err=[]
+            errSum=0.
             start_time=time.time()
             for batch in range(0,numBatches):
                 #print batch
@@ -106,7 +159,7 @@ class rbm_class:
                 #ph = rm.logistic(gn.dot(self.W.T,data) + self.b) 
                 cm.dot(self.W.T, v, target=h)
                 h.add_col_vec(self.b)
-                h.apply_sigmoid()
+                h = self.apply_actfunc(h) #sigmoid()
                 
                 #compute v0*h0
                 self.Winc.add_dot(v,h.T) # gn.dot(v,h.T) term in dW
@@ -114,22 +167,30 @@ class rbm_class:
                 self.cinc.add_sums(v, axis=1)
                 
                 #sample hiddens: nhstates = ph > gn.rand(self.numHidden, batchsize)
-                r.fill_with_rand()
-                r.less_than(h, target = h)
+                if self.actfunc == 'sigmoid':
+                    #a12 = 1 #no-op for investigation
+                    r.fill_with_rand()
+                    r.less_than(h, target = h)
+                elif self.actfunc == 'relu':
+                    r.fill_with_randn()
+                    h.add(r)
                 
                 #down: negdata = gn.dot(self.W,nhstates) + self.c 
                 cm.dot(self.W, h, target=v)
                 v.add_col_vec(self.c)
-                v.apply_sigmoid()
+                v = self.apply_actfunc(v)
+                #v.apply_sigmoid()
                 
                 #ignore for now: negdatastates = rm.logistic(negdata) > gn.rand()
                 
                 #up again: non-sparse version; nh = rm.logistic(gn.dot(self.W.T,negdatastates) + self.b)
                 cm.dot(self.W.T, v, target = h)
                 h.add_col_vec(self.b)
-                h.apply_sigmoid()
+                h = self.apply_actfunc(h)
                 
                 #weight updates
+                self.W.mult(self.eta*self.penalty, target=penaltyTerm)
+                self.W.subtract(penaltyTerm) #for penalty : - self.eta*self.penalty*self.W)
                 self.Winc.subtract_dot(v, h.T) #gn.dot(negdatastates,nh.T)
                 self.cinc.add_sums(v, axis = 1, mult = -1.)
                 self.binc.add_sums(h, axis = 1, mult = -1.)
@@ -141,34 +202,46 @@ class rbm_class:
 
                 # calculate reconstruction error
                 v.subtract(data)
-                err.append(v.euclid_norm()**2/(self.numVisible*batchsize))
+                errSum += v.manhattan_norm()
+                #err.append(v.euclid_norm()**2/(self.numVisible*batchsize))
                 
-            print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(np.mean(err))
+            print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)
+            self.epochsRun += 1
             end_time=time.time()
             print("Elapsed time was %g seconds" % (end_time - start_time))
-            
+        
+        self.to_numpy()
         self.save_rbm_weights()
         return self
-
-#todo: continue cudamat conversion from here onwards
     
     def rbmup(self, x):
         #compute the hidden activity given the visibles
         #consider mini-batching if slow
         #return rm.logistic(gn.dot(self.W.T,x) + self.b)
+        self.to_cudamat()
         x = cm.CUDAMatrix(x)
-        up = cm.CUDAMatrix(np.ones((self.W.shape[1], x.shape[1])))
+        up = cm.empty((self.W.shape[1], x.shape[1]))
         cm.dot(self.W.T, x, target=up)
         up.add_col_vec(self.b)
-        return up.numpy_array #could have smarter check to keep this on gpu
+        up = self.apply_actfunc(up)
+        
+        #for investigating what happens when rbmup is always sampled
+        # r = cm.empty((self.W.shape[1], x.shape[1]))
+        # r.fill_with_rand()
+        # r.less_than(up, target = up)
+        
+        self.to_numpy()
+        #ipdb.set_trace()
+        return up.asarray() #could have smarter check to keep this on gpu
         
     def softmax(self, x):
-        
+        #ipdb.set_trace()
         if len(x.shape) == 1 or x.shape[1] == 1:
             cm.exp( x.subtract(x.min()), target=self.tmp)
             cm.sum( self.tmp, target=self.denom )
             self.tmp.divide( self.denom, target=self.mu)
         else:
+            
             cm.exp( x.add_row_vec( x.min(axis=0).mult(-1.)), target=self.tmp)
             cm.sum( self.tmp, axis=0 , target=self.denom)
             self.tmp.div_by_row( self.denom, target=self.mu)
@@ -196,11 +269,12 @@ class rbm_class:
         classes = cm.CUDAMatrix(classes)
         labels = cm.CUDAMatrix(labels[np.newaxis,:])
         
+        self.to_cudamat(resumeFlag)
         #temporary variables for CD
         if not resumeFlag:
             self.Wcinc = cm.CUDAMatrix(np.zeros((numClasses, self.numHidden)))
             self.ccinc = cm.CUDAMatrix(np.zeros((numClasses, 1)))
-            self.Wc = cm.CUDAMatrix(0.01*np.random.randn(numClasses, self.numHidden))
+            self.Wc = cm.CUDAMatrix(self.initwt*np.random.randn(numClasses, self.numHidden))
             self.cc = cm.CUDAMatrix(np.zeros((numClasses, 1)))
         
         #might need to move this in a clever way inside for loop if last batch is different size
@@ -209,21 +283,30 @@ class rbm_class:
         h = cm.empty((self.numHidden, self.batchsize))
         ht = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
+        penaltyTerm = cm.empty((self.W.shape[0], self.W.shape[1]))
+        penaltyTermcc = cm.empty((self.Wc.shape[0], self.Wc.shape[1]))
         
         t=1.
         
         self.tmp = cm.empty((self.numClasses, self.batchsize))
         self.denom = cm.empty((1, self.batchsize))
-        self.mu = cm.empty((self.numClasses, self.batchsize))
+        self.mu = cm.CUDAMatrix(np.zeros((self.numClasses, self.batchsize)))
 
         for epochs in range(0,self.maxEpoch):
             #if (epochs+1) % 5 == 0: #save the parameters every 5 epochs
             #    self.save_rbm_weights()
+            if self.epochsRun == 5:
+                self.momentum = self.finalmomentum
             batchsize=self.batchsize
-
+            if self.SHUFFLE_FLAG:
+                shuffledIndices = np.random.permutation(range(numTotalSamples))
+                unitActivity = cm.CUDAMatrix(unitActivity.asarray()[:,shuffledIndices])
+                classes = cm.CUDAMatrix(classes.asarray()[:,shuffledIndices])
+                
             print "Beginning CD epoch #", epochs
             err = []
             err2 = []
+            errSum = 0.
             start_time=time.time()
             for batch in range(0,numBatches):
                 #print batch
@@ -251,7 +334,7 @@ class rbm_class:
                 h.add_col_vec(self.b)
                 cm.dot(self.Wc.T, vt, target=ht)
                 h.add(ht)
-                h.apply_sigmoid()
+                h = self.apply_actfunc(h)
                 
                 #compute v0*h0
                 self.Winc.add_dot(v,h.T) # gn.dot(v,h.T) term in dW
@@ -261,13 +344,20 @@ class rbm_class:
                 self.ccinc.add_sums(vt, axis=1)
                 
                 #sample hiddens: nhstates = ph > gn.rand(self.numHidden, batchsize)
-                r.fill_with_rand()
-                r.less_than(h, target = h)
+                if self.actfunc == 'sigmoid':
+                    #a12 = 1 #no-op for investigation
+                    r.fill_with_rand()
+                    r.less_than(h, target = h)
+                elif self.actfunc == 'relu':
+                    r.fill_with_randn()
+                    h.add(r)
                 
                 #down: negdata = gn.dot(self.W,nhstates) + self.c 
                 cm.dot(self.W, h, target=v)
                 v.add_col_vec(self.c)
-                v.apply_sigmoid()
+                v = self.apply_actfunc(v)
+                #v.apply_sigmoid()
+                
                 #ignore for now: negdatastates = rm.logistic(negdata) > gn.rand()
                 
                 #negclasses = rm.softmax(gn.dot(self.Wc, nhstates) + self.cc )
@@ -275,13 +365,14 @@ class rbm_class:
                 cm.dot(self.Wc, h, target=vt)
                 vt.add_col_vec(self.cc)
                 vt = self.softmax(vt)
+                #vt.apply_sigmoid() #for investigation only
                 
                 #up again: nh = rm.logistic(gn.dot(self.W.T,negdatastates) + gn.dot(self.Wc.T,negclassesstates) + self.b)
                 cm.dot(self.W.T, v, target = h)
                 h.add_col_vec(self.b)
                 cm.dot(self.Wc.T, vt, target=ht)
                 h.add(ht)
-                h.apply_sigmoid()
+                h = self.apply_actfunc(h)
                 
                 #weight updates
                 self.Winc.subtract_dot(v, h.T) #gn.dot(negdatastates,nh.T)
@@ -291,22 +382,33 @@ class rbm_class:
                 self.ccinc.add_sums(vt, axis=1, mult = -1.) #dcc = (target - negclassesstates).mean(axis=1)
                 
                 # update weights: todo: add penalty
-                self.W.add_mult(self.Winc, self.eta/batchsize) #for penalty : - self.eta*self.penalty*self.W)
+                self.W.mult(self.eta*self.penalty, target=penaltyTerm)
+                self.W.subtract(penaltyTerm) #for penalty : - self.eta*self.penalty*self.W)
+                self.W.add_mult(self.Winc, self.eta/batchsize) 
                 self.c.add_mult(self.cinc, self.eta/batchsize)
                 self.b.add_mult(self.binc, self.eta/batchsize)
+                self.Wc.mult(self.eta*self.penalty, target=penaltyTermcc)
+                self.Wc.subtract(penaltyTermcc) #for penalty : - self.eta*self.penalty*self.W)
                 self.Wc.add_mult(self.Wcinc, self.eta/batchsize) #for penalty : - self.eta*self.penalty*self.W)
                 self.cc.add_mult(self.ccinc, self.eta/batchsize)
                 
                 # calculate reconstruction error
                 v.subtract(data)
                 vt.subtract(target)
-                err.append((v.euclid_norm()**2 + vt.euclid_norm()**2)/(self.numVisible*batchsize))
+                errSum += vt.manhattan_norm()
+                #err.append((v.euclid_norm()**2 + vt.euclid_norm()**2)/(self.numVisible*batchsize))
                 #err2.append(vt.manhattan_norm()/(self.numVisible*batchsize))
                 
-            print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(np.mean(err))  #+ '; Misclassification rate: ' + str(np.mean(err2))
+            print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)  #+ '; Misclassification rate: ' + str(np.mean(err2))
+            self.epochsRun += 1
             end_time=time.time()
             print("Elapsed time was %g seconds" % (end_time - start_time))
-
+        
+        self.to_numpy(labelsFlag=True)
+        self.tmp = []
+        self.denom = []
+        self.mu = []
+        
         self.save_rbm_weights(labelsFlag=True)
         return self
                 
@@ -318,11 +420,9 @@ class rbm_class:
         unitActivity = cm.CUDAMatrix(unitActivity)
         
         #method used to predict the target_field
-        #PREDICTION_METHOD = 1; free energy method, target_feature represented as single unit
-        #PREDICTION_METHOD = 2; probability method, target_feature represented as single unit
-        #PREDICTION_METHOD = 3; probability method, target_feature represented as softmax
-        #PREDICTION_METHOD = 4; free-energy method, target_feature represented as softmax
-        PREDICTION_METHOD = 4
+        #PREDICTION_METHOD = 1; probability method, target_feature represented as softmax
+        #PREDICTION_METHOD = 2; free-energy method, target_feature represented as softmax
+        PREDICTION_METHOD = 2
 
         print "**********************************Generating predictions**********************************"
         start_time=time.time()
@@ -334,11 +434,22 @@ class rbm_class:
         labels = np.zeros((1, numTotalSamples))
         errSum = 0.
         v = cm.empty((self.numVisible, self.batchsize))
-        vt = cm.CUDAMatrix(np.zeros((self.numClasses, self.batchsize)))
+        vt = cm.empty((self.numClasses, self.batchsize))
         h = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
-        idx = cm.CUDAMatrix(np.zeros((1, self.batchsize)))
+        idx = cm.empty((1, self.batchsize))
         
+        self.to_cudamat(labelsFlag=True)
+        self.tmp = cm.empty((self.numClasses, self.batchsize))
+        self.denom = cm.empty((1, self.batchsize))
+        self.mu = cm.CUDAMatrix(np.zeros((self.numClasses, self.batchsize)))
+        
+        #free-energy related
+        if PREDICTION_METHOD == 2:
+            F = cm.empty((self.numClasses ,self.batchsize))
+            Wrow = cm.empty((1, self.numHidden))
+            h2 = cm.empty((self.numHidden, self.batchsize))
+            
         for batch in range(0,numBatches):
             if (batch + 1) % 10000 == 0:
                 print "Batch #", batch+1
@@ -356,27 +467,54 @@ class rbm_class:
             #ph = rm.logistic(gn.dot(self.W.T,data) + self.b) 
             cm.dot(self.W.T, v, target=h)
             h.add_col_vec(self.b)
-            h.apply_sigmoid()
             
             #sample hiddens: nhstates = ph > gn.rand(self.numHidden, batchsize)
-            r.fill_with_rand()
-            r.less_than(h, target = h)
+            #r.fill_with_rand()
+            #r.less_than(h, target = h)
             
-            #negclasses = rm.softmax(gn.dot(self.Wc, nhstates) + self.cc )
-            #ignore for now: negclassesstates = rm.softmax_sample(negclasses)
-            cm.dot(self.Wc, h, target=vt)
-            vt.add_col_vec(self.cc)
-            vt = self.softmax(vt)
-            vt.argmax(axis=0, target=idx)
+            if PREDICTION_METHOD == 1:
+                h = self.apply_actfunc(h)
+                
+                #negclasses = rm.softmax(gn.dot(self.Wc, nhstates) + self.cc )
+                #ignore for now: negclassesstates = rm.softmax_sample(negclasses)
+                cm.dot(self.Wc, h, target=vt)
+                #ipdb.set_trace()
+                vt.add_col_vec(self.cc)
+                #vt = self.softmax(vt)
+                vt.argmax(axis=0, target=idx)
             
+                #ipdb.set_trace()
+            
+            elif PREDICTION_METHOD == 2:
+                
+                for eachClass in range(self.numClasses):
+                    h2.assign(h)
+                    h2.add_col_vec(self.Wc.get_row_slice(eachClass, eachClass+1).transpose())
+                    #h.add_col_vec(self.b)
+                    cm.exp(h2)
+                    h2.add(1.)
+                    cm.log(h2)
+                    h2.sum(axis=0, target=idx)
+                    #idx.add(self.cc.get_row_slice(eachClass,eachClass+1))
+                    F.set_row_slice(eachClass, eachClass+1,idx)
+                #ipdb.set_trace()
+                F.add_col_vec(self.cc)
+                F.argmax(axis=0, target=idx)
+                
             if batch == numBatches - 1:
-                labels[:,(batch*self.batchsize):(batch*self.batchsize)+batchsize] = idx.numpy_array
+                labels[:,(batch*self.batchsize):(batch*self.batchsize)+batchsize] = idx.asarray()
             else:
-                labels[:,(batch*self.batchsize):((batch+1)*self.batchsize)] = idx.numpy_array
+                labels[:,(batch*self.batchsize):((batch+1)*self.batchsize)] = idx.asarray()
+                    
 
         end_time=time.time()
         print("Finished prediction step. Elapsed time was %g seconds" % (end_time - start_time))
-
+        
+        self.to_numpy(labelsFlag=True)
+        self.tmp = []
+        self.denom = []
+        self.mu = []
+        
         return labels
 
 

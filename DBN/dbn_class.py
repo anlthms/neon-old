@@ -19,11 +19,11 @@ class dbn_class:
         numFeatures = opts['numFeatures'] 
         
         sizes.insert(0, numFeatures)
-        numLayers = len(sizes)
+        numLayers = len(sizes)-1
         self.rbm = dict()
         opts['FILE_LOAD_FLAG'] = False
         
-        for eachLayer in range(numLayers-1): 
+        for eachLayer in range(numLayers): 
             opts['numVisible'] = sizes[eachLayer]
             opts['numHidden'] = sizes[eachLayer+1]
             self.rbm[eachLayer] = rc.rbm_class(opts)
