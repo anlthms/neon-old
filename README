@@ -5,7 +5,7 @@ DBN/
     test_mnist.py: Code to train DBN using CD-1
     test_mnist_nn.py: Code to train DNN using backprop (optionally using a pretrained DBN)
     
-[todo: refactor these at some point]    
+    [todo: refactor these at some point]    
     rbm_cudamatclass.py: RBM cudamat class
         rbm_cudaclass.py: RBM class using gnumpy (slower)
         rbm_class.py: RBM numpy class (slow)
