@@ -5,6 +5,7 @@ import time
 import dbn_class as dc
 import mnist_ubyte as mu
 import cudamat as cm
+#import nn_class as nc
 
 #mnist load code
 trainData = mu.read_mnist_images('/usr/local/data/datasets/pylearn2/mnist/train-images-idx3-ubyte' , dtype='float32')
@@ -12,7 +13,7 @@ trainData = np.reshape(trainData, (60000,784)).T
 trainLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/train-labels-idx1-ubyte')
 #trainLabels = int(trainLabels)
 
-#extremely inefficient way to build a balanced 
+#extremely inefficient way to build a balanced dataset for each minibatch
 BALANCE_DATA_FLAG = False
 if BALANCE_DATA_FLAG:
     print "balancing training data"
@@ -57,7 +58,7 @@ testLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/t10k-
 opts = dict()
 opts['numFeatures'] = 784
 #opts['sizes'] = [256]
-#opts['sizes'] = [256, 256, 512]
+#opts['sizes'] = [256, 256, 512, 512, 256, 256, 2048] #for investigation of different architectures
 opts['sizes'] = [512, 512, 2048]
 opts['eta'] = 0.009 #.005
 opts['momentum'] = 0.99 #initial momentum (first 5 epochs)
@@ -65,43 +66,67 @@ opts['batchsize'] = 100
 opts['maxEpoch'] = 30
 
 LOAD_EXISTING_DBN_MODEL = False
-TEST_CROSSVALIDATION_PERFORMANCE = False
+USE_ASSOCIATIVE_MEMORY_LABELS=False
 
-if LOAD_EXISTING_DBN_MODEL:
-    #load pre-trained DBN model
-    cm.cublas_init()
-    cm.CUDAMatrix.init_random(1)
+perfVec = [] #store performance across iterations
+
+for iter in range(1): #for investigation of pipeline mode
+
+    TEST_CROSSVALIDATION_PERFORMANCE = False
+
+    if LOAD_EXISTING_DBN_MODEL:
+        #load pre-trained DBN model
+        cm.cublas_init()
+        cm.CUDAMatrix.init_random(1)
     
-    dbn = pickle.load(open('mnist_dbn.pkl'))
-    numRBMs = len(dbn.rbm)
-    for eachRBM in range(numRBMs):
-        dbn.rbm[eachRBM].maxEpoch = opts['maxEpoch']
-else:
-    dbn = dc.dbn_class(opts)
+        dbn = pickle.load(open('mnist_dbn.pkl'))
+        numRBMs = len(dbn.rbm)
+        for eachRBM in range(numRBMs):
+            dbn.rbm[eachRBM].maxEpoch = opts['maxEpoch']
+        #if using different maxEpoch for different RBMs
+        #dbn.rbm[0].maxEpoch = 0
+        #dbn.rbm[1].maxEpoch = 5
+        #dbn.rbm[2].maxEpoch = 5
+    else:
+        dbn = dc.dbn_class(opts)
     
-#train DBN using CD
-dbn = dbn.train(trainData[:,0:60000], trainLabels[0:60000], LOAD_EXISTING_DBN_MODEL)
+    #train DBN using CD
+    #USE_ASSOCIATIVE_MEMORY_LABELS=True: use associative memory in N-1 layer
+    #USE_ASSOCIATIVE_MEMORY_LABELS=False: pretrain for NN
+    dbn = dbn.train(trainData[:,0:60000], trainLabels[0:60000], USE_ASSOCIATIVE_MEMORY_LABELS=USE_ASSOCIATIVE_MEMORY_LABELS, resumeFlag=LOAD_EXISTING_DBN_MODEL)
 
-#have to figure out a way to pickle cudamat data
-pickle.dump(dbn, open('mnist_dbn.pkl', 'w'))
+    #have to figure out a way to pickle cudamat data
+    pickle.dump(dbn, open('mnist_dbn.pkl', 'w'))
+    
+    if USE_ASSOCIATIVE_MEMORY_LABELS:
+    
+        #predict function for rbm_class
+        #if TEST_CROSSVALIDATION_PERFORMANCE:
+        # labels = dbn.test(trainData[:,50000:60000])
+        # errFrac = float(np.sum(np.not_equal(labels, trainLabels[50000:60000])))/len(trainLabels[50000:60000])
+        labels = dbn.test(testData[:,0:10000])
+        errFrac = float(np.sum(np.not_equal(labels, testLabels[0:10000])))/len(testLabels[0:10000])
 
-#predict function for rbm_class
-#if TEST_CROSSVALIDATION_PERFORMANCE:
-# labels = dbn.test(trainData[:,50000:60000])
-# errFrac = float(np.sum(np.not_equal(labels, trainLabels[50000:60000])))/len(trainLabels[50000:60000])
-labels = dbn.test(testData[:,0:10000])
-errFrac = float(np.sum(np.not_equal(labels, testLabels[0:10000])))/len(testLabels[0:10000])
+        perfVec.append(errFrac)
 
-print  'Testing/Crossvalidation error= ' + str(errFrac)
-#else:
-labels = dbn.test(trainData[:,0:60000])
-errFrac = float(np.sum(np.not_equal(labels, trainLabels[0:60000])))/len(trainLabels[0:60000])
-print  'Training error= ' + str(errFrac)
+        print  'Testing/Crossvalidation error= ' + str(errFrac)
+        #else:
+        labels = dbn.test(trainData[:,0:60000])
+        errFrac = float(np.sum(np.not_equal(labels, trainLabels[0:60000])))/len(trainLabels[0:60000])
+        print  'Training error= ' + str(errFrac)
 
-#cm.cublas_shutdown()
+    
+    
+    LOAD_EXISTING_DBN_MODEL = True
+    
+    #cm.cublas_shutdown()
 
-#todo: cuda class for rbm_class & rbm_math
-#todo: visualize
-#todo: shuffle batches
+    #todo: visualize
 
-#todo: andrew's questions regarding relu and output
+if USE_ASSOCIATIVE_MEMORY_LABELS:
+    print perfVec
+
+
+#unroll to nn and train with backprop
+
+

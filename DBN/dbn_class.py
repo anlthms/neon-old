@@ -15,21 +15,21 @@ class dbn_class:
 
     def __init__(self, opts):
         
-        sizes = opts['sizes'] 
-        numFeatures = opts['numFeatures'] 
+        self.sizes = opts['sizes'] 
+        self.numFeatures = opts['numFeatures'] 
         
-        sizes.insert(0, numFeatures)
-        numLayers = len(sizes)-1
+        self.sizes.insert(0, self.numFeatures)
+        self.numLayers = len(self.sizes)-1
         self.rbm = dict()
         opts['FILE_LOAD_FLAG'] = False
         
-        for eachLayer in range(numLayers): 
-            opts['numVisible'] = sizes[eachLayer]
-            opts['numHidden'] = sizes[eachLayer+1]
+        for eachLayer in range(self.numLayers): 
+            opts['numVisible'] = self.sizes[eachLayer]
+            opts['numHidden'] = self.sizes[eachLayer+1]
             self.rbm[eachLayer] = rc.rbm_class(opts)
             
     
-    def train(self, x, labels, resumeFlag=False):
+    def train(self, x, labels=0, USE_ASSOCIATIVE_MEMORY_LABELS=True, resumeFlag=False):
         
         numRBMs = len(self.rbm)
         
@@ -43,8 +43,11 @@ class dbn_class:
             x = self.rbm[numRBMs-2].rbmup( x)
             
         #apply CD with labels for numRBMs-1
-        print "Training weights to top-most layer"
-        self.rbm[numRBMs-1] = self.rbm[numRBMs-1].applyCDwithLabels(x,labels, resumeFlag)
+        if USE_ASSOCIATIVE_MEMORY_LABELS:
+            print "Training weights to top-most layer"
+            self.rbm[numRBMs-1] = self.rbm[numRBMs-1].applyCDwithLabels(x,labels, resumeFlag)
+        else: #using DBN to pretrain for a NN
+            self.rbm[numRBMs-1] = self.rbm[numRBMs-1].applyCD(x)
         
         return self
         
