@@ -20,4 +20,4 @@ DBN:
 2.36-2.76% [on real test set, 10k/60k, vs 10k/50k before; eta=.009, wtinit=.01, mom: 0.99[or 0.9] ->0.9, free energy, penalty=.0002, using sigmoid]
 
 NN:
-1.21% [2000x1000x1000 network with dropout, wt init to N(0,.01), using ReLu, no pre-training, eta=.1, mom=0.99->0.9, penalty=.000001(or higher)]
+1.09% [2000x1000x1000 network with dropout, wt init to N(0,.01), using ReLu, no pre-training, eta=.1, mom=0.99->0.9, penalty=.000001(or higher), cost=crossentropy]
