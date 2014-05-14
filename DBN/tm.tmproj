@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>gnumpy.py</string>
+	<string>nn_class.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -14,11 +14,21 @@
 		</dict>
 		<dict>
 			<key>filename</key>
-			<string>gnumpy.py</string>
-			<key>lastUsed</key>
-			<date>2014-05-09T01:35:01Z</date>
+			<string>test_mnist_nn.py</string>
 			<key>selected</key>
 			<true/>
+		</dict>
+		<dict>
+			<key>filename</key>
+			<string>nn_class.py</string>
+			<key>lastUsed</key>
+			<date>2014-05-14T22:04:28Z</date>
+		</dict>
+		<dict>
+			<key>filename</key>
+			<string>gnumpy.py</string>
+			<key>lastUsed</key>
+			<date>2014-05-14T22:04:28Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
@@ -91,6 +101,20 @@
 				<integer>234</integer>
 			</dict>
 		</dict>
+		<key>nn_class.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>0</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+		</dict>
 		<key>rbm_class.py</key>
 		<dict>
 			<key>caret</key>
@@ -137,6 +161,7 @@
 	<key>openDocuments</key>
 	<array>
 		<string>gnumpy.py</string>
+		<string>nn_class.py</string>
 		<string>rbm_cudamath.py</string>
 		<string>test_mnist.py</string>
 		<string>rbm_class.py</string>
@@ -144,6 +169,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{24, 64}, {1078, 964}}</string>
+	<string>{{24, 88}, {1078, 964}}</string>
 </dict>
 </plist>

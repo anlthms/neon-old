@@ -26,7 +26,15 @@ class nn_class:
         self.maxEpoch = opts['maxEpoch']
         self.out = 'sigmoid' #'linear', or 'sigmoid'
         self.eta = opts['eta']
+        self.momentum = 0.9
         
+        #parameters
+        self.penalty =  .000001
+        self.dropoutFraction = .5 #what fraction to dropout
+        self.actfunc = 'relu' #'sigmoid' 'tanh' 'relu'
+        self.costfunc = 'crossentropy' #'crossentropy' , 'mse' 
+        #avgstart=5
+                
         if self.FROM_DBN_FLAG:
             #initialize the NN with RBM weights
             self.sizes = dbn.sizes
@@ -52,10 +60,16 @@ class nn_class:
             self.W = dict()
             self.b = dict()
             for eachLayer in range(self.numLayers-2):
-                self.W[eachLayer] = (np.random.rand(self.sizes[eachLayer], self.sizes[eachLayer+1]) - 0.5) * 2. * 4. * np.sqrt(6. / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1)) 
-                self.b[eachLayer] = np.zeros((self.sizes[eachLayer+1], 1)) #(np.random.rand(self.sizes[eachLayer+1], 1) - 0.5) * 2. * 4. * np.sqrt(6 / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1))
-                #self.W[eachLayer] = 0.01*np.random.randn( self.sizes[eachLayer], self.sizes[eachLayer+1]) 
-                #self.b[eachLayer] = 0.01*np.random.randn( self.sizes[eachLayer+1], 1)
+                # see here for more details on weight initialization: http://deeplearning.net/tutorial/mlp.html
+                if self.actfunc == 'sigmoid':
+                    self.W[eachLayer] = (np.random.rand(self.sizes[eachLayer], self.sizes[eachLayer+1]) - 0.5) * 2. * 4. * np.sqrt(6. / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1)) 
+                    self.b[eachLayer] = (np.random.rand(self.sizes[eachLayer+1], 1) - 0.5) * 2. * 4. * np.sqrt(6 / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1))
+                elif self.actfunc =='tanh':
+                    self.W[eachLayer] = (np.random.rand(self.sizes[eachLayer], self.sizes[eachLayer+1]) - 0.5) * 2. * np.sqrt(6. / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1)) 
+                    self.b[eachLayer] = (np.random.rand(self.sizes[eachLayer+1], 1) - 0.5) * 2. * 4. * np.sqrt(6 / (self.sizes[eachLayer] + self.sizes[eachLayer+1] +1))
+                elif self.actfunc =='relu':
+                    self.W[eachLayer] = 0.01*np.random.randn( self.sizes[eachLayer], self.sizes[eachLayer+1]) 
+                    self.b[eachLayer] = 0.01*np.random.randn( self.sizes[eachLayer+1], 1)
 
         eachLayer = self.numLayers-2
         if self.out == 'sigmoid':
@@ -67,12 +81,6 @@ class nn_class:
             #self.b[self.numLayers-1] = 0.01*np.random.randn( self.sizes[eachLayer+1], 1)
             
             
-        #parameters
-        self.penalty = .0001
-        self.momentum = 0.9
-        #avgstart=5
-        self.dropoutFraction = 0 #what fraction to dropout
-        self.actfunc = 'sigmoid' #'sigm' 'tanh' 'relu'
                 
     def tanh_opt(self, a):
         a.mult(2./3.)
@@ -109,23 +117,27 @@ class nn_class:
             return self.tanh_opt(x)
         
     #backpropagation steps
-    def train(self, features, target):
+    def train(self, features, target, resumeFlag=False):
         #change eta if changing batchsize
         batchsize=self.batchsize 
         numTotalSamples = features.shape[1]
         numBatches= int(np.ceil(float(numTotalSamples)/batchsize))
         
         #temporary variables for weight updates
-        self.Winc = dict()
-        self.binc = dict()
         r = dict()
         h = dict()
         err = dict()
         tmp = dict()
         
+        if not resumeFlag:
+            self.Winc = dict()
+            self.binc = dict()
+            
+            for eachLayer in range(self.numLayers-1):
+                self.Winc[eachLayer] = np.zeros_like(self.W[eachLayer])
+                self.binc[eachLayer] = np.zeros_like(self.b[eachLayer])
+
         for eachLayer in range(self.numLayers-1):
-            self.Winc[eachLayer] = np.zeros_like(self.W[eachLayer])
-            self.binc[eachLayer] = np.zeros_like(self.b[eachLayer])
             r[eachLayer] = cm.empty((self.sizes[eachLayer], self.batchsize)) #dropout mask
             
         for eachLayer in range(self.numLayers):           
@@ -190,6 +202,7 @@ class nn_class:
                 h[0].assign(data)
                 
                 if self.dropoutFraction > 0.: 
+                    eachLayer = 0
                     r[eachLayer].fill_with_rand()
                     #dropout fraction for input layer is .2 regardless of dropout for other layers (if >0.)
                     r[eachLayer].greater_than(0.2)
@@ -224,10 +237,11 @@ class nn_class:
                 
                 #compute backpropogating derivatives
                 if self.out == 'sigmoid': 
-                    err[eachLayer].mult(h[eachLayer])
-                    h[eachLayer].mult(-1., target=tmp[eachLayer])
-                    tmp[eachLayer].add(1.)
-                    err[eachLayer].mult(tmp[eachLayer])
+                    if self.costfunc == 'mse': #skip the multiplication with h*(1-h) for crossentropy cost function
+                        err[eachLayer].mult(h[eachLayer])
+                        h[eachLayer].mult(-1., target=tmp[eachLayer])
+                        tmp[eachLayer].add(1.)
+                        err[eachLayer].mult(tmp[eachLayer])
                 elif self.out == 'linear':
                     a1 = 1. #dummy, no op
                 
@@ -325,7 +339,7 @@ class nn_class:
                 h[eachLayer+1].add_col_vec(self.b[eachLayer])
                 h[eachLayer+1] = self.apply_actfunc(h[eachLayer+1]) 
                 if self.dropoutFraction > 0.:
-                    h[eachLayer+1].mult(1-self.dropoutFraction)
+                    h[eachLayer+1].mult(1.-self.dropoutFraction)
             
             eachLayer = self.numLayers - 2
             cm.dot(self.W[eachLayer].T, h[eachLayer], target=h[eachLayer+1])

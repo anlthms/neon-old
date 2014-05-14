@@ -57,16 +57,16 @@ testLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/t10k-
 #initialize DBN with 1 hidden layer : 100 nodes
 opts = dict()
 opts['numFeatures'] = 784
-#opts['sizes'] = [256]
+#opts['sizes'] = [800,800,800,800]
 #opts['sizes'] = [256, 256, 512, 512, 256, 256, 2048] #for investigation of different architectures
 opts['sizes'] = [512, 512, 2048]
 opts['eta'] = 0.009 #.005
-opts['momentum'] = 0.99 #initial momentum (first 5 epochs)
+opts['momentum'] = 0.9 #initial momentum (first 5 epochs)
 opts['batchsize'] = 100
 opts['maxEpoch'] = 30
 
 LOAD_EXISTING_DBN_MODEL = False
-USE_ASSOCIATIVE_MEMORY_LABELS=False
+USE_ASSOCIATIVE_MEMORY_LABELS=False #change to True if classifying using DBN
 
 perfVec = [] #store performance across iterations
 

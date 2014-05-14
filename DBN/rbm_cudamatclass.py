@@ -39,7 +39,7 @@ class rbm_class:
             self.cinc = np.zeros((numVisible, 1))
                     
         #parameters
-        self.actfunc = 'sigmoid' #'relu', 'sigmoid'
+        self.actfunc = 'relu' #'relu', 'sigmoid'
         self.penalty = .0002
         self.eta = opts['eta']
         self.momentum = opts['momentum'] #initial momentum

@@ -93,7 +93,7 @@ class rbm_class:
                 
                 #down
                 negdata = gn.dot(self.W,nhstates) + self.c 
-                negdatastates = rm.logistic(negdata) > gn.rand()
+                negdatastates = rm.logistic(negdata) > gn.rand(negdata.shape[0], negdata.shape[1])
 
                 #up again: non-sparse version
                 nh = rm.logistic(gn.dot(self.W.T,negdatastates) + self.b)
