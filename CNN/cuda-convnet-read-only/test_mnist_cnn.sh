@@ -9,7 +9,7 @@
 #consider changing #define MAX_DATA_ON_GPU in util.cuh
 
 #Train
-python convnet.py --data-path=./MNIST/ --save-path=./MNIST/saved/ --test-range=6 --train-range=1-5 --layer-def=./example-layers/layers-conv-local-mnist.cfg --layer-params=./example-layers/layer-params-conv-local-mnist.cfg --data-provider=mnist --test-freq=13 --crop-border=4 --epochs=10
+/usr/bin/python convnet.py --data-path=./MNIST/ --save-path=./MNIST/saved/ --test-range=6 --train-range=1-5 --layer-def=./example-layers/layers-conv-local-mnist.cfg --layer-params=./example-layers/layer-params-conv-local-mnist.cfg --data-provider=mnist --test-freq=13 --crop-border=4 --epochs=10
 
 #Test:
 #todo: replace the model
