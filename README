@@ -11,8 +11,10 @@ DBN/
         rbm_class.py: RBM numpy class (slow)
     dbn_class.py: DBN class
     nn_class.py: NN class (uses cudamat)
+CNN/
+    test_mnist_cnn.sh: Code to train CNN, using CUDAconvnet
     
-[todo: add DAE, CNN classes]
+[todo: add DAE classes]
 
 Best parameters so far for MNIST:
 
