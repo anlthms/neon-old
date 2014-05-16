@@ -1,16 +1,36 @@
 #using cuda-convnet to train on MNIST
 #benchmark performance from LeCun 1998 was 0.95% without distortions
 
-#todo: convert mnist data to colmajor
+#convert mnist data to colmajor
     #pickled data files [done]
-    #data provider class and change in command line below
-#todo: debug layer and params files
+    #data provider class and change in command line below [done]
+#todo: debug layer and params files 
 
 #consider changing #define MAX_DATA_ON_GPU in util.cuh
 
 #Train
-/usr/bin/python convnet.py --data-path=./MNIST/ --save-path=./MNIST/saved/ --test-range=6 --train-range=1-5 --layer-def=./example-layers/layers-conv-local-mnist.cfg --layer-params=./example-layers/layer-params-conv-local-mnist.cfg --data-provider=mnist --test-freq=13 --crop-border=4 --epochs=10
+/usr/bin/python convnet.py --data-path=./MNIST/ --save-path=./MNIST/saved/ --test-range=6 --train-range=1-6 --layer-def=./example-layers/layers-conv-local-mnist.cfg --layer-params=./example-layers/layer-params-conv-local-mnist.cfg --data-provider=mnist --test-freq=5 --epochs=40
+
+#to resume training , change cfg file, make sure ConvNet file is the latest one
+#add the validation set in and do more training epochs
+cp ./MNIST/saved/MNIST/saved/ConvNet__2014-05-15_17.47.51/* ./MNIST/saved/ConvNet__2014-05-15_17.47.51/
+python convnet.py -f ./MNIST/saved/ConvNet__2014-05-15_17.47.51  --train-range=1-6 --epochs=40
+#more epochs, with optionaly changing the cfg file learning rates
+python convnet.py -f ./MNIST/saved/ConvNet__2014-05-15_17.47.51/50.6  --epochs=60 
 
 #Test:
 #todo: replace the model
-python convnet.py -f ./MNIST/saved/ConvNet__2011-12-17_18.13.52 --multiview-test=1 --test-only=1 --logreg-name=logprob --test-range=7
+cp ./MNIST/saved/MNIST/saved/ConvNet__2014-05-15_17.47.51/* ./MNIST/saved/ConvNet__2014-05-15_17.47.51/
+python convnet.py -f ./MNIST/saved/ConvNet__2014-05-15_17.47.51 --test-only=1 --logreg-name=logprob --test-range=7
+
+#plotting cost function
+python shownet.py -f ./MNIST/saved/ConvNet__2014-05-15_16.15.47 --show-cost=logprob --cost-idx=1
+
+#visualize learned filters
+python shownet.py -f ./MNIST/saved/ConvNet__2014-05-15_16.15.47 --show-filters=conv1 --no-rgb=1
+
+#view test case predictions
+python shownet.py -f ./MNIST/saved/ConvNet__2014-05-15_16.15.47 --show-preds=probs
+
+#show errors:
+python shownet.py -f ./MNIST/saved/ConvNet__2014-05-15_16.15.47 --show-preds=probs --only-errors=1

@@ -50,9 +50,9 @@ out_file.close()
 #some info on format at URL below, but we need additional parameters
 #http://www.cs.toronto.edu/~kriz/cifar.html
 out_file = open('batches.meta','w')
-label_names = dict()
-for eachClass in range(10):
-    label_names[eachClass] = eachClass
+label_names = range(10)
+# for eachClass in range(10):
+#     label_names[eachClass] = eachClass
 num_cases_per_batch = 10000
 num_vis = 28**2
 data_mean = np.mean(trainData, axis=1)[:,np.newaxis]

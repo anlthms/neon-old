@@ -216,7 +216,10 @@ class ShowConvNet(ConvNet):
                 pl.subplot(NUM_ROWS*2, NUM_COLS, r * 2 * NUM_COLS + c + 1)
                 pl.xticks([])
                 pl.yticks([])
-                img = data[0][img_idx,:,:,:]
+                #for 3-channel data (original)
+                #img = data[0][img_idx,:,:,:]
+                #for MNIST/ 1-channel data
+                img = data[0][img_idx,:,:]
                 pl.imshow(img, interpolation='nearest')
                 true_label = int(data[1][0,img_idx])
 
