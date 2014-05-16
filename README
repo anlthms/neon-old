@@ -21,3 +21,6 @@ DBN:
 
 NN:
 1.09% [2000x1000x1000 network with dropout, wt init to N(0,.01), using ReLu, no pre-training, eta=.1, mom=0.99->0.9, penalty=.000001(or higher), cost=crossentropy]
+
+CNN:
+1.13% [CNN: 16c 2s 16c 2s 400f 400f 10o network, wt init to 0.1, using ReLu, no pre-training, eta=.01, 40-50 epochs, penalty=0.001]
