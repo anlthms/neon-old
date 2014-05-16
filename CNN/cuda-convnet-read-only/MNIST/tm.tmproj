@@ -3,46 +3,52 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>../convdata.py</string>
+	<string>../test_mnist_cnn.sh</string>
 	<key>documents</key>
 	<array>
 		<dict>
 			<key>filename</key>
 			<string>../convdata.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T22:17:47Z</date>
-			<key>selected</key>
-			<true/>
+			<date>2014-05-15T23:36:30Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>convert_mnist_data.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T20:07:18Z</date>
+			<date>2014-05-16T00:48:59Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>../example-layers/layer-params-conv-local-mnist.cfg</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T22:02:10Z</date>
+			<date>2014-05-16T01:15:11Z</date>
+		</dict>
+		<dict>
+			<key>filename</key>
+			<string>../example-layers/layer-params-conv-local-mnist_01.cfg</string>
+			<key>lastUsed</key>
+			<date>2014-05-15T23:37:14Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>../example-layers/layers-conv-local-mnist.cfg</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T22:02:09Z</date>
+			<date>2014-05-16T01:15:12Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>../convnet.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T20:07:19Z</date>
+			<date>2014-05-16T01:15:13Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>../test_mnist_cnn.sh</string>
 			<key>lastUsed</key>
-			<date>2014-05-15T22:02:10Z</date>
+			<date>2014-05-16T01:15:13Z</date>
+			<key>selected</key>
+			<true/>
 		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
@@ -63,14 +69,137 @@
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
+		<key>../convnet.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>35</integer>
+				<key>line</key>
+				<integer>173</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>9</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>23</integer>
+				<key>line</key>
+				<integer>173</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>41</integer>
+				<key>line</key>
+				<integer>173</integer>
+			</dict>
+		</dict>
+		<key>../example-layers/layer-params-conv-local-mnist.cfg</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>8</integer>
+				<key>line</key>
+				<integer>8</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+		</dict>
+		<key>../example-layers/layers-conv-local-mnist.cfg</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>9</integer>
+				<key>line</key>
+				<integer>5</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>3</integer>
+		</dict>
+		<key>../test_mnist_cnn.sh</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>114</integer>
+				<key>line</key>
+				<integer>23</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>23</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>114</integer>
+				<key>line</key>
+				<integer>23</integer>
+			</dict>
+		</dict>
+		<key>convert_mnist_data.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>55</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>1</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>53</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>55</integer>
+			</dict>
+		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>../convdata.py</string>
+		<string>convert_mnist_data.py</string>
+		<string>../example-layers/layer-params-conv-local-mnist.cfg</string>
+		<string>../example-layers/layers-conv-local-mnist.cfg</string>
+		<string>../test_mnist_cnn.sh</string>
+		<string>../convnet.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{247, 111}, {971, 1064}}</string>
+	<string>{{220, 114}, {971, 1064}}</string>
 </dict>
 </plist>
