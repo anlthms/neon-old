@@ -25,13 +25,21 @@ class nn_class:
         self.batchsize = opts['batchsize']
         self.maxEpoch = opts['maxEpoch']
         self.out = 'sigmoid' #'linear', or 'sigmoid'
-        self.eta = opts['eta']
-        self.momentum = 0.9
+        self.eta = opts['eta'] #REMEMBER: top layer is 5x this value
         
         #parameters
-        self.penalty =  0.000001
-        self.dropoutFraction = 0.5 #what fraction to dropout
-        self.actfunc = 'relu' #'sigmoid' 'tanh' 'relu'
+        self.penalty =  0. #0.000001
+        
+        self.actfunc = 'sigmoid' #'sigmoid' 'tanh' 'relu'
+        if self.actfunc =='sigmoid':
+            self.bias_eta = 0.1
+            self.momentum = 0.99 #0.8 #for pretrained DBN using Hinton , Science, 2006 values
+            self.dropoutFraction = 0.5 #what fraction to dropout
+        elif self.actfunc =='relu':
+            self.bias_eta = self.eta
+            self.momentum = 0.8 #0.9
+            self.dropoutFraction = 0 #0.5 
+            
         self.costfunc = 'crossentropy' #'crossentropy' , 'mse' 
         #avgstart=5
                 
@@ -154,7 +162,7 @@ class nn_class:
         target = cm.CUDAMatrix(target)
         
         if self.out == 'sigmoid':
-            mineta =.0001
+            mineta = 0. #.00001
         elif self.out =='linear':
             mineta =.001
         # if self.actfunc =='relu':
@@ -181,8 +189,12 @@ class nn_class:
             #pre computed values to help in tanh evaluation
             z1 = 1.7159 * 2./3. 
             z2 = 1./(1.7159)**2
-            momentum = self.momentum
-
+            #momentum = self.momentum
+            if epochs > 500:
+                self.momentum=0.99
+            else:
+                self.momentum = (epochs/500.)*0.5 + (1-epochs/500.)*0.99
+            
             #randomize the indices for the minibatch
             if SHUFFLE_FLAG:
                 idx = np.random.permutation(numTotalSamples) #not supported on cuda for now [ investigate]
@@ -266,12 +278,17 @@ class nn_class:
                         
                 #compute the weight updates
                 for eachLayer in range(self.numLayers-1):
+                    if eachLayer == self.numLayers-2:
+                        multFactor = 5.
+                    else:
+                        multFactor = 1.
                     self.binc[eachLayer].add_sums(err[eachLayer+1], axis=1)
-                    self.binc[eachLayer].mult(self.eta/batchsize)
+                    self.binc[eachLayer].mult(multFactor*self.bias_eta/batchsize)
                     if self.dropoutFraction > 0.:
                         h[eachLayer].mult(r[eachLayer])
-                    self.Winc[eachLayer].add_dot(h[eachLayer], err[eachLayer+1].T, mult=self.eta/batchsize)
-                    self.Winc[eachLayer].add_mult(self.W[eachLayer], alpha=self.penalty*self.eta)
+                    
+                    self.Winc[eachLayer].add_dot(h[eachLayer], err[eachLayer+1].T, mult=multFactor*self.eta/batchsize)
+                    self.Winc[eachLayer].add_mult(self.W[eachLayer], alpha=self.penalty*multFactor*self.eta)
                     
                     #apply the weight updates
                     self.W[eachLayer].subtract(self.Winc[eachLayer])
@@ -280,13 +297,13 @@ class nn_class:
                 
             #ipdb.set_trace()
             print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)
-            if errSum >= cur_err and not RANK_UPDATES:
-                self.eta /= 2.
-                print 'halving eta to ', self.eta
-                #todo: restore weights
-                
-            else:
-                cur_err = errSum
+            # if errSum >= cur_err and not RANK_UPDATES:
+            #     self.eta /= 2.
+            #     print 'halving eta to ', self.eta
+            #     #todo: restore weights
+            #     
+            # else:
+            #     cur_err = errSum
                 
             if self.eta< mineta:
                 #self.save_nn_weights()

@@ -39,15 +39,17 @@ class rbm_class:
             self.cinc = np.zeros((numVisible, 1))
                     
         #parameters
-        self.actfunc = 'relu' #'relu', 'sigmoid'
+        self.actfunc = 'sigmoid' #'relu', 'sigmoid'
         self.eta = opts['eta']
         self.momentum = opts['momentum'] #initial momentum
         if self.actfunc =='sigmoid':
             self.finalmomentum = 0.9
-            self.penalty = .0002
+            self.penalty = .00002
+            self.bias_eta = 0.1
         elif self.actfunc =='relu':
-            self.finalmomentum = 0.
+            self.finalmomentum = 0. 
             self.penalty = 0.
+            self.bias_eta = self.eta
             
         #avgstart=5
         self.maxEpoch = opts['maxEpoch']
@@ -132,6 +134,7 @@ class rbm_class:
         v = cm.empty((self.numVisible, self.batchsize))
         h = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
+        rv = cm.empty((self.numVisible, self.batchsize))
         penaltyTerm = cm.empty((self.W.shape[0], self.W.shape[1]))
         cur_err = np.inf
         
@@ -208,19 +211,19 @@ class rbm_class:
                 
                 # update weights: todo: add penalty
                 self.W.add_mult(self.Winc, self.eta/batchsize) #for penalty : - self.eta*self.penalty*self.W)
-                self.c.add_mult(self.cinc, self.eta/batchsize)
-                self.b.add_mult(self.binc, self.eta/batchsize)
+                self.c.add_mult(self.cinc, self.bias_eta/batchsize)
+                self.b.add_mult(self.binc, self.bias_eta/batchsize)
 
                 # calculate reconstruction error
                 v.subtract(data)
                 errSum += v.manhattan_norm()
                 #err.append(v.euclid_norm()**2/(self.numVisible*batchsize))
                 
-            if errSum >= cur_err:
-                self.eta /= 2.
-                print 'halving eta to ', self.eta
-            else:
-                cur_err = errSum
+            # if errSum >= cur_err:
+            #     self.eta /= 2.
+            #     print 'halving eta to ', self.eta
+            # else:
+            #     cur_err = errSum
                 
             print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)
             self.epochsRun += 1
@@ -300,6 +303,7 @@ class rbm_class:
         h = cm.empty((self.numHidden, self.batchsize))
         ht = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
+        rv = cm.empty((self.numVisible, self.batchsize))
         penaltyTerm = cm.empty((self.W.shape[0], self.W.shape[1]))
         penaltyTermcc = cm.empty((self.Wc.shape[0], self.Wc.shape[1]))
         
@@ -411,12 +415,12 @@ class rbm_class:
                 self.W.mult(self.eta*self.penalty, target=penaltyTerm)
                 self.W.subtract(penaltyTerm) #for penalty : - self.eta*self.penalty*self.W)
                 self.W.add_mult(self.Winc, self.eta/batchsize) 
-                self.c.add_mult(self.cinc, self.eta/batchsize)
-                self.b.add_mult(self.binc, self.eta/batchsize)
+                self.c.add_mult(self.cinc, self.bias_eta/batchsize)
+                self.b.add_mult(self.binc, self.bias_eta/batchsize)
                 self.Wc.mult(self.eta*self.penalty, target=penaltyTermcc)
                 self.Wc.subtract(penaltyTermcc) #for penalty : - self.eta*self.penalty*self.W)
                 self.Wc.add_mult(self.Wcinc, self.eta/batchsize) #for penalty : - self.eta*self.penalty*self.W)
-                self.cc.add_mult(self.ccinc, self.eta/batchsize)
+                self.cc.add_mult(self.ccinc, self.bias_eta/batchsize)
                 
                 # calculate reconstruction error
                 v.subtract(data)
@@ -425,11 +429,11 @@ class rbm_class:
                 #err.append((v.euclid_norm()**2 + vt.euclid_norm()**2)/(self.numVisible*batchsize))
                 #err2.append(vt.manhattan_norm()/(self.numVisible*batchsize))
             
-            if errSum >= cur_err:
-                self.eta /= 2.
-                print 'halving eta to ', self.eta
-            else:
-                cur_err = errSum
+            # if errSum >= cur_err:
+            #     self.eta /= 2.
+            #     print 'halving eta to ', self.eta
+            # else:
+            #     cur_err = errSum
             print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)  #+ '; Misclassification rate: ' + str(np.mean(err2))
             self.epochsRun += 1
             end_time=time.time()
@@ -453,7 +457,7 @@ class rbm_class:
         #method used to predict the target_field
         #PREDICTION_METHOD = 1; probability method, target_feature represented as softmax
         #PREDICTION_METHOD = 2; free-energy method, target_feature represented as softmax
-        PREDICTION_METHOD = 1
+        PREDICTION_METHOD = 2
 
         print "**********************************Generating predictions**********************************"
         start_time=time.time()

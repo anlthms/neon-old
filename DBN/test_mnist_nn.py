@@ -7,14 +7,18 @@ import mnist_ubyte as mu
 import cudamat as cm
 import nn_class as nc
 
+zscore = lambda x: (x - x.mean(axis=1)[:,np.newaxis]) / (x.std())
+
 #mnist load code
 trainData = mu.read_mnist_images('/usr/local/data/datasets/pylearn2/mnist/train-images-idx3-ubyte' , dtype='float32')
 trainData = np.reshape(trainData, (60000,784)).T
+#trainData = zscore(trainData) #for debugging relu only
 trainLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/train-labels-idx1-ubyte')
 #trainLabels = int(trainLabels)
 
 testData = mu.read_mnist_images('/usr/local/data/datasets/pylearn2/mnist/t10k-images-idx3-ubyte' , dtype='float32')
 testData = np.reshape(testData, (10000,784)).T
+#testData = zscore(testData) #for debugging relu only
 testLabels = mu.read_mnist_labels('/usr/local/data/datasets/pylearn2/mnist/t10k-labels-idx1-ubyte')
 
 #initialize NN with 1 hidden layer : 100 nodes
@@ -23,13 +27,13 @@ opts['numFeatures'] = 784
 opts['sizes'] = [2000, 1000, 1000]
 #opts['sizes'] = [256, 256, 512, 512, 256, 256, 2048] #for investigation of different architectures
 #opts['sizes'] = [512, 512, 2048]
-opts['eta'] = .1 #.005
+opts['eta'] = .01 #.005
 #opts['momentum'] = 0.5 #initial momentum (first 5 epochs)
 opts['batchsize'] = 100
-opts['maxEpoch'] = 10
+opts['maxEpoch'] = 1000
 opts['FILE_LOAD_FLAG'] = False
-opts['FROM_DBN_FLAG'] = False #if True use pre-trained DBN
-LOAD_EXISTING_NN_MODEL = True
+opts['FROM_DBN_FLAG'] = True #if True use pre-trained DBN
+LOAD_EXISTING_NN_MODEL = False
 
 dbn = pickle.load(open('mnist_dbn.pkl'))
 
