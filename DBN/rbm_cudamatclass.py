@@ -29,7 +29,7 @@ class rbm_class:
             self.numHidden = numHidden
             self.numVisible = numVisible
             
-            self.initwt = .01 
+            self.initwt = .01 #From Hinton dropout paper
             self.W = self.initwt*np.random.randn(numVisible, numHidden)
             self.c = np.zeros((numVisible, 1))
             self.b = np.zeros((numHidden, 1))
@@ -40,15 +40,22 @@ class rbm_class:
                     
         #parameters
         self.actfunc = 'relu' #'relu', 'sigmoid'
-        self.penalty = .0002
         self.eta = opts['eta']
         self.momentum = opts['momentum'] #initial momentum
-        self.finalmomentum = 0.9
+        if self.actfunc =='sigmoid':
+            self.finalmomentum = 0.9
+            self.penalty = .0002
+        elif self.actfunc =='relu':
+            self.finalmomentum = 0.
+            self.penalty = 0.
+            
         #avgstart=5
         self.maxEpoch = opts['maxEpoch']
         self.batchsize = opts['batchsize']
         self.epochsRun = 0
         self.SHUFFLE_FLAG = False
+        #self.dropoutFraction = 0.5 #what fraction to dropout
+        
         
     def save_rbm_weights(self, labelsFlag=False):
         if labelsFlag:
@@ -126,6 +133,7 @@ class rbm_class:
         h = cm.empty((self.numHidden, self.batchsize))
         r = cm.empty((self.numHidden, self.batchsize))
         penaltyTerm = cm.empty((self.W.shape[0], self.W.shape[1]))
+        cur_err = np.inf
         
         for epochs in range(0,self.maxEpoch):
             #if (epochs+1) % 5 == 0: #save the parameters every 5 epochs
@@ -173,13 +181,16 @@ class rbm_class:
                     r.less_than(h, target = h)
                 elif self.actfunc == 'relu':
                     r.fill_with_randn()
+                    r.mult(0.2)
                     h.add(r)
                 
                 #down: negdata = gn.dot(self.W,nhstates) + self.c 
                 cm.dot(self.W, h, target=v)
                 v.add_col_vec(self.c)
-                v = self.apply_actfunc(v)
-                #v.apply_sigmoid()
+                if self.actfunc =='sigmoid':
+                    v = self.apply_actfunc(v)
+                elif self.actfunc == 'relu':
+                    a12 = 1 #no-op
                 
                 #ignore for now: negdatastates = rm.logistic(negdata) > gn.rand()
                 
@@ -204,6 +215,12 @@ class rbm_class:
                 v.subtract(data)
                 errSum += v.manhattan_norm()
                 #err.append(v.euclid_norm()**2/(self.numVisible*batchsize))
+                
+            if errSum >= cur_err:
+                self.eta /= 2.
+                print 'halving eta to ', self.eta
+            else:
+                cur_err = errSum
                 
             print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)
             self.epochsRun += 1
@@ -291,7 +308,8 @@ class rbm_class:
         self.tmp = cm.empty((self.numClasses, self.batchsize))
         self.denom = cm.empty((1, self.batchsize))
         self.mu = cm.CUDAMatrix(np.zeros((self.numClasses, self.batchsize)))
-
+        cur_err = np.inf
+        
         for epochs in range(0,self.maxEpoch):
             #if (epochs+1) % 5 == 0: #save the parameters every 5 epochs
             #    self.save_rbm_weights()
@@ -350,13 +368,16 @@ class rbm_class:
                     r.less_than(h, target = h)
                 elif self.actfunc == 'relu':
                     r.fill_with_randn()
+                    r.mult(0.2)
                     h.add(r)
                 
                 #down: negdata = gn.dot(self.W,nhstates) + self.c 
                 cm.dot(self.W, h, target=v)
                 v.add_col_vec(self.c)
-                v = self.apply_actfunc(v)
-                #v.apply_sigmoid()
+                if self.actfunc =='sigmoid':
+                    v = self.apply_actfunc(v)
+                elif self.actfunc == 'relu':
+                    a12 = 1 #no-op
                 
                 #ignore for now: negdatastates = rm.logistic(negdata) > gn.rand()
                 
@@ -364,7 +385,12 @@ class rbm_class:
                 #ignore for now: negclassesstates = rm.softmax_sample(negclasses)
                 cm.dot(self.Wc, h, target=vt)
                 vt.add_col_vec(self.cc)
-                vt = self.softmax(vt)
+                if self.actfunc == 'sigmoid':
+                    vt = self.softmax(vt)
+                elif self.actfunc =='relu':
+                    a12 = 1 #no-op
+                    #vt = self.softmax(vt)
+                    vt = self.relu(vt)
                 #vt.apply_sigmoid() #for investigation only
                 
                 #up again: nh = rm.logistic(gn.dot(self.W.T,negdatastates) + gn.dot(self.Wc.T,negclassesstates) + self.b)
@@ -398,7 +424,12 @@ class rbm_class:
                 errSum += vt.manhattan_norm()
                 #err.append((v.euclid_norm()**2 + vt.euclid_norm()**2)/(self.numVisible*batchsize))
                 #err2.append(vt.manhattan_norm()/(self.numVisible*batchsize))
-                
+            
+            if errSum >= cur_err:
+                self.eta /= 2.
+                print 'halving eta to ', self.eta
+            else:
+                cur_err = errSum
             print 'Ended epoch ' + str(epochs+1) + '/' + str(self.maxEpoch) +  '; Reconstruction error= ' + str(errSum)  #+ '; Misclassification rate: ' + str(np.mean(err2))
             self.epochsRun += 1
             end_time=time.time()
@@ -422,7 +453,7 @@ class rbm_class:
         #method used to predict the target_field
         #PREDICTION_METHOD = 1; probability method, target_feature represented as softmax
         #PREDICTION_METHOD = 2; free-energy method, target_feature represented as softmax
-        PREDICTION_METHOD = 2
+        PREDICTION_METHOD = 1
 
         print "**********************************Generating predictions**********************************"
         start_time=time.time()

@@ -24,12 +24,12 @@ opts['sizes'] = [2000, 1000, 1000]
 #opts['sizes'] = [256, 256, 512, 512, 256, 256, 2048] #for investigation of different architectures
 #opts['sizes'] = [512, 512, 2048]
 opts['eta'] = .1 #.005
-opts['momentum'] = 0.99 #initial momentum (first 5 epochs)
+#opts['momentum'] = 0.5 #initial momentum (first 5 epochs)
 opts['batchsize'] = 100
-opts['maxEpoch'] = 50
+opts['maxEpoch'] = 10
 opts['FILE_LOAD_FLAG'] = False
-opts['FROM_DBN_FLAG'] = False
-LOAD_EXISTING_NN_MODEL = False
+opts['FROM_DBN_FLAG'] = False #if True use pre-trained DBN
+LOAD_EXISTING_NN_MODEL = True
 
 dbn = pickle.load(open('mnist_dbn.pkl'))
 

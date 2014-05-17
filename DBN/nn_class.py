@@ -29,8 +29,8 @@ class nn_class:
         self.momentum = 0.9
         
         #parameters
-        self.penalty =  .000001
-        self.dropoutFraction = .5 #what fraction to dropout
+        self.penalty =  0.000001
+        self.dropoutFraction = 0.5 #what fraction to dropout
         self.actfunc = 'relu' #'sigmoid' 'tanh' 'relu'
         self.costfunc = 'crossentropy' #'crossentropy' , 'mse' 
         #avgstart=5

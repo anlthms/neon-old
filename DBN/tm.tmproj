@@ -8,21 +8,27 @@
 	<array>
 		<dict>
 			<key>filename</key>
+			<string>rbm_cudamatclass.py</string>
+			<key>lastUsed</key>
+			<date>2014-05-17T02:13:38Z</date>
+		</dict>
+		<dict>
+			<key>filename</key>
 			<string>dbn_class.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-09T01:34:57Z</date>
+			<date>2014-05-17T00:08:29Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>test_mnist_nn.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-14T23:00:51Z</date>
+			<date>2014-05-17T02:13:59Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>nn_class.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-14T23:00:51Z</date>
+			<date>2014-05-17T02:13:59Z</date>
 			<key>selected</key>
 			<true/>
 		</dict>
@@ -30,7 +36,7 @@
 			<key>filename</key>
 			<string>gnumpy.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-14T22:04:28Z</date>
+			<date>2014-05-16T20:18:00Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
@@ -44,7 +50,7 @@
 			<key>filename</key>
 			<string>rbm_class.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-08T22:35:22Z</date>
+			<date>2014-05-16T20:17:33Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
@@ -56,7 +62,7 @@
 			<key>filename</key>
 			<string>rbm_cudamath.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-08T22:53:02Z</date>
+			<date>2014-05-16T20:19:23Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
@@ -66,126 +72,80 @@
 			<key>filename</key>
 			<string>test_mnist.py</string>
 			<key>lastUsed</key>
-			<date>2014-05-08T22:56:13Z</date>
+			<date>2014-05-17T01:51:24Z</date>
 		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
 	<integer>200</integer>
 	<key>metaData</key>
 	<dict>
-		<key>gnumpy.py</key>
+		<key>dbn_class.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>214</integer>
+				<integer>54</integer>
 				<key>line</key>
-				<integer>234</integer>
+				<integer>26</integer>
 			</dict>
-			<key>columnSelection</key>
-			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>203</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>211</integer>
-				<key>line</key>
-				<integer>234</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>214</integer>
-				<key>line</key>
-				<integer>234</integer>
-			</dict>
+			<integer>0</integer>
 		</dict>
 		<key>nn_class.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>115</integer>
+				<integer>25</integer>
 				<key>line</key>
-				<integer>239</integer>
+				<integer>31</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>217</integer>
+			<integer>32</integer>
 		</dict>
-		<key>rbm_class.py</key>
+		<key>rbm_cudamatclass.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>28</integer>
 				<key>line</key>
-				<integer>0</integer>
+				<integer>31</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>31</integer>
-		</dict>
-		<key>rbm_cudamath.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>15</integer>
-				<key>line</key>
-				<integer>33</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>0</integer>
+			<integer>12</integer>
 		</dict>
 		<key>test_mnist.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>20</integer>
+				<integer>35</integer>
 				<key>line</key>
-				<integer>19</integer>
+				<integer>74</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>0</integer>
-		</dict>
-		<key>test_mnist_nn.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>20</integer>
-				<key>line</key>
-				<integer>28</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>46</integer>
+			<integer>38</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>gnumpy.py</string>
-		<string>nn_class.py</string>
-		<string>test_mnist_nn.py</string>
-		<string>rbm_cudamath.py</string>
+		<string>rbm_cudamatclass.py</string>
 		<string>test_mnist.py</string>
-		<string>rbm_class.py</string>
+		<string>nn_class.py</string>
+		<string>dbn_class.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{912, 282}, {1078, 964}}</string>
+	<string>{{361, 148}, {1332, 1030}}</string>
 </dict>
 </plist>
