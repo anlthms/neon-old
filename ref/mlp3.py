@@ -1,8 +1,8 @@
 """
-MLP using basic operations - version 2.
+MLP using basic operations - version 3.
 
-The activation and the cost function can be configured externally
-in this version.  
+Added support for multiple hidden layers. Each layer can be configured
+with its own activation function.
  
 """
 
@@ -18,7 +18,6 @@ def logistic_prime(z):
     return y * (1.0 - y) 
 
 def ce_de(outputs, targets):
-    ''' Derivative of cross entropy with respect to the output ''' 
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
 def init_weights(nrows, ncols):
@@ -28,53 +27,63 @@ def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
 
 class MultilayerPerceptron:
-    def fit(self, inputs, targets, nepochs, epsilon, nhidden, 
-            g, gprime, de):
-        ''' The extra parameters are:
-                g       : the activation function.
-                gprime  : derivative of the activation function with respect
-                          to its inputs.
-                de      : derivative of the cost function with respect
-                          to the output of the network.
-        '''
+    def fit(self, inputs, targets, nepochs, epsilon,
+            nhidden, g, gprime, de):
         nin = inputs.shape[1]
         nout = targets.shape[1]
     
         self.g = g
         self.gprime = gprime
         self.de = de
-        self.weights1 = init_weights(nin, nhidden)
-        self.weights2 = init_weights(nhidden, nout)
+        self.nlayers = len(nhidden) + 1
+        self.weights = [init_weights(i, j)
+                        for i, j in zip([nin] + nhidden, nhidden + [nout])]
 
         for epoch in range(nepochs): 
-            z1, hidden, z2, outputs = self.fprop(inputs)
-            self.bprop(inputs, z1, hidden, z2, outputs, targets, epsilon)
+            results = self.fprop(inputs)
+            self.bprop(inputs, results, targets, epsilon)
 
     def predict(self, inputs):
-        z1, hidden, z2, outputs = self.fprop(inputs)
+        results = self.fprop(inputs)
+        outputs = results[-1][1]
         preds = np.argmax(outputs, axis=1) 
         return preds
 
     def fprop(self, inputs):
-        z1 = np.dot(inputs, self.weights1)
-        hidden = self.g(z1)
-        z2 = np.dot(hidden, self.weights2)
-        outputs = self.g(z2)
-        return z1, hidden, z2, outputs
+        results = [] 
+        y = inputs
+        for layer in range(self.nlayers): 
+            z = np.dot(y, self.weights[layer])
+            y = self.g[layer](z)
+            results.append((z, y))
 
-    def bprop(self, inputs, z1, hidden, z2, outputs, targets, epsilon):
-        delta2 = self.de(outputs, targets) * self.gprime(z2) 
-        delta1 = np.dot(delta2, self.weights2.T) * self.gprime(z1) 
-        self.weights2 -= epsilon * np.dot(hidden.T, delta2)
-        self.weights1 -= epsilon * np.dot(inputs.T, delta1)
+        return results
+
+    def bprop(self, inputs, results, targets, epsilon):
+        # Compute the deltas for each layer.
+        layer = self.nlayers - 1
+        z, y = results[layer]
+        deltas = [self.de(y, targets) * self.gprime[layer](z)]
+        while layer > 0:
+            layer -= 1 
+            z = results[layer][0]
+            deltas.insert(0, np.dot(deltas[0], self.weights[layer + 1].T) * \
+                          self.gprime[layer](z))
+
+        # Update the weights.
+        self.weights[0] -= epsilon * np.dot(inputs.T, deltas[0])
+        for layer in range(1, self.nlayers):
+            y = results[layer - 1][1]
+            self.weights[layer] -= epsilon * np.dot(y.T, deltas[layer])
 
 if __name__ == '__main__':
     np.random.seed(0)
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002, nhidden=50,
-            g=logistic, gprime=logistic_prime, de=ce_de)
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002,
+            nhidden=[50], g=[logistic, logistic],
+            gprime=[logistic_prime, logistic_prime], de=ce_de)
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)
