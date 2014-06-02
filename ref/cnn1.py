@@ -1,19 +1,12 @@
 """
 CNN using basic operations - version 1.
-
-XXX: Currently broken - the training error refuses to go down
-     beyond a certain point.
  
 """
 
 import math
 import cPickle
 import numpy as np
-from scipy.signal import fftconvolve 
 
-def cross_entropy(outputs, targets):
-    return np.mean(-targets * np.log(outputs) - \
-                   (1 - targets) * np.log(1 - outputs))
 def logistic(x):
     return 1.0 / (1.0 + np.exp(-x))
 
@@ -21,15 +14,33 @@ def logistic_prime(z):
     y = logistic(z)
     return y * (1.0 - y) 
 
+def tanh(z):
+    y = np.exp(-2 * z)
+    return  (1.0 - y) / (1.0 + y)
+
+def tanh_prime(z):
+    y = tanh(z)
+    return 1.0 - y * y
+
 def get_prime(func):
     if func == logistic:
         return logistic_prime
+    if func == tanh:
+        return tanh_prime
+
+def get_loss_de(func):
+    if func == ce:
+        return ce_de
+
+def ce(outputs, targets):
+    return np.mean(-targets * np.log(outputs) - \
+                   (1 - targets) * np.log(1 - outputs))
 
 def ce_de(outputs, targets):
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
 def init_weights(nrows, ncols):
-    return 0.01 * np.random.randn(nrows, ncols)
+    return 0.1 * np.random.randn(nrows, ncols)
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
@@ -77,83 +88,59 @@ class ConvLayer:
         self.z = np.zeros((inputs.shape[0], self.nout))
         for i in range(self.nfilt):
             filt = self.weights[i]
-            src = 0
+            src = 0 # This variable tracks the top left corner
+                    # of the receptive field.
             for dst in range(self.fmsize):
-                # This loop can probably be optimized. I don't want to spend
-                # time on it if we are going to use a DSP for convolution.
+                # This loop can be replaced with a call
+                # to scipy.signal.fftconvolve.
                 colinds = []
                 for row in range(self.fheight):
+                    # Collect the column indices for the
+                    # entire receptive field.
                     start = src + row * self.iwidth
                     colinds += range(start, start + self.fwidth) 
-                self.z[:, (i * self.fmsize + dst)] = np.dot(inputs[:, colinds], filt)  
-                src += 1
-                if (src % self.iwidth + self.fwidth) > self.iwidth:
-                    src += self.fwidth - 1
 
-        self.y = self.g(self.z)
-        return self.y
+                # Compute the weighted average of the receptive field
+                # and store the result within the destination feature map.
+                self.z[:, (i * self.fmsize + dst)] = \
+                        np.dot(inputs[:, colinds], filt)
+                if (src % self.iwidth + self.fwidth) >= self.iwidth:
+                    # We hit the right edge of the input image.
+                    # Sweep the filter over to the next row.
+                    src += self.fwidth
+                else:
+                    # Slide the filter by 1 cell.
+                    src += 1
 
-    def fpropfft_unused(self, inputs):
-        self.z = np.zeros((inputs.shape[0], self.nout))
-        for i in range(self.nfilt):
-            filt = self.weights[i].reshape((self.fheight, self.fwidth))
-            for j in range(inputs.shape[0]):
-                self.z[j, (i * self.fmsize):(i + 1) * self.fmsize] = \
-                        fftconvolve(inputs[j,:].reshape((self.iheight,
-                        self.iwidth)), filt, mode='valid').flatten()
-        self.y = self.g(self.z)
-        return self.y
-
-    def fpropfft3d_unused(self, inputs):
-        self.z = np.zeros((inputs.shape[0], self.nout))
-        for i in range(self.nfilt):
-            filt = self.weights[i].reshape((1, self.fheight, self.fwidth))
-            self.z[:, (i * self.fmsize):(i + 1) * self.fmsize] = \
-                        fftconvolve(inputs.reshape((inputs.shape[0],
-                        self.iheight, self.iwidth)), filt,
-                        mode='valid').reshape((inputs.shape[0], self.fmsize))
         self.y = self.g(self.z)
         return self.y
 
     def bprop(self, error):
         self.delta = error * self.gprime(self.z)
 
-    def update_unused(self, inputs, epsilon):
+    def update(self, inputs, epsilon):
         for i in range(self.nfilt):
             wsums = np.zeros(self.weights[i].shape) 
             src = 0
-            # Note that this can also be replaced with a call to
-            # fftconvolve (like in fpropfft).
             for dst in range(self.fmsize):
+                # This loop can be replaced with a call
+                # to scipy.signal.fftconvolve.
                 colinds = []
                 for row in range(self.fheight):
                     start = src + row * self.iwidth
                     colinds += range(start, start + self.fwidth) 
                 wsums += np.dot(inputs[:, colinds].T, self.delta[:, dst])
-                src += 1
-                if (src % self.iwidth + self.fwidth) > self.iwidth:
-                    src += self.fwidth - 1
-
+                if (src % self.iwidth + self.fwidth) >= self.iwidth:
+                    src += self.fwidth
+                else:
+                    src += 1
             self.weights[i] -= epsilon * (wsums / self.fmsize) 
 
-    def update(self, inputs, epsilon):
-        for i in range(self.nfilt):
-            wsums = np.zeros(self.fsize) 
-            src = 0
-            for dst in range(self.fmsize):
-                for w in range(self.fsize):
-                    colind = src + w 
-                    wsums[w] += np.dot(inputs[:, colind].T, self.delta[:, dst])
-                src += 1
-                if (src % self.iwidth + self.fwidth) > self.iwidth:
-                    src += self.fwidth - 1
-
-            self.weights[i] -= epsilon * (wsums / self.fmsize) 
-
-class MultilayerPerceptron:
-    def fit(self, inputs, targets, nepochs, epsilon, confs, de):
+class Network:
+    def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
         nin = inputs.shape[1]
-        self.de = de
+        self.loss = loss
+        self.de = get_loss_de(loss) 
         self.nlayers = len(confs)
         self.layers = []
         for i in range(self.nlayers):
@@ -165,7 +152,7 @@ class MultilayerPerceptron:
             self.fprop(inputs)
             self.bprop(inputs, targets)
             self.update(inputs, epsilon) 
-            error = cross_entropy(self.layers[-1].y, targets)
+            error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
                    str(round(error, 5))
 
@@ -179,7 +166,7 @@ class MultilayerPerceptron:
             return Layer(nin, nout=conf[2], g=conf[1])
 
         if conf[0] == Type.conv:
-            return ConvLayer(nin, g=conf[1], ishape = conf[2],
+            return ConvLayer(nin, g=conf[1], ishape=conf[2],
                              fshape=conf[3], nfilt=conf[4])
 
     def fprop(self, inputs):
@@ -206,11 +193,11 @@ if __name__ == '__main__':
     np.random.seed(0)
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
-    net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=10, epsilon=0.00002,
-            de=ce_de,
-            confs=[(Type.conv, logistic, (28, 28), (5, 5), 1),
-                   (Type.fcon, logistic, 50),
+    net = Network()
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.00008,
+            loss=ce,
+            confs=[(Type.conv, tanh, (28, 28), (5, 5), 2),
+                   (Type.fcon, tanh, 50),
                    (Type.fcon, logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)
