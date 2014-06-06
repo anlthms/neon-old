@@ -62,8 +62,9 @@ class Layer:
         self.y = self.g(self.z)
         return self.y
 
-    def bprop(self, error):
-        self.delta = error * self.gprime(self.z)
+    def bprop(self, nextlayer):
+        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
+                     self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
@@ -115,8 +116,9 @@ class ConvLayer:
         self.y = self.g(self.z)
         return self.y
 
-    def bprop(self, error):
-        self.delta = error * self.gprime(self.z)
+    def bprop(self, nextlayer):
+        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
+                     self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         for i in range(self.nfilt):
@@ -177,12 +179,12 @@ class Network:
 
     def bprop(self, inputs, targets):
         i = self.nlayers - 1
-        error = self.de(self.layers[i].y, targets)
-        self.layers[i].bprop(error)
+        lastlayer = self.layers[i]
+        lastlayer.delta = self.de(lastlayer.y, targets) * \
+                          lastlayer.gprime(lastlayer.z) 
         while i > 0:
-            error = np.dot(self.layers[i].delta, self.layers[i].weights.T) 
             i -= 1 
-            self.layers[i].bprop(error)
+            self.layers[i].bprop(self.layers[i + 1])
 
     def update(self, inputs, epsilon):
         self.layers[0].update(inputs, epsilon)
