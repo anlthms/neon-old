@@ -20,20 +20,32 @@ def get_prime(func):
     if func == logistic:
         return logistic_prime
 
+def get_loss_de(func):
+    if func == ce:
+        return ce_de
+
+def ce(outputs, targets):
+    return np.mean(-targets * np.log(outputs) - \
+                   (1 - targets) * np.log(1 - outputs))
+
 def ce_de(outputs, targets):
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
-def init_weights(nrows, ncols):
-    return 0.01 * np.random.randn(nrows, ncols)
+def init_weights(shape):
+    return np.random.uniform(-0.1, 0.1, shape)
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
 
+class Type:
+    fcon = 0    # Fully connected
+
 class Layer:
     def __init__(self, nin, nout, g):
-        self.weights = init_weights(nin, nout)
+        self.weights = init_weights((nin, nout))
         self.g = g
         self.gprime = get_prime(g)
+        self.nout = nout
         
     def fprop(self, inputs):
         self.z = np.dot(inputs, self.weights)
@@ -48,14 +60,17 @@ class Layer:
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
 
 class MultilayerPerceptron:
-    def fit(self, inputs, targets, nepochs, epsilon,
-            nhidden, g, de):
-        nunits = [inputs.shape[1]] + nhidden + [targets.shape[1]]
-    
-        self.de = de
-        self.nlayers = len(nhidden) + 1
-        self.layers = [Layer(nunits[i], nunits[i + 1], g[i])
-                       for i in range(self.nlayers)]
+    def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
+        nin = inputs.shape[1]
+        self.loss = loss
+        self.de = get_loss_de(loss) 
+        self.nlayers = len(confs)
+        self.layers = []
+        for i in range(self.nlayers):
+            layer = self.lcreate(nin, confs[i])
+            self.layers.append(layer)
+            nin = layer.nout
+
         for epoch in range(nepochs): 
             self.fprop(inputs)
             self.bprop(inputs, targets)
@@ -65,6 +80,10 @@ class MultilayerPerceptron:
         outputs = self.fprop(inputs)
         preds = np.argmax(outputs, axis=1) 
         return preds
+
+    def lcreate(self, nin, conf):
+        if conf[0] == Type.fcon:
+            return Layer(nin, nout=conf[2], g=conf[1])
 
     def fprop(self, inputs):
         y = inputs
@@ -91,8 +110,10 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002,
-            nhidden=[50], g=[logistic, logistic], de=ce_de)
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
+            loss=ce,
+            confs=[(Type.fcon, logistic, 64),
+                   (Type.fcon, logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)

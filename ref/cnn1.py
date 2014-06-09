@@ -6,44 +6,7 @@ CNN using basic operations - version 1.
 import math
 import cPickle
 import numpy as np
-
-def logistic(x):
-    return 1.0 / (1.0 + np.exp(-x))
-
-def logistic_prime(z):
-    y = logistic(z)
-    return y * (1.0 - y) 
-
-def tanh(z):
-    y = np.exp(-2 * z)
-    return  (1.0 - y) / (1.0 + y)
-
-def tanh_prime(z):
-    y = tanh(z)
-    return 1.0 - y * y
-
-def get_prime(func):
-    if func == logistic:
-        return logistic_prime
-    if func == tanh:
-        return tanh_prime
-
-def get_loss_de(func):
-    if func == ce:
-        return ce_de
-
-def ce(outputs, targets):
-    return np.mean(-targets * np.log(outputs) - \
-                   (1 - targets) * np.log(1 - outputs))
-
-def ce_de(outputs, targets):
-    return (outputs - targets) / (outputs * (1.0 - outputs)) 
-
-def init_weights(nrows, ncols):
-    return 0.1 * np.random.randn(nrows, ncols)
-
-def error_rate(preds, labels):
-    return 100.0 * np.mean(np.not_equal(preds, labels))
+from common import *
 
 class Type:
     fcon = 0    # Fully connected
@@ -52,7 +15,7 @@ class Type:
 
 class Layer:
     def __init__(self, nin, nout, g):
-        self.weights = init_weights(nin, nout)
+        self.weights = init_weights((nin, nout))
         self.g = g
         self.gprime = get_prime(g)
         self.nout = nout
@@ -81,7 +44,7 @@ class ConvLayer:
 
         self.nfilt = nfilt
         self.fsize = self.fheight * self.fwidth 
-        self.weights = init_weights(nfilt, self.fsize)
+        self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
         
@@ -199,7 +162,7 @@ if __name__ == '__main__':
     net.fit(trainData, trainTargets, nepochs=100, epsilon=0.00008,
             loss=ce,
             confs=[(Type.conv, tanh, (28, 28), (5, 5), 2),
-                   (Type.fcon, tanh, 50),
+                   (Type.fcon, tanh, 64),
                    (Type.fcon, logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)

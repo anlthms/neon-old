@@ -1,5 +1,7 @@
 """
-Autoencoder using basic operations - version 1.
+MLP using basic operations - version 5.
+
+Two hidden layers.
 
 """
 
@@ -30,10 +32,10 @@ class Layer:
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
 
-class Network:
+class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
         nin = inputs.shape[1]
-        self.loss = loss 
+        self.loss = loss
         self.de = get_loss_de(loss) 
         self.nlayers = len(confs)
         self.layers = []
@@ -46,7 +48,7 @@ class Network:
             self.fprop(inputs)
             self.bprop(inputs, targets)
             self.update(inputs, epsilon) 
-            error = self.loss(self.layers[-1].y, targets)
+            error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
                    str(round(error, 5))
 
@@ -58,10 +60,6 @@ class Network:
     def lcreate(self, nin, conf):
         if conf[0] == Type.fcon:
             return Layer(nin, nout=conf[2], g=conf[1])
-
-        if conf[0] == Type.conv:
-            return ConvLayer(nin, g=conf[1], ishape = conf[2],
-                             fshape=conf[3], nfilt=conf[4])
 
     def fprop(self, inputs):
         y = inputs
@@ -87,23 +85,13 @@ if __name__ == '__main__':
     np.random.seed(0)
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
-
-    # Train the autoencoder first.
-    auto = Network()
-    alldata = np.vstack((trainData, testData))
-    auto.fit(alldata, alldata, nepochs=200, epsilon=0.00004, loss=sse,
-             confs=[(Type.fcon, logistic, 600),
-                    (Type.fcon, logistic, alldata.shape[1])])
-    
-    trainCodes = auto.layers[0].y[0:trainData.shape[0]]
-    testCodes = auto.layers[0].y[trainData.shape[0]:alldata.shape[0]]
-
-    # Now classify.
-    mlp = Network()
-    mlp.fit(trainCodes, trainTargets, nepochs=100, epsilon=0.0002, loss=ce,
-            confs=[(Type.fcon, logistic, 50),
+    net = MultilayerPerceptron()
+    net.fit(trainData, trainTargets, nepochs=600, epsilon=0.0001,
+            loss=ce,
+            confs=[(Type.fcon, logistic, 100),
+                   (Type.fcon, logistic, 64),
                    (Type.fcon, logistic, trainTargets.shape[1])])
-
-    preds = mlp.predict(testCodes)
+    
+    preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)
     print 'test error rate ' + str(round(errorRate, 2)) + '%' 

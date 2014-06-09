@@ -14,8 +14,8 @@ import numpy as np
 def logistic(x):
     return 1.0 / (1.0 + np.exp(-x))
 
-def init_weights(nrows, ncols):
-    return 0.01 * np.random.randn(nrows, ncols)
+def init_weights(shape):
+    return np.random.uniform(-0.1, 0.1, shape)
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
@@ -25,8 +25,8 @@ class MultilayerPerceptron:
         nin = inputs.shape[1]
         nout = targets.shape[1]
     
-        self.weights1 = init_weights(nin, nhidden)
-        self.weights2 = init_weights(nhidden, nout)
+        self.weights1 = init_weights((nin, nhidden))
+        self.weights2 = init_weights((nhidden, nout))
 
         for epoch in range(nepochs): 
             hidden, outputs = self.fprop(inputs)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002, nhidden=50)
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001, nhidden=64)
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)

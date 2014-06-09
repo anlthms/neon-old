@@ -20,8 +20,8 @@ def logistic_prime(z):
 def ce_de(outputs, targets):
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
-def init_weights(nrows, ncols):
-    return 0.01 * np.random.randn(nrows, ncols)
+def init_weights(shape):
+    return np.random.uniform(-0.1, 0.1, shape)
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
@@ -36,7 +36,7 @@ class MultilayerPerceptron:
         self.gprime = gprime
         self.de = de
         self.nlayers = len(nhidden) + 1
-        self.weights = [init_weights(i, j)
+        self.weights = [init_weights((i, j))
                         for i, j in zip([nin] + nhidden, nhidden + [nout])]
 
         for epoch in range(nepochs): 
@@ -81,8 +81,8 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002,
-            nhidden=[50], g=[logistic, logistic],
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
+            nhidden=[64], g=[logistic, logistic],
             gprime=[logistic_prime, logistic_prime], de=ce_de)
     
     preds = net.predict(testData)

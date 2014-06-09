@@ -21,8 +21,8 @@ def ce_de(outputs, targets):
     ''' Derivative of cross entropy with respect to the output ''' 
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
-def init_weights(nrows, ncols):
-    return 0.01 * np.random.randn(nrows, ncols)
+def init_weights(shape):
+    return np.random.uniform(-0.1, 0.1, shape)
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
@@ -43,8 +43,8 @@ class MultilayerPerceptron:
         self.g = g
         self.gprime = gprime
         self.de = de
-        self.weights1 = init_weights(nin, nhidden)
-        self.weights2 = init_weights(nhidden, nout)
+        self.weights1 = init_weights((nin, nhidden))
+        self.weights2 = init_weights((nhidden, nout))
 
         for epoch in range(nepochs): 
             z1, hidden, z2, outputs = self.fprop(inputs)
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0002, nhidden=50,
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001, nhidden=64,
             g=logistic, gprime=logistic_prime, de=ce_de)
     
     preds = net.predict(testData)
