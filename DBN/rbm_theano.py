@@ -1,13 +1,11 @@
 """
-RBM implementation on top of Theano, adapted from example code on deeplearning.net.
+RBM implementation on top of Theano, adapted from example code on
+deeplearning.net.
 
-The RBM class in this file is meant to be a drop-in replacement for other RBM classes
-implemented with cudamat/gnumpy/numpy. To make this possible, it implements the applyCD()
-and rbmup() calls with the same signature as the other implementations.
-
-CAVEAT: This code was initially written assuming that the input images are arranged in rows.
-The code in dbn_class.py assumes that the images are arranged in columns. As a temporary
-hack, transpose operations were put in. These are tagged with "FIXME" in the code.
+The RBM class in this file is meant to be a drop-in replacement for other
+RBM classes implemented with cudamat/gnumpy/numpy. To make this possible,
+it implements the applyCD() and rbmup() calls with the same signature as the
+other implementations.
 
 """
 
@@ -34,12 +32,14 @@ class rbm_class:
             w = 0.01 * numpyrng.randn(self.nvis, self.nhid)
 
             self.weights = theano.shared(value=w, name='weights', borrow=True)
-            self.hbias = theano.shared(value=np.zeros(self.nhid,
+            self.hbias = theano.shared(value=np.zeros((self.nhid, 1),
                                    dtype=theano.config.floatX),
-                                   name='hbias', borrow=True)
-            self.vbias = theano.shared(value=np.zeros(self.nvis,
+                                   name='hbias', borrow=True,
+                                   broadcastable=(False, True))
+            self.vbias = theano.shared(value=np.zeros((self.nvis, 1),
                                    dtype=theano.config.floatX),
-                                   name='vbias', borrow=True)
+                                   name='vbias', borrow=True,
+                                   broadcastable=(False, True))
                     
         self.penalty = .001                 # FIXME: add regularization.
         self.eta = opts['eta']
@@ -60,23 +60,22 @@ class rbm_class:
              self.nvis] = pickle.load(f)
 
     def rbmup(self, v):
-        # FIXME: unnecessary transposing.
-        z = np.dot(v.T, self.weights.get_value(borrow=True)) + \
-                self.hbias.get_value(borrow=True)
-        return rm.logistic(z).T
+        z = np.dot(self.weights.get_value(borrow=True).T, v) + \
+                   self.hbias.get_value(borrow=True)
+        return rm.logistic(z)
 
     def uprop(self, v):
-        z = T.dot(v, self.weights) + self.hbias
+        z = T.dot(self.weights.T, v) + self.hbias
         return [z, T.nnet.sigmoid(z)]
             
     def hsample(self, v):
         z, h = self.uprop(v)
         sample = self.theanorng.binomial(size=h.shape, n=1, p=h,
-                                          dtype=theano.config.floatX)
+                                         dtype=theano.config.floatX)
         return [z, h, sample]
 
     def dprop(self, h):
-        z = T.dot(h, self.weights.T) + self.vbias
+        z = T.dot(self.weights, h) + self.vbias
         return [z, T.nnet.sigmoid(z)]
 
     def vsample(self, h):
@@ -123,9 +122,9 @@ class rbm_class:
         return ce, updates
 
     def get_free_energy(self, vsample):
-        wxb = T.dot(vsample, self.weights) + self.hbias
-        vbiasterm = T.dot(vsample, self.vbias)
-        hiddenterm = T.sum(T.log(1 + T.exp(wxb)), axis=1)
+        wxb = T.dot(self.weights.T, vsample) + self.hbias
+        vbiasterm = T.dot(self.vbias.T, vsample)
+        hiddenterm = T.sum(T.log(1 + T.exp(wxb)), axis=0)
         return -hiddenterm - vbiasterm
 
     def get_cross_entropy(self, updates, zv):
@@ -151,9 +150,8 @@ class rbm_class:
 
         train_rbm = theano.function(inputs=[index], outputs=cost,
                 updates=updates,
-                # FIXME: unnecessary transposing.
                 givens={x: sharedx[:, (index * self.batchsize) :
-                                   (index + 1) * self.batchsize].T},
+                                   (index + 1) * self.batchsize]},
                 name='train_rbm')
 
         starttime = time.clock()
@@ -167,6 +165,6 @@ class rbm_class:
 
         print ('Training took %f minutes' % ((time.clock() - starttime) / 60.))
         self.W = self.weights.get_value(borrow=True)
-        self.b = self.hbias.get_value(borrow=True).reshape((self.nhid, 1))
-        self.c = self.vbias.get_value(borrow=True).reshape((self.nvis, 1))
+        self.b = self.hbias.get_value(borrow=True)
+        self.c = self.vbias.get_value(borrow=True)
         return self
