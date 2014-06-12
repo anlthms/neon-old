@@ -3,8 +3,8 @@ CNN using basic operations - version 2.
 
 Enhancements to make convolutions faster:
 - Consider the convolutional layer as fully connected, but with null weights on
-links that should not be connected. During weight updates, skip the links with
-null weights.
+links that should not be connected.
+- While updating the weights, skip the links with null weights.
 - Initialize and update shared weights equally. 
  
 """
