@@ -1,5 +1,7 @@
 """
-CNN using basic operations - version 1.
+CNN using basic operations - version 3.
+
+Memory is preallocated for pre-activations, outputs and deltas of each layer.
  
 """
 
@@ -14,26 +16,34 @@ class Type:
     pool = 2    # Max-pooling
 
 class Layer:
-    def __init__(self, nin, nout, g):
+    def __init__(self, bs, nin, nout, g):
         self.weights = init_weights((nin, nout))
         self.g = g
         self.gprime = get_prime(g)
         self.nout = nout
+        self.z = np.zeros((bs, nout))
+        self.y = np.zeros((bs, nout))
+        self.delta = np.zeros((bs, nout))
         
     def fprop(self, inputs):
-        self.z = np.dot(inputs, self.weights)
-        self.y = self.g(self.z)
+        self.z[:] = np.dot(inputs, self.weights)
+        self.y[:] = self.g(self.z)
         return self.y
 
     def bprop(self, nextlayer):
-        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
+        self.delta[:] = np.dot(nextlayer.delta, nextlayer.weights.T) * \
                      self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
 
+    def resize(self, bs):
+        self.z = np.zeros((bs, self.nout))
+        self.y = np.zeros((bs, self.nout))
+        self.delta = np.zeros((bs, self.nout))
+        
 class ConvLayer:
-    def __init__(self, nin, g, ishape, fshape, nfilt):
+    def __init__(self, bs, nin, g, ishape, fshape, nfilt):
         self.iheight, self.iwidth = ishape 
         self.fheight, self.fwidth = fshape
 
@@ -47,59 +57,62 @@ class ConvLayer:
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
+        self.z = np.zeros((bs, self.nout))
+        self.y = np.zeros((bs, self.nout))
+        self.delta = np.zeros((bs, self.nout))
+
+        # Figure out the connections with the previous layer.   
+        self.links = np.zeros((self.fmsize, self.fsize), dtype='i32')
+        src = 0 # This variable tracks the top left corner
+                # of the receptive field.
+        for dst in range(self.fmsize):
+            colinds = []
+            for row in range(self.fheight):
+                # Collect the column indices for the
+                # entire receptive field.
+                start = src + row * self.iwidth
+                colinds += range(start, start + self.fwidth) 
+            if (src % self.iwidth + self.fwidth) < self.iwidth:
+                # Slide the filter by 1 cell.
+                src += 1
+            else:
+                # We hit the right edge of the input image.
+                # Sweep the filter over to the next row.
+                src += self.fwidth
+            self.links[dst] = colinds
         
     def fprop(self, inputs):
-        self.z = np.zeros((inputs.shape[0], self.nout))
         for i in range(self.nfilt):
             filt = self.weights[i]
-            src = 0 # This variable tracks the top left corner
-                    # of the receptive field.
+            # Create a dense version of the weights with absent
+            # links zeroed out and shared links duplicated.
+            dweights = np.zeros((inputs.shape[1], self.fmsize))
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    # Collect the column indices for the
-                    # entire receptive field.
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
+                dweights[self.links[dst], dst] = filt
 
-                # Compute the weighted average of the receptive field
-                # and store the result within the destination feature map.
-                self.z[:, (i * self.fmsize + dst)] = \
-                        np.dot(inputs[:, colinds], filt)
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    # Slide the filter by 1 cell.
-                    src += 1
-                else:
-                    # We hit the right edge of the input image.
-                    # Sweep the filter over to the next row.
-                    src += self.fwidth
+            self.z[:, i * self.fmsize : (i + 1) * self.fmsize] = \
+                    np.dot(inputs, dweights)
 
-        self.y = self.g(self.z)
+        self.y[:] = self.g(self.z)
         return self.y
 
     def bprop(self, nextlayer):
-        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
+        self.delta[:] = np.dot(nextlayer.delta, nextlayer.weights.T) * \
                      self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         for i in range(self.nfilt):
             wsums = np.zeros(self.weights[i].shape) 
-            src = 0
+            updates = np.dot(inputs.T, self.delta)
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
-                wsums += np.dot(inputs[:, colinds].T, self.delta[:, dst])
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    src += 1
-                else:
-                    src += self.fwidth
+                wsums += updates[self.links[dst], dst]
+
             self.weights[i] -= epsilon * (wsums / self.fmsize) 
+
+    def resize(self, bs):
+        self.z = np.zeros((bs, self.nout))
+        self.y = np.zeros((bs, self.nout))
+        self.delta = np.zeros((bs, self.nout))
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -109,7 +122,7 @@ class Network:
         self.nlayers = len(confs)
         self.layers = []
         for i in range(self.nlayers):
-            layer = self.lcreate(nin, confs[i])
+            layer = self.lcreate(inputs.shape[0], nin, confs[i])
             self.layers.append(layer)
             nin = layer.nout
 
@@ -122,16 +135,18 @@ class Network:
                    str(round(error, 5))
 
     def predict(self, inputs):
+        for i in range(self.nlayers):
+            self.layers[i].resize(inputs.shape[0])
         outputs = self.fprop(inputs)
         preds = np.argmax(outputs, axis=1) 
         return preds
 
-    def lcreate(self, nin, conf):
+    def lcreate(self, bs, nin, conf):
         if conf[0] == Type.fcon:
-            return Layer(nin, nout=conf[2], g=conf[1])
+            return Layer(bs, nin, nout=conf[2], g=conf[1])
 
         if conf[0] == Type.conv:
-            return ConvLayer(nin, g=conf[1], ishape=conf[2],
+            return ConvLayer(bs, nin, g=conf[1], ishape=conf[2],
                              fshape=conf[3], nfilt=conf[4])
 
     def fprop(self, inputs):

@@ -1,5 +1,11 @@
 """
-CNN using basic operations - version 1.
+CNN using basic operations - version 2.
+
+Enhancements to make convolutions faster:
+- Consider the convolutional layer as fully connected, but with null weights on
+links that should not be connected. During weight updates, skip the links with
+null weights.
+- Initialize and update shared weights equally. 
  
 """
 
@@ -47,34 +53,39 @@ class ConvLayer:
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
+
+        # Figure out the connections with the previous layer.   
+        self.links = np.zeros((self.fmsize, self.fsize), dtype='i32')
+        src = 0 # This variable tracks the top left corner
+                # of the receptive field.
+        for dst in range(self.fmsize):
+            colinds = []
+            for row in range(self.fheight):
+                # Collect the column indices for the
+                # entire receptive field.
+                start = src + row * self.iwidth
+                colinds += range(start, start + self.fwidth) 
+            if (src % self.iwidth + self.fwidth) < self.iwidth:
+                # Slide the filter by 1 cell.
+                src += 1
+            else:
+                # We hit the right edge of the input image.
+                # Sweep the filter over to the next row.
+                src += self.fwidth
+            self.links[dst] = colinds
         
     def fprop(self, inputs):
         self.z = np.zeros((inputs.shape[0], self.nout))
         for i in range(self.nfilt):
             filt = self.weights[i]
-            src = 0 # This variable tracks the top left corner
-                    # of the receptive field.
+            # Create a dense version of the weights with absent
+            # links zeroed out and shared links duplicated.
+            dweights = np.zeros((inputs.shape[1], self.fmsize))
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    # Collect the column indices for the
-                    # entire receptive field.
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
+                dweights[self.links[dst], dst] = filt
 
-                # Compute the weighted average of the receptive field
-                # and store the result within the destination feature map.
-                self.z[:, (i * self.fmsize + dst)] = \
-                        np.dot(inputs[:, colinds], filt)
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    # Slide the filter by 1 cell.
-                    src += 1
-                else:
-                    # We hit the right edge of the input image.
-                    # Sweep the filter over to the next row.
-                    src += self.fwidth
+            self.z[:, i * self.fmsize : (i + 1) * self.fmsize] = \
+                    np.dot(inputs, dweights)
 
         self.y = self.g(self.z)
         return self.y
@@ -86,19 +97,10 @@ class ConvLayer:
     def update(self, inputs, epsilon):
         for i in range(self.nfilt):
             wsums = np.zeros(self.weights[i].shape) 
-            src = 0
+            updates = np.dot(inputs.T, self.delta)
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
-                wsums += np.dot(inputs[:, colinds].T, self.delta[:, dst])
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    src += 1
-                else:
-                    src += self.fwidth
+                wsums += updates[self.links[dst], dst]
+
             self.weights[i] -= epsilon * (wsums / self.fmsize) 
 
 class Network:
