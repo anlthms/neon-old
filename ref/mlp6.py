@@ -26,12 +26,14 @@ class Layer:
         self.y = self.g(self.z)
         return self.y
 
-    def bprop(self, nextlayer):
-        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
-                     self.gprime(self.z) 
+    def bprop(self, error):
+        self.delta = error * self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
+
+    def error(self):
+        return np.dot(self.delta, self.weights.T)
 
 class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -67,14 +69,23 @@ class MultilayerPerceptron:
             y = layer.fprop(y)
         return y
 
+    def bprop(self, inputs, targets):
+        i = self.nlayers - 1
+        lastlayer = self.layers[i]
+        lastlayer.bprop(self.de(lastlayer.y, targets))
+        while i > 0:
+            error = self.layers[i].error()
+            i -= 1 
+            self.layers[i].bprop(error)
+
     def bprop(self, inputs, targets, epsilon):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.delta = self.de(lastlayer.y, targets) * \
-                          lastlayer.gprime(lastlayer.z) 
+        lastlayer.bprop(self.de(lastlayer.y, targets))
         while i > 0:
+            error = self.layers[i].error()
             i -= 1 
-            self.layers[i].bprop(self.layers[i + 1])
+            self.layers[i].bprop(error)
             self.layers[i + 1].update(self.layers[i].y, epsilon)
 
         self.layers[i].update(inputs, epsilon)

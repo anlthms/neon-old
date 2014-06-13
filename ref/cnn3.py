@@ -30,9 +30,8 @@ class Layer:
         self.y[:] = self.g(self.z)
         return self.y
 
-    def bprop(self, nextlayer):
-        self.delta[:] = np.dot(nextlayer.delta, nextlayer.weights.T) * \
-                     self.gprime(self.z) 
+    def bprop(self, error):
+        self.delta = error * self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
@@ -42,8 +41,11 @@ class Layer:
         self.y = np.zeros((bs, self.nout))
         self.delta = np.zeros((bs, self.nout))
         
+    def error(self):
+        return np.dot(self.delta, self.weights.T)
+
 class ConvLayer:
-    def __init__(self, bs, nin, g, ishape, fshape, nfilt):
+    def __init__(self, bs, g, ishape, fshape, nfilt):
         self.iheight, self.iwidth = ishape 
         self.fheight, self.fwidth = fshape
 
@@ -96,9 +98,8 @@ class ConvLayer:
         self.y[:] = self.g(self.z)
         return self.y
 
-    def bprop(self, nextlayer):
-        self.delta[:] = np.dot(nextlayer.delta, nextlayer.weights.T) * \
-                     self.gprime(self.z) 
+    def bprop(self, error):
+        self.delta = error * self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         for i in range(self.nfilt):
@@ -128,7 +129,7 @@ class Network:
 
         for epoch in range(nepochs): 
             self.fprop(inputs)
-            self.bprop(inputs, targets)
+            self.bprop(targets)
             self.update(inputs, epsilon) 
             error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
@@ -146,7 +147,7 @@ class Network:
             return Layer(bs, nin, nout=conf[2], g=conf[1])
 
         if conf[0] == Type.conv:
-            return ConvLayer(bs, nin, g=conf[1], ishape=conf[2],
+            return ConvLayer(bs, g=conf[1], ishape=conf[2],
                              fshape=conf[3], nfilt=conf[4])
 
     def fprop(self, inputs):
@@ -155,14 +156,14 @@ class Network:
             y = layer.fprop(y)
         return y
 
-    def bprop(self, inputs, targets):
+    def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.delta = self.de(lastlayer.y, targets) * \
-                          lastlayer.gprime(lastlayer.z) 
+        lastlayer.bprop(self.de(lastlayer.y, targets))
         while i > 0:
+            error = self.layers[i].error()
             i -= 1 
-            self.layers[i].bprop(self.layers[i + 1])
+            self.layers[i].bprop(error)
 
     def update(self, inputs, epsilon):
         self.layers[0].update(inputs, epsilon)
