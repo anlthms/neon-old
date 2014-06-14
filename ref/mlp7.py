@@ -1,7 +1,7 @@
 """
-MLP using basic operations - version 4.
+MLP using basic operations - version 7.
 
-Added a separate "Layer" class and refactored the code.
+Added bias inputs. 
  
 """
 
@@ -37,6 +37,10 @@ def init_weights(shape):
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
 
+def append_bias(data):
+    """ Append a column of ones. """
+    return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
+
 class Type:
     fcon = 0    # Fully connected
 
@@ -48,6 +52,7 @@ class Layer:
         self.nout = nout
         
     def fprop(self, inputs):
+        inputs = append_bias(inputs)
         self.z = np.dot(inputs, self.weights)
         self.y = self.g(self.z)
         return self.y
@@ -56,10 +61,12 @@ class Layer:
         self.delta = error * self.gprime(self.z)
 
     def update(self, inputs, epsilon):
+        inputs = append_bias(inputs)
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
 
     def error(self):
-        return np.dot(self.delta, self.weights.T)
+        """ Omit the bias column from the weights matrix. """
+        return np.dot(self.delta, self.weights[:-1,:].T)
 
 class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -85,7 +92,8 @@ class MultilayerPerceptron:
 
     def lcreate(self, nin, conf):
         if conf[0] == Type.fcon:
-            return Layer(nin, nout=conf[2], g=conf[1])
+            # Add 1 for the bias input.
+            return Layer(nin + 1, nout=conf[2], g=conf[1])
 
     def fprop(self, inputs):
         y = inputs
