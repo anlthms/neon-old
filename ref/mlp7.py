@@ -32,7 +32,10 @@ def ce_de(outputs, targets):
     return (outputs - targets) / (outputs * (1.0 - outputs)) 
 
 def init_weights(shape):
-    return np.random.uniform(-0.1, 0.1, shape)
+    weights = np.random.uniform(-0.1, 0.1, shape)
+    # Initialize biases to zero.
+    weights[-1, :] = 0
+    return weights
 
 def error_rate(preds, labels):
     return 100.0 * np.mean(np.not_equal(preds, labels))
@@ -65,8 +68,8 @@ class Layer:
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
 
     def error(self):
-        """ Omit the bias column from the weights matrix. """
-        return np.dot(self.delta, self.weights[:-1,:].T)
+        # Omit the bias column from the weights matrix.
+        return np.dot(self.delta, self.weights[:-1, :].T)
 
 class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
