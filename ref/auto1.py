@@ -23,12 +23,14 @@ class Layer:
         self.y = self.g(self.z)
         return self.y
 
-    def bprop(self, nextlayer):
-        self.delta = np.dot(nextlayer.delta, nextlayer.weights.T) * \
-                     self.gprime(self.z) 
+    def bprop(self, error):
+        self.delta = error * self.gprime(self.z)
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(inputs.T, self.delta)
+
+    def error(self):
+        return np.dot(self.delta, self.weights.T)
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -44,7 +46,7 @@ class Network:
 
         for epoch in range(nepochs): 
             self.fprop(inputs)
-            self.bprop(inputs, targets)
+            self.bprop(targets)
             self.update(inputs, epsilon) 
             error = self.loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
@@ -69,14 +71,14 @@ class Network:
             y = layer.fprop(y)
         return y
 
-    def bprop(self, inputs, targets):
+    def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.delta = self.de(lastlayer.y, targets) * \
-                          lastlayer.gprime(lastlayer.z) 
+        lastlayer.bprop(self.de(lastlayer.y, targets))
         while i > 0:
+            error = self.layers[i].error()
             i -= 1 
-            self.layers[i].bprop(self.layers[i + 1])
+            self.layers[i].bprop(error)
 
     def update(self, inputs, epsilon):
         self.layers[0].update(inputs, epsilon)
@@ -101,7 +103,7 @@ if __name__ == '__main__':
     # Now classify.
     mlp = Network()
     mlp.fit(trainCodes, trainTargets, nepochs=100, epsilon=0.0002, loss=ce,
-            confs=[(Type.fcon, logistic, 50),
+            confs=[(Type.fcon, logistic, 64),
                    (Type.fcon, logistic, trainTargets.shape[1])])
 
     preds = mlp.predict(testCodes)
