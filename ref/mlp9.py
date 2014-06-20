@@ -1,17 +1,13 @@
 """
-MLP using basic operations - version 7.
+MLP using basic operations - version 9.
 
-Added bias inputs. 
+Using 2^x instead of e^x.
  
 """
 
 import cPickle
 import numpy as np
 from common import *
-
-def append_bias(data):
-    """ Append a column of ones. """
-    return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
 
 class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -68,10 +64,10 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0003,
             loss=ce,
-            confs=[(Type.fcon, logistic, 64),
-                   (Type.fcon, logistic, trainTargets.shape[1])])
+            confs=[(Type.fcon, pseudo_logistic, 64),
+                   (Type.fcon, pseudo_logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)

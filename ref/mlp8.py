@@ -1,17 +1,26 @@
 """
-MLP using basic operations - version 7.
+MLP using basic operations - version 8.
 
-Added bias inputs. 
- 
+Softmax output layer. 
+
 """
 
 import cPickle
 import numpy as np
-from common import *
+from common import * 
 
-def append_bias(data):
-    """ Append a column of ones. """
-    return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
+def softmax(x):
+    ex = np.exp(x)
+    return ex / ex.sum(axis=1).reshape((ex.shape[0], 1))
+
+class SoftmaxLayer(Layer):
+    def __init__(self, nin, nout):
+        self.weights = init_weights((nin, nout))
+        self.g = softmax 
+        self.nout = nout
+        
+    def bprop(self, error):
+        self.delta = error * self.y * (1.0 - self.y) 
 
 class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
@@ -40,8 +49,10 @@ class MultilayerPerceptron:
 
     def lcreate(self, nin, conf):
         if conf[0] == Type.fcon:
-            # Add 1 for the bias input.
-            return Layer(nin + 1, nout=conf[2], g=conf[1])
+            if conf[1] == softmax:
+                return SoftmaxLayer(nin + 1, nout=conf[2])
+            else:
+                return Layer(nin + 1, nout=conf[2], g=conf[1])
 
     def fprop(self, inputs):
         y = inputs
@@ -71,7 +82,7 @@ if __name__ == '__main__':
     net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
             loss=ce,
             confs=[(Type.fcon, logistic, 64),
-                   (Type.fcon, logistic, trainTargets.shape[1])])
+                   (Type.fcon, softmax, trainTargets.shape[1])])
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)
