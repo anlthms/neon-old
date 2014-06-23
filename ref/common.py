@@ -39,6 +39,10 @@ def rectlin_prime(x):
     xc[xc != 0] = 1
     return xc
 
+def softmax(x):
+    ex = np.exp(x - np.amax(x, axis=1).reshape((x.shape[0], 1)))
+    return ex / ex.sum(axis=1).reshape((ex.shape[0], 1))
+
 def get_prime(func):
     if func == logistic:
         return logistic_prime
