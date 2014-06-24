@@ -5,15 +5,9 @@ Memory is preallocated for pre-activations, outputs and deltas of each layer.
  
 """
 
-import math
 import cPickle
 import numpy as np
 from common import *
-
-class Type:
-    fcon = 0    # Fully connected
-    conv = 1    # Convolutional
-    pool = 2    # Max-pooling
 
 class Layer:
     def __init__(self, bs, nin, nout, g):
@@ -106,7 +100,7 @@ class ConvLayer:
             wsums = np.zeros(self.weights[i].shape) 
             updates = np.dot(inputs.T, self.delta)
             for dst in range(self.fmsize):
-                wsums += updates[self.links[dst], dst]
+                wsums += updates[self.links[dst], (i * self.fmsize + dst)]
 
             self.weights[i] -= epsilon * (wsums / self.fmsize) 
 

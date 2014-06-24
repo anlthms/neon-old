@@ -3,15 +3,9 @@ CNN using basic operations - version 1.
  
 """
 
-import math
 import cPickle
 import numpy as np
 from common import *
-
-class Type:
-    fcon = 0    # Fully connected
-    conv = 1    # Convolutional
-    pool = 2    # Max-pooling
 
 class Layer:
     def __init__(self, nin, nout, g):
@@ -49,34 +43,35 @@ class ConvLayer:
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
+        # Figure out the connections with the previous layer.   
+        self.links = np.zeros((self.fmsize, self.fsize), dtype='i32')
+        src = 0 # This variable tracks the top left corner
+                # of the receptive field.
+        for dst in range(self.fmsize):
+            colinds = []
+            for row in range(self.fheight):
+                # Collect the column indices for the
+                # entire receptive field.
+                start = src + row * self.iwidth
+                colinds += range(start, start + self.fwidth) 
+            if (src % self.iwidth + self.fwidth) < self.iwidth:
+                # Slide the filter by 1 cell.
+                src += 1
+            else:
+                # We hit the right edge of the input image.
+                # Sweep the filter over to the next row.
+                src += self.fwidth
+            self.links[dst] = colinds
         
     def fprop(self, inputs):
         self.z = np.zeros((inputs.shape[0], self.nout))
         for i in range(self.nfilt):
             filt = self.weights[i]
-            src = 0 # This variable tracks the top left corner
-                    # of the receptive field.
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    # Collect the column indices for the
-                    # entire receptive field.
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
-
                 # Compute the weighted average of the receptive field
                 # and store the result within the destination feature map.
                 self.z[:, (i * self.fmsize + dst)] = \
-                        np.dot(inputs[:, colinds], filt)
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    # Slide the filter by 1 cell.
-                    src += 1
-                else:
-                    # We hit the right edge of the input image.
-                    # Sweep the filter over to the next row.
-                    src += self.fwidth
+                        np.dot(inputs[:, self.links[dst]], filt)
 
         self.y = self.g(self.z)
         return self.y
@@ -87,19 +82,9 @@ class ConvLayer:
     def update(self, inputs, epsilon):
         for i in range(self.nfilt):
             wsums = np.zeros(self.weights[i].shape) 
-            src = 0
             for dst in range(self.fmsize):
-                # This loop can be replaced with a call
-                # to scipy.signal.fftconvolve.
-                colinds = []
-                for row in range(self.fheight):
-                    start = src + row * self.iwidth
-                    colinds += range(start, start + self.fwidth) 
-                wsums += np.dot(inputs[:, colinds].T, self.delta[:, dst])
-                if (src % self.iwidth + self.fwidth) < self.iwidth:
-                    src += 1
-                else:
-                    src += self.fwidth
+                wsums += np.dot(inputs[:, self.links[dst]].T,
+                                self.delta[:, (i * self.fmsize + dst)])
             self.weights[i] -= epsilon * (wsums / self.fmsize) 
 
 class Network:
