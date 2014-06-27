@@ -56,9 +56,9 @@ class ConvLayer:
                 # of the receptive field.
         for dst in range(self.fmsize):
             colinds = []
+            # Collect the column indices for the
+            # entire receptive field.
             for row in range(self.fheight):
-                # Collect the column indices for the
-                # entire receptive field.
                 start = src + row * self.iwidth
                 colinds += range(start, start + self.fwidth) 
             if (src % self.iwidth + self.fwidth) < self.iwidth:
