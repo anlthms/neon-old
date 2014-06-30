@@ -39,6 +39,12 @@ def rectlin_prime(x):
     xc[xc != 0] = 1
     return xc
 
+def none(x):
+    return x
+
+def none_prime(x):
+    return np.ones(x.shape) 
+
 def softmax(x):
     ex = np.exp(x - np.amax(x, axis=1).reshape((x.shape[0], 1)))
     return ex / ex.sum(axis=1).reshape((ex.shape[0], 1))
@@ -52,6 +58,8 @@ def get_prime(func):
         return tanh_prime
     if func == rectlin:
         return rectlin_prime
+    if func == none:
+        return none_prime
 
 def get_loss_de(func):
     if func == ce:
@@ -83,6 +91,10 @@ def error_rate(preds, labels):
 def append_bias(data):
     """ Append a column of ones. """
     return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
+
+def squish(data, nifm):
+    assert data.shape[1] % nifm == 0
+    return data.reshape((data.shape[0] * nifm, data.shape[1] / nifm))
 
 class Layer:
     def __init__(self, nin, nout, g):

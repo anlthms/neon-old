@@ -10,20 +10,26 @@ import cPickle
 import numpy as np
 from common import *
 
+def squish(data, nifm):
+    assert data.shape[1] % nifm == 0
+    return data.reshape((data.shape[0] * nifm, data.shape[1] / nifm))
+
 class Layer:
-    def __init__(self, nin, nout, g):
+    def __init__(self, mbs, nin, nout, g):
         self.weights = init_weights((nout, nin))
         self.g = g
         self.gprime = get_prime(g)
         self.nout = nout
+        self.z = np.zeros((mbs, nout))
+        self.y = np.zeros((mbs, nout))
+        self.delta = np.zeros((mbs, nout))
         
     def fprop(self, inputs):
-        self.z = np.dot(inputs, self.weights.T)
-        self.y = self.g(self.z)
-        return self.y
+        self.z[:] = np.dot(inputs, self.weights.T)
+        self.y[:] = self.g(self.z)
 
     def bprop(self, error):
-        self.delta = error * self.gprime(self.z)
+        self.delta[:] = error * self.gprime(self.z)
 
     def update(self, inputs, epsilon):
         self.weights -= epsilon * np.dot(self.delta.T, inputs)
@@ -32,34 +38,38 @@ class Layer:
         return np.dot(self.delta, self.weights)
 
 class ConvLayer:
-    def __init__(self, g, ishape, fshape, nfilt):
-        self.iheight, self.iwidth = ishape 
+    def __init__(self, mbs, g, nifm, ifmshape, fshape, nfilt):
+        self.ifmheight, self.ifmwidth = ifmshape 
         self.fheight, self.fwidth = fshape
 
-        fmheight = self.iheight - self.fheight + 1
-        fmwidth = self.iwidth - self.fwidth + 1
-        self.fmsize = fmheight * fmwidth
-        self.nout = self.fmsize * nfilt
+        ofmheight = self.ifmheight - self.fheight + 1
+        ofmwidth = self.ifmwidth - self.fwidth + 1
+        self.ofmsize = ofmheight * ofmwidth
+        self.nout = nifm * self.ofmsize * nfilt
 
+        self.nifm = nifm
         self.nfilt = nfilt
         self.fsize = self.fheight * self.fwidth 
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
-        self.fmstarts = np.array(range(0, self.fmsize * self.nfilt,
-                                       self.fmsize))
+        self.z = np.zeros((mbs, self.nout))
+        self.y = np.zeros((mbs, self.nout))
+        self.delta = np.zeros((mbs, self.nout))
+        self.berror = np.zeros((mbs, self.ifmheight * self.ifmwidth * nifm))
+        self.ofmstarts = np.array(range(0, (self.ofmsize * nfilt), self.ofmsize))
         # Figure out the connections with the previous layer.   
-        self.links = np.zeros((self.fmsize, self.fsize), dtype='i32')
+        self.links = np.zeros((self.ofmsize, self.fsize), dtype='i32')
         src = 0 # This variable tracks the top left corner
                 # of the receptive field.
-        for dst in range(self.fmsize):
+        for dst in range(self.ofmsize):
             colinds = []
-            # Collect the column indices for the
-            # entire receptive field.
             for row in range(self.fheight):
-                start = src + row * self.iwidth
+                # Collect the column indices for the
+                # entire receptive field.
+                start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth) 
-            if (src % self.iwidth + self.fwidth) < self.iwidth:
+            if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1
             else:
@@ -69,29 +79,32 @@ class ConvLayer:
             self.links[dst] = colinds
         
     def fprop(self, inputs):
-        self.z = np.zeros((inputs.shape[0], self.nout))
-        for dst in range(self.fmsize):
+        inputs = squish(inputs, self.nifm)
+        rz = squish(self.z, self.nifm)
+        for dst in range(self.ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
-            self.z[:, (self.fmstarts + dst)] = \
-                    np.dot(inputs[:, self.links[dst]], self.weights.T)
-
-        self.y = self.g(self.z)
-        return self.y
+            rz[:, (self.ofmstarts + dst)] = \
+                    np.dot(inputs.take(self.links[dst], axis=1),
+                           self.weights.T)
+        self.z[:] = rz.reshape((self.z.shape))
+        self.y[:] = self.g(self.z)
 
     def bprop(self, error):
-        self.delta = error * self.gprime(self.z) 
+        self.delta[:] = error * self.gprime(self.z) 
 
     def update(self, inputs, epsilon):
         wsums = np.zeros(self.weights.shape) 
-        for dst in range(self.fmsize):
+        rdelta = squish(self.delta, self.nifm)
+        inputs = squish(inputs, self.nifm)
+        for dst in range(self.ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps. 
-            wsums += np.dot(self.delta[:, (self.fmstarts + dst)].T,
-                            inputs[:, self.links[dst]])
+            wsums += np.dot(rdelta.take((self.ofmstarts + dst), axis=1).T,
+                            inputs.take(self.links[dst], axis=1))
         # Update the filters after averaging the weight updates.
-        self.weights -= epsilon * (wsums / self.fmsize) 
+        self.weights -= epsilon * (wsums / self.ofmsize) 
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, mbs, loss, confs):
@@ -102,7 +115,7 @@ class Network:
         self.layers = []
         self.mbs = mbs
         for i in range(self.nlayers):
-            layer = self.lcreate(nin, confs[i])
+            layer = self.lcreate(mbs, nin, confs[i])
             self.layers.append(layer)
             nin = layer.nout
 
@@ -121,23 +134,33 @@ class Network:
                    str(round(error, 5))
 
     def predict(self, inputs):
-        outputs = self.fprop(inputs)
+        assert inputs.shape[0] % self.mbs == 0
+        nbatch = inputs.shape[0] / self.mbs
+        outputs = np.zeros((inputs.shape[0], self.layers[-1].nout)) 
+        for batch in range(nbatch):
+            start = batch * self.mbs
+            end = (batch + 1) * self.mbs
+            self.fprop(inputs[start:end])
+            outputs[start:end] = self.layers[-1].y
         preds = np.argmax(outputs, axis=1) 
         return preds
 
-    def lcreate(self, nin, conf):
+    def lcreate(self, mbs, nin, conf):
         if conf[0] == Type.fcon:
-            return Layer(nin, nout=conf[2], g=conf[1])
+            return Layer(mbs, nin, nout=conf[2], g=conf[1])
 
         if conf[0] == Type.conv:
-            return ConvLayer(g=conf[1], ishape=conf[2],
-                             fshape=conf[3], nfilt=conf[4])
+            return ConvLayer(mbs, g=conf[1], nifm=conf[2], ifmshape=conf[3],
+                             fshape=conf[4], nfilt=conf[5])
+        if conf[0] == Type.pool:
+            return MaxpoolLayer(mbs, g=conf[1], nfm=conf[2],
+                                ifmshape=conf[3], pshape=conf[4])
 
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers: 
-            y = layer.fprop(y)
-        return y
+            layer.fprop(y)
+            y = layer.y
 
     def bprop(self, targets):
         i = self.nlayers - 1
@@ -160,7 +183,10 @@ if __name__ == '__main__':
     net = Network()
     net.fit(trainData, trainTargets, nepochs=100, epsilon=0.08,
             mbs=100, loss=ce,
-            confs=[(Type.conv, tanh, (28, 28), (5, 5), 2),
+            # The format of the configuration tuple for a convolution layer is:
+            # (layer type, activation type, number of input feature maps,
+            # shape of input feature map, filter shape, number of filters).
+            confs=[(Type.conv, tanh, 1, (28, 28), (5, 5), 2),
                    (Type.fcon, tanh, 64),
                    (Type.fcon, logistic, trainTargets.shape[1])])
     
