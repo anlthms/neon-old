@@ -96,12 +96,13 @@ def squish(data, nifm):
     assert data.shape[1] % nifm == 0
     return data.reshape((data.shape[0] * nifm, data.shape[1] / nifm))
 
-class Layer:
+class Layer(object):
     def __init__(self, nin, nout, g):
         self.weights = init_weights((nin, nout))
         self.g = g
         self.gprime = get_prime(g)
         self.nout = nout
+        self.velocity = 0.0
         
     def fprop(self, inputs):
         inputs = append_bias(inputs)
@@ -112,9 +113,11 @@ class Layer:
     def bprop(self, error):
         self.delta = error * self.gprime(self.z)
 
-    def update(self, inputs, epsilon):
+    def update(self, inputs, epsilon, momentum=0.0):
         inputs = append_bias(inputs)
-        self.weights -= epsilon * np.dot(inputs.T, self.delta)
+        self.velocity = (momentum * self.velocity
+                         - epsilon * np.dot(inputs.T, self.delta))
+        self.weights += self.velocity
 
     def error(self):
         return np.dot(self.delta, self.weights[:-1, :].T)

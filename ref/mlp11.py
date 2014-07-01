@@ -1,27 +1,20 @@
 """
-MLP using basic operations - version 8.
+MLP using basic operations - version 11.
 
-Softmax output layer. 
-
+Added basic momentum.
+ 
 """
 
 import cPickle
 import numpy as np
-from common import * 
+from common import *
 
-def softmax(x):
-    ex = np.exp(x)
-    return ex / ex.sum(axis=1).reshape((ex.shape[0], 1))
-
-class SoftmaxLayer(Layer):
-    def __init__(self, nin, nout):
-        super(SoftmaxLayer, self).__init__(nin, nout, softmax)
-        
-    def bprop(self, error):
-        self.delta = error * self.y * (1.0 - self.y) 
+def append_bias(data):
+    """ Append a column of ones. """
+    return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
 
 class MultilayerPerceptron:
-    def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
+    def fit(self, inputs, targets, nepochs, epsilon, momentum, loss, confs):
         nin = inputs.shape[1]
         self.loss = loss
         self.de = get_loss_de(loss) 
@@ -35,7 +28,7 @@ class MultilayerPerceptron:
         for epoch in range(nepochs): 
             self.fprop(inputs)
             self.bprop(targets)
-            self.update(inputs, epsilon) 
+            self.update(inputs, epsilon, momentum) 
             error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
                    str(round(error, 5))
@@ -47,10 +40,8 @@ class MultilayerPerceptron:
 
     def lcreate(self, nin, conf):
         if conf[0] == Type.fcon:
-            if conf[1] == softmax:
-                return SoftmaxLayer(nin + 1, nout=conf[2])
-            else:
-                return Layer(nin + 1, nout=conf[2], g=conf[1])
+            # Add 1 for the bias input.
+            return Layer(nin + 1, nout=conf[2], g=conf[1])
 
     def fprop(self, inputs):
         y = inputs
@@ -67,10 +58,10 @@ class MultilayerPerceptron:
             i -= 1 
             self.layers[i].bprop(error)
 
-    def update(self, inputs, epsilon):
-        self.layers[0].update(inputs, epsilon)
+    def update(self, inputs, epsilon, momentum=0.0):
+        self.layers[0].update(inputs, epsilon, momentum)
         for i in range(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].y, epsilon)
+            self.layers[i].update(self.layers[i - 1].y, epsilon, momentum)
 
 if __name__ == '__main__':
     np.random.seed(0)
@@ -78,9 +69,9 @@ if __name__ == '__main__':
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
     net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
-            loss=ce,
+            momentum=0.7, loss=ce,
             confs=[(Type.fcon, logistic, 64),
-                   (Type.fcon, softmax, trainTargets.shape[1])])
+                   (Type.fcon, logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)
