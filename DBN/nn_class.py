@@ -292,7 +292,7 @@ class nn_class:
                     
                     #apply the weight updates
                     self.W[eachLayer].subtract(self.Winc[eachLayer])
-                    self.b[eachLayer].subtract(self.b[eachLayer])
+                    self.b[eachLayer].subtract(self.binc[eachLayer])
                                     
                 
             #ipdb.set_trace()
@@ -378,8 +378,3 @@ class nn_class:
         
         self.to_numpy()
         return labels
-
-        
-
-
-
