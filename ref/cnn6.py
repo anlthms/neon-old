@@ -2,6 +2,7 @@
 CNN using basic operations - version 6.
 
 Added support for stacking convolutional layers.   
+The configuration of the network is similar to the LeNet configuration in Caffe.
  
 """
 
@@ -124,11 +125,11 @@ class ConvLayer:
         ofmheight = self.ifmheight - self.fheight + 1
         ofmwidth = self.ifmwidth - self.fwidth + 1
         self.ofmsize = ofmheight * ofmwidth
-        self.nout = nifm * self.ofmsize * nfilt
+        self.nout = self.ofmsize * nfilt
 
         self.nifm = nifm
         self.nfilt = nfilt
-        self.fsize = self.fheight * self.fwidth 
+        self.fsize = nifm * self.fheight * self.fwidth 
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
@@ -147,7 +148,9 @@ class ConvLayer:
                 # Collect the column indices for the
                 # entire receptive field.
                 start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth) 
+                for ifm in range(nifm):
+                    colinds += range(start + ifm * self.ifmwidth,
+                                     start + self.fwidth + ifm * self.ifmwidth) 
             if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1
@@ -158,16 +161,13 @@ class ConvLayer:
             self.links[dst] = colinds
 
     def fprop(self, inputs):
-        inputs = squish(inputs, self.nifm)
-        rz = squish(self.z, self.nifm)
         for dst in range(self.ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
-            rz[:, (self.ofmstarts + dst)] = \
+            self.z[:, (self.ofmstarts + dst)] = \
                     np.dot(inputs.take(self.links[dst], axis=1),
                            self.weights.T)
-        self.z[:] = rz.reshape((self.z.shape))
         self.y[:] = self.g(self.z)
 
     def bprop(self, error):
@@ -175,28 +175,19 @@ class ConvLayer:
 
     def update(self, inputs, epsilon):
         wsums = np.zeros(self.weights.shape) 
-        rdelta = squish(self.delta, self.nifm)
-        inputs = squish(inputs, self.nifm)
         for dst in range(self.ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps. 
-            wsums += np.dot(rdelta.take((self.ofmstarts + dst), axis=1).T,
+            wsums += np.dot(self.delta.take((self.ofmstarts + dst), axis=1).T,
                             inputs.take(self.links[dst], axis=1))
         # Update the filters after averaging the weight updates.
         self.weights -= epsilon * (wsums / self.ofmsize) 
 
     def error(self):
-        self.berror[:] = np.zeros(self.berror.shape)
-        # Reshape the backpropagated error matrix to have one
-        # row per input feature map. 
-        rberror = squish(self.berror, self.nifm)
-        # Reshape the delta matrix to have one row per input feature map.
-        rdelta = squish(self.delta, self.nifm)
         for dst in range(self.ofmsize):
-            rberror[:, self.links[dst]] = \
-                    np.dot(rdelta[:, (self.ofmstarts + dst)], self.weights)
+            self.berror[:, self.links[dst]] = \
+                    np.dot(self.delta[:, (self.ofmstarts + dst)], self.weights)
             
-        self.berror[:] = rberror.reshape(self.berror.shape)
         return self.berror
 
 class Network:
@@ -274,7 +265,7 @@ if __name__ == '__main__':
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
     net = Network()
-    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.08,
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.01,
             mbs=100, loss=ce,
             # The format of the configuration tuple for a convolution layer is:
             # (layer type, activation type, number of input feature maps,
@@ -283,11 +274,11 @@ if __name__ == '__main__':
             # The format of the configuration tuple for a maxpooling layer is:
             # (layer type, activation type, number of input feature maps,
             # shape of input feature map, pooling shape).
-            confs=[(Type.conv, none, 1, (28, 28), (5, 5), 2),
-                   (Type.pool, rectlin, 2, (24, 24), (2,2)),
-                   (Type.conv, none, 2, (12, 12), (5, 5), 4),
-                   (Type.pool, rectlin, 8, (8, 8), (2,2)),
-                   (Type.fcon, rectlin, 64),
+            confs=[(Type.conv, none, 1, (28, 28), (5, 5), 20),
+                   (Type.pool, none, 20, (24, 24), (2,2)),
+                   (Type.conv, none, 20, (12, 12), (5, 5), 50),
+                   (Type.pool, none, 50, (8, 8), (2,2)),
+                   (Type.fcon, rectlin, 500),
                    (Type.fcon, logistic, trainTargets.shape[1])])
     
     preds = net.predict(testData)

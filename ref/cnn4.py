@@ -45,11 +45,11 @@ class ConvLayer:
         ofmheight = self.ifmheight - self.fheight + 1
         ofmwidth = self.ifmwidth - self.fwidth + 1
         self.ofmsize = ofmheight * ofmwidth
-        self.nout = nifm * self.ofmsize * nfilt
+        self.nout = self.ofmsize * nfilt
 
         self.nifm = nifm
         self.nfilt = nfilt
-        self.fsize = self.fheight * self.fwidth 
+        self.fsize = nifm * self.fheight * self.fwidth 
         self.weights = init_weights((nfilt, self.fsize))
         self.g = g
         self.gprime = get_prime(g)
@@ -68,7 +68,9 @@ class ConvLayer:
                 # Collect the column indices for the
                 # entire receptive field.
                 start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth) 
+                for ifm in range(nifm):
+                    colinds += range(start + ifm * self.ifmwidth,
+                                     start + self.fwidth + ifm * self.ifmwidth) 
             if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1
@@ -77,18 +79,15 @@ class ConvLayer:
                 # Sweep the filter over to the next row.
                 src += self.fwidth
             self.links[dst] = colinds
-        
+
     def fprop(self, inputs):
-        inputs = squish(inputs, self.nifm)
-        rz = squish(self.z, self.nifm)
         for dst in range(self.ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
-            rz[:, (self.ofmstarts + dst)] = \
+            self.z[:, (self.ofmstarts + dst)] = \
                     np.dot(inputs.take(self.links[dst], axis=1),
                            self.weights.T)
-        self.z[:] = rz.reshape((self.z.shape))
         self.y[:] = self.g(self.z)
 
     def bprop(self, error):
@@ -96,12 +95,10 @@ class ConvLayer:
 
     def update(self, inputs, epsilon):
         wsums = np.zeros(self.weights.shape) 
-        rdelta = squish(self.delta, self.nifm)
-        inputs = squish(inputs, self.nifm)
         for dst in range(self.ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps. 
-            wsums += np.dot(rdelta.take((self.ofmstarts + dst), axis=1).T,
+            wsums += np.dot(self.delta.take((self.ofmstarts + dst), axis=1).T,
                             inputs.take(self.links[dst], axis=1))
         # Update the filters after averaging the weight updates.
         self.weights -= epsilon * (wsums / self.ofmsize) 
