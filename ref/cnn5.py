@@ -74,6 +74,9 @@ class MaxpoolLayer:
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.pwidth) 
             src += self.pwidth 
+            if (src % self.ifmwidth) == 0:
+                # Shift the pooling window down by 1 receptive field.
+                src += (self.pheight - 1) * self.ifmwidth
             self.links[dst] = colinds
 
     def fprop(self, inputs):
@@ -149,7 +152,7 @@ class ConvLayer:
                 start = src + row * self.ifmwidth
                 for ifm in range(nifm):
                     colinds += range(start + ifm * self.ifmwidth,
-                                     start + self.fwidth + ifm * self.ifmwidth) 
+                                     start + ifm * self.ifmwidth + self.fwidth) 
             if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1

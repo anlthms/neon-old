@@ -70,7 +70,7 @@ class ConvLayer:
                 start = src + row * self.ifmwidth
                 for ifm in range(nifm):
                     colinds += range(start + ifm * self.ifmwidth,
-                                     start + self.fwidth + ifm * self.ifmwidth) 
+                                     start + ifm * self.ifmwidth + self.fwidth) 
             if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1
