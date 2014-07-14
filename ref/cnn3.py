@@ -102,7 +102,7 @@ class ConvLayer:
             for dst in range(self.fmsize):
                 wsums += updates[self.links[dst], (i * self.fmsize + dst)]
 
-            self.weights[i] -= epsilon * (wsums / self.fmsize) 
+            self.weights[i] -= epsilon * wsums
 
     def resize(self, bs):
         self.z = np.zeros((bs, self.nout))

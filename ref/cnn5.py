@@ -179,8 +179,8 @@ class ConvLayer:
             # corresponding cells in the output feature maps. 
             wsums += np.dot(self.delta.take((self.ofmstarts + dst), axis=1).T,
                             inputs.take(self.links[dst], axis=1))
-        # Update the filters after averaging the weight updates.
-        self.weights -= epsilon * (wsums / self.ofmsize) 
+        # Update the filters after summing the weight updates.
+        self.weights -= epsilon * wsums
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, mbs, loss, confs):

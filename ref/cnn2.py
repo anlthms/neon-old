@@ -96,7 +96,7 @@ class ConvLayer:
             for dst in range(self.fmsize):
                 wsums += updates[self.links[dst], (i * self.fmsize + dst)]
 
-            self.weights[i] -= epsilon * (wsums / self.fmsize) 
+            self.weights[i] -= epsilon * wsums
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
