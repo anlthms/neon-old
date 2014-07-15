@@ -1,41 +1,18 @@
 """
-Autoencoder using basic operations - version 1.
+MLP using basic operations - version 9.
 
+Using 2^x instead of e^x.
+ 
 """
 
-import math
 import cPickle
 import numpy as np
 from common import *
 
-class Type:
-    fcon = 0    # Fully connected
-
-class Layer:
-    def __init__(self, nin, nout, g):
-        self.weights = init_weights((nin, nout))
-        self.g = g
-        self.gprime = get_prime(g)
-        self.nout = nout
-        
-    def fprop(self, inputs):
-        self.z = np.dot(inputs, self.weights)
-        self.y = self.g(self.z)
-        return self.y
-
-    def bprop(self, error):
-        self.delta = error * self.gprime(self.z)
-
-    def update(self, inputs, epsilon):
-        self.weights -= epsilon * np.dot(inputs.T, self.delta)
-
-    def error(self):
-        return np.dot(self.delta, self.weights.T)
-
-class Network:
+class MultilayerPerceptron:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
         nin = inputs.shape[1]
-        self.loss = loss 
+        self.loss = loss
         self.de = get_loss_de(loss) 
         self.nlayers = len(confs)
         self.layers = []
@@ -48,7 +25,7 @@ class Network:
             self.fprop(inputs)
             self.bprop(targets)
             self.update(inputs, epsilon) 
-            error = self.loss(self.layers[-1].y, targets)
+            error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
                    str(round(error, 5))
 
@@ -59,11 +36,8 @@ class Network:
 
     def lcreate(self, nin, conf):
         if conf[0] == Type.fcon:
-            return Layer(nin, nout=conf[2], g=conf[1])
-
-        if conf[0] == Type.conv:
-            return ConvLayer(nin, g=conf[1], ishape = conf[2],
-                             fshape=conf[3], nfilt=conf[4])
+            # Add 1 for the bias input.
+            return Layer(nin + 1, nout=conf[2], g=conf[1])
 
     def fprop(self, inputs):
         y = inputs
@@ -89,23 +63,12 @@ if __name__ == '__main__':
     np.random.seed(0)
     trainData, unused1, trainTargets, testData, testLabels, unused2 = \
             cPickle.load(open('smnist.pkl'))
-
-    # Train the autoencoder first.
-    auto = Network()
-    alldata = np.vstack((trainData, testData))
-    auto.fit(alldata, alldata, nepochs=200, epsilon=0.00004, loss=sse,
-             confs=[(Type.fcon, logistic, 600),
-                    (Type.fcon, logistic, alldata.shape[1])])
+    net = MultilayerPerceptron()
+    net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0003,
+            loss=ce,
+            confs=[(Type.fcon, pseudo_logistic, 64),
+                   (Type.fcon, pseudo_logistic, trainTargets.shape[1])])
     
-    trainCodes = auto.layers[0].y[0:trainData.shape[0]]
-    testCodes = auto.layers[0].y[trainData.shape[0]:alldata.shape[0]]
-
-    # Now classify.
-    mlp = Network()
-    mlp.fit(trainCodes, trainTargets, nepochs=100, epsilon=0.0002, loss=ce,
-            confs=[(Type.fcon, logistic, 64),
-                   (Type.fcon, logistic, trainTargets.shape[1])])
-
-    preds = mlp.predict(testCodes)
+    preds = net.predict(testData)
     errorRate = error_rate(preds, testLabels)
     print 'test error rate ' + str(round(errorRate, 2)) + '%' 

@@ -1,7 +1,7 @@
 """
-MLP using basic operations - version 7.
+MLP using basic operations - version 11.
 
-Added bias inputs. 
+Added basic momentum.
  
 """
 
@@ -14,7 +14,7 @@ def append_bias(data):
     return np.concatenate((data, np.ones((data.shape[0], 1))), axis=1)
 
 class MultilayerPerceptron:
-    def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
+    def fit(self, inputs, targets, nepochs, epsilon, momentum, loss, confs):
         nin = inputs.shape[1]
         self.loss = loss
         self.de = get_loss_de(loss) 
@@ -28,7 +28,7 @@ class MultilayerPerceptron:
         for epoch in range(nepochs): 
             self.fprop(inputs)
             self.bprop(targets)
-            self.update(inputs, epsilon) 
+            self.update(inputs, epsilon, momentum) 
             error = loss(self.layers[-1].y, targets)
             print 'epoch ' + str(epoch) + ' training error ' + \
                    str(round(error, 5))
@@ -58,10 +58,10 @@ class MultilayerPerceptron:
             i -= 1 
             self.layers[i].bprop(error)
 
-    def update(self, inputs, epsilon):
-        self.layers[0].update(inputs, epsilon)
+    def update(self, inputs, epsilon, momentum=0.0):
+        self.layers[0].update(inputs, epsilon, momentum)
         for i in range(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].y, epsilon)
+            self.layers[i].update(self.layers[i - 1].y, epsilon, momentum)
 
 if __name__ == '__main__':
     np.random.seed(0)
@@ -69,7 +69,7 @@ if __name__ == '__main__':
             cPickle.load(open('smnist.pkl'))
     net = MultilayerPerceptron()
     net.fit(trainData, trainTargets, nepochs=100, epsilon=0.0001,
-            loss=ce,
+            momentum=0.7, loss=ce,
             confs=[(Type.fcon, logistic, 64),
                    (Type.fcon, logistic, trainTargets.shape[1])])
     

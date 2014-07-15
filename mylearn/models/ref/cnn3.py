@@ -5,15 +5,9 @@ Memory is preallocated for pre-activations, outputs and deltas of each layer.
  
 """
 
-import math
 import cPickle
 import numpy as np
 from common import *
-
-class Type:
-    fcon = 0    # Fully connected
-    conv = 1    # Convolutional
-    pool = 2    # Max-pooling
 
 class Layer:
     def __init__(self, bs, nin, nout, g):
@@ -69,9 +63,9 @@ class ConvLayer:
                 # of the receptive field.
         for dst in range(self.fmsize):
             colinds = []
+            # Collect the column indices for the
+            # entire receptive field.
             for row in range(self.fheight):
-                # Collect the column indices for the
-                # entire receptive field.
                 start = src + row * self.iwidth
                 colinds += range(start, start + self.fwidth) 
             if (src % self.iwidth + self.fwidth) < self.iwidth:
@@ -106,9 +100,9 @@ class ConvLayer:
             wsums = np.zeros(self.weights[i].shape) 
             updates = np.dot(inputs.T, self.delta)
             for dst in range(self.fmsize):
-                wsums += updates[self.links[dst], dst]
+                wsums += updates[self.links[dst], (i * self.fmsize + dst)]
 
-            self.weights[i] -= epsilon * (wsums / self.fmsize) 
+            self.weights[i] -= epsilon * wsums
 
     def resize(self, bs):
         self.z = np.zeros((bs, self.nout))

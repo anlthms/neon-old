@@ -9,15 +9,9 @@ links that should not be connected.
  
 """
 
-import math
 import cPickle
 import numpy as np
 from common import *
-
-class Type:
-    fcon = 0    # Fully connected
-    conv = 1    # Convolutional
-    pool = 2    # Max-pooling
 
 class Layer:
     def __init__(self, nin, nout, g):
@@ -62,9 +56,9 @@ class ConvLayer:
                 # of the receptive field.
         for dst in range(self.fmsize):
             colinds = []
+            # Collect the column indices for the
+            # entire receptive field.
             for row in range(self.fheight):
-                # Collect the column indices for the
-                # entire receptive field.
                 start = src + row * self.iwidth
                 colinds += range(start, start + self.fwidth) 
             if (src % self.iwidth + self.fwidth) < self.iwidth:
@@ -80,7 +74,7 @@ class ConvLayer:
         self.z = np.zeros((inputs.shape[0], self.nout))
         for i in range(self.nfilt):
             filt = self.weights[i]
-            # Create a dense version of the weights with absent
+            # Create a sparse version of the weights with absent
             # links zeroed out and shared links duplicated.
             dweights = np.zeros((inputs.shape[1], self.fmsize))
             for dst in range(self.fmsize):
@@ -100,9 +94,9 @@ class ConvLayer:
             wsums = np.zeros(self.weights[i].shape) 
             updates = np.dot(inputs.T, self.delta)
             for dst in range(self.fmsize):
-                wsums += updates[self.links[dst], dst]
+                wsums += updates[self.links[dst], (i * self.fmsize + dst)]
 
-            self.weights[i] -= epsilon * (wsums / self.fmsize) 
+            self.weights[i] -= epsilon * wsums
 
 class Network:
     def fit(self, inputs, targets, nepochs, epsilon, loss, confs):
