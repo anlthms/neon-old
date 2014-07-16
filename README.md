@@ -1,28 +1,49 @@
-Nervana internal library to implement deep neural networks (in floating point).
+Our in-house developed python machine learning library.
 
+## Installation ##
 
-DBN/
-    test_mnist.py: Code to train DBN using CD-1
-    test_mnist_nn.py: Code to train DNN using backprop (optionally using a pretrained DBN)
+    # get the latest source
+    git clone git@192.168.20.2:algorithms/mylearn.git mylearn
+    cd mylearn
     
-    [todo: refactor these at some point]    
-    rbm_cudamatclass.py: RBM cudamat class
-        rbm_cudaclass.py: RBM class using gnumpy (slower)
-        rbm_class.py: RBM numpy class (slow)
-    dbn_class.py: DBN class
-    nn_class.py: NN class (uses cudamat)
-CNN/
-    test_mnist_cnn.sh: Code to train CNN, using CUDAconvnet
+    # build the package, install in your python package path
+    python setup.py install
     
-[todo: add DAE classes]
+    # import mylearn into your app, and you are good to go
+    
+    # TODO: pip based install?
 
-Best parameters so far for MNIST:
+### Required Dependencies ###
+We want to strive to have as few of these as possible
+* python 2.7 or higher
 
-DBN: 
-2.36-2.76% [on real test set, 10k/60k, vs 10k/50k before; eta=.009, wtinit=.01, mom: 0.99[or 0.9] ->0.9, free energy, penalty=.0002, using sigmoid]
+### Optional Dependencies ###
+* nose (for running tests)
 
-NN:
-1.09% [2000x1000x1000 network with dropout, wt init to N(0,.01), using ReLu, no pre-training, eta=.1, mom=0.99->0.9, penalty=.000001(or higher), cost=crossentropy]
 
-CNN:
-1.13% [CNN: 16c 2s 16c 2s 400f 400f 10o network, wt init to 0.1, using ReLu, no pre-training, eta=.01, 40-50 epochs, penalty=0.001]
+## Usage ##
+
+TODO: add a quick vignette/tutorial/walkthrough training a basic neural net
+
+
+## Features ##
+* Works with our hardware!  Easy to transition between it and various GPU and
+  CPU backends for basic operations
+* Highly configurable via yaml files.  Select backend, learning algorithm
+  architecture, tuning parameters, and so on.
+* Heavily instrumented for performance profiling, debugging, and visualization
+* Modular design
+* Well documented
+* Unit/regression/benchmark timing tested
+* python 2 and 3 support. TODO: utilize 2to3.py?
+
+
+## Issue Tracking ##
+* http://192.168.20.2/algorithms/mylearn/issues
+
+
+## Documentation ##
+* API: TODO: link to sphinx generated docs once written
+* [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model)
+* [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture)
+* [Style and Coding conventions - google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html) TODO: integrate flake8, google style guide?
