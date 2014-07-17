@@ -2,7 +2,8 @@
 
 DOC_DIR=doc
 
-.PHONY: default build develop clean_pyc clean doc html
+.PHONY: default build develop clean_pyc clean doc html test sdist publish_doc \
+	      test_all
 
 default: build
 
@@ -15,6 +16,12 @@ develop: build
 install: build
 	python setup.py install
 
+test: build
+	nosetests mylearn
+
+test_all: build
+	tox
+
 clean_pyc:
 	-find . -name '*.py[co]' -exec rm {} \;
 
@@ -26,6 +33,9 @@ doc: build
 	$(MAKE) -C $(DOC_DIR) html
 
 html: doc
+
+sdist:
+	python setup.py sdist
 
 publish_doc: doc
 	-cd $(DOC_DIR)/build/html && python -m SimpleHTTPServer
