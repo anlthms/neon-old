@@ -6,12 +6,13 @@ Our in-house developed python machine learning library.
     git clone git@192.168.20.2:algorithms/mylearn.git mylearn
     cd mylearn
     
-    # build the package, install in your python package path
-    python setup.py install
+    # build the package, install in your python package path via either:
+    make install
+    # or:
+    pip install .
     
     # import mylearn into your app, and you are good to go
-    
-    # TODO: pip based install?
+
 
 ### Required Dependencies ###
 We want to strive to have as few of these as possible
@@ -19,6 +20,8 @@ We want to strive to have as few of these as possible
 
 ### Optional Dependencies ###
 * nose (for running tests)
+* sphinx (for documentation generation)
+* numpy (for certain backends)
 
 
 ## Usage ##
@@ -43,7 +46,8 @@ TODO: add a quick vignette/tutorial/walkthrough training a basic neural net
 
 
 ## Documentation ##
-* API: TODO: link to sphinx generated docs once written
+* [API](http://192.168.20.3:8000) TODO: update link to a more permanent
+  host/path
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model)
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture)
 * [Style and Coding conventions - google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html) TODO: integrate flake8, google style guide?
