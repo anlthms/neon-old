@@ -127,6 +127,7 @@ class ConvLayer:
 
         ofmheight = self.ifmheight - self.fheight + 1
         ofmwidth = self.ifmwidth - self.fwidth + 1
+        self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = ofmheight * ofmwidth
         self.nout = self.ofmsize * nfilt
 
@@ -146,14 +147,16 @@ class ConvLayer:
         src = 0 # This variable tracks the top left corner
                 # of the receptive field.
         for dst in range(self.ofmsize):
+            # Collect the column indices for the
+            # entire receptive field.
             colinds = []
             for row in range(self.fheight):
-                # Collect the column indices for the
-                # entire receptive field.
                 start = src + row * self.ifmwidth
-                for ifm in range(nifm):
-                    colinds += range(start + ifm * self.ifmwidth,
-                                     start + ifm * self.ifmwidth + self.fwidth) 
+                colinds += range(start, start + self.fwidth) 
+            fminds = np.array(colinds) 
+            for ifm in range(1, nifm):
+                colinds += (fminds + ifm * self.ifmsize).tolist() 
+
             if (src % self.ifmwidth + self.fwidth) < self.ifmwidth:
                 # Slide the filter by 1 cell.
                 src += 1
