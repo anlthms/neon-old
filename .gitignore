@@ -1,4 +1,7 @@
 *.pyc
 .DS_Store
+.tox
 build
 mylearn/version.py
+MANIFEST
+dist
