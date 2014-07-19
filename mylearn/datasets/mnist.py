@@ -7,12 +7,18 @@ import gzip
 import logging
 import os
 import struct
-import urllib
 
 import numpy
 
+from mylearn.util.compat import PY3
+
 from mylearn.backends._numpy import Numpy
 from mylearn.datasets.dataset import Dataset
+
+if PY3:
+    from urllib.parse import urljoin as basejoin
+else:
+    from urllib import basejoin
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +29,10 @@ class MNIST(Dataset):
     """
 
     raw_base_url = 'http://yann.lecun.com/exdb/mnist/'
-    #TODO: fix py3 compatibility
-    raw_train_input_gz = urllib.basejoin(raw_base_url,
-                                         'train-images-idx3-ubyte.gz')
-    raw_train_target_gz = urllib.basejoin(raw_base_url,
-                                          'train-labels-idx1-ubyte.gz')
-    raw_test_input_gz = urllib.basejoin(raw_base_url,
-                                        't10k-images-idx3-ubyte.gz')
-    raw_test_target_gz = urllib.basejoin(raw_base_url,
-                                         't10k-labels-idx1-ubyte.gz')
+    raw_train_input_gz = basejoin(raw_base_url, 'train-images-idx3-ubyte.gz')
+    raw_train_target_gz = basejoin(raw_base_url, 'train-labels-idx1-ubyte.gz')
+    raw_test_input_gz = basejoin(raw_base_url, 't10k-images-idx3-ubyte.gz')
+    raw_test_target_gz = basejoin(raw_base_url, 't10k-labels-idx1-ubyte.gz')
     
     # use numpy as default backend
     backend = Numpy

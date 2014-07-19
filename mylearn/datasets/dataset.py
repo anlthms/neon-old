@@ -4,7 +4,14 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 
 import logging
 import os
-import urllib
+
+from mylearn.util.compat import PY3
+
+if PY3:
+    import urllib.request as urllib
+else:
+    import urllib
+
 
 logger = logging.getLogger(__name__)
 
