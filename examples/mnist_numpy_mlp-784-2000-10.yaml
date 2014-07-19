@@ -1,0 +1,67 @@
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST.  Parameters are optimized for performance.
+
+backend: {
+  type: mylearn.backends._numpy.Numpy,
+  rng_seed: 0,
+}
+
+datasets: [
+  # MNIST data
+  {
+    #type: !!python/object:dataset.MNIST,
+    type: mylearn.datasets.mnist.MNIST,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    pkl_path: './mnist.pkl',
+  },
+]
+
+# simple MLP model specification
+model: {
+  type: mylearn.models.mlp.MLP,
+  layers: [
+    {
+      name: h0,
+      connectivity: full,
+      num_nodes: 2000,
+      activation_fn: rectlin,
+      weight_init: {
+        type: normal,
+        loc: 0.0,
+        scale: 0.01,
+      },
+    },
+    {
+      name: output,
+      connectivity: full,
+      num_nodes: 10,
+      activation_fn: logistic,
+      weight_init: {
+        type: node_normalized,
+        scale: 4.0,
+        bias_init: 0.0,
+      },
+    },
+  ],
+  num_epochs: 60,
+  batch_size: 100,
+  learning_rate: 0.01,
+  momentum: {
+    type: linear_monotone, #constant, nesterov
+    initial_coef: 0.99,
+    start_epoch: 5,
+    saturate_epoch: 5,
+    saturated_coef: 0.90,
+  },
+  loss_fn: cross_entropy,
+  pkl_path: './mlp-simple.pkl',
+}
+
+# dumping of predictions/output?
+
+# logging options that are passed to logging.basicConfig
+logging: {
+  level: 10,  #logging.DEBUG == 10
+  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+}

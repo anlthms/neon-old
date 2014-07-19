@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+"""
+Driver script for running mylearn model experiments.
+"""
+
+import argparse
+import logging
+import sys
+import yaml
+
+import mylearn
+from mylearn.experiments.experiment import Experiment
+
+
+def parse_args():
+    """
+    Sets up and handles command line argument parsing.
+    """
+    parser = argparse.ArgumentParser(description='run simple experiment.')
+    parser.add_argument('yaml_file', type=argparse.FileType('r'),
+                        help='configuration file settings')
+    parser.add_argument('-v', '--version', action='version',
+                        version=mylearn.__version__)
+    return(parser.parse_args())
+
+
+def main():
+    """
+    Point of code entry.
+    """
+    # read in yaml params
+    args = parse_args()
+    cfg = yaml.safe_load(args.yaml_file)
+
+    if 'logging' in cfg:
+        logging.basicConfig(**cfg['logging'])
+    
+    # execute based on what is in config
+    experiment = Experiment(**cfg)
+    experiment.run()
+
+
+if __name__ == '__main__':
+    sys.exit(main())

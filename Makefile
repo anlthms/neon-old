@@ -20,7 +20,7 @@ install: build
 	python setup.py install
 
 test: build
-	nosetests mylearn
+	nosetests -a '!slow' mylearn
 
 test_all: build
 	tox
