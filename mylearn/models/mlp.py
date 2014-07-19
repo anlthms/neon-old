@@ -5,6 +5,10 @@ Simple multi-layer perceptron model.
 import logging
 import math
 
+from mylearn.models.layer import Layer
+from mylearn.models.model import Model
+
+
 logger = logging.getLogger(__name__)
 
 

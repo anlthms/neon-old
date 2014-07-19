@@ -20,4 +20,4 @@ class TestMNIST(object):
         d = MNIST(repo_path=self.tmp_repo)
         inputs = d.get_inputs(train=True)
         # TODO: make this work (numpy import errors at the moment)
-        assert input['train'] is not None
+        assert inputs['train'] is not None

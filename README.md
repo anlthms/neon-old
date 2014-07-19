@@ -17,16 +17,19 @@ Our in-house developed python machine learning library.
 ### Required Dependencies ###
 We want to strive to have as few of these as possible
 * python 2.7 or higher
+* numpy (for certain backends)
+* pyyaml (for config file parsing)
 
 ### Optional Dependencies ###
 * nose (for running tests)
 * sphinx (for documentation generation)
-* numpy (for certain backends)
 
 
 ## Usage ##
 
-TODO: add a quick vignette/tutorial/walkthrough training a basic neural net
+    # mylearn <path_to.yaml>
+    # see the examples directory for samply .yaml files
+    mylearn examples/mnist_numpy_mlp-784-2000-10.yaml
 
 
 ## Features ##

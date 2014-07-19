@@ -72,7 +72,7 @@ class MNIST(Dataset):
         """
         Carries out the actual reading of MNIST label files.
         """
-        with open(fn, 'rb') as f:
+        with open(fname, 'rb') as f:
             magic, num_labels = struct.unpack('>ii', f.read(8))
             if magic != 2049:
                 raise ValueError('invalid MNIST label file:' + fname)
