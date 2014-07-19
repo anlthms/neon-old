@@ -17,7 +17,10 @@ develop: build
 	-python setup.py develop
 
 install: build
-	python setup.py install
+	pip install .
+
+uninstall:
+	pip uninstall -y mylearn
 
 test: build
 	nosetests -a '!slow' mylearn
