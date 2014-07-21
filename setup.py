@@ -5,7 +5,7 @@ import os
 
 
 # Define version information
-VERSION = '0.0.0'
+VERSION = '0.1.0'
 FULLVERSION = VERSION
 write_version = True
 
