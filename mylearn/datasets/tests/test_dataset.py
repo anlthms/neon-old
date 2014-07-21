@@ -1,7 +1,7 @@
-import nose
 from nose.tools import assert_raises
 
 from mylearn.datasets.dataset import Dataset
+
 
 class TestDataset(object):
 

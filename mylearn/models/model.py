@@ -15,12 +15,22 @@ class Model(object):
 
     def fit(self, datasets):
         """
-        Utilize the passed datasets to train a model (learn model parameters).
+        Utilize the passed dataset(s) to train a model (learn model
+        parameters).
 
-        :param datasets:
-        :type datasets: tuple of 
+        :param datasets: collection of datasets stored in an approporiate
+                         backend.
+        :type datasets: tuple of mylearn.datasets.Dataset objects
         """
         raise NotImplementedError()
 
     def predict(self, datasets):
+        """
+        Utilize a fit model to generate predictions against the datasets
+        provided.
+
+        :param datasets: collection of datasets stored in an approporiate
+                         backend.
+        :type datasets: tuple of mylearn.datasets.Dataset objects
+        """
         raise NotImplementedError()

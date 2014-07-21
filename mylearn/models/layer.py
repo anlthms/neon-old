@@ -1,9 +1,9 @@
 """
-Generic single neural network layer built to handle data from a particular backend.
+Generic single neural network layer built to handle data from a particular
+backend.
 """
 
 import logging
-import math
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,14 @@ class Layer(object):
         self.velocity = self.backend.Tensor(0.0)
         self.y = None
         self.z = None
-        
+
     def __str__(self):
         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
                 "utilizing %s backend\n\t"
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" 
-                "velocity: mean=%.05f, min=%.05f, max=%.05f" % 
+                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t"
+                "velocity: mean=%.05f, min=%.05f, max=%.05f" %
                 (self.name, self.nin, self.nout, self.act_fn.__name__,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.y),
@@ -72,10 +72,11 @@ class AELayer(object):
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
-    def __init__(self, name, backend, nin, nout, act_fn, weight_init, weights=None):
+    def __init__(self, name, backend, nin, nout, act_fn, weight_init,
+                 weights=None):
         self.name = name
         self.backend = backend
-        if weights == None:
+        if weights is None:
             self.weights = self.backend.gen_weights((nout, nin), weight_init)
         else:
             self.weights = weights
@@ -85,13 +86,13 @@ class AELayer(object):
         self.nout = nout
         self.y = None
         self.z = None
-        
+
     def __str__(self):
         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
                 "utilizing %s backend\n\t"
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" % 
+                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nin, self.nout, self.act_fn.__name__,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.y),

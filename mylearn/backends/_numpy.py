@@ -5,7 +5,6 @@ Wraps numpy ndarray and operations into our backend interface.
 import logging
 import math
 import numpy as np
-import yaml
 
 from mylearn.backends.backend import Backend
 
@@ -16,7 +15,7 @@ class Numpy(Backend):
     """
     Sets up a numpy based backend for matrix ops.
     """
-    
+
     class Tensor(Backend.Tensor):
         """
         Simple wrapped numpy ndarray tensor
@@ -132,7 +131,7 @@ class Numpy(Backend):
 
         def __pow__(self, other, modulo=None):
             # TODO: determine how ternary modulo needs to be handled
-            if isinstance(exp, Numpy.Tensor):
+            if isinstance(other, Numpy.Tensor):
                 return Numpy.Tensor(self._tensor ** other._tensor)
             else:
                 return Numpy.Tensor(self._tensor ** other)
@@ -157,7 +156,6 @@ class Numpy(Backend):
 
         def take(self, start, end, axis):
             return Numpy.Tensor(self._tensor.take(range(start, end), axis))
-
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -189,8 +187,8 @@ class Numpy(Backend):
         Adds a bias column to Tensor x, returning a new Tensor.
         """
         return self.Tensor(np.concatenate((x._tensor,
-                                              np.ones((x.shape[0], 1))),
-                                             axis=1))
+                                          np.ones((x.shape[0], 1))),
+                                          axis=1))
 
     def copy(self, a):
         return self.Tensor(np.copy(a))
@@ -236,31 +234,31 @@ class Numpy(Backend):
 
     def logistic(self, x):
         return self.Tensor(1.0 / (1.0 + np.exp(-x._tensor)))
-    
+
     def logistic_prime(self, x):
         y = self.logistic(x)
-        return y * (1.0 - y) 
-    
+        return y * (1.0 - y)
+
     def pseudo_logistic(self, x):
         return 1.0 / (1.0 + 2 ** -x)
-    
+
     def pseudo_logistic_prime(self, z):
         y = self.pseudo_logistic(z)
-        return math.log(2) * y * (1.0 - y) 
-    
+        return math.log(2) * y * (1.0 - y)
+
     def tanh(self, x):
         y = np.exp(-2 * x)
-        return  (1.0 - y) / (1.0 + y)
-    
+        return (1.0 - y) / (1.0 + y)
+
     def tanh_prime(self, x):
         y = self.tanh(x)
         return 1.0 - y * y
-    
+
     def rectlin(self, x):
         xc = x.copy()
         xc[xc < 0] = 0
         return xc
-    
+
     def rectlin_prime(self, x):
         xc = x.copy()
         xc[xc < 0] = 0
@@ -272,7 +270,7 @@ class Numpy(Backend):
 
     def noact_prime(self, x):
         return self.Tensor(np.ones(x.shape))
-    
+
     def get_derivative(self, func):
         if func == self.logistic:
             return self.logistic_prime
@@ -288,14 +286,16 @@ class Numpy(Backend):
             return self.cross_entropy_de
         if func == self.sse:
             return self.sse_de
-    
+
     def gen_weights(self, size, weight_params):
         weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0
             high = 1.0
-            if 'low' in weight_params: low = weight_params['low']
-            if 'high' in weight_params: high = weight_params['high']
+            if 'low' in weight_params:
+                low = weight_params['low']
+            if 'high' in weight_params:
+                high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
             weights = self.uniform(low, high, size)
@@ -303,15 +303,18 @@ class Numpy(Backend):
               weight_params['type'] == 'normal'):
             loc = 0.0
             scale = 1.0
-            if 'loc' in weight_params: loc = weight_params['loc']
-            if 'scale' in weight_params: scale = weight_params['scale']
+            if 'loc' in weight_params:
+                loc = weight_params['loc']
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             weights = self.normal(loc, scale, size)
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
-            if 'scale' in weight_params: scale = weight_params['scale']
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
             logger.info('generating %s node_normalized(%0.2f) weights.' %
                         (str(size), scale))
             node_norm = scale * math.sqrt(6.0 / sum(size))
@@ -320,7 +323,7 @@ class Numpy(Backend):
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:
             # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' % 
+            logger.info('separately initializing bias weights to %0.2f' %
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
 
@@ -356,10 +359,10 @@ class Numpy(Backend):
                     if start_epoch == saturate_epoch:
                         coef = saturated_coef
                     else:
-                        init_prop = ((epoch - start_epoch + 0.0) /
-                                     (saturate_epoch - start_epoch))
-                        coef = (init_proportion * init_coef + 
-                                (1.0 - init_propoertion) * saturated_coef)
+                        init_proportion = ((epoch - start_epoch + 0.0) /
+                                           (saturate_epoch - start_epoch))
+                        coef = (init_proportion * init_coef +
+                                (1.0 - init_proportion) * saturated_coef)
                 elif saturate_epoch is not None and epoch > saturate_epoch:
                     coef = saturated_coef
             else:
@@ -373,18 +376,18 @@ class Numpy(Backend):
     def cross_entropy(self, outputs, targets):
         outputs = outputs._tensor
         targets = targets._tensor
-        return self.Tensor(np.mean(-targets * np.log(outputs) - \
-                       (1 - targets) * np.log(1 - outputs)))
-    
+        return self.Tensor(np.mean(-targets * np.log(outputs) -
+                           (1 - targets) * np.log(1 - outputs)))
+
     def cross_entropy_de(self, outputs, targets):
         outputs = outputs._tensor
         targets = targets._tensor
         return self.Tensor((outputs - targets) / (outputs * (1.0 - outputs)))
-    
+
     def sse(self, outputs, targets):
         """ Sum of squared errors """
         return 0.5 * np.sum((outputs - targets) ** 2)
-    
+
     def sse_de(self, outputs, targets):
         """ Derivative of SSE with respect to the output """
         return (outputs - targets)

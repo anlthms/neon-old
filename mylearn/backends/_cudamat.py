@@ -5,7 +5,6 @@ A wrapped cudamat GPU based backend.
 import logging
 import numpy
 import cudamat
-import yaml
 
 from mylearn.backends.backend import Backend
 
@@ -53,7 +52,7 @@ class Cudamat(Backend):
             raise NotImplementedError()
 
         def __eq__(self, other):
-            if other == None:
+            if other is None:
                 return False
             raise NotImplementedError()
 
@@ -142,31 +141,30 @@ class Cudamat(Backend):
                 return Cudamat.Tensor(self._tensor.get_row_slice(start, end))
             if axis == 1:
                 return Cudamat.Tensor(self._tensor.get_col_slice(start, end))
-            raise NotImplementedError() # if axis == None
-            
+            raise NotImplementedError()  # if axis == None
+
         def sum(self):
             result = self._tensor.sum(axis=0).sum(axis=1)
             logger.info('Copying to host')
-            result.copy_to_host() 
+            result.copy_to_host()
             return result.numpy_array[0][0]
 
         def mean(self):
             result = self._tensor.mean(axis=0).mean(axis=1)
-            #XXX
-            #logger.info('Copying to host')
-            result.copy_to_host() 
+            logger.info('Copying to host')
+            result.copy_to_host()
             return result.numpy_array[0][0]
 
         def min(self):
             result = self._tensor.min(axis=0).min(axis=1)
             logger.info('Copying to host')
-            result.copy_to_host() 
+            result.copy_to_host()
             return result.numpy_array[0][0]
 
         def max(self):
             result = self._tensor.max(axis=0).max(axis=1)
             logger.info('Copying to host')
-            result.copy_to_host() 
+            result.copy_to_host()
             return result.numpy_array[0][0]
 
     class TransposedTensor(Tensor):
@@ -201,9 +199,9 @@ class Cudamat(Backend):
         Adds a bias column to Tensor x, returning a new Tensor.
         """
         result = cudamat.empty((x.shape[0], x.shape[1] + 1))
-        result.set_col_slice(0, x.shape[1], x._tensor) 
-        result.set_col_slice(x.shape[1], (x.shape[1] + 1), 
-                             cudamat.CUDAMatrix.ones.slice(0, x.shape[0])) 
+        result.set_col_slice(0, x.shape[1], x._tensor)
+        result.set_col_slice(x.shape[1], (x.shape[1] + 1),
+                             cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
         return self.Tensor(result)
 
     def copy(self, a):
@@ -230,13 +228,13 @@ class Cudamat(Backend):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
-            assert out == None
+            assert out is None
             res = x._tensor.min(axis=0).min(axis=1)
             logger.info('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 
-        if out == None:
+        if out is None:
             res = cudamat.min(x._tensor, axis)
         else:
             res = cudamat.min(x._tensor, axis, out)
@@ -247,13 +245,13 @@ class Cudamat(Backend):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
-            assert out == None
+            assert out is None
             res = x._tensor.max(axis=0).max(axis=1)
             logger.info('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 
-        if out == None:
+        if out is None:
             res = cudamat.max(x._tensor, axis)
         else:
             res = cudamat.max(x._tensor, axis, out)
@@ -270,30 +268,30 @@ class Cudamat(Backend):
         target = cudamat.empty(x.shape)
         cudamat.sigmoid(x._tensor, target)
         return self.Tensor(target)
-    
+
     def logistic_prime(self, x):
         y = self.logistic(x)._tensor
-        result = y.copy() 
+        result = y.copy()
         result.mult(-1.0)
         result.add(1.0)
         result.mult(y)
-        return self.Tensor(result) 
-    
+        return self.Tensor(result)
+
     def pseudo_logistic(self, x):
         raise NotImplementedError()
-    
+
     def pseudo_logistic_prime(self, z):
         raise NotImplementedError()
-    
+
     def tanh(self, x):
         raise NotImplementedError()
-    
+
     def tanh_prime(self, x):
         raise NotImplementedError()
-    
+
     def rectlin(self, x):
         raise NotImplementedError()
-    
+
     def rectlin_prime(self, x):
         raise NotImplementedError()
 
@@ -302,7 +300,7 @@ class Cudamat(Backend):
 
     def noact_prime(self, x):
         return self.Tensor(numpy.ones(x.shape))
-    
+
     def get_derivative(self, func):
         if func == self.logistic:
             return self.logistic_prime
@@ -318,13 +316,15 @@ class Cudamat(Backend):
             return self.cross_entropy_de
         if func == self.sse:
             return self.sse_de
-    
+
     def gen_weights(self, size, weight_params):
         if weight_params['type'] == 'uniform':
             low = 0.0
             high = 1.0
-            if 'low' in weight_params: low = weight_params['low']
-            if 'high' in weight_params: high = weight_params['high']
+            if 'low' in weight_params:
+                low = weight_params['low']
+            if 'high' in weight_params:
+                high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
             return self.uniform(low, high, size)
@@ -332,8 +332,10 @@ class Cudamat(Backend):
               weight_params['type'] == 'normal'):
             loc = 0.0
             scale = 1.0
-            if 'loc' in weight_params: loc = weight_params['loc']
-            if 'scale' in weight_params: scale = weight_params['scale']
+            if 'loc' in weight_params:
+                loc = weight_params['loc']
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             return self.normal(loc, scale, size)
@@ -343,7 +345,7 @@ class Cudamat(Backend):
         targets = targets._tensor
 
         negative_targets = targets.copy()
-        negative_targets.mult(-1.0) 
+        negative_targets.mult(-1.0)
         term1 = outputs.copy()
         cudamat.log(term1)
         term1.mult(negative_targets)
@@ -353,7 +355,7 @@ class Cudamat(Backend):
         term2.add(1.0, target=term2)
         cudamat.log(term2)
 
-        reverse_targets =  negative_targets
+        reverse_targets = negative_targets
         reverse_targets.add(1.0)
         term2.mult(reverse_targets)
 
@@ -361,7 +363,7 @@ class Cudamat(Backend):
         diff.subtract(term2)
         diff_tensor = self.Tensor(diff)
         return diff_tensor.mean()
-    
+
     def cross_entropy_de(self, outputs, targets):
         outputs = outputs._tensor
         targets = targets._tensor
@@ -371,16 +373,16 @@ class Cudamat(Backend):
 
         denom = outputs.copy()
         denom.mult(-1.0)
-        denom.add(1.0) 
+        denom.add(1.0)
         denom.mult(outputs)
-        result.divide(denom) 
+        result.divide(denom)
         return self.Tensor(result)
-    
+
     def sse(self, outputs, targets):
         """ Sum of squared errors """
         diff = outputs - targets
         return 0.5 * (diff * diff).sum()
-    
+
     def sse_de(self, outputs, targets):
         """ Derivative of SSE with respect to the output """
         return (outputs - targets)

@@ -30,7 +30,7 @@ class MLP(Model):
         nrecs, nin = inputs.shape
         backend = datasets[0].backend
         self.loss_fn = getattr(backend, self.loss_fn)
-        self.de = backend.get_derivative(self.loss_fn) 
+        self.de = backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -45,20 +45,20 @@ class MLP(Model):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for epoch in xrange(self.num_epochs): 
+        for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
                 self.fprop(inputs[start_idx:end_idx])
                 self.bprop(targets[start_idx:end_idx])
-                self.update(inputs[start_idx:end_idx], self.learning_rate, epoch,
-                            self.momentum) 
+                self.update(inputs[start_idx:end_idx], self.learning_rate,
+                            epoch, self.momentum)
                 error += self.loss_fn(self.layers[-1].y,
                                       targets[start_idx:end_idx])
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
-            #for layer in self.layers:
+            # for layer in self.layers:
             #    logger.info('layer:\n\t%s' % str(layer))
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -71,13 +71,13 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.fprop(inputs['train'])
-                preds['train'] = dataset.backend.argmax(outputs, axis=1) 
+                preds['train'] = dataset.backend.argmax(outputs, axis=1)
             if test and 'test' in inputs:
                 outputs = self.fprop(inputs['test'])
-                preds['test'] = dataset.backend.argmax(outputs, axis=1) 
+                preds['test'] = dataset.backend.argmax(outputs, axis=1)
             if validation and 'validation' in inputs:
                 outputs = self.fprop(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(outputs, axis=1) 
+                preds['validation'] = dataset.backend.argmax(outputs, axis=1)
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -93,7 +93,7 @@ class MLP(Model):
 
     def fprop(self, inputs):
         y = inputs
-        for layer in self.layers: 
+        for layer in self.layers:
             y = layer.fprop(y)
         return y
 
@@ -103,7 +103,7 @@ class MLP(Model):
         lastlayer.bprop(self.de(lastlayer.y, targets) / targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
-            i -= 1 
+            i -= 1
             self.layers[i].bprop(error)
 
     def update(self, inputs, epsilon, epoch, momentum):
@@ -112,14 +112,17 @@ class MLP(Model):
             self.layers[i].update(self.layers[i - 1].y, epsilon, epoch,
                                   momentum)
 
-    #TODO: move out to separate config params and module.
+    # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
                       validation=True):
         # simple misclassification error
         items = []
-        if train: items.append('train')
-        if test: items.append('test')
-        if validation: items.append('validation')
+        if train:
+            items.append('train')
+        if test:
+            items.append('test')
+        if validation:
+            items.append('validation')
         for idx in xrange(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
@@ -127,8 +130,9 @@ class MLP(Model):
             for item in items:
                 if item in targets and item in preds:
                     misclass = ds.backend.not_equal(preds[item],
-                               ds.backend.nonzero(targets[item]))
+                                                    ds.backend.nonzero(
+                                                    targets[item]))
                     err = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * err))
-        #TODO: return values instead?
+        # TODO: return values instead?
