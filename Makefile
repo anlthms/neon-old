@@ -5,7 +5,7 @@ DOC_PUB_HOST=192.168.20.2
 DOC_PUB_USER=mylearn
 DOC_PUB_PATH=/home/mylearn/public/
 
-.PHONY: default build develop clean_pyc clean doc html test sdist publish_doc \
+.PHONY: default build develop clean_pyc clean doc html test dist publish_doc \
 	      test_all
 
 default: build
@@ -40,7 +40,10 @@ doc: build
 
 html: doc
 
-sdist:
+style:
+	-flake8 .
+
+dist:
 	python setup.py sdist
 
 publish_doc: doc

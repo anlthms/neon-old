@@ -112,6 +112,7 @@ class MLP(Model):
             self.layers[i].update(self.layers[i - 1].y, epsilon, epoch,
                                   momentum)
 
+    #TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
                       validation=True):
         # simple misclassification error
