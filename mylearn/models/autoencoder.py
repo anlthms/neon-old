@@ -4,7 +4,7 @@ Contains code to train stacked autoencoder models and run inference.
 
 import logging
 import math
-import numpy as np  #TODO: remove dependence on numpy here.
+import numpy as np  # TODO: remove dependence on numpy here.
 
 from mylearn.models.layer import AELayer
 from mylearn.models.model import Model
@@ -31,7 +31,7 @@ class Autoencoder(Model):
         nrecs, nin = inputs.shape
         backend = datasets[0].backend
         self.loss_fn = getattr(backend, self.loss_fn)
-        self.loss_fn_de = backend.get_derivative(self.loss_fn) 
+        self.loss_fn_de = backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -47,11 +47,11 @@ class Autoencoder(Model):
             layers.append(layer)
             nin = layer.nout
         self.layers = layers
-        
+
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for epoch in xrange(self.num_epochs): 
+        for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
@@ -59,15 +59,15 @@ class Autoencoder(Model):
                 self.fprop(inputs.take(start_idx, end_idx, axis=0))
                 self.bprop(targets.take(start_idx, end_idx, axis=0))
                 self.update(inputs.take(start_idx, end_idx, axis=0),
-                            self.learning_rate, epoch) 
+                            self.learning_rate, epoch)
                 error += self.loss_fn(self.layers[-1].y,
                                       targets.take(start_idx, end_idx, axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
-                    (epoch, error / num_batches))
+                        (epoch, error / num_batches))
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]
-        outputs = np.zeros((nrecs, self.layers[-1].nout)) 
+        outputs = np.zeros((nrecs, self.layers[-1].nout))
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
@@ -85,11 +85,11 @@ class Autoencoder(Model):
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                preds['train'] = self.predict_set(inputs['train']) 
+                preds['train'] = self.predict_set(inputs['train'])
             if test and 'test' in inputs:
-                preds['test'] = self.predict_set(inputs['test']) 
+                preds['test'] = self.predict_set(inputs['test'])
             if validation and 'validation' in inputs:
-                preds['validation'] = self.predict_set(inputs['validation']) 
+                preds['validation'] = self.predict_set(inputs['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -98,24 +98,25 @@ class Autoencoder(Model):
     def lcreate(self, backend, nin, conf, weights):
         if conf['connectivity'] == 'full':
             return AELayer(conf['name'], backend, nin,
-                         nout=conf['num_nodes'],
-                         act_fn=conf['activation_fn'],
-                         weight_init=conf['weight_init'],
-                         weights=weights)
+                           nout=conf['num_nodes'],
+                           act_fn=conf['activation_fn'],
+                           weight_init=conf['weight_init'],
+                           weights=weights)
 
     def fprop(self, inputs):
         y = inputs
-        for layer in self.layers: 
+        for layer in self.layers:
             y = layer.fprop(y)
         return y
 
     def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.loss_fn_de(lastlayer.y, targets) / targets.shape[0])
+        lastlayer.bprop(self.loss_fn_de(lastlayer.y, targets) /
+                        targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
-            i -= 1 
+            i -= 1
             self.layers[i].bprop(error)
 
     def update(self, inputs, epsilon, epoch):
@@ -124,17 +125,20 @@ class Autoencoder(Model):
             self.layers[i].update(self.layers[i - 1].y, epsilon, epoch)
 
     def cross_entropy(self, outputs, targets):
-        return np.mean(-targets * np.log(outputs) - \
-                (1 - targets) * np.log(1 - outputs))
+        return np.mean(-targets * np.log(outputs) -
+                       (1 - targets) * np.log(1 - outputs))
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
                       validation=True):
-        # Reconstruction error. 
+        # Reconstruction error.
         items = []
-        if train: items.append('train')
-        if test: items.append('test')
-        if validation: items.append('validation')
+        if train:
+            items.append('train')
+        if test:
+            items.append('test')
+        if validation:
+            items.append('validation')
         for idx in xrange(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
@@ -143,4 +147,4 @@ class Autoencoder(Model):
                 if item in targets and item in preds:
                     err = self.cross_entropy(preds[item], targets[item].raw())
                     logging.info("%s set reconstruction error : %0.5f" %
-                            (item, err))
+                                 (item, err))

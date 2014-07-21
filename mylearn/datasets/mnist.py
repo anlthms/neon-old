@@ -33,7 +33,7 @@ class MNIST(Dataset):
     raw_train_target_gz = basejoin(raw_base_url, 'train-labels-idx1-ubyte.gz')
     raw_test_input_gz = basejoin(raw_base_url, 't10k-images-idx3-ubyte.gz')
     raw_test_target_gz = basejoin(raw_base_url, 't10k-labels-idx1-ubyte.gz')
-    
+
     # use numpy as default backend
     backend = Numpy
 
@@ -51,7 +51,6 @@ class MNIST(Dataset):
         """
         self.__dict__.update(kwargs)
 
-
     def read_image_file(self, fname, dtype=None):
         """
         Carries out the actual reading of MNIST image files.
@@ -68,7 +67,6 @@ class MNIST(Dataset):
             array /= 255.
         return array
 
-
     def read_label_file(self, fname):
         """
         Carries out the actual reading of MNIST label files.
@@ -80,7 +78,6 @@ class MNIST(Dataset):
             array = numpy.fromfile(f, dtype='uint8')
         return array
 
-
     def load(self):
         if self.inputs['train'] is None:
             if 'repo_path' in self.__dict__:
@@ -91,9 +88,10 @@ class MNIST(Dataset):
                 train_idcs = range(60000)
                 numpy.random.shuffle(train_idcs)
                 if 'sample_pct' in self.__dict__:
-                    if self.sample_pct > 1.0: self.sample_pct /= 100.0
+                    if self.sample_pct > 1.0:
+                        self.sample_pct /= 100.0
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
-                for url in (self.raw_train_input_gz, self.raw_train_target_gz, 
+                for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
                     name = os.path.basename(url).rstrip('.gz')
                     repo_gz_file = os.path.join(save_dir, name + '.gz')

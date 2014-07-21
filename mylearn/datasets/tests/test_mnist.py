@@ -1,9 +1,9 @@
 import os
-import nose
 from nose.plugins.attrib import attr
 import shutil
 
 from mylearn.datasets.mnist import MNIST
+
 
 class TestMNIST(object):
 
