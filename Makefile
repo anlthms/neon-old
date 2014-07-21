@@ -1,8 +1,11 @@
 # Top-level control of the building/installation/cleaning of various targets
 
 DOC_DIR=doc
+DOC_PUB_HOST=192.168.20.2
+DOC_PUB_USER=mylearn
+DOC_PUB_PATH=/home/mylearn/public/
 
-.PHONY: default build develop clean_pyc clean doc html test sdist publish_doc \
+.PHONY: default build develop clean_pyc clean doc html test dist publish_doc \
 	      test_all
 
 default: build
@@ -14,10 +17,13 @@ develop: build
 	-python setup.py develop
 
 install: build
-	python setup.py install
+	pip install .
+
+uninstall:
+	pip uninstall -y mylearn
 
 test: build
-	nosetests mylearn
+	nosetests -a '!slow' mylearn
 
 test_all: build
 	tox
@@ -34,8 +40,12 @@ doc: build
 
 html: doc
 
-sdist:
+style:
+	-flake8 .
+
+dist:
 	python setup.py sdist
 
 publish_doc: doc
-	-cd $(DOC_DIR)/build/html && python -m SimpleHTTPServer
+	-cd $(DOC_DIR)/build/html && \
+		rsync -avz -essh . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)

@@ -1,0 +1,115 @@
+# Experiment settings to train/test a stacked autoencoder on MNIST.
+
+backend: {
+  type: mylearn.backends._cudamat.Cudamat,
+  rng_seed: 0,
+}
+
+datasets: [
+  # MNIST data
+  {
+    #type: !!python/object:dataset.MNIST,
+    type: mylearn.datasets.mnist.MNIST,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    pkl_path: './mnist.pkl',
+  },
+]
+
+# Autoencoder model specification
+model: {
+  type: mylearn.models.autoencoder.Autoencoder,
+  layers: [
+    {
+      name: enc1,
+      connectivity: full,
+      num_nodes: 1000,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: enc2,
+      connectivity: full,
+      num_nodes: 500,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: enc3,
+      connectivity: full,
+      num_nodes: 250,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: enc4,
+      connectivity: full,
+      num_nodes: 30,
+      activation_fn: noact,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: dec1,
+      connectivity: full,
+      num_nodes: 250,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: dec2,
+      connectivity: full,
+      num_nodes: 500,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: dec3,
+      connectivity: full,
+      num_nodes: 1000,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: dec4,
+      connectivity: full,
+      num_nodes: 784,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+  ],
+  num_epochs: 60,
+  batch_size: 100,
+  learning_rate: 0.0001,
+  loss_fn: cross_entropy,
+  pkl_path: './sae.pkl',
+}
+
+# logging options that are passed to logging.basicConfig
+logging: {
+  level: 10,  #logging.DEBUG == 10
+  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+}
