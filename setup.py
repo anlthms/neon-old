@@ -10,11 +10,11 @@ FULLVERSION = VERSION
 write_version = True
 
 if write_version:
-    txt = "version = '%s'\nshort_version = '%s'\n"
+    txt = "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
     fname = os.path.join(os.path.dirname(__file__), 'mylearn', 'version.py')
     a = open(fname, 'w')
     try:
-        a.write(txt % (FULLVERSION, VERSION))
+        a.write(txt % ("Project version information.", FULLVERSION, VERSION))
     finally:
         a.close()
 
