@@ -1,20 +1,26 @@
 .. mylearn documentation master file
 
 mylearn: A highly configurable ML library
-=========================================
+*****************************************
 
-.. module:: mylearn
+:Release: |version|
+:Date: |today|
 
-**Version**: |version| **Date**: |today|
+.. automodule:: mylearn
+   :members:
 
-**More Info**:
-https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn
 
-Contents:
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
 
+   backends
+   models
+   datasets
+   experiments
+   util
    api
 
 

@@ -17,18 +17,20 @@ Our in-house developed python machine learning library.
 ### Required Dependencies ###
 We want to strive to have as few of these as possible
 * python 2.7 or higher
-* numpy (for certain backends)
-* pyyaml (for config file parsing)
+* [numpy](http://www.numpy.org/) for certain backends and dataset parsing
+* [pyyaml](http://pyyaml.org/) for config file parsing
 
 ### Optional Dependencies ###
-* nose (for running tests)
-* sphinx (for documentation generation)
+* [nose](https://nose.readthedocs.org/en/latest/) for running tests
+* [sphinx](http://sphinx-doc.org/) for documentation generation
+  * sphinxcontrib-napoleon for google style autodoc parsing
+* [cudamat](https://github.com/cudamat/cudamat) for GPU based backend
 
 
 ## Usage ##
 
     # mylearn <path_to.yaml>
-    # see the examples directory for samply .yaml files
+    # see the examples directory for sample .yaml files
     mylearn examples/mnist_numpy_mlp-784-2000-10.yaml
 
 
@@ -40,8 +42,8 @@ We want to strive to have as few of these as possible
 * Heavily instrumented for performance profiling, debugging, and visualization
 * Modular design
 * Well documented
-* Unit/regression/benchmark timing tested
-* python 2 and 3 support. TODO: utilize 2to3.py?
+* Unit/regression/benchmark timing tested via [continuous integration](http://192.168.20.2:82)
+* python 2 and 3 fully supported (tested against 2.7 and 3.4)
 
 
 ## Issue Tracking ##
@@ -49,8 +51,8 @@ We want to strive to have as few of these as possible
 
 
 ## Documentation ##
-* [API](http://192.168.20.3:8000) TODO: update link to a more permanent
-  host/path
+* [API](http://192.168.20.2:5700)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model)
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture)
-* [Style and Coding conventions - google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html) TODO: integrate flake8, google style guide?
+* [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
+   * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)

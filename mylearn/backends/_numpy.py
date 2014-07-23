@@ -19,6 +19,10 @@ class Numpy(Backend):
     class Tensor(Backend.Tensor):
         """
         Simple wrapped numpy ndarray tensor
+
+        Arguments:
+            obj (numpy.ndarray): the actual data values
+            dtype (numpy.ndtype): underlying data type of the elements
         """
         _tensor = None
 

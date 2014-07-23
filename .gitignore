@@ -5,3 +5,4 @@ build
 mylearn/version.py
 MANIFEST
 dist
+doc/source/generated

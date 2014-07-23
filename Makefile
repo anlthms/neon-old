@@ -43,6 +43,9 @@ html: doc
 style:
 	-flake8 .
 
+lint:
+	-pylint --output-format=colorized mylearn
+
 dist:
 	python setup.py sdist
 
