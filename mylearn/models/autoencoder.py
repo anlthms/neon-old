@@ -4,7 +4,6 @@ Contains code to train stacked autoencoder models and run inference.
 
 import logging
 import math
-import numpy as np  # TODO: remove dependence on numpy here.
 
 from mylearn.models.layer import AELayer
 from mylearn.models.model import Model
@@ -29,9 +28,9 @@ class Autoencoder(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_inputs(train=True)['train']
         nrecs, nin = inputs.shape
-        backend = datasets[0].backend
-        self.loss_fn = getattr(backend, self.loss_fn)
-        self.loss_fn_de = backend.get_derivative(self.loss_fn)
+        self.backend = datasets[0].backend
+        self.loss_fn = getattr(self.backend, self.loss_fn)
+        self.loss_fn_de = self.backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -42,7 +41,7 @@ class Autoencoder(Model):
                 weights = layers[self.nlayers - i - 1].weights.transpose()
             else:
                 weights = None
-            layer = self.lcreate(backend, nin, self.layers[i], weights)
+            layer = self.lcreate(self.backend, nin, self.layers[i], weights)
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
             nin = layer.nout
@@ -56,24 +55,24 @@ class Autoencoder(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs.take(start_idx, end_idx, axis=0))
-                self.bprop(targets.take(start_idx, end_idx, axis=0))
-                self.update(inputs.take(start_idx, end_idx, axis=0),
+                self.fprop(inputs.get_slice(start_idx, end_idx, axis=0))
+                self.bprop(targets.get_slice(start_idx, end_idx, axis=0))
+                self.update(inputs.get_slice(start_idx, end_idx, axis=0),
                             self.learning_rate, epoch)
-                error += self.loss_fn(self.layers[-1].y,
-                                      targets.take(start_idx, end_idx, axis=0))
+                error += self.loss_fn(self.layers[-1].output,
+                                      targets.get_slice(start_idx, end_idx, axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]
-        outputs = np.zeros((nrecs, self.layers[-1].nout))
+        outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs.take(start_idx, end_idx, axis=0))
-            outputs[start_idx:end_idx] = self.layers[-1].y.raw()
+            self.fprop(inputs.get_slice(start_idx, end_idx, axis=0))
+            outputs.set_slice(self.layers[-1].output, start_idx, end_idx, axis=0)
         return outputs
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -106,13 +105,14 @@ class Autoencoder(Model):
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
-            y = layer.fprop(y)
+            layer.fprop(y)
+            y = layer.output
         return y
 
     def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.loss_fn_de(lastlayer.y, targets) /
+        lastlayer.bprop(self.loss_fn_de(lastlayer.output, targets) /
                         targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
@@ -122,11 +122,7 @@ class Autoencoder(Model):
     def update(self, inputs, epsilon, epoch):
         self.layers[0].update(inputs, epsilon, epoch)
         for i in xrange(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].y, epsilon, epoch)
-
-    def cross_entropy(self, outputs, targets):
-        return np.mean(-targets * np.log(outputs) -
-                       (1 - targets) * np.log(1 - outputs))
+            self.layers[i].update(self.layers[i - 1].output, epsilon, epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
@@ -145,6 +141,6 @@ class Autoencoder(Model):
             targets = ds.get_inputs(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    err = self.cross_entropy(preds[item], targets[item].raw())
+                    err = self.backend.cross_entropy(preds[item], targets[item])
                     logging.info("%s set reconstruction error : %0.5f" %
                                  (item, err))

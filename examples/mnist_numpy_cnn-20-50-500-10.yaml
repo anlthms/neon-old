@@ -1,0 +1,115 @@
+# Experiment settings to train/test a CNN on MNIST.
+
+backend: {
+  type: mylearn.backends._numpy.Numpy,
+  rng_seed: 0,
+}
+
+datasets: [
+  # MNIST data
+  {
+    #type: !!python/object:dataset.MNIST,
+    type: mylearn.datasets.mnist.MNIST,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+    pkl_path: './mnist.pkl',
+  },
+]
+
+# CNN model specification
+model: {
+  type: mylearn.models.cnn.CNN,
+  layers: [
+    {
+      name: layer1,
+      connectivity: conv,
+      num_input_channels: 1,
+      input_shape: 28 28,
+      filter_shape: 5 5,
+      num_filters: 20,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer2,
+      connectivity: mpool,
+      num_channels: 20,
+      input_shape: 24 24,
+      pooling_shape: 2 2,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer3,
+      connectivity: conv,
+      num_input_channels: 20,
+      input_shape: 12 12,
+      filter_shape: 5 5,
+      num_filters: 50,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer4,
+      connectivity: mpool,
+      num_channels: 50,
+      input_shape: 8 8,
+      pooling_shape: 2 2,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer5,
+      connectivity: full,
+      num_nodes: 500,
+      activation_fn: rectlin,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: output,
+      connectivity: full,
+      num_nodes: 10,
+      activation_fn: logistic,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+  ],
+  num_epochs: 2,
+  batch_size: 100,
+  learning_rate: 0.01,
+  momentum: {
+    type: linear_monotone, #constant, nesterov
+    initial_coef: 0.99,
+    start_epoch: 5,
+    saturate_epoch: 5,
+    saturated_coef: 0.90,
+  },
+  loss_fn: cross_entropy,
+  pkl_path: './mlp-simple.pkl',
+}
+
+
+# logging options that are passed to logging.basicConfig
+logging: {
+  level: 10,  #logging.DEBUG == 10
+  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+}

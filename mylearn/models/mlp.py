@@ -28,15 +28,16 @@ class MLP(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
         nrecs, nin = inputs.shape
-        backend = datasets[0].backend
-        self.loss_fn = getattr(backend, self.loss_fn)
-        self.de = backend.get_derivative(self.loss_fn)
+        self.backend = datasets[0].backend
+        self.backend.rng_init()
+        self.loss_fn = getattr(self.backend, self.loss_fn)
+        self.de = self.backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         layers = []
         for i in xrange(self.nlayers):
-            layer = self.lcreate(backend, nin, self.layers[i])
+            layer = self.lcreate(self.backend, nin, self.layers[i])
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
             nin = layer.nout
@@ -50,16 +51,27 @@ class MLP(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[start_idx:end_idx])
-                self.bprop(targets[start_idx:end_idx])
-                self.update(inputs[start_idx:end_idx], self.learning_rate,
+                self.fprop(inputs.get_slice(start_idx, end_idx,axis=0))
+                self.bprop(targets.get_slice(start_idx, end_idx,axis=0))
+                self.update(inputs.get_slice(start_idx, end_idx,axis=0), self.learning_rate,
                             epoch, self.momentum)
-                error += self.loss_fn(self.layers[-1].y,
-                                      targets[start_idx:end_idx])
+                error += self.loss_fn(self.layers[-1].output,
+                                      targets.get_slice(start_idx, end_idx,axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
             # for layer in self.layers:
             #    logger.info('layer:\n\t%s' % str(layer))
+
+    def predict_set(self, inputs):
+        nrecs = inputs.shape[0]
+        outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
+        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        for batch in xrange(num_batches):
+            start_idx = batch * self.batch_size
+            end_idx = min((batch + 1) * self.batch_size, nrecs)
+            self.fprop(inputs.get_slice(start_idx, end_idx, axis=0))
+            outputs.set_slice(self.layers[-1].output, start_idx, end_idx, axis=0)
+        return outputs
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -70,13 +82,13 @@ class MLP(Model):
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                outputs = self.fprop(inputs['train'])
+                outputs = self.predict_set(inputs['train'])
                 preds['train'] = dataset.backend.argmax(outputs, axis=1)
             if test and 'test' in inputs:
-                outputs = self.fprop(inputs['test'])
+                outputs = self.predict_set(inputs['test'])
                 preds['test'] = dataset.backend.argmax(outputs, axis=1)
             if validation and 'validation' in inputs:
-                outputs = self.fprop(inputs['validation'])
+                outputs = self.predict_set(inputs['validation'])
                 preds['validation'] = dataset.backend.argmax(outputs, axis=1)
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
@@ -94,13 +106,14 @@ class MLP(Model):
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
-            y = layer.fprop(y)
+            layer.fprop(y)
+            y = layer.output
         return y
 
     def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.de(lastlayer.y, targets) / targets.shape[0])
+        lastlayer.bprop(self.de(lastlayer.output, targets) / targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
             i -= 1
@@ -109,7 +122,7 @@ class MLP(Model):
     def update(self, inputs, epsilon, epoch, momentum):
         self.layers[0].update(inputs, epsilon, epoch, momentum)
         for i in xrange(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].y, epsilon, epoch,
+            self.layers[i].update(self.layers[i - 1].output, epsilon, epoch,
                                   momentum)
 
     # TODO: move out to separate config params and module.
@@ -130,8 +143,8 @@ class MLP(Model):
             for item in items:
                 if item in targets and item in preds:
                     misclass = ds.backend.not_equal(preds[item],
-                                                    ds.backend.nonzero(
-                                                    targets[item]))
+                                                    ds.backend.argmax(
+                                                    targets[item], axis=1))
                     err = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * err))
