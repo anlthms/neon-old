@@ -63,7 +63,10 @@ class Layer(object):
 
     def error(self):
         return self.backend.dot(self.delta,
-                self.weights.get_slice(0, self.weights.shape[1] - 1, axis=1))
+                                self.weights.get_slice(0,
+                                                       self.weights.shape[1] -
+                                                       1,
+                                                       axis=1))
 
 
 class LayerWithNoBias(Layer):
@@ -164,14 +167,16 @@ class ConvLayer(object):
         self.nifm = nifm
         self.nfilt = nfilt
         self.fsize = nifm * self.fheight * self.fwidth
-        self.weights = self.backend.gen_weights((nfilt, self.fsize), weight_init)
+        self.weights = self.backend.gen_weights((nfilt, self.fsize),
+                                                weight_init)
         self.output = backend.zeros((batch_size, self.nout))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt), self.ofmsize))
+        ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
+                                       self.ofmsize))
         # Figure out the connections with the previous layer.
         self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
-        src = 0 # This variable tracks the top left corner
-                # of the receptive field.
+        # This variable tracks the top left corner of the receptive field.
+        src = 0
         for dst in range(self.ofmsize):
             # Collect the column indices for the
             # entire receptive field.
@@ -215,14 +220,16 @@ class ConvLayer(object):
             # corresponding cells in the output feature maps.
             rflinks = self.rlinks[dst]
             delta_slice = self.delta.get(self.rofmlocs[dst], axis=1)
-            prod = self.backend.dot(delta_slice.T(), inputs.get(rflinks, axis=1))
+            prod = self.backend.dot(delta_slice.T(), inputs.get(rflinks,
+                                                                axis=1))
             wsums.add(prod)
         # Update the filters after summing the weight updates.
         self.weights.sub(epsilon * wsums)
 
     def error(self):
         berror = self.backend.zeros((self.batch_size,
-                                     self.ifmheight * self.ifmwidth * self.nifm))
+                                    self.ifmheight * self.ifmwidth *
+                                    self.nifm))
         for dst in range(self.ofmsize):
             res = self.backend.dot(self.delta.get(self.rofmlocs[dst], axis=1),
                                    self.weights)
@@ -237,7 +244,8 @@ class MaxPoolingLayer:
     Max pooling layer.
     The code assumes that there is no overlap between pooling regions.
     """
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape, weight_init):
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+                 weight_init):
         self.name = name
         self.backend = backend
         self.nfm = nfm
@@ -253,13 +261,14 @@ class MaxPoolingLayer:
         self.nin = nfm * self.ifmsize
         self.nout = nfm * self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
-        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize), dtype='i32')
+        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
+                                     dtype='i32')
         # Figure out the possible connections with the previous layer.
         # Each unit in this layer could be connected to any one of
         # self.psize units in the previous layer.
         self.links = backend.zeros((self.ofmsize, self.psize), dtype='i32')
-        src = 0 # This variable tracks the top left corner
-                # of the receptive field.
+        # This variable tracks the top left corner of the receptive field.
+        src = 0
         for dst in range(self.ofmsize):
             colinds = []
             # Collect the column indices for the

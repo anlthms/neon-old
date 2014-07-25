@@ -51,12 +51,13 @@ class MLP(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs.get_slice(start_idx, end_idx,axis=0))
-                self.bprop(targets.get_slice(start_idx, end_idx,axis=0))
-                self.update(inputs.get_slice(start_idx, end_idx,axis=0), self.learning_rate,
-                            epoch, self.momentum)
+                self.fprop(inputs.get_slice(start_idx, end_idx, axis=0))
+                self.bprop(targets.get_slice(start_idx, end_idx, axis=0))
+                self.update(inputs.get_slice(start_idx, end_idx, axis=0),
+                            self.learning_rate, epoch, self.momentum)
                 error += self.loss_fn(self.layers[-1].output,
-                                      targets.get_slice(start_idx, end_idx,axis=0))
+                                      targets.get_slice(start_idx, end_idx,
+                                      axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
             # for layer in self.layers:
@@ -70,7 +71,8 @@ class MLP(Model):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
             self.fprop(inputs.get_slice(start_idx, end_idx, axis=0))
-            outputs.set_slice(self.layers[-1].output, start_idx, end_idx, axis=0)
+            outputs.set_slice(self.layers[-1].output, start_idx, end_idx,
+                              axis=0)
         return outputs
 
     def predict(self, datasets, train=True, test=True, validation=True):

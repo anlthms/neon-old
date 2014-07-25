@@ -8,6 +8,7 @@ import math
 import cudamat
 
 from mylearn.backends.backend import Backend
+from mylearn.backends._numpy import Numpy
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +145,8 @@ class Cudamat(Backend):
             return Cudamat.Tensor(self._tensor.argmax(axis))
 
         def get(self, indices, axis):
-            # FIXME: This routine is terribly expensive! Should return a view instead
-            # of a newly allocated matrix.
+            # FIXME: This routine is terribly expensive! Should return a view
+            # instead of a newly allocated matrix.
             if type(indices) == int:
                 indices = [indices]
             elif type(indices) == Cudamat.Tensor:
@@ -205,10 +206,14 @@ class Cudamat(Backend):
                 dst_ind = int(dst_ind)
                 if axis == 0:
                     self._tensor.set_row_slice(dst_ind, dst_ind + 1,
-                            tensor.get_row_slice(src_ind, src_ind + 1))
+                                               tensor.get_row_slice(src_ind,
+                                                                    src_ind +
+                                                                    1))
                 elif axis == 1:
                     self._tensor.set_col_slice(dst_ind, dst_ind + 1,
-                            tensor.get_col_slice(src_ind, src_ind + 1))
+                                               tensor.get_col_slice(src_ind,
+                                                                    src_ind +
+                                                                    1))
                 else:
                     raise NotImplementedError()
                 src_ind += 1
@@ -270,8 +275,8 @@ class Cudamat(Backend):
         cudamat.cublas_init()
 
     def zeros(self, shape, dtype=float):
-        return self.Tensor(cudamat.CUDAMatrix(numpy.zeros(shape,
-                                                          dtype=numpy.float32)))
+        return self.Tensor(cudamat.CUDAMatrix(
+                           numpy.zeros(shape, dtype=numpy.float32)))
 
     def array(self, obj):
         ndarray = numpy.array(obj, dtype=numpy.float32)
