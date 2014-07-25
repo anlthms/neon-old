@@ -154,12 +154,85 @@ class Numpy(Backend):
         def transpose(self):
             return Numpy.Tensor(self._tensor.T)
 
-        def take(self, start, end, axis):
+        def reshape(self, shape):
+            return Numpy.Tensor(self._tensor.reshape(shape))
+
+        def argmax(self, axis):
+            return Numpy.Tensor(self._tensor.argmax(axis))
+
+        def get(self, indices, axis):
+            if type(indices) == Numpy.Tensor:
+                indices = indices._tensor
+            return Numpy.Tensor(self._tensor.take(indices, axis))
+
+        def get_slice(self, start, end, axis):
+            """
+            Return a view made of consecutive rows/columns.
+            """
             return Numpy.Tensor(self._tensor.take(range(start, end), axis))
+
+        def get_elems(self, indices, axis):
+            assert type(indices) == Numpy.Tensor
+            if axis == 0:
+                return Numpy.Tensor(self._tensor[range(self._tensor.shape[0]),
+                                                 indices._tensor])
+            if axis == 1:
+                return Numpy.Tensor(self._tensor[indices._tensor,
+                                                 range(self._tensor.shape[1])])
+            raise NotImplementedError()
+
+        def set(self, obj, indices, axis):
+            """
+            This is the opposite of get(). Copy the input tensor into the
+            rows/columns specified by indices.
+            """
+            if type(indices) == Numpy.Tensor:
+                indices = indices._tensor
+            if axis == 0:
+                self._tensor[indices, :] = obj._tensor
+            elif axis == 1:
+                self._tensor[:, indices] = obj._tensor
+            else:
+                raise NotImplementedError()
+
+        def set_slice(self, obj, start, end, axis):
+            """
+            Copy the input tensor into consecutive rows/columns.
+            """
+            if axis == 0:
+                self._tensor[range(start, end), :] = obj._tensor
+            elif axis == 1:
+                self._tensor[:, range(start, end)] = obj._tensor
+            else:
+                raise NotImplementedError()
+
+        def set_elems(self, obj, indices, axis):
+            if type(indices) == Numpy.Tensor:
+                indices = indices._tensor
+            if axis == 0:
+                self._tensor[range(self._tensor.shape[0]),
+                             indices] = obj._tensor
+            elif axis == 1:
+                self._tensor[indices,
+                             range(self._tensor.shape[1])] = obj._tensor
+            else:
+                raise NotImplementedError()
+
+        def add(self, obj):
+            self._tensor += obj._tensor
+
+        def sub(self, obj):
+            self._tensor -= obj._tensor
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.rng_init()
+
+    def zeros(self, shape, dtype=float):
+        return self.Tensor(np.zeros(shape, dtype))
+
+    def array(self, obj):
+        return self.Tensor(np.array(obj))
 
     def rng_init(self):
         if 'rng_seed' in self.__dict__:
@@ -199,6 +272,9 @@ class Numpy(Backend):
     def dot(self, a, b):
         return self.Tensor(np.dot(a._tensor, b._tensor))
 
+    def sum(self, obj):
+        return obj._tensor.sum()
+
     def mean(self, x, axis=None, dtype=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
@@ -225,6 +301,10 @@ class Numpy(Backend):
             return res
         else:
             return self.Tensor(res)
+
+    def squish(self, obj, n):
+        assert obj.shape[1] % n == 0
+        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
     def not_equal(self, x, y):
         return self.Tensor(np.not_equal(x._tensor, y._tensor))

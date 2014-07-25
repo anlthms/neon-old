@@ -4,6 +4,7 @@ A wrapped cudamat GPU based backend.
 
 import logging
 import numpy
+import math
 import cudamat
 
 from mylearn.backends.backend import Backend
@@ -136,12 +137,98 @@ class Cudamat(Backend):
             # CUDAMatrix.transpose() returns a transposed copy.
             return Cudamat.Tensor(self._tensor.transpose())
 
-        def take(self, start, end, axis):
+        def reshape(self, shape):
+            return Cudamat.Tensor(self._tensor.reshape(shape))
+
+        def argmax(self, axis):
+            return Cudamat.Tensor(self._tensor.argmax(axis))
+
+        def get(self, indices, axis):
+            # FIXME: This routine is terribly expensive! Should return a view instead
+            # of a newly allocated matrix.
+            if type(indices) == int:
+                indices = [indices]
+            elif type(indices) == Cudamat.Tensor:
+                raise NotImplementedError()
+            if axis == 0:
+                mat = cudamat.empty((len(indices), self._tensor.shape[1]))
+                dst_ind = 0
+                for src_ind in indices:
+                    src_ind = int(src_ind)
+                    row = self._tensor.get_row_slice(src_ind, src_ind + 1)
+                    mat.set_row_slice(dst_ind, dst_ind + 1, row)
+                    dst_ind += 1
+            elif axis == 1:
+                mat = cudamat.empty((self._tensor.shape[0], len(indices)))
+                dst_ind = 0
+                for src_ind in indices:
+                    src_ind = int(src_ind)
+                    col = self._tensor.get_col_slice(src_ind, src_ind + 1)
+                    mat.set_col_slice(dst_ind, dst_ind + 1, col)
+                    dst_ind += 1
+            else:
+                raise NotImplementedError()
+            return Cudamat.Tensor(mat)
+
+        def get_slice(self, start, end, axis):
+            """
+            Return a view made of consecutive rows/columns.
+            """
             if axis == 0:
                 return Cudamat.Tensor(self._tensor.get_row_slice(start, end))
             if axis == 1:
                 return Cudamat.Tensor(self._tensor.get_col_slice(start, end))
-            raise NotImplementedError()  # if axis == None
+            raise NotImplementedError()
+
+        def get_elems(self, indices, axis):
+            assert type(indices) == Numpy.Tensor
+            if axis == 0:
+                return Numpy.Tensor(self._tensor[range(self._tensor.shape[0]),
+                                                 indices._tensor])
+            if axis == 1:
+                return Numpy.Tensor(self._tensor[indices._tensor,
+                                                 range(self._tensor.shape[1])])
+            raise NotImplementedError()
+
+        def set(self, obj, indices, axis):
+            """
+            This is the opposite of get(). Copy the input tensor into the
+            rows/columns specified by indices.
+            """
+            if type(indices) == int:
+                indices = [indices]
+            elif type(indices) == Cudamat.Tensor:
+                raise NotImplementedError()
+            tensor = obj._tensor
+            src_ind = 0
+            for dst_ind in indices:
+                dst_ind = int(dst_ind)
+                if axis == 0:
+                    self._tensor.set_row_slice(dst_ind, dst_ind + 1,
+                            tensor.get_row_slice(src_ind, src_ind + 1))
+                elif axis == 1:
+                    self._tensor.set_col_slice(dst_ind, dst_ind + 1,
+                            tensor.get_col_slice(src_ind, src_ind + 1))
+                else:
+                    raise NotImplementedError()
+                src_ind += 1
+
+        def set_slice(self, obj, start, end, axis):
+            """
+            Copy the input tensor into consecutive rows/columns.
+            """
+            if axis == 0:
+                self._tensor.set_row_slice(start, end, obj._tensor)
+            elif axis == 1:
+                self._tensor.set_col_slice(start, end, obj._tensor)
+            else:
+                raise NotImplementedError()
+
+        def add(self, obj):
+            self._tensor.add(obj._tensor)
+
+        def sub(self, obj):
+            self._tensor.subtract(obj._tensor)
 
         def sum(self):
             result = self._tensor.sum(axis=0).sum(axis=1)
@@ -182,6 +269,16 @@ class Cudamat(Backend):
         self.rng_init()
         cudamat.cublas_init()
 
+    def zeros(self, shape, dtype=float):
+        return self.Tensor(cudamat.CUDAMatrix(numpy.zeros(shape,
+                                                          dtype=numpy.float32)))
+
+    def array(self, obj):
+        ndarray = numpy.array(obj, dtype=numpy.float32)
+        if ndarray.ndim == 1:
+            ndarray = ndarray.reshape((1, ndarray.shape[0]))
+        return self.Tensor(ndarray)
+
     def rng_init(self):
         if 'rng_seed' in self.__dict__:
             numpy.random.seed(self.rng_seed)
@@ -189,10 +286,12 @@ class Cudamat(Backend):
             raise AttributeError("rng_seed not specified in config")
 
     def uniform(self, low=0.0, high=1.0, size=1):
-        return self.Tensor(numpy.random.uniform(low, high, size))
+        seq = numpy.random.uniform(low, high, size)
+        return self.Tensor(numpy.array(seq, dtype=numpy.float32))
 
     def normal(self, loc=0.0, scale=1.0, size=1):
-        return self.Tensor(numpy.random.normal(loc, scale, size))
+        seq = numpy.random.normal(loc, scale, size)
+        return self.Tensor(numpy.array(seq, dtype=numpy.float32))
 
     def append_bias(self, x):
         """
@@ -258,8 +357,15 @@ class Cudamat(Backend):
 
         return self.Tensor(res)
 
+    def squish(self, obj, n):
+        assert obj.shape[1] % n == 0
+        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+
     def not_equal(self, x, y):
-        raise NotImplementedError()
+        res = x._tensor.copy()
+        res.equals(y._tensor)
+        res.equals(0)
+        return self.Tensor(res)
 
     def nonzero(self, x):
         raise NotImplementedError()
@@ -290,16 +396,22 @@ class Cudamat(Backend):
         raise NotImplementedError()
 
     def rectlin(self, x):
-        raise NotImplementedError()
+        xc = x._tensor.copy()
+        mask = cudamat.empty(xc.shape)
+        xc.greater_than(0, mask)
+        xc.mult(mask)
+        return self.Tensor(xc)
 
     def rectlin_prime(self, x):
-        raise NotImplementedError()
+        xc = x._tensor.copy()
+        xc.greater_than(0)
+        return self.Tensor(xc)
 
     def noact(self, x):
         return x
 
     def noact_prime(self, x):
-        return self.Tensor(numpy.ones(x.shape))
+        return self.Tensor(numpy.ones(x.shape, dtype=numpy.float32))
 
     def get_derivative(self, func):
         if func == self.logistic:
@@ -318,6 +430,8 @@ class Cudamat(Backend):
             return self.sse_de
 
     def gen_weights(self, size, weight_params):
+        # FIXME: Get rid of duplication.
+        weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0
             high = 1.0
@@ -327,7 +441,7 @@ class Cudamat(Backend):
                 high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
-            return self.uniform(low, high, size)
+            weights = numpy.random.uniform(low, high, size)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
             loc = 0.0
@@ -338,7 +452,70 @@ class Cudamat(Backend):
                 scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
-            return self.normal(loc, scale, size)
+            weights = numpy.random.normal(loc, scale, size)
+        elif weight_params['type'] == 'node_normalized':
+            # initialization is as discussed in Glorot2010
+            scale = 1.0
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
+            logger.info('generating %s node_normalized(%0.2f) weights.' %
+                        (str(size), scale))
+            node_norm = scale * math.sqrt(6.0 / sum(size))
+            weights = numpy.random.uniform(-node_norm, node_norm, size)
+        else:
+            raise AttributeError("invalid weight_params specified")
+        if 'bias_init' in weight_params:
+            # per append_bias() bias weights are in the last column
+            logger.info('separately initializing bias weights to %0.2f' %
+                        weight_params['bias_init'])
+            weights[:, -1] = weight_params['bias_init']
+
+        return self.Tensor(numpy.array(weights, numpy.float32))
+
+    def get_momentum_coef(self, epoch, momentum_params):
+        # FIXME: Get rid of duplication.
+        coef = 0.0
+        if 'coef' in momentum_params:
+            coef = momentum_params['coef']
+        if 'initial_coef' in momentum_params:
+            init_coef = momentum_params['initial_coef']
+        else:
+            init_coef = coef
+        if 'saturated_coef' in momentum_params:
+            saturated_coef = momentum_params['saturated_coef']
+        else:
+            saturated_coef = coef
+        if 'start_epoch' in momentum_params:
+            start_epoch = momentum_params['start_epoch']
+        else:
+            start_epoch = None
+        if 'saturate_epoch' in momentum_params:
+            saturate_epoch = momentum_params['saturate_epoch']
+        else:
+            saturate_epoch = None
+
+        if momentum_params['type'] == 'constant':
+            pass
+        elif momentum_params['type'] == 'linear_monotone':
+            coef = init_coef
+            if start_epoch is not None and epoch >= start_epoch:
+                if saturate_epoch is not None and epoch <= saturate_epoch:
+                    if start_epoch == saturate_epoch:
+                        coef = saturated_coef
+                    else:
+                        init_proportion = ((epoch - start_epoch + 0.0) /
+                                           (saturate_epoch - start_epoch))
+                        coef = (init_proportion * init_coef +
+                                (1.0 - init_proportion) * saturated_coef)
+                elif saturate_epoch is not None and epoch > saturate_epoch:
+                    coef = saturated_coef
+            else:
+                coef = saturated_coef
+        elif momentum_params['type'] == 'nesterov':
+            raise NotImplementedError("TODO!")
+        else:
+            raise AttributeError("invalid momentum_params specified")
+        return coef
 
     def cross_entropy(self, outputs, targets):
         outputs = outputs._tensor
