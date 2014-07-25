@@ -27,7 +27,7 @@ class Cudamat(Backend):
             if type(obj) == cudamat.CUDAMatrix:
                 self._tensor = obj
             else:
-                logger.info('Copying to GPU')
+                logger.debug('Copying to GPU')
                 self._tensor = cudamat.CUDAMatrix(obj)
             self.shape = self._tensor.shape
 
@@ -232,25 +232,25 @@ class Cudamat(Backend):
 
         def sum(self):
             result = self._tensor.sum(axis=0).sum(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def mean(self):
             result = self._tensor.mean(axis=0).mean(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def min(self):
             result = self._tensor.min(axis=0).min(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def max(self):
             result = self._tensor.max(axis=0).max(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
@@ -329,7 +329,7 @@ class Cudamat(Backend):
         if axis is None and not keepdims:
             assert out is None
             res = x._tensor.min(axis=0).min(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 
@@ -346,7 +346,7 @@ class Cudamat(Backend):
         if axis is None and not keepdims:
             assert out is None
             res = x._tensor.max(axis=0).max(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 
