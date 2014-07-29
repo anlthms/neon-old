@@ -169,6 +169,11 @@ class Numpy(Backend):
                 indices = indices._tensor
             return Numpy.Tensor(self._tensor.take(indices, axis))
 
+        def take(self, indices, axis=None):
+            if type(indices) == Numpy.Tensor:
+                indices = indices._tensor
+            return Numpy.Tensor(self._tensor.take(indices, axis))
+
         def get_slice(self, start, end, axis):
             """
             Return a view made of consecutive rows/columns.

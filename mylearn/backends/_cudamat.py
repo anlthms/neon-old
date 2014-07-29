@@ -13,6 +13,13 @@ from mylearn.backends._numpy import Numpy
 logger = logging.getLogger(__name__)
 
 
+class TooSlowToImplementError(Exception):
+    """
+    Used to indicate types of operations that would take too long to run.
+    """
+    pass
+
+
 class Cudamat(Backend):
     """
     A cudamat based backend for matrix ops.
@@ -28,15 +35,67 @@ class Cudamat(Backend):
             if type(obj) == cudamat.CUDAMatrix:
                 self._tensor = obj
             else:
+                # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+                if isinstance(obj, (float, int, str, list, tuple)):
+                    obj = numpy.array(obj)
+                if type(obj) == numpy.ndarray:
+                    while obj.ndim < 2:
+                        obj = obj.reshape(obj.shape + (1, ))
+                    if obj.ndim != 2:
+                        raise ValueError("CUDAMatrix only supports 2-D"
+                                         "matrices.  You specifed %d-D" %
+                                         obj.ndim)
                 logger.debug('Copying to GPU')
                 self._tensor = cudamat.CUDAMatrix(obj)
             self.shape = self._tensor.shape
 
         def __str__(self):
-            return str(self._tensor)
+            return str(self._tensor.asarray())
+
+        def _slice_dim(self, _slice, dim=0):
+            """
+            Helper that actually performs a slice along the dimension passed.
+
+            Arguments:
+                _slice (int or slice): actual slice object specifying indices
+                dim (int): dimension number. 0 is for rows, 1 for columns, etc.
+
+            Returns:
+                Tensor: view or new sliced copy
+
+            Raises:
+                TooSlowToImplementError: if invalid `_slice` provided (too
+                complex to implement quickly).
+            """
+            res = self
+            fn = res._tensor.get_row_slice
+            if dim == 1:
+                fn = res._tensor.get_col_slice
+            if isinstance(_slice, int):
+                _slice = slice(_slice, _slice + 1)
+            if isinstance(_slice, slice):
+                assert _slice.step is None or _slice.step == 1
+                start, stop, stride = _slice.indices(self.shape[dim])
+                res = Cudamat.Tensor(fn(start, stop))
+            elif _slice is Ellipsis:
+                pass
+            else:
+                # arbitrary long list, too expensive to support?
+                # raise TooSlowToImplementError("column idx too complex")
+                res = self.get(_slice, dim)
+            return res
 
         def __getitem__(self, key):
-            raise NotImplementedError()
+            res = self
+            if isinstance(key, tuple):
+                if len(key) > 2:
+                    raise IndexError("CUDAMatrix only supports 2-D matrices")
+                else:
+                    for idx in range(len(key) - 1, -1, -1):
+                        res = res._slice_dim(key[idx], idx)
+            else:
+                res = res._slice_dim(key, 0)
+            return res
 
         def __setitem__(self, key, value):
             raise NotImplementedError()
@@ -144,14 +203,17 @@ class Cudamat(Backend):
         def argmax(self, axis):
             return Cudamat.Tensor(self._tensor.argmax(axis))
 
-        def get(self, indices, axis):
+        def take(self, indices, axis=None):
+            return self.get(indices, axis)
+
+        def get(self, indices, axis=None):
             # FIXME: This routine is terribly expensive! Should return a view
             # instead of a newly allocated matrix.
             if type(indices) == int:
                 indices = [indices]
             elif type(indices) == Cudamat.Tensor:
                 raise NotImplementedError()
-            if axis == 0:
+            if axis == 0 or axis is None:
                 mat = cudamat.empty((len(indices), self._tensor.shape[1]))
                 dst_ind = 0
                 for src_ind in indices:
