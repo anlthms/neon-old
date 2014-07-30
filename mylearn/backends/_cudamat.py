@@ -8,7 +8,6 @@ import math
 import cudamat
 
 from mylearn.backends.backend import Backend
-from mylearn.backends._numpy import Numpy
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +203,25 @@ class Cudamat(Backend):
             return Cudamat.Tensor(self._tensor.argmax(axis))
 
         def take(self, indices, axis=None):
-            return self.get(indices, axis)
+            # we only support contiguous indices at the moment because this
+            # is all cudamat supports efficiently.
+            if len(indices) == 0:
+                return self
+            if (indices[-1] - indices[0] == len(indices) - 1 and
+                (len(indices) <= 1 or all(x < y for x, y in zip(indices,
+                                          indices[1:])))):
+                if axis == 0:
+                    return Cudamat.Tensor(self._tensor.get_row_slice(
+                                          indices[0], indices[-1] + 1))
+                elif axis == 1:
+                    return Cudamat.Tensor(self._tensor.get_col_slice(
+                                          indices[0], indices[-1] + 1))
+                elif axis is None:
+                    # we might be able to do this by first doing a reshape?
+                    raise TooSlowToImplementError("need to first reshape")
+            else:
+                raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
+                                              " indexing efficiently")
 
         def get(self, indices, axis=None):
             # FIXME: This routine is terribly expensive! Should return a view
@@ -232,64 +249,6 @@ class Cudamat(Backend):
             else:
                 raise NotImplementedError()
             return Cudamat.Tensor(mat)
-
-        def get_slice(self, start, end, axis):
-            """
-            Return a view made of consecutive rows/columns.
-            """
-            if axis == 0:
-                return Cudamat.Tensor(self._tensor.get_row_slice(start, end))
-            if axis == 1:
-                return Cudamat.Tensor(self._tensor.get_col_slice(start, end))
-            raise NotImplementedError()
-
-        def get_elems(self, indices, axis):
-            assert type(indices) == Numpy.Tensor
-            if axis == 0:
-                return Numpy.Tensor(self._tensor[range(self._tensor.shape[0]),
-                                                 indices._tensor])
-            if axis == 1:
-                return Numpy.Tensor(self._tensor[indices._tensor,
-                                                 range(self._tensor.shape[1])])
-            raise NotImplementedError()
-
-        def set(self, obj, indices, axis):
-            """
-            This is the opposite of get(). Copy the input tensor into the
-            rows/columns specified by indices.
-            """
-            if type(indices) == int:
-                indices = [indices]
-            elif type(indices) == Cudamat.Tensor:
-                raise NotImplementedError()
-            tensor = obj._tensor
-            src_ind = 0
-            for dst_ind in indices:
-                dst_ind = int(dst_ind)
-                if axis == 0:
-                    self._tensor.set_row_slice(dst_ind, dst_ind + 1,
-                                               tensor.get_row_slice(src_ind,
-                                                                    src_ind +
-                                                                    1))
-                elif axis == 1:
-                    self._tensor.set_col_slice(dst_ind, dst_ind + 1,
-                                               tensor.get_col_slice(src_ind,
-                                                                    src_ind +
-                                                                    1))
-                else:
-                    raise NotImplementedError()
-                src_ind += 1
-
-        def set_slice(self, obj, start, end, axis):
-            """
-            Copy the input tensor into consecutive rows/columns.
-            """
-            if axis == 0:
-                self._tensor.set_row_slice(start, end, obj._tensor)
-            elif axis == 1:
-                self._tensor.set_col_slice(start, end, obj._tensor)
-            else:
-                raise NotImplementedError()
 
         def add(self, obj):
             self._tensor.add(obj._tensor)

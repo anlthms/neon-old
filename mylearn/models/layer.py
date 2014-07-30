@@ -63,10 +63,8 @@ class Layer(object):
 
     def error(self):
         return self.backend.dot(self.delta,
-                                self.weights.get_slice(0,
-                                                       self.weights.shape[1] -
-                                                       1,
-                                                       axis=1))
+                                self.weights.take(range(self.weights.shape[1]),
+                                                  axis=1))
 
 
 class LayerWithNoBias(Layer):
@@ -195,8 +193,8 @@ class ConvLayer(object):
                 # We hit the right edge of the input image.
                 # Sweep the filter over to the next row.
                 src += self.fwidth
-            self.links.set(backend.array(colinds), dst, axis=0)
-            ofmlocs.set_slice(ofmstarts + dst, dst, dst + 1, axis=0)
+            self.links[dst, :] = backend.array(colinds)
+            ofmlocs[dst, :] = ofmstarts + dst
         self.rlinks = self.links.raw()
         self.rofmlocs = ofmlocs.raw()
 
@@ -206,9 +204,9 @@ class ConvLayer(object):
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = self.rlinks[dst]
-            prod = self.backend.dot(inputs.get(rflinks, axis=1),
+            prod = self.backend.dot(inputs.take(rflinks, axis=1),
                                     self.weights.T())
-            self.output.set(prod, self.rofmlocs[dst], axis=1)
+            self.output[:, self.rofmlocs[dst]] = prod
 
     def bprop(self, error):
         self.delta = error
@@ -219,9 +217,9 @@ class ConvLayer(object):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta.get(self.rofmlocs[dst], axis=1)
-            prod = self.backend.dot(delta_slice.T(), inputs.get(rflinks,
-                                                                axis=1))
+            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
+            prod = self.backend.dot(delta_slice.T(), inputs.take(rflinks,
+                                                                 axis=1))
             wsums.add(prod)
         # Update the filters after summing the weight updates.
         self.weights.sub(epsilon * wsums)
@@ -231,11 +229,11 @@ class ConvLayer(object):
                                     self.ifmheight * self.ifmwidth *
                                     self.nifm))
         for dst in range(self.ofmsize):
-            res = self.backend.dot(self.delta.get(self.rofmlocs[dst], axis=1),
+            res = self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
                                    self.weights)
             rflinks = self.rlinks[dst]
-            res.add(berror.get(rflinks, axis=1))
-            berror.set(res, rflinks, axis=1)
+            res.add(berror.take(rflinks, axis=1))
+            berror[:, rflinks] = res
         return berror
 
 
@@ -280,7 +278,7 @@ class MaxPoolingLayer:
             if (src % self.ifmwidth) == 0:
                 # Shift the pooling window down by 1 receptive field.
                 src += (self.pheight - 1) * self.ifmwidth
-            self.links.set(backend.array(colinds), dst, axis=0)
+            self.links[dst, :] = backend.array(colinds)
 
     def fprop(self, inputs):
         # Reshape the input so that we have a separate row
@@ -291,12 +289,13 @@ class MaxPoolingLayer:
         for dst in range(self.ofmsize):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
-            rf = inputs.get(self.links.get(dst, axis=0), axis=1)
+            rf = inputs.take(self.links.take(dst, axis=0), axis=1)
             # Save the index of the maximum value within the receptive fields.
-            self.maxinds.set(rf.argmax(axis=1), dst, axis=1)
+            self.maxinds[:, dst] = rf.argmax(axis=1)
             # Set the pre-activations to the maximum value.
-            maxvals = rf.get_elems(self.maxinds.get(dst, axis=1), axis=0)
-            squished_output.set(maxvals, dst, axis=1)
+            # "fancy" indexing ended up being faster than 1-D take() approach
+            maxvals = rf[range(rf.shape[0]), self.maxinds.take(dst, axis=1)]
+            squished_output[:, dst] = maxvals
 
         # Reshape back to original shape.
         self.output = squished_output.reshape((self.output.shape))
@@ -316,10 +315,9 @@ class MaxPoolingLayer:
         # Reshape the delta matrix to have one row per feature map.
         rdelta = self.backend.squish(self.delta, self.nfm)
         for dst in range(self.ofmsize):
-            links = self.links.get(dst, axis=0)
-            colinds = self.maxinds.get(dst, axis=1)
-            inds = links.get(colinds, axis=0)
-            rberror.set_elems(rdelta.get(dst, axis=1),
-                              inds, axis=0)
+            links = self.links.take(dst, axis=0)
+            colinds = self.maxinds.take(dst, axis=1)
+            inds = links.take(colinds, axis=0)
+            rberror[range(rberror.shape[0]), inds] = rdelta.take(dst, axis=1)
         berror = rberror.reshape(berror.shape)
         return berror

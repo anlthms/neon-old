@@ -37,10 +37,24 @@ class Numpy(Backend):
             return str(self._tensor)
 
         def __getitem__(self, key):
-            return Numpy.Tensor(self._tensor[key])
+            if isinstance(key, tuple):
+                key = tuple(x._tensor if isinstance(x, Numpy.Tensor) else x
+                            for x in key)
+            if isinstance(key, Numpy.Tensor):
+                return Numpy.Tensor(self._tensor[key._tensor])
+            else:
+                return Numpy.Tensor(self._tensor[key])
 
         def __setitem__(self, key, value):
-            self._tensor[key] = value
+            if isinstance(value, Numpy.Tensor):
+                value = value._tensor
+            if isinstance(key, tuple):
+                key = tuple(x._tensor if isinstance(x, Numpy.Tensor) else x
+                            for x in key)
+            if isinstance(key, Numpy.Tensor):
+                self._tensor[key._tensor] = value
+            else:
+                self._tensor[key] = value
         # TODO: __delitem__ implementation
 
         def __float__(self):
@@ -164,68 +178,10 @@ class Numpy(Backend):
         def argmax(self, axis):
             return Numpy.Tensor(self._tensor.argmax(axis))
 
-        def get(self, indices, axis):
-            if type(indices) == Numpy.Tensor:
-                indices = indices._tensor
-            return Numpy.Tensor(self._tensor.take(indices, axis))
-
         def take(self, indices, axis=None):
             if type(indices) == Numpy.Tensor:
                 indices = indices._tensor
             return Numpy.Tensor(self._tensor.take(indices, axis))
-
-        def get_slice(self, start, end, axis):
-            """
-            Return a view made of consecutive rows/columns.
-            """
-            return Numpy.Tensor(self._tensor.take(range(start, end), axis))
-
-        def get_elems(self, indices, axis):
-            assert type(indices) == Numpy.Tensor
-            if axis == 0:
-                return Numpy.Tensor(self._tensor[range(self._tensor.shape[0]),
-                                                 indices._tensor])
-            if axis == 1:
-                return Numpy.Tensor(self._tensor[indices._tensor,
-                                                 range(self._tensor.shape[1])])
-            raise NotImplementedError()
-
-        def set(self, obj, indices, axis):
-            """
-            This is the opposite of get(). Copy the input tensor into the
-            rows/columns specified by indices.
-            """
-            if type(indices) == Numpy.Tensor:
-                indices = indices._tensor
-            if axis == 0:
-                self._tensor[indices, :] = obj._tensor
-            elif axis == 1:
-                self._tensor[:, indices] = obj._tensor
-            else:
-                raise NotImplementedError()
-
-        def set_slice(self, obj, start, end, axis):
-            """
-            Copy the input tensor into consecutive rows/columns.
-            """
-            if axis == 0:
-                self._tensor[range(start, end), :] = obj._tensor
-            elif axis == 1:
-                self._tensor[:, range(start, end)] = obj._tensor
-            else:
-                raise NotImplementedError()
-
-        def set_elems(self, obj, indices, axis):
-            if type(indices) == Numpy.Tensor:
-                indices = indices._tensor
-            if axis == 0:
-                self._tensor[range(self._tensor.shape[0]),
-                             indices] = obj._tensor
-            elif axis == 1:
-                self._tensor[indices,
-                             range(self._tensor.shape[1])] = obj._tensor
-            else:
-                raise NotImplementedError()
 
         def add(self, obj):
             self._tensor += obj._tensor

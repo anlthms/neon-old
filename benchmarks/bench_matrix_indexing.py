@@ -6,6 +6,8 @@ Times various indexing approaches (fancy vs. take)
 import sys
 import timeit
 
+from mylearn.backends._cudamat import TooSlowToImplementError
+
 
 def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
                        number=10000, repeat=3):
@@ -38,8 +40,11 @@ def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
              "be = %s(rng_seed=0)\n"
              "A = be.Tensor(np.random.rand(*%s))\n" %
              (backend, classname, classname, str(A_dims)))
-    res = timeit.repeat('A%s%s%s' % (lop, indices, rop), setup=setup,
-                        number=number, repeat=repeat)
+    try:
+        res = timeit.repeat('A%s%s%s' % (lop, indices, rop), setup=setup,
+                            number=number, repeat=repeat)
+    except (NotImplementedError, AttributeError, TooSlowToImplementError):
+        res = [float('NaN'), ]
     return min(res)
 
 
@@ -73,8 +78,11 @@ def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
              (backend, classname, classname, str(A_dims)))
     index_str = [':', ] * len(A_dims)
     index_str[axes] = '%d:%d' % (slices.start, slices.stop)
-    res = timeit.repeat('A[%s]' % ', '.join(index_str), setup=setup,
-                        number=number, repeat=repeat)
+    try:
+        res = timeit.repeat('A[%s]' % ', '.join(index_str), setup=setup,
+                            number=number, repeat=repeat)
+    except (NotImplementedError, AttributeError, TooSlowToImplementError):
+        res = [float('NaN'), ]
     return min(res)
 
 if __name__ == '__main__':
@@ -85,8 +93,6 @@ if __name__ == '__main__':
                                  ((5, 5), slice(0, 2), 1),
                                  ((100, 500), slice(95, 400), 0),
                                  ((100, 500), slice(95, 400), 1)]:
-                                 #((16000, 16000), slice(0, 5000), 0),
-                                 #((16000, 16000), slice(0, 5000), 1)]:
         for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
                                    ('mylearn.backends._cudamat', 'Cudamat')]:
             sys.stdout.write("%s\t%dx%d %d:%d %s slice\t%d loop, best of %d:" %
@@ -100,8 +106,8 @@ if __name__ == '__main__':
     for A_dims, indices in [((5, 5), [0, 4, 2]),
                             ((100, 500), [50, 10, 90, 22, 95, 0, 5, 9, 95]),
                             ((16000, 16000), [1500, 200, 300, 1599])]:
-        for backend, classname in [('mylearn.backends._numpy', 'Numpy'), ]:
-            # ('mylearn.backends._cudamat', 'Cudamat')]:
+        for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
+                                   ('mylearn.backends._cudamat', 'Cudamat')]:
             for name, lop, rop in [('fancy', '[', ']'),
                                    ('take', '.take(', ', 0)')]:
                 sys.stdout.write("%s\t%dx%d %d %s indices\t%d loop, "

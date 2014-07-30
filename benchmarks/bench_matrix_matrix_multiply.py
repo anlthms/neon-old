@@ -3,6 +3,8 @@
 import sys
 import timeit
 
+from mylearn.backends._cudamat import TooSlowToImplementError
+
 
 def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
                            repeat=3):
@@ -32,8 +34,11 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
              "A = be.Tensor(np.random.rand(*%s))\n"
              "B = be.Tensor(np.random.rand(*%s))\n" %
              (backend, classname, classname, str(A_dims), str(B_dims)))
-    res = timeit.repeat('be.dot(A, B)', setup=setup, number=number,
-                        repeat=repeat)
+    try:
+        res = timeit.repeat('be.dot(A, B)', setup=setup, number=number,
+                            repeat=repeat)
+    except (NotImplementedError, AttributeError, TooSlowToImplementError):
+        res = [float('NaN'), ]
     return min(res)
 
 if __name__ == '__main__':
