@@ -3,7 +3,6 @@ Contains code to train convnet models and run inference.
 """
 
 import logging
-import math
 
 from mylearn.models.layer import LayerWithNoBias
 from mylearn.models.layer import ConvLayer, MaxPoolingLayer
@@ -23,9 +22,9 @@ class CNN(MLP):
     def lcreate(self, backend, nin, conf):
         if conf['connectivity'] == 'full':
             return LayerWithNoBias(conf['name'], backend, nin,
-                           nout=conf['num_nodes'],
-                           act_fn=conf['activation_fn'],
-                           weight_init=conf['weight_init'])
+                                   nout=conf['num_nodes'],
+                                   act_fn=conf['activation_fn'],
+                                   weight_init=conf['weight_init'])
         if conf['connectivity'] == 'conv':
             input_shape = conf['input_shape'].split()
             ifmshape = (int(input_shape[0]), int(input_shape[1]))
@@ -44,8 +43,8 @@ class CNN(MLP):
             pooling_shape = conf['pooling_shape'].split()
             pshape = (int(pooling_shape[0]), int(pooling_shape[1]))
             return MaxPoolingLayer(conf['name'], backend,
-                         batch_size=self.batch_size,
-                         nfm=conf['num_channels'],
-                         ifmshape=ifmshape,
-                         pshape=pshape,
-                         weight_init=conf['weight_init'])
+                                   batch_size=self.batch_size,
+                                   nfm=conf['num_channels'],
+                                   ifmshape=ifmshape,
+                                   pshape=pshape,
+                                   weight_init=conf['weight_init'])

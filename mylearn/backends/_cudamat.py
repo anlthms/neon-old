@@ -12,6 +12,13 @@ from mylearn.backends.backend import Backend
 logger = logging.getLogger(__name__)
 
 
+class TooSlowToImplementError(Exception):
+    """
+    Used to indicate types of operations that would take too long to run.
+    """
+    pass
+
+
 class Cudamat(Backend):
     """
     A cudamat based backend for matrix ops.
@@ -27,15 +34,67 @@ class Cudamat(Backend):
             if type(obj) == cudamat.CUDAMatrix:
                 self._tensor = obj
             else:
-                logger.info('Copying to GPU')
+                # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+                if isinstance(obj, (float, int, str, list, tuple)):
+                    obj = numpy.array(obj)
+                if type(obj) == numpy.ndarray:
+                    while obj.ndim < 2:
+                        obj = obj.reshape(obj.shape + (1, ))
+                    if obj.ndim != 2:
+                        raise ValueError("CUDAMatrix only supports 2-D"
+                                         "matrices.  You specifed %d-D" %
+                                         obj.ndim)
+                logger.debug('Copying to GPU')
                 self._tensor = cudamat.CUDAMatrix(obj)
             self.shape = self._tensor.shape
 
         def __str__(self):
-            return str(self._tensor)
+            return str(self._tensor.asarray())
+
+        def _slice_dim(self, _slice, dim=0):
+            """
+            Helper that actually performs a slice along the dimension passed.
+
+            Arguments:
+                _slice (int or slice): actual slice object specifying indices
+                dim (int): dimension number. 0 is for rows, 1 for columns, etc.
+
+            Returns:
+                Tensor: view or new sliced copy
+
+            Raises:
+                TooSlowToImplementError: if invalid `_slice` provided (too
+                complex to implement quickly).
+            """
+            res = self
+            fn = res._tensor.get_row_slice
+            if dim == 1:
+                fn = res._tensor.get_col_slice
+            if isinstance(_slice, int):
+                _slice = slice(_slice, _slice + 1)
+            if isinstance(_slice, slice):
+                assert _slice.step is None or _slice.step == 1
+                start, stop, stride = _slice.indices(self.shape[dim])
+                res = Cudamat.Tensor(fn(start, stop))
+            elif _slice is Ellipsis:
+                pass
+            else:
+                # arbitrary long list, too expensive to support?
+                # raise TooSlowToImplementError("column idx too complex")
+                res = self.get(_slice, dim)
+            return res
 
         def __getitem__(self, key):
-            raise NotImplementedError()
+            res = self
+            if isinstance(key, tuple):
+                if len(key) > 2:
+                    raise IndexError("CUDAMatrix only supports 2-D matrices")
+                else:
+                    for idx in range(len(key) - 1, -1, -1):
+                        res = res._slice_dim(key[idx], idx)
+            else:
+                res = res._slice_dim(key, 0)
+            return res
 
         def __setitem__(self, key, value):
             raise NotImplementedError()
@@ -143,14 +202,35 @@ class Cudamat(Backend):
         def argmax(self, axis):
             return Cudamat.Tensor(self._tensor.argmax(axis))
 
-        def get(self, indices, axis):
-            # FIXME: This routine is terribly expensive! Should return a view instead
-            # of a newly allocated matrix.
+        def take(self, indices, axis=None):
+            # we only support contiguous indices at the moment because this
+            # is all cudamat supports efficiently.
+            if len(indices) == 0:
+                return self
+            if (indices[-1] - indices[0] == len(indices) - 1 and
+                (len(indices) <= 1 or all(x < y for x, y in zip(indices,
+                                          indices[1:])))):
+                if axis == 0:
+                    return Cudamat.Tensor(self._tensor.get_row_slice(
+                                          indices[0], indices[-1] + 1))
+                elif axis == 1:
+                    return Cudamat.Tensor(self._tensor.get_col_slice(
+                                          indices[0], indices[-1] + 1))
+                elif axis is None:
+                    # we might be able to do this by first doing a reshape?
+                    raise TooSlowToImplementError("need to first reshape")
+            else:
+                raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
+                                              " indexing efficiently")
+
+        def get(self, indices, axis=None):
+            # FIXME: This routine is terribly expensive! Should return a view
+            # instead of a newly allocated matrix.
             if type(indices) == int:
                 indices = [indices]
             elif type(indices) == Cudamat.Tensor:
                 raise NotImplementedError()
-            if axis == 0:
+            if axis == 0 or axis is None:
                 mat = cudamat.empty((len(indices), self._tensor.shape[1]))
                 dst_ind = 0
                 for src_ind in indices:
@@ -170,60 +250,6 @@ class Cudamat(Backend):
                 raise NotImplementedError()
             return Cudamat.Tensor(mat)
 
-        def get_slice(self, start, end, axis):
-            """
-            Return a view made of consecutive rows/columns.
-            """
-            if axis == 0:
-                return Cudamat.Tensor(self._tensor.get_row_slice(start, end))
-            if axis == 1:
-                return Cudamat.Tensor(self._tensor.get_col_slice(start, end))
-            raise NotImplementedError()
-
-        def get_elems(self, indices, axis):
-            assert type(indices) == Numpy.Tensor
-            if axis == 0:
-                return Numpy.Tensor(self._tensor[range(self._tensor.shape[0]),
-                                                 indices._tensor])
-            if axis == 1:
-                return Numpy.Tensor(self._tensor[indices._tensor,
-                                                 range(self._tensor.shape[1])])
-            raise NotImplementedError()
-
-        def set(self, obj, indices, axis):
-            """
-            This is the opposite of get(). Copy the input tensor into the
-            rows/columns specified by indices.
-            """
-            if type(indices) == int:
-                indices = [indices]
-            elif type(indices) == Cudamat.Tensor:
-                raise NotImplementedError()
-            tensor = obj._tensor
-            src_ind = 0
-            for dst_ind in indices:
-                dst_ind = int(dst_ind)
-                if axis == 0:
-                    self._tensor.set_row_slice(dst_ind, dst_ind + 1,
-                            tensor.get_row_slice(src_ind, src_ind + 1))
-                elif axis == 1:
-                    self._tensor.set_col_slice(dst_ind, dst_ind + 1,
-                            tensor.get_col_slice(src_ind, src_ind + 1))
-                else:
-                    raise NotImplementedError()
-                src_ind += 1
-
-        def set_slice(self, obj, start, end, axis):
-            """
-            Copy the input tensor into consecutive rows/columns.
-            """
-            if axis == 0:
-                self._tensor.set_row_slice(start, end, obj._tensor)
-            elif axis == 1:
-                self._tensor.set_col_slice(start, end, obj._tensor)
-            else:
-                raise NotImplementedError()
-
         def add(self, obj):
             self._tensor.add(obj._tensor)
 
@@ -232,25 +258,25 @@ class Cudamat(Backend):
 
         def sum(self):
             result = self._tensor.sum(axis=0).sum(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def mean(self):
             result = self._tensor.mean(axis=0).mean(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def min(self):
             result = self._tensor.min(axis=0).min(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
         def max(self):
             result = self._tensor.max(axis=0).max(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
 
@@ -270,8 +296,8 @@ class Cudamat(Backend):
         cudamat.cublas_init()
 
     def zeros(self, shape, dtype=float):
-        return self.Tensor(cudamat.CUDAMatrix(numpy.zeros(shape,
-                                                          dtype=numpy.float32)))
+        return self.Tensor(cudamat.CUDAMatrix(
+                           numpy.zeros(shape, dtype=numpy.float32)))
 
     def array(self, obj):
         ndarray = numpy.array(obj, dtype=numpy.float32)
@@ -329,7 +355,7 @@ class Cudamat(Backend):
         if axis is None and not keepdims:
             assert out is None
             res = x._tensor.min(axis=0).min(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 
@@ -346,7 +372,7 @@ class Cudamat(Backend):
         if axis is None and not keepdims:
             assert out is None
             res = x._tensor.max(axis=0).max(axis=1)
-            logger.info('Copying to host')
+            logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
 

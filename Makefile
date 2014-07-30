@@ -6,7 +6,7 @@ DOC_PUB_USER=mylearn
 DOC_PUB_PATH=/home/mylearn/public/
 
 .PHONY: default build develop clean_pyc clean doc html test dist publish_doc \
-	      test_all
+	      benchmark test_all style lint
 
 default: build
 
@@ -45,6 +45,9 @@ style:
 
 lint:
 	-pylint --output-format=colorized mylearn
+
+bench: build
+	PYTHONPATH="." benchmarks/run_benchmarks.py
 
 dist:
 	python setup.py sdist
