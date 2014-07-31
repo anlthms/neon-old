@@ -36,26 +36,31 @@ class Numpy(Backend):
         def __str__(self):
             return str(self._tensor)
 
+        def _clean(self, val):
+            """
+            Replaces any Numpy.Tensor indices with `numpy` arrays.
+
+            Arguments:
+                val (int, array_like, Numpy.Tensor): the items to index by.
+
+            Returns:
+                int, array_like, Numpy.Tensor: Transformed val
+            """
+            if isinstance(val, tuple):
+                val = tuple(x._tensor if isinstance(x, Numpy.Tensor) else x
+                            for x in val)
+            if isinstance(val, Numpy.Tensor):
+                val = val._tensor
+            return val
+
         def __getitem__(self, key):
-            if isinstance(key, tuple):
-                key = tuple(x._tensor if isinstance(x, Numpy.Tensor) else x
-                            for x in key)
-            if isinstance(key, Numpy.Tensor):
-                return Numpy.Tensor(self._tensor[key._tensor])
-            else:
-                return Numpy.Tensor(self._tensor[key])
+            return Numpy.Tensor(self._tensor[self._clean(key)])
 
         def __setitem__(self, key, value):
-            if isinstance(value, Numpy.Tensor):
-                value = value._tensor
-            if isinstance(key, tuple):
-                key = tuple(x._tensor if isinstance(x, Numpy.Tensor) else x
-                            for x in key)
-            if isinstance(key, Numpy.Tensor):
-                self._tensor[key._tensor] = value
-            else:
-                self._tensor[key] = value
-        # TODO: __delitem__ implementation
+            self._tensor[self._clean(key)] = self._clean(value)
+
+        def __delitem__(self, key):
+            raise ValueError("cannot delete array elements")
 
         def __float__(self):
             return float(self._tensor)

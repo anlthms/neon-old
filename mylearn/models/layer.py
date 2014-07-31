@@ -62,9 +62,8 @@ class Layer(object):
         self.weights += self.velocity
 
     def error(self):
-        return self.backend.dot(self.delta,
-                                self.weights.take(range(self.weights.shape[1]),
-                                                  axis=1))
+        return self.backend.dot(self.delta, self.weights.take(
+                                range(self.weights.shape[1] - 1), axis=1))
 
 
 class LayerWithNoBias(Layer):
@@ -198,6 +197,16 @@ class ConvLayer(object):
         self.rlinks = self.links.raw()
         self.rofmlocs = ofmlocs.raw()
 
+    def __str__(self):
+        return ("ConvLayer %s: %d ifms, %d filters, "
+                "utilizing %s backend\n\t"
+                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
+                (self.name, self.nifm, self.nfilt,
+                 self.backend.__class__.__name__,
+                 self.backend.mean(self.weights),
+                 self.backend.min(self.weights),
+                 self.backend.max(self.weights)))
+
     def fprop(self, inputs):
         for dst in range(self.ofmsize):
             # Compute the weighted average of the receptive field
@@ -237,7 +246,7 @@ class ConvLayer(object):
         return berror
 
 
-class MaxPoolingLayer:
+class MaxPoolingLayer(object):
     """
     Max pooling layer.
     The code assumes that there is no overlap between pooling regions.
@@ -279,6 +288,16 @@ class MaxPoolingLayer:
                 # Shift the pooling window down by 1 receptive field.
                 src += (self.pheight - 1) * self.ifmwidth
             self.links[dst, :] = backend.array(colinds)
+
+    def __str__(self):
+        return ("MaxPoolingLayer %s: %d nin, %d nout, "
+                "utilizing %s backend\n\t"
+                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t" %
+                (self.name, self.nin, self.nout,
+                 self.backend.__class__.__name__,
+                 self.backend.mean(self.maxinds),
+                 self.backend.min(self.maxinds),
+                 self.backend.max(self.maxinds)))
 
     def fprop(self, inputs):
         # Reshape the input so that we have a separate row

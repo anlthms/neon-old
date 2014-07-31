@@ -97,7 +97,59 @@ class Cudamat(Backend):
             return res
 
         def __setitem__(self, key, value):
-            raise NotImplementedError()
+            if type(value) != Cudamat.Tensor:
+                raise NotImplementedError("can only assign Cudamat tensors")
+            if isinstance(key, tuple):
+                if len(key) > 2:
+                    raise IndexError("CUDAMatrix only supports 2-D matrices")
+                elif len(key) == 2:
+                    if isinstance(key[0], slice):
+                        start, stop, stride = key[0].indices(self.shape[0])
+                        if start == 0 and stop == self.shape[0]:
+                            if isinstance(key[1], slice):
+                                start, stop, stride = (key[1].indices(
+                                                       self.shape[1]))
+                                self._tensor.set_col_slice(start, stop,
+                                                           value._tensor)
+                            elif isinstance(key[1], int):
+                                self._tensor.set_col_slice(key[1], key[1] + 1,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        elif isinstance(key[1], slice):
+                            start_1, stop_1, stride_1 = (key[1].indices(
+                                                         self.shape[1]))
+                            if start_1 == 0 and stop_1 == self.shape[1]:
+                                self._tensor.set_row_slice(start, stop,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        else:
+                            raise TooSlowToImplementError("arbitrary "
+                                                          "indexing")
+                    elif isinstance(key[0], int):
+                        if isinstance(key[1], slice):
+                            start_1, stop_1, stride_1 = (key[1].indices(
+                                                         self.shape[1]))
+                            if start_1 == 0 and stop_1 == self.shape[1]:
+                                self._tensor.set_row_slice(key[0], key[0] + 1,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        else:
+                            raise TooSlowToImplementError("arbitrary "
+                                                          "indexing")
+                    else:
+                        raise TooSlowToImplementError("arbitrary "
+                                                      "indexing")
+            else:
+                raise IndexError("Cudamat only supports 2-D fancy indexing")
+
+        def __delitem__(self, key):
+            raise ValueError("cannot delete array elements")
 
         def __float__(self):
             raise NotImplementedError()
