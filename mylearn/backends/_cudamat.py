@@ -97,7 +97,59 @@ class Cudamat(Backend):
             return res
 
         def __setitem__(self, key, value):
-            raise NotImplementedError()
+            if type(value) != Cudamat.Tensor:
+                raise NotImplementedError("can only assign Cudamat tensors")
+            if isinstance(key, tuple):
+                if len(key) > 2:
+                    raise IndexError("CUDAMatrix only supports 2-D matrices")
+                elif len(key) == 2:
+                    if isinstance(key[0], slice):
+                        start, stop, stride = key[0].indices(self.shape[0])
+                        if start == 0 and stop == self.shape[0]:
+                            if isinstance(key[1], slice):
+                                start, stop, stride = (key[1].indices(
+                                                       self.shape[1]))
+                                self._tensor.set_col_slice(start, stop,
+                                                           value._tensor)
+                            elif isinstance(key[1], int):
+                                self._tensor.set_col_slice(key[1], key[1] + 1,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        elif isinstance(key[1], slice):
+                            start_1, stop_1, stride_1 = (key[1].indices(
+                                                         self.shape[1]))
+                            if start_1 == 0 and stop_1 == self.shape[1]:
+                                self._tensor.set_row_slice(start, stop,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        else:
+                            raise TooSlowToImplementError("arbitrary "
+                                                          "indexing")
+                    elif isinstance(key[0], int):
+                        if isinstance(key[1], slice):
+                            start_1, stop_1, stride_1 = (key[1].indices(
+                                                         self.shape[1]))
+                            if start_1 == 0 and stop_1 == self.shape[1]:
+                                self._tensor.set_row_slice(key[0], key[0] + 1,
+                                                           value._tensor)
+                            else:
+                                raise TooSlowToImplementError("arbitrary "
+                                                              "indexing")
+                        else:
+                            raise TooSlowToImplementError("arbitrary "
+                                                          "indexing")
+                    else:
+                        raise TooSlowToImplementError("arbitrary "
+                                                      "indexing")
+            else:
+                raise IndexError("Cudamat only supports 2-D fancy indexing")
+
+        def __delitem__(self, key):
+            raise ValueError("cannot delete array elements")
 
         def __float__(self):
             raise NotImplementedError()
@@ -134,7 +186,19 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __radd__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return Cudamat.Tensor(target)
+
+        def __iadd__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.add(other._tensor)
+            else:
+                self._tensor.add(other)
+            return self
 
         def __sub__(self, other):
             target = cudamat.empty(self.shape)
@@ -153,6 +217,13 @@ class Cudamat(Backend):
                 self._tensor.add(other, target)
             return Cudamat.Tensor(target)
 
+        def __isub__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.subtract(other._tensor)
+            else:
+                self._tensor.subtract(other)
+            return self
+
         def __mul__(self, other):
             target = cudamat.empty(self.shape)
             if isinstance(other, Cudamat.Tensor):
@@ -162,7 +233,14 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __rmul__(self, other):
-            return self.__mul__(other)
+            return self * other
+
+        def __imul__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.mult(other._tensor)
+            else:
+                self._tensor.mult(other)
+            return self
 
         def __div__(self, other):
             target = cudamat.empty(self.shape)
@@ -173,13 +251,50 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __rdiv__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, (float, int)):
+                other = Cudamat.Tensor(other)
+            if isinstance(other, Cudamat.Tensor):
+                other._tensor.divide(self._tensor, target)
+            elif isinstance(other, cudamat.CUDAMatrix):
+                other.divide(self._tensor, target)
+            else:
+                return NotImplemented
+            return Cudamat.Tensor(target)
+
+        def __idiv__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.divide(other._tensor)
+            else:
+                self._tensor.divide(other)
+            return self
 
         def __pow__(self, other, modulo=None):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.pow(other._tensor, target)
+            else:
+                self._tensor.pow(other, target)
+            return Cudamat.Tensor(target)
 
         def __rpow__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, (float, int)):
+                other = Cudamat.Tensor(other)
+            if isinstance(other, Cudamat.Tensor):
+                other._tensor.pow(self._tensor, target)
+            elif isinstance(other, cudamat.CUDAMatrix):
+                other.pow(self._tensor, target)
+            else:
+                return NotImplemented
+            return Cudamat.Tensor(target)
+
+        def __ipow__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.pow(other._tensor)
+            else:
+                self._tensor.pow(other)
+            return self
 
         def copy(self):
             return Cudamat.Tensor(self._tensor.copy())
