@@ -186,7 +186,19 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __radd__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return Cudamat.Tensor(target)
+
+        def __iadd__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.add(other._tensor)
+            else:
+                self._tensor.add(other)
+            return self
 
         def __sub__(self, other):
             target = cudamat.empty(self.shape)
@@ -205,6 +217,13 @@ class Cudamat(Backend):
                 self._tensor.add(other, target)
             return Cudamat.Tensor(target)
 
+        def __isub__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.subtract(other._tensor)
+            else:
+                self._tensor.subtract(other)
+            return self
+
         def __mul__(self, other):
             target = cudamat.empty(self.shape)
             if isinstance(other, Cudamat.Tensor):
@@ -214,7 +233,14 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __rmul__(self, other):
-            return self.__mul__(other)
+            return self * other
+
+        def __imul__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.mult(other._tensor)
+            else:
+                self._tensor.mult(other)
+            return self
 
         def __div__(self, other):
             target = cudamat.empty(self.shape)
@@ -225,13 +251,50 @@ class Cudamat(Backend):
             return Cudamat.Tensor(target)
 
         def __rdiv__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, (float, int)):
+                other = Cudamat.Tensor(other)
+            if isinstance(other, Cudamat.Tensor):
+                other._tensor.divide(self._tensor, target)
+            elif isinstance(other, cudamat.CUDAMatrix):
+                other.divide(self._tensor, target)
+            else:
+                return NotImplemented
+            return Cudamat.Tensor(target)
+
+        def __idiv__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.divide(other._tensor)
+            else:
+                self._tensor.divide(other)
+            return self
 
         def __pow__(self, other, modulo=None):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.pow(other._tensor, target)
+            else:
+                self._tensor.pow(other, target)
+            return Cudamat.Tensor(target)
 
         def __rpow__(self, other):
-            raise NotImplementedError()
+            target = cudamat.empty(self.shape)
+            if isinstance(other, (float, int)):
+                other = Cudamat.Tensor(other)
+            if isinstance(other, Cudamat.Tensor):
+                other._tensor.pow(self._tensor, target)
+            elif isinstance(other, cudamat.CUDAMatrix):
+                other.pow(self._tensor, target)
+            else:
+                return NotImplemented
+            return Cudamat.Tensor(target)
+
+        def __ipow__(self, other):
+            if isinstance(other, Cudamat.Tensor):
+                self._tensor.pow(other._tensor)
+            else:
+                self._tensor.pow(other)
+            return self
 
         def copy(self):
             return Cudamat.Tensor(self._tensor.copy())

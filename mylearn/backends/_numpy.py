@@ -116,6 +116,13 @@ class Numpy(Backend):
             else:
                 return Numpy.Tensor(other + self._tensor)
 
+        def __iadd__(self, other):
+            if isinstance(other, Numpy.Tensor):
+                self._tensor += other._tensor
+            else:
+                self._tensor += other
+            return self
+
         def __sub__(self, other):
             if isinstance(other, Numpy.Tensor):
                 return Numpy.Tensor(self._tensor - other._tensor)
@@ -127,6 +134,13 @@ class Numpy(Backend):
                 return Numpy.Tensor(other._tensor - self._tensor)
             else:
                 return Numpy.Tensor(other - self._tensor)
+
+        def __isub__(self, other):
+            if isinstance(other, Numpy.Tensor):
+                self._tensor -= other._tensor
+            else:
+                self._tensor -= other
+            return self
 
         def __mul__(self, other):
             if isinstance(other, Numpy.Tensor):
@@ -140,6 +154,13 @@ class Numpy(Backend):
             else:
                 return Numpy.Tensor(other * self._tensor)
 
+        def __imul__(self, other):
+            if isinstance(other, Numpy.Tensor):
+                self._tensor *= other._tensor
+            else:
+                self._tensor *= other
+            return self
+
         def __div__(self, other):
             if isinstance(other, Numpy.Tensor):
                 return Numpy.Tensor(self._tensor / other._tensor)
@@ -151,6 +172,13 @@ class Numpy(Backend):
                 return Numpy.Tensor(other._tensor / self._tensor)
             else:
                 return Numpy.Tensor(other / self._tensor)
+
+        def __idiv__(self, other):
+            if isinstance(other, Numpy.Tensor):
+                self._tensor /= other._tensor
+            else:
+                self._tensor /= other
+            return self
 
         def __pow__(self, other, modulo=None):
             # TODO: determine how ternary modulo needs to be handled
@@ -164,6 +192,13 @@ class Numpy(Backend):
                 return Numpy.Tensor(other._tensor ** self._tensor)
             else:
                 return Numpy.Tensor(other ** self._tensor)
+
+        def __ipow__(self, other):
+            if isinstance(other, Numpy.Tensor):
+                self._tensor **= other._tensor
+            else:
+                self._tensor **= other
+            return self
 
         def copy(self):
             return Numpy.Tensor(np.copy(self._tensor))
