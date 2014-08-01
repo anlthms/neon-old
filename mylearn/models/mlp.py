@@ -71,7 +71,7 @@ class MLP(Model):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
             self.fprop(inputs.take(range(start_idx, end_idx), axis=0))
-            outputs[range(start_idx, end_idx), :] = self.layers[0].output
+            outputs[range(start_idx, end_idx), :] = self.layers[-1].output
         return outputs
 
     def predict(self, datasets, train=True, test=True, validation=True):

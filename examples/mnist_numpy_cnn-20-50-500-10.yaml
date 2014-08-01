@@ -39,11 +39,6 @@ model: {
       num_channels: 20,
       input_shape: 24 24,
       pooling_shape: 2 2,
-      weight_init: {
-        type: uniform,
-        low: -0.1,
-        high: 0.1,
-      },
     },
     {
       name: layer3,
@@ -64,11 +59,6 @@ model: {
       num_channels: 50,
       input_shape: 8 8,
       pooling_shape: 2 2,
-      weight_init: {
-        type: uniform,
-        low: -0.1,
-        high: 0.1,
-      },
     },
     {
       name: layer5,

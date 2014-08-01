@@ -142,14 +142,14 @@ class AELayer(object):
         return self.backend.dot(self.delta, self.weights)
 
 
-class ConvLayer(object):
+class LocalLayer(object):
     """
-    Convolutional layer.
+    Base class for locally connected layers.
+
     A stride of 1 is assumed.
     """
 
-    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape,
-                 nfilt, weight_init):
+    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
@@ -160,19 +160,11 @@ class ConvLayer(object):
         ofmwidth = self.ifmwidth - self.fwidth + 1
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = ofmheight * ofmwidth
-        self.nout = self.ofmsize * nfilt
 
         self.nifm = nifm
-        self.nfilt = nfilt
         self.fsize = nifm * self.fheight * self.fwidth
-        self.weights = self.backend.gen_weights((nfilt, self.fsize),
-                                                weight_init)
-        self.output = backend.zeros((batch_size, self.nout))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
-                                       self.ofmsize))
         # Figure out the connections with the previous layer.
         self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
-        ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in range(self.ofmsize):
@@ -194,8 +186,31 @@ class ConvLayer(object):
                 # Sweep the filter over to the next row.
                 src += self.fwidth
             self.links[dst, :] = backend.array(colinds)
-            ofmlocs[dst, :] = ofmstarts + dst
         self.rlinks = self.links.raw()
+
+    def bprop(self, error):
+        self.delta = error
+
+
+class ConvLayer(LocalLayer):
+    """
+    Convolutional layer.
+    """
+
+    def __init__(self, name, backend, batch_size, nifm,
+                 ifmshape, fshape, nfilt, weight_init):
+        super(ConvLayer, self).__init__(name, backend, batch_size, nifm,
+                                        ifmshape, fshape)
+        self.nout = self.ofmsize * nfilt
+        self.nfilt = nfilt
+        self.weights = self.backend.gen_weights((nfilt, self.fsize),
+                                                weight_init)
+        self.output = backend.zeros((batch_size, self.nout))
+        ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
+                                       self.ofmsize))
+        ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
+        for dst in range(self.ofmsize):
+            ofmlocs[dst, :] = ofmstarts + dst
         self.rofmlocs = ofmlocs.raw()
 
     def fprop(self, inputs):
@@ -207,9 +222,6 @@ class ConvLayer(object):
             prod = self.backend.dot(inputs.take(rflinks, axis=1),
                                     self.weights.T())
             self.output[:, self.rofmlocs[dst]] = prod
-
-    def bprop(self, error):
-        self.delta = error
 
     def update(self, inputs, epsilon, epoch, momentum):
         wsums = self.backend.zeros(self.weights.shape)
@@ -237,13 +249,59 @@ class ConvLayer(object):
         return berror
 
 
-class MaxPoolingLayer:
+class LocalFilteringLayer(LocalLayer):
     """
-    Max pooling layer.
+    Local filtering layer. This is very similar to ConvLayer, but the weights
+    are not shared.
+    """
+
+    def __init__(self, name, backend, batch_size,
+                 nifm, ifmshape, fshape, weight_init):
+        super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
+                                                  nifm, ifmshape, fshape)
+        self.nout = self.ofmsize
+        self.output = backend.zeros((batch_size, self.nout))
+        self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
+                                                weight_init)
+
+    def fprop(self, inputs):
+        for dst in range(self.ofmsize):
+            rflinks = self.rlinks[dst]
+            # We use a different filter for each receptive field.
+            prod = self.backend.dot(inputs.take(rflinks, axis=1),
+                                    self.weights[dst].T())
+            self.output[:, dst] = prod
+
+    def update(self, inputs, epsilon, epoch, momentum):
+        updates = self.backend.zeros(self.weights.shape)
+        for dst in range(self.ofmsize):
+            rflinks = self.rlinks[dst]
+            delta_slice = self.delta.take(dst, axis=1)
+            updates[dst] = self.backend.dot(delta_slice.T(), inputs.take(rflinks,
+                                                                 axis=1))
+        self.weights.sub(epsilon * updates)
+
+    def error(self):
+        berror = self.backend.zeros((self.batch_size,
+                                     self.ifmheight * self.ifmwidth *
+                                     self.nifm))
+        for dst in range(self.ofmsize):
+            # Use the same filter that was used for forward propagation
+            # of this receptive field.
+            res = self.backend.dot(self.delta.take(range(dst, dst + 1), axis=1),
+                                   self.weights[dst:(dst + 1 )])
+            rflinks = self.rlinks[dst]
+            res.add(berror.take(rflinks, axis=1))
+            berror[:, rflinks] = res
+        return berror
+
+
+class PoolingLayer(object):
+    """
+    Base class for pooling layers.
     The code assumes that there is no overlap between pooling regions.
     """
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
-                 weight_init):
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape):
         self.name = name
         self.backend = backend
         self.nfm = nfm
@@ -257,10 +315,6 @@ class MaxPoolingLayer:
 
         self.ofmsize = self.ifmsize / self.psize
         self.nin = nfm * self.ifmsize
-        self.nout = nfm * self.ofmsize
-        self.output = backend.zeros((batch_size, self.nout))
-        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
-                                     dtype='i32')
         # Figure out the possible connections with the previous layer.
         # Each unit in this layer could be connected to any one of
         # self.psize units in the previous layer.
@@ -279,6 +333,26 @@ class MaxPoolingLayer:
                 # Shift the pooling window down by 1 receptive field.
                 src += (self.pheight - 1) * self.ifmwidth
             self.links[dst, :] = backend.array(colinds)
+
+    def bprop(self, error):
+        self.delta = error
+
+    def update(self, inputs, epsilon, epoch, momentum):
+        # There are no weights to update.
+        pass
+
+
+class MaxPoolingLayer(PoolingLayer):
+    """
+    Max pooling layer.
+    """
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape):
+        super(MaxPoolingLayer, self).__init__(name, backend, batch_size, nfm,
+                                              ifmshape, pshape)
+        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
+                                     dtype='i32')
+        self.nout = nfm * self.ofmsize
+        self.output = backend.zeros((batch_size, self.nout))
 
     def fprop(self, inputs):
         # Reshape the input so that we have a separate row
@@ -300,13 +374,6 @@ class MaxPoolingLayer:
         # Reshape back to original shape.
         self.output = squished_output.reshape((self.output.shape))
 
-    def bprop(self, error):
-        self.delta = error
-
-    def update(self, inputs, epsilon, epoch, momentum):
-        # There are no weights to update.
-        pass
-
     def error(self):
         berror = self.backend.zeros((self.batch_size, self.nin))
         # Reshape the backpropagated error matrix to have one
@@ -319,5 +386,39 @@ class MaxPoolingLayer:
             colinds = self.maxinds.take(dst, axis=1)
             inds = links.take(colinds, axis=0)
             rberror[range(rberror.shape[0]), inds] = rdelta.take(dst, axis=1)
+        berror = rberror.reshape(berror.shape)
+        return berror
+
+
+class L2PoolingLayer(PoolingLayer):
+    """
+    L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
+    as output.
+    """
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape):
+        super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
+                                             ifmshape, pshape)
+        self.input_norm = backend.zeros((batch_size * nfm, self.ifmsize)) 
+        self.nout = nfm * self.ofmsize
+        self.output = backend.zeros((batch_size, self.nout))
+
+    def fprop(self, inputs):
+        squished_inputs = self.backend.squish(inputs, self.nfm)
+        squished_output = self.backend.squish(self.output, self.nfm)
+        for dst in range(self.ofmsize):
+            inds = self.links.take(dst, axis=0)
+            rf = squished_inputs.take(inds, axis=1)
+            squished_output[:, dst] = rf.norm(axis=1)
+            denom = squished_output[:, range(dst, dst + 1)].repeat(
+                    self.psize, axis=1)
+            denom[denom == 0] = 1
+            self.input_norm[:, inds] = rf / denom
+        self.output = squished_output.reshape((self.output.shape))
+
+    def error(self):
+        berror = self.backend.zeros((self.batch_size, self.nin))
+        rberror = self.backend.squish(berror, self.nfm)
+        rdelta = self.backend.squish(self.delta, self.nfm)
+        rberror = self.input_norm * rdelta.repeat(self.psize, axis=1)
         berror = rberror.reshape(berror.shape)
         return berror

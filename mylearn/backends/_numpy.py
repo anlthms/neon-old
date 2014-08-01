@@ -189,6 +189,12 @@ class Numpy(Backend):
         def sub(self, obj):
             self._tensor -= obj._tensor
 
+        def norm(self, axis):
+            return Numpy.Tensor(np.sqrt((self._tensor * self._tensor).sum(axis)))
+
+        def repeat(self, repeats, axis):
+            return Numpy.Tensor(self._tensor.repeat(repeats, axis))
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.rng_init()
