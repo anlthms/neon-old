@@ -46,5 +46,4 @@ class CNN(MLP):
                                    batch_size=self.batch_size,
                                    nfm=conf['num_channels'],
                                    ifmshape=ifmshape,
-                                   pshape=pshape,
-                                   weight_init=conf['weight_init'])
+                                   pshape=pshape)
