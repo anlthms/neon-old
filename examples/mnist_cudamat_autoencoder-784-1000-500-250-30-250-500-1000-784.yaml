@@ -12,7 +12,7 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    pkl_path: './mnist.pkl',
+    serialized_path: '/usr/local/data/mnist/mnist-Cudamat.pkl',
   },
 ]
 
@@ -105,7 +105,7 @@ model: {
   batch_size: 100,
   learning_rate: 0.0001,
   loss_fn: cross_entropy,
-  pkl_path: './sae.pkl',
+  serialized_path: './sae.pkl',
 }
 
 # logging options that are passed to logging.basicConfig

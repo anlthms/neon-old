@@ -20,17 +20,44 @@ class Backend(yaml.YAMLObject):
     """
     yaml_loader = yaml.SafeLoader
 
-    class Tensor(object):
+    @staticmethod
+    def array(obj, dtype=None, copy=True, order=None, subok=False,
+              ndim=0):
         """
-        Represents an arbitrary n-dimensional array data structure.
+        Instantiate a new instance of this backend's Tensor class.
 
         Arguments:
-            object (numpy.ndarray): An in-memory n-dimensional array containing
-                                    the data values.
-            dtype (numpy.dtype, optional): The underlying type of each element
+            obj (array_like): input array object to construct from.
+            dtype (data-type, optional): numpy dtype to specify size of each
+                                         element.
+            copy (bool, optional): create a copy of the object.
+            order ({'C', 'F', 'A'}, optional): C vs Fortran contiguous order
+            subok (bool, optional): pass-through sub classes if True.
+                                    Otherwise we force the returned
+                                    array to the base class array.
+            ndim (int, optional): Minimum number of dimensions output array
+                                  should have.  Ones are prepended to meet
+                                  this requirement.
+        Returns:
+            Tensor: array object
 
         Raises:
             NotImplmentedError: Can't be instantiated directly.
         """
-        def __init__(self, object, dtype=None):
-            raise NotImplementedError()
+        raise NotImplementedError()
+
+
+class Tensor(object):
+    """
+    Represents an arbitrary n-dimensional array data structure.
+
+    Arguments:
+        object (numpy.ndarray): An in-memory n-dimensional array containing
+                                the data values.
+        dtype (numpy.dtype, optional): The underlying type of each element
+
+    Raises:
+        NotImplmentedError: Can't be instantiated directly.
+    """
+    def __init__(self, object, dtype=None):
+        raise NotImplementedError()

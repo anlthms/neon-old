@@ -13,7 +13,7 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    pkl_path: './mnist.pkl',
+    serialized_path: '/usr/local/data/mnist/mnist-Numpy.pkl',
   },
 ]
 
@@ -55,7 +55,7 @@ model: {
     saturated_coef: 0.90,
   },
   loss_fn: cross_entropy,
-  pkl_path: './mlp-simple.pkl',
+  serialized_path: './mlp-simple.pkl',
 }
 
 # dumping of predictions/output?
