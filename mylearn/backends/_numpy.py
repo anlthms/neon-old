@@ -20,7 +20,8 @@ class Numpy(Backend):
         self.__dict__.update(kwargs)
         self.rng_init()
 
-    def zeros(self, shape, dtype=float):
+    @staticmethod
+    def zeros(shape, dtype=float):
         return NumpyTensor(np.zeros(shape, dtype))
 
     @staticmethod
@@ -67,7 +68,8 @@ class Numpy(Backend):
         """
         return NumpyTensor(np.random.normal(loc, scale, size))
 
-    def append_bias(self, x):
+    @staticmethod
+    def append_bias(x):
         """
         Adds a bias column to NumpyTensor x, returning a new NumpyTensor.
         """
@@ -75,19 +77,24 @@ class Numpy(Backend):
                                           np.ones((x.shape[0], 1))),
                                           axis=1))
 
-    def copy(self, a):
+    @staticmethod
+    def copy(a):
         return NumpyTensor(np.copy(a))
 
-    def argmax(self, x, axis=None):
+    @staticmethod
+    def argmax(x, axis=None):
         return NumpyTensor(np.argmax(x._tensor, axis))
 
-    def dot(self, a, b):
+    @staticmethod
+    def dot(a, b):
         return NumpyTensor(np.dot(a._tensor, b._tensor))
 
-    def sum(self, obj):
+    @staticmethod
+    def sum(obj):
         return obj._tensor.sum()
 
-    def mean(self, x, axis=None, dtype=None, out=None, keepdims=False):
+    @staticmethod
+    def mean(x, axis=None, dtype=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)
@@ -96,7 +103,8 @@ class Numpy(Backend):
         else:
             return NumpyTensor(res)
 
-    def min(self, x, axis=None, out=None, keepdims=False):
+    @staticmethod
+    def min(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.min(x._tensor, axis, out, keepdims)
@@ -105,7 +113,8 @@ class Numpy(Backend):
         else:
             return NumpyTensor(res)
 
-    def max(self, x, axis=None, out=None, keepdims=False):
+    @staticmethod
+    def max(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.max(x._tensor, axis, out, keepdims)
@@ -123,6 +132,14 @@ class Numpy(Backend):
 
     def nonzero(self, x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
+
+    @staticmethod
+    def exp(x):
+        return NumpyTensor(np.exp(x._tensor))
+
+    @staticmethod
+    def log(x):
+        return NumpyTensor(np.log(x._tensor))
 
     def logistic(self, x):
         return NumpyTensor(1.0 / (1.0 + np.exp(-x._tensor)))

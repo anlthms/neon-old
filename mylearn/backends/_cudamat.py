@@ -64,22 +64,27 @@ class Cudamat(Backend):
                              cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
         return CudamatTensor(result)
 
-    def copy(self, a):
+    @staticmethod
+    def copy(a):
         assert type(a) == CudamatTensor
         return a.copy()
 
-    def argmax(self, x, axis=None):
+    @staticmethod
+    def argmax(x, axis=None):
         return CudamatTensor(x._tensor.argmax(axis))
 
-    def dot(self, a, b):
+    @staticmethod
+    def dot(a, b):
         return CudamatTensor(cudamat.dot(a._tensor, b._tensor))
 
-    def sum(self, x):
+    @staticmethod
+    def sum(x):
         if x is None:
             return float('NaN')
         return x.sum()
 
-    def mean(self, x):
+    @staticmethod
+    def mean(x):
         if x is None:
             return float('NaN')
         return x.mean()
@@ -130,6 +135,18 @@ class Cudamat(Backend):
 
     def nonzero(self, x):
         raise NotImplementedError()
+
+    @staticmethod
+    def exp(x):
+        target = cudamat.empty(x.shape)
+        cudamat.exp(x._tensor, target)
+        return CudamatTensor(target)
+
+    @staticmethod
+    def log(x):
+        target = cudamat.empty(x.shape)
+        cudamat.log(x._tensor, target)
+        return CudamatTensor(target)
 
     def logistic(self, x):
         target = cudamat.empty(x.shape)

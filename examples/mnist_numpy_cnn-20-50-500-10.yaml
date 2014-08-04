@@ -74,7 +74,7 @@ model: {
       name: layer5,
       connectivity: full,
       num_nodes: 500,
-      activation_fn: rectlin,
+      activation: mylearn.transforms.rectified.RectLin,
       weight_init: {
         type: uniform,
         low: -0.1,
@@ -85,7 +85,7 @@ model: {
       name: output,
       connectivity: full,
       num_nodes: 10,
-      activation_fn: logistic,
+      activation: mylearn.transforms.logistic.Logistic,
       weight_init: {
         type: uniform,
         low: -0.1,
@@ -103,7 +103,7 @@ model: {
     saturate_epoch: 5,
     saturated_coef: 0.90,
   },
-  loss_fn: cross_entropy,
+  cost: mylearn.transforms.cross_entropy.CrossEntropy,
   serialized_path: './cnn-small.pkl',
 }
 

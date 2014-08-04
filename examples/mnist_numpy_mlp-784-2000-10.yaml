@@ -25,7 +25,7 @@ model: {
       name: h0,
       connectivity: full,
       num_nodes: 2000,
-      activation_fn: rectlin,
+      activation: mylearn.transforms.rectified.RectLin,
       weight_init: {
         type: normal,
         loc: 0.0,
@@ -36,7 +36,7 @@ model: {
       name: output,
       connectivity: full,
       num_nodes: 10,
-      activation_fn: logistic,
+      activation: mylearn.transforms.logistic.Logistic,
       weight_init: {
         type: node_normalized,
         scale: 4.0,
@@ -54,7 +54,7 @@ model: {
     saturate_epoch: 5,
     saturated_coef: 0.90,
   },
-  loss_fn: cross_entropy,
+  cost: mylearn.transforms.cross_entropy.CrossEntropy,
   serialized_path: './mlp-simple.pkl',
 }
 
