@@ -411,8 +411,11 @@ class CudamatTensor(Tensor):
         return res
 
     def __setitem__(self, key, value):
-        if type(value) != CudamatTensor:
-            raise NotImplementedError("can only assign Cudamat tensors")
+        if isinstance(value, CudamatTensor):
+            value = value._tensor
+        elif not isinstance(value, (int, float)):
+            raise NotImplementedError("can only assign Cudamat tensors or "
+                                      "numeric scalars")
         if isinstance(key, tuple):
             if len(key) > 2:
                 raise IndexError("CUDAMatrix only supports 2-D matrices")
@@ -423,11 +426,10 @@ class CudamatTensor(Tensor):
                         if isinstance(key[1], slice):
                             start, stop, stride = (key[1].indices(
                                                    self.shape[1]))
-                            self._tensor.set_col_slice(start, stop,
-                                                       value._tensor)
+                            self._tensor.set_col_slice(start, stop, value)
                         elif isinstance(key[1], int):
                             self._tensor.set_col_slice(key[1], key[1] + 1,
-                                                       value._tensor)
+                                                       value)
                         else:
                             raise TooSlowToImplementError("arbitrary "
                                                           "indexing")
@@ -435,8 +437,7 @@ class CudamatTensor(Tensor):
                         start_1, stop_1, stride_1 = (key[1].indices(
                                                      self.shape[1]))
                         if start_1 == 0 and stop_1 == self.shape[1]:
-                            self._tensor.set_row_slice(start, stop,
-                                                       value._tensor)
+                            self._tensor.set_row_slice(start, stop, value)
                         else:
                             raise TooSlowToImplementError("arbitrary "
                                                           "indexing")
@@ -449,7 +450,7 @@ class CudamatTensor(Tensor):
                                                      self.shape[1]))
                         if start_1 == 0 and stop_1 == self.shape[1]:
                             self._tensor.set_row_slice(key[0], key[0] + 1,
-                                                       value._tensor)
+                                                       value)
                         else:
                             raise TooSlowToImplementError("arbitrary "
                                                           "indexing")
@@ -472,23 +473,41 @@ class CudamatTensor(Tensor):
         raise NotImplementedError()
 
     def __lt__(self, other):
-        raise NotImplementedError()
+        target = cudamat.empty(self.shape)
+        if isinstance(other, CudamatTensor):
+            self._tensor.less_than(other._tensor, target)
+        else:
+            self._tensor.less_than(other, target)
+        return CudamatTensor(target)
 
     def __le__(self, other):
+        # call __lt__ and __eq__ and iterate?
         raise NotImplementedError()
 
     def __eq__(self, other):
         if other is None:
             return False
-        raise NotImplementedError()
+        target = cudamat.empty(self.shape)
+        if isinstance(other, CudamatTensor):
+            self._tensor.equals(other._tensor, target)
+        else:
+            self._tensor.equals(other, target)
+        return CudamatTensor(target)
 
     def __ne__(self, other):
+        # go through results of __eq__ and negate
         raise NotImplementedError()
 
     def __gt__(self, other):
-        raise NotImplementedError()
+        target = cudamat.empty(self.shape)
+        if isinstance(other, CudamatTensor):
+            self._tensor.greater_than(other._tensor, target)
+        else:
+            self._tensor.greater_than(other, target)
+        return CudamatTensor(target)
 
     def __ge__(self, other):
+        # call __gt__ and __eq__ and iterate?
         raise NotImplementedError()
 
     def __add__(self, other):
