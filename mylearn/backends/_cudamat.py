@@ -148,65 +148,6 @@ class Cudamat(Backend):
         cudamat.log(x._tensor, target)
         return CudamatTensor(target)
 
-    def logistic(self, x):
-        target = cudamat.empty(x.shape)
-        cudamat.sigmoid(x._tensor, target)
-        return CudamatTensor(target)
-
-    def logistic_prime(self, x):
-        y = self.logistic(x)._tensor
-        result = y.copy()
-        result.mult(-1.0)
-        result.add(1.0)
-        result.mult(y)
-        return CudamatTensor(result)
-
-    def pseudo_logistic(self, x):
-        raise NotImplementedError()
-
-    def pseudo_logistic_prime(self, z):
-        raise NotImplementedError()
-
-    def tanh(self, x):
-        raise NotImplementedError()
-
-    def tanh_prime(self, x):
-        raise NotImplementedError()
-
-    def rectlin(self, x):
-        xc = x._tensor.copy()
-        mask = cudamat.empty(xc.shape)
-        xc.greater_than(0, mask)
-        xc.mult(mask)
-        return CudamatTensor(xc)
-
-    def rectlin_prime(self, x):
-        xc = x._tensor.copy()
-        xc.greater_than(0)
-        return CudamatTensor(xc)
-
-    def noact(self, x):
-        return x
-
-    def noact_prime(self, x):
-        return CudamatTensor(numpy.ones(x.shape, dtype=numpy.float32))
-
-    def get_derivative(self, func):
-        if func == self.logistic:
-            return self.logistic_prime
-        if func == self.pseudo_logistic:
-            return self.pseudo_logistic_prime
-        if func == self.tanh:
-            return self.tanh_prime
-        if func == self.rectlin:
-            return self.rectlin_prime
-        if func == self.noact:
-            return self.noact_prime
-        if func == self.cross_entropy:
-            return self.cross_entropy_de
-        if func == self.sse:
-            return self.sse_de
-
     def gen_weights(self, size, weight_params):
         # FIXME: Get rid of duplication.
         weights = None
@@ -294,53 +235,6 @@ class Cudamat(Backend):
         else:
             raise AttributeError("invalid momentum_params specified")
         return coef
-
-    def cross_entropy(self, outputs, targets):
-        outputs = outputs._tensor
-        targets = targets._tensor
-
-        negative_targets = targets.copy()
-        negative_targets.mult(-1.0)
-        term1 = outputs.copy()
-        cudamat.log(term1)
-        term1.mult(negative_targets)
-
-        term2 = outputs.copy()
-        term2.mult(-1.0)
-        term2.add(1.0, target=term2)
-        cudamat.log(term2)
-
-        reverse_targets = negative_targets
-        reverse_targets.add(1.0)
-        term2.mult(reverse_targets)
-
-        diff = term1
-        diff.subtract(term2)
-        diff_tensor = CudamatTensor(diff)
-        return diff_tensor.mean()
-
-    def cross_entropy_de(self, outputs, targets):
-        outputs = outputs._tensor
-        targets = targets._tensor
-
-        result = outputs.copy()
-        result.subtract(targets)
-
-        denom = outputs.copy()
-        denom.mult(-1.0)
-        denom.add(1.0)
-        denom.mult(outputs)
-        result.divide(denom)
-        return CudamatTensor(result)
-
-    def sse(self, outputs, targets):
-        """ Sum of squared errors """
-        diff = outputs - targets
-        return 0.5 * (diff * diff).sum()
-
-    def sse_de(self, outputs, targets):
-        """ Derivative of SSE with respect to the output """
-        return (outputs - targets)
 
 
 class CudamatTensor(Tensor):
@@ -487,7 +381,7 @@ class CudamatTensor(Tensor):
         raise NotImplementedError()
 
     def __neg__(self):
-        raise NotImplementedError()
+        return -1 * self
 
     def __lt__(self, other):
         target = cudamat.empty(self.shape)
@@ -603,7 +497,7 @@ class CudamatTensor(Tensor):
     def __rdiv__(self, other):
         target = cudamat.empty(self.shape)
         if isinstance(other, (float, int)):
-            other = CudamatTensor(other)
+            other = CudamatTensor(other * numpy.ones(self.shape))
         if isinstance(other, CudamatTensor):
             other._tensor.divide(self._tensor, target)
         elif isinstance(other, cudamat.CUDAMatrix):

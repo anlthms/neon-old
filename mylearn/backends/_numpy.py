@@ -141,61 +141,6 @@ class Numpy(Backend):
     def log(x):
         return NumpyTensor(np.log(x._tensor))
 
-    def logistic(self, x):
-        return NumpyTensor(1.0 / (1.0 + np.exp(-x._tensor)))
-
-    def logistic_prime(self, x):
-        y = self.logistic(x)
-        return y * (1.0 - y)
-
-    def pseudo_logistic(self, x):
-        return 1.0 / (1.0 + 2 ** -x)
-
-    def pseudo_logistic_prime(self, z):
-        y = self.pseudo_logistic(z)
-        return math.log(2) * y * (1.0 - y)
-
-    def tanh(self, x):
-        y = np.exp(-2 * x)
-        return (1.0 - y) / (1.0 + y)
-
-    def tanh_prime(self, x):
-        y = self.tanh(x)
-        return 1.0 - y * y
-
-    def rectlin(self, x):
-        xc = x.copy()
-        xc[xc < 0] = 0
-        return xc
-
-    def rectlin_prime(self, x):
-        xc = x.copy()
-        xc[xc < 0] = 0
-        xc[xc != 0] = 1
-        return xc
-
-    def noact(self, x):
-        return x
-
-    def noact_prime(self, x):
-        return NumpyTensor(np.ones(x.shape))
-
-    def get_derivative(self, func):
-        if func == self.logistic:
-            return self.logistic_prime
-        if func == self.pseudo_logistic:
-            return self.pseudo_logistic_prime
-        if func == self.tanh:
-            return self.tanh_prime
-        if func == self.rectlin:
-            return self.rectlin_prime
-        if func == self.noact:
-            return self.noact_prime
-        if func == self.cross_entropy:
-            return self.cross_entropy_de
-        if func == self.sse:
-            return self.sse_de
-
     def gen_weights(self, size, weight_params):
         weights = None
         if weight_params['type'] == 'uniform':
@@ -281,25 +226,6 @@ class Numpy(Backend):
         else:
             raise AttributeError("invalid momentum_params specified")
         return coef
-
-    def cross_entropy(self, outputs, targets):
-        outputs = outputs._tensor
-        targets = targets._tensor
-        return NumpyTensor(np.mean(-targets * np.log(outputs) -
-                           (1 - targets) * np.log(1 - outputs)))
-
-    def cross_entropy_de(self, outputs, targets):
-        outputs = outputs._tensor
-        targets = targets._tensor
-        return NumpyTensor((outputs - targets) / (outputs * (1.0 - outputs)))
-
-    def sse(self, outputs, targets):
-        """ Sum of squared errors """
-        return 0.5 * np.sum((outputs - targets) ** 2)
-
-    def sse_de(self, outputs, targets):
-        """ Derivative of SSE with respect to the output """
-        return (outputs - targets)
 
 
 class NumpyTensor(Tensor):

@@ -23,7 +23,7 @@ uninstall:
 	pip uninstall -y mylearn
 
 test: build
-	nosetests -a '!slow' mylearn
+	nosetests -a '!slow','!cuda' mylearn
 
 test_all: build
 	tox
