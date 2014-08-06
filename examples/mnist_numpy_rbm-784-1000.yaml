@@ -1,0 +1,62 @@
+# Experiment settings to train/test a stacked autoencoder on MNIST.
+
+backend: {
+  type: mylearn.backends._numpy.Numpy,
+  rng_seed: 0,
+}
+
+datasets: [
+  # MNIST data
+  {
+    #type: !!python/object:dataset.MNIST,
+    type: mylearn.datasets.mnist.MNIST,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    pkl_path: './mnist.pkl',
+  },
+]
+
+# RBM model specification
+model: {
+  type: mylearn.models.rbm.RBM,
+  layers: [
+    {
+      name: vis,
+      connectivity: full,
+      num_nodes: 784,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+    {
+      name: hid,
+      connectivity: full,
+      num_nodes: 1000,
+      activation_fn: logistic,
+      weight_init: {
+        type: gaussian,
+        scale: 0.1,
+      },
+    },
+  ],
+  num_epochs: 60,
+  batch_size: 100,
+  learning_rate: 0.0001,
+  loss_fn: cross_entropy,
+  pkl_path: './rbm.pkl',
+}
+
+# logging options that are passed to logging.basicConfig
+# level value thresholds (set level lower to display them):
+#   CRITICAL 50
+#   ERROR    40
+#   WARNING  30
+#   INFO     20
+#   DEBUG    10
+#   NOTSET    0
+logging: {
+  level: 20,
+  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+}
