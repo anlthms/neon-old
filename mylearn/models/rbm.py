@@ -19,7 +19,7 @@ class RBM(Model):
     """
 
     def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+        self.__dict__.update(kwargs) # (u) here the 'model' part of the yaml comes in
 
     def fit(self, datasets):
         """
@@ -28,11 +28,11 @@ class RBM(Model):
         logger.info('commencing model fitting')
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
-        trace
+        trace()
         nrecs, nin = inputs.shape
         self.backend = datasets[0].backend
         self.backend.rng_init()
-        self.loss_fn = getattr(self.backend, self.loss_fn) # (u) gets backend.loss_fn
+        self.loss_fn = getattr(self.backend, self.loss_fn) # (u) gets backend.loss_fn, does not exist? This turns the string 'cross_entropy' (form self.__dict__) into the method Numpy.cross_entropy 
         self.de = self.backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
