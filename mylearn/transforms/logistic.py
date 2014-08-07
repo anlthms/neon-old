@@ -44,8 +44,7 @@ def logistic_derivative(dataset):
         array_like: Transformed copy of the dataset.  Will be in the same
                     format as the input dataset.
     """
-    res = logistic(dataset)
-    return (res * (1.0 - res))
+    return logistic(dataset) * (1 - logistic(dataset))
 
 
 def pseudo_logistic(dataset):

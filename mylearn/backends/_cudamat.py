@@ -456,9 +456,9 @@ class CudamatTensor(Tensor):
         target = cudamat.empty(self.shape)
         self._tensor.mult(-1.0, target)
         if isinstance(other, CudamatTensor):
-            self._tensor.add(other._tensor, target)
+            target.add(other._tensor)
         else:
-            self._tensor.add(other, target)
+            target.add(other)
         return CudamatTensor(target)
 
     def __isub__(self, other):
