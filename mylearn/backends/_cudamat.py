@@ -275,6 +275,8 @@ class CudamatTensor(Tensor):
         Defines how we go about deserializing into an instance of this class.
         """
         self.__init__(state)
+        if not hasattr(cudamat.CUDAMatrix, 'ones'):
+            cudamat.cublas_init()
 
     def _slice_dim(self, _slice, dim=0):
         """

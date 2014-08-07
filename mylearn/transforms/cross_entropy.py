@@ -30,8 +30,8 @@ def cross_entropy(outputs, targets):
     elif isinstance(outputs, NumpyTensor):
         mean_fn = Numpy.mean
         log_fn = Numpy.log
-    return (mean_fn(-targets * log_fn(outputs) -
-                    (1 - targets) * log_fn(1 - outputs)))
+    return mean_fn(-targets * log_fn(outputs) -
+                   (1 - targets) * log_fn(1 - outputs))
 
 
 def cross_entropy_derivative(outputs, targets):

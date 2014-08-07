@@ -29,8 +29,8 @@ def test_cross_entropy_CudamatTensor():
     c = Cudamat(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])
     targets = CudamatTensor([0.5, 0.99, 0.01, 0.2])
-    expected_result = Cudamat.mean((- targets) * Cudamat.log(outputs) -
-                                   (1 - targets) * Cudamat.log(1 - outputs))
+    expected_result = c.mean((- targets) * c.log(outputs) -
+                             (1 - targets) * c.log(1 - outputs))
     assert_tensor_near_equal(expected_result, cross_entropy(outputs, targets))
 
 
@@ -49,13 +49,12 @@ def test_cross_entropy_derivative_NumpyTensor():
     assert_tensor_near_equal(expected_result,
                              cross_entropy_derivative(outputs, targets))
 
+
 @attr('cuda')
-def test_cross_entropy_derivative_basic():
+def test_cross_entropy_derivative_CudamatTensor():
     from mylearn.backends._cudamat import CudamatTensor
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])
     targets = CudamatTensor([0.5, 0.99, 0.01, 0.2])
     expected_result = ((outputs - targets) / (outputs * (1 - outputs)))
     assert_tensor_near_equal(expected_result,
                              cross_entropy_derivative(outputs, targets))
-
-

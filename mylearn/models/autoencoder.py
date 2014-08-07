@@ -146,7 +146,7 @@ class Autoencoder(Model):
             targets = ds.get_inputs(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    err = self.backend.cross_entropy(preds[item],
-                                                     targets[item])
+                    err = self.cost.apply_function(preds[item],
+                                                   targets[item])
                     logging.info("%s set reconstruction error : %0.5f" %
                                  (item, err))
