@@ -229,6 +229,9 @@ class Numpy(Backend):
         def sub(self, obj):
             self._tensor -= obj._tensor
 
+        def mean(self, axis=None, dtype=None, out=None, keepdims=False):
+            return self._tensor.mean(axis, dtype, out, keepdims)
+
         def norm(self, axis):
             return Numpy.Tensor(np.sqrt((self._tensor * self._tensor).sum(axis)))
 
@@ -312,6 +315,10 @@ class Numpy(Backend):
             return res
         else:
             return self.Tensor(res)
+
+    def sqrt(self, x, out=None):
+        res = np.sqrt(x._tensor, out._tensor)
+        return self.Tensor(res)
 
     def squish(self, obj, n):
         assert obj.shape[1] % n == 0
@@ -482,3 +489,35 @@ class Numpy(Backend):
     def sse_de(self, outputs, targets):
         """ Derivative of SSE with respect to the output """
         return (outputs - targets)
+
+    def gauss(self, x, mu, sigma):
+        #FIXME: move this out of the backend.
+        diff = x - mu
+        denom = sigma * math.sqrt(2 * np.pi)
+        return np.exp(-(diff * diff / (2 * sigma * sigma))) / denom
+
+    def gaussian_filter(self, shape):
+        #FIXME: move this out of the backend.
+        assert len(shape) == 2
+        height, width = shape 
+        assert height % 2 == 1
+        assert width % 2 == 1
+        midx = width / 2
+        midy = height / 2
+        sigma = math.sqrt(midx * midx + midy * midy) / 3.0
+
+        filter = np.zeros(shape)
+        for i, j in np.ndindex(height, width):
+            # NOTE: This can be optimized by computing a quarter of the output
+            # matrix and then mirroring to fill out the rest.
+            xdiff = j - midx
+            ydiff = i - midy 
+            dist = math.sqrt(xdiff * xdiff + ydiff * ydiff) 
+            filter[i, j] = self.gauss(dist, 0, sigma)
+        return filter
+
+    def normalized_gaussian_filter(self, count, shape):
+        filter = self.gaussian_filter(shape)
+        filter /= (count * filter.sum())
+        return self.Tensor(filter.reshape((filter.shape[0] * filter.shape[1], 1))) 
+        
