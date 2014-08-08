@@ -4,6 +4,7 @@ backend.
 """
 
 import logging
+from ipdb import set_trace as trace
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class Layer(object):
         self.pre_act = None
 
     def __str__(self):
+        # (u) problem computing these means? trace before compute and return them
+        # first time round this works. 
+        trace()
+
         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
                 "utilizing %s backend\n\t"
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
@@ -81,6 +86,27 @@ class LayerWithNoBias(Layer):
     def error(self):
         return self.backend.dot(self.delta, self.weights)
 
+class RBMLayer(Layer):
+    """
+    CD1 traning layer for RBM
+    (u) inherits __init__ and __str__ from generic layer above.
+    (u) __init__ takes care of initializing the weights. 
+    (u) __str__ gets called in rbm, str(layer), to generate logging info.
+    """
+
+    def positive(self, inputs):
+        self.pre_act = self.backend.dot(inputs, self.weights.T())
+        self.output = self.act_fn(self.pre_act)
+
+    def negative(self, inputs):
+        self.pre_act = self.backend.dot(inputs, self.weights.T())
+        self.output = self.act_fn(self.pre_act)
+
+    def update(self, inputs, epsilon, epoch, momentum):
+        self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
+
+    def error(self):
+        return self.backend.dot(self.delta, self.weights)
 
 class AELayer(object):
     """

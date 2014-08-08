@@ -5,7 +5,7 @@ Defines how to initialize and run an experiment.
 import cPickle
 import logging
 import os
-
+from ipdb import set_trace as trace
 from mylearn.util.factory import Factory
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,8 @@ class Experiment(object):
         self.__dict__.update(kwargs)
 
     def run(self):
+        print "(u) Backend:", self.backend # (u) what is this?
+        trace()
         backend = Factory.create(**self.backend)
         datasets = []
         for dataset in self.datasets:
