@@ -2,11 +2,9 @@
 Logistic transform functions and classes.
 """
 
-from math import exp, log
-import numpy as np
+from math import log
+import numpy
 
-from mylearn.backends._cudamat import Cudamat, CudamatTensor
-from mylearn.backends._numpy import Numpy, NumpyTensor
 from mylearn.transforms.activation import Activation
 
 
@@ -21,16 +19,11 @@ def logistic(dataset):
         array_like: Transformed copy of the dataset.  Will be in the same
                     format as the input dataset.
     """
-    exp_fn = exp
-    if isinstance(dataset, CudamatTensor):
-        # cudamat has sigmoid function that should probably be called directly
-        # to improve speed.
-        exp_fn = Cudamat.exp
-    elif isinstance(dataset, NumpyTensor):
-        exp_fn = Numpy.exp
-    elif isinstance(dataset, np.ndarray):
-        exp_fn = np.exp
-    return (1.0 / (1.0 + exp_fn(- dataset)))
+    if isinstance(dataset, (int, float, numpy.ndarray)):
+        neg_exp = numpy.exp(- dataset)
+    else:
+        neg_exp = (- dataset).exp()
+    return 1.0 / (1.0 + neg_exp)
 
 
 def logistic_derivative(dataset):

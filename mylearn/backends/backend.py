@@ -61,3 +61,27 @@ class Tensor(object):
     """
     def __init__(self, object, dtype=None):
         raise NotImplementedError()
+
+    def log(self):
+        """
+        Computes the elementwise natural logarithmic transform on this tensor.
+
+        Returns:
+            NumpyTensor: log transformed values
+
+        Raises:
+            NotImplmentedError: Must override in a child Tensor class
+        """
+        raise NotImplementedError()
+
+    def exp(self):
+        """
+        Exponentiates each element of this tensor.
+
+        Returns:
+            NumpyTensor: e raised to the power of each value
+
+        Raises:
+            NotImplmentedError: Must override in a child Tensor class
+        """
+        raise NotImplementedError()

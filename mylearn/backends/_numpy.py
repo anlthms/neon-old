@@ -374,18 +374,33 @@ class NumpyTensor(Tensor):
         return self
 
     def __div__(self, other):
+        # python2 floor rounded division
+        return self.__truediv__(other)
+
+    def __truediv__(self, other):
+        # python3 fractional division
         if isinstance(other, NumpyTensor):
             return NumpyTensor(self._tensor / other._tensor)
         else:
             return NumpyTensor(self._tensor / other)
 
     def __rdiv__(self, other):
+        return self.__rtruediv__(other)
+
+    def __rtruediv__(self, other):
         if isinstance(other, NumpyTensor):
             return NumpyTensor(other._tensor / self._tensor)
         else:
             return NumpyTensor(other / self._tensor)
 
     def __idiv__(self, other):
+        if isinstance(other, NumpyTensor):
+            self._tensor /= other._tensor
+        else:
+            self._tensor /= other
+        return self
+
+    def __itruediv__(self, other):
         if isinstance(other, NumpyTensor):
             self._tensor /= other._tensor
         else:
@@ -440,3 +455,16 @@ class NumpyTensor(Tensor):
 
     def sub(self, obj):
         self._tensor -= obj._tensor
+
+    def log(self):
+        return NumpyTensor(np.log(self._tensor))
+
+    def exp(self):
+        return NumpyTensor(np.exp(self._tensor))
+
+    def mean(self, axis=None, dtype=None, out=None):
+        res = np.mean(self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return NumpyTensor(res)

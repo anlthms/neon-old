@@ -641,6 +641,16 @@ class CudamatTensor(Tensor):
         result.copy_to_host()
         return result.numpy_array[0][0]
 
+    def log(self):
+        target = cudamat.empty(self.shape)
+        cudamat.log(self._tensor, target)
+        return CudamatTensor(target)
+
+    def exp(self):
+        target = cudamat.empty(self.shape)
+        cudamat.exp(self._tensor, target)
+        return CudamatTensor(target)
+
 
 class TransposedCudamatTensor(CudamatTensor):
     """

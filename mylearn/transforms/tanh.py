@@ -2,10 +2,8 @@
 Hyperbolic tangent transform functions and classes.
 """
 
-import numpy as np
+import numpy
 
-from mylearn.backends._cudamat import Cudamat, CudamatTensor
-from mylearn.backends._numpy import Numpy, NumpyTensor
 from mylearn.transforms.activation import Activation
 
 
@@ -20,13 +18,11 @@ def tanh(dataset):
         array_like: Transformed copy of the dataset.  Will be in the same
                     format as the input dataset.
     """
-    exp_fn = np.exp
-    if isinstance(dataset, CudamatTensor):
-        exp_fn = Cudamat.exp
-    elif isinstance(dataset, NumpyTensor):
-        exp_fn = Numpy.exp
-    res = exp_fn(-2 * dataset)
-    return (1.0 - res) / (1.0 + res)
+    if isinstance(dataset, (int, float, numpy.ndarray)):
+        exp_ds = numpy.exp(-2 * dataset)
+    else:
+        exp_ds = (-2 * dataset).exp()
+    return (1.0 - exp_ds) / (1.0 + exp_ds)
 
 
 def tanh_derivative(dataset):

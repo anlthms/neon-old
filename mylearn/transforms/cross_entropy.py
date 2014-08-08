@@ -2,10 +2,8 @@
 Cross entropy transform functions and classes.
 """
 
-import numpy as np
+import numpy
 
-from mylearn.backends._cudamat import Cudamat, CudamatTensor
-from mylearn.backends._numpy import Numpy, NumpyTensor
 from mylearn.transforms.cost import Cost
 
 
@@ -21,17 +19,15 @@ def cross_entropy(outputs, targets):
         array_like: Calculated cross entropy values for each element.  Will
                     have the same shape and type as outputs.
     """
-    # need mean and log
-    mean_fn = np.mean
-    log_fn = np.log
-    if isinstance(outputs, CudamatTensor):
-        mean_fn = Cudamat.mean
-        log_fn = Cudamat.log
-    elif isinstance(outputs, NumpyTensor):
-        mean_fn = Numpy.mean
-        log_fn = Numpy.log
-    return mean_fn(-targets * log_fn(outputs) -
-                   (1 - targets) * log_fn(1 - outputs))
+    # numpy.ndarray doesn't define log() hence the work-around
+    if isinstance(outputs, (int, float, numpy.ndarray)):
+        ln_outputs = numpy.log(outputs)
+        ln_one_minus_outputs = numpy.log(1 - outputs)
+    else:
+        ln_outputs = outputs.log()
+        ln_one_minus_outputs = (1 - outputs).log()
+    return (-targets * ln_outputs -
+            (1 - targets) * ln_one_minus_outputs).mean()
 
 
 def cross_entropy_derivative(outputs, targets):
