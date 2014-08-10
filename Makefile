@@ -5,6 +5,19 @@ DOC_PUB_HOST=192.168.20.2
 DOC_PUB_USER=mylearn
 DOC_PUB_PATH=/home/mylearn/public/
 
+# check if a cuda capable GPU is installed
+NO_CUDA_GPU=1
+# NO_CUDA_GPU set to 0 will enable GPU based backend tests, which we attempt to
+# infer automatically
+ifeq ($(shell uname -s),Darwin)
+	# OSX checking for CUDA drivers
+	NO_CUDA_GPU=$(shell kextstat | grep -i cuda > /dev/null 2>&1; echo $$?)
+else
+	# Assume something Linux'y
+	NO_CUDA_GPU=$(shell nvidia-smi > /dev/null 2>&1; echo $$?)
+endif
+
+
 .PHONY: default build develop clean_pyc clean doc html test dist publish_doc \
 	      benchmark test_all style lint
 
@@ -23,7 +36,12 @@ uninstall:
 	pip uninstall -y mylearn
 
 test: build
+ifeq ($(NO_CUDA_GPU),0)
 	nosetests -a '!slow' mylearn
+else
+	echo "No CUDA compatible GPU found, disabling GPU tests"
+	nosetests -a '!slow','!cuda' mylearn
+endif
 
 test_all: build
 	tox

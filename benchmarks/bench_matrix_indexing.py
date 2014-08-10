@@ -36,10 +36,11 @@ def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
     Returns:
         float: min elapsed time (in seconds) of the repeated runs.
     """
-    setup = ("import numpy as np\n" "from %s import %s\n"
+    setup = ("import numpy as np\n" "from %s import %s, %sTensor\n"
              "be = %s(rng_seed=0)\n"
-             "A = be.Tensor(np.random.rand(*%s))\n" %
-             (backend, classname, classname, str(A_dims)))
+             "A = %sTensor(np.random.rand(*%s))\n" %
+             (backend, classname, classname, classname, classname,
+              str(A_dims)))
     try:
         res = timeit.repeat('A%s%s%s' % (lop, indices, rop), setup=setup,
                             number=number, repeat=repeat)
@@ -72,10 +73,11 @@ def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
     Returns:
         float: min elapsed time (in seconds) of the repeated runs.
     """
-    setup = ("import numpy as np\n" "from %s import %s\n"
+    setup = ("import numpy as np\n" "from %s import %s, %sTensor\n"
              "be = %s(rng_seed=0)\n"
-             "A = be.Tensor(np.random.rand(*%s))\n" %
-             (backend, classname, classname, str(A_dims)))
+             "A = %sTensor(np.random.rand(*%s))\n" %
+             (backend, classname, classname, classname, classname,
+              str(A_dims)))
     index_str = [':', ] * len(A_dims)
     index_str[axes] = '%d:%d' % (slices.start, slices.stop)
     try:

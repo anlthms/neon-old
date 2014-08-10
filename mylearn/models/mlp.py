@@ -7,6 +7,7 @@ import math
 
 from mylearn.models.layer import Layer
 from mylearn.models.model import Model
+from mylearn.util.factory import Factory
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,8 @@ class MLP(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        if isinstance(self.cost, str):
+            self.cost = Factory.create(type=self.cost)
 
     def fit(self, datasets):
         """
@@ -30,8 +33,6 @@ class MLP(Model):
         nrecs, nin = inputs.shape
         self.backend = datasets[0].backend
         self.backend.rng_init()
-        self.loss_fn = getattr(self.backend, self.loss_fn)
-        self.de = self.backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -55,13 +56,12 @@ class MLP(Model):
                 self.bprop(targets.take(range(start_idx, end_idx), axis=0))
                 self.update(inputs.take(range(start_idx, end_idx), axis=0),
                             self.learning_rate, epoch, self.momentum)
-                error += self.loss_fn(self.layers[-1].output,
-                                      targets.take(range(start_idx, end_idx),
-                                                   axis=0))
+                error += self.cost.apply_function(self.layers[-1].output,
+                                                  targets.take(range(start_idx,
+                                                                     end_idx),
+                                                               axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
-            # for layer in self.layers:
-            #    logger.info('layer:\n\t%s' % str(layer))
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]
@@ -98,10 +98,12 @@ class MLP(Model):
 
     def lcreate(self, backend, nin, conf):
         if conf['connectivity'] == 'full':
+            # instantiate the activation function class from string name given
+            activation = Factory.create(type=conf['activation'])
             # Add 1 for the bias input.
             return Layer(conf['name'], backend, nin + 1,
                          nout=conf['num_nodes'],
-                         act_fn=conf['activation_fn'],
+                         activation=activation,
                          weight_init=conf['weight_init'])
 
     def fprop(self, inputs):
@@ -114,7 +116,8 @@ class MLP(Model):
     def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.de(lastlayer.output, targets) / targets.shape[0])
+        lastlayer.bprop(self.cost.apply_derivative(lastlayer.output, targets) /
+                        targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
             i -= 1
