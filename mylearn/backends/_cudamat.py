@@ -489,6 +489,11 @@ class CudamatTensor(Tensor):
         return self
 
     def __div__(self, other):
+        # python2 floor rounded division
+        return self.__truediv__(other)
+
+    def __truediv__(self, other):
+        # python3 fractional division
         target = cudamat.empty(self.shape)
         if isinstance(other, CudamatTensor):
             self._tensor.divide(other._tensor, target)
@@ -497,6 +502,9 @@ class CudamatTensor(Tensor):
         return CudamatTensor(target)
 
     def __rdiv__(self, other):
+        return self.__rtruediv__(other)
+
+    def __rtruediv__(self, other):
         target = cudamat.empty(self.shape)
         if isinstance(other, (float, int)):
             other = CudamatTensor(other * numpy.ones(self.shape))
@@ -509,6 +517,13 @@ class CudamatTensor(Tensor):
         return CudamatTensor(target)
 
     def __idiv__(self, other):
+        if isinstance(other, CudamatTensor):
+            self._tensor.divide(other._tensor)
+        else:
+            self._tensor.divide(other)
+        return self
+
+    def __itruediv__(self, other):
         if isinstance(other, CudamatTensor):
             self._tensor.divide(other._tensor)
         else:
