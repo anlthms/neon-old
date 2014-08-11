@@ -282,39 +282,39 @@ class NumpyTensor(Tensor):
 
     def __lt__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor < other._tensor
+            return NumpyTensor(self._tensor < other._tensor)
         else:
-            return self._tensor < other
+            return NumpyTensor(self._tensor < other)
 
     def __le__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor <= other._tensor
+            return NumpyTensor(self._tensor <= other._tensor)
         else:
-            return self._tensor <= other
+            return NumpyTensor(self._tensor <= other)
 
     def __eq__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor == other._tensor
+            return NumpyTensor(self._tensor == other._tensor)
         else:
-            return self._tensor == other
+            return NumpyTensor(self._tensor == other)
 
     def __ne__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor != other._tensor
+            return NumpyTensor(self._tensor != other._tensor)
         else:
-            return self._tensor != other
+            return NumpyTensor(self._tensor != other)
 
     def __gt__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor > other._tensor
+            return NumpyTensor(self._tensor > other._tensor)
         else:
-            return self._tensor > other
+            return NumpyTensor(self._tensor > other)
 
     def __ge__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor >= other._tensor
+            return NumpyTensor(self._tensor >= other._tensor)
         else:
-            return self._tensor >= other
+            return NumpyTensor(self._tensor >= other)
 
     def __add__(self, other):
         if isinstance(other, NumpyTensor):
