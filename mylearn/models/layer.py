@@ -13,12 +13,11 @@ class Layer(object):
     """
     Single NNet layer built to handle data from a particular backend
     """
-    def __init__(self, name, backend, nin, nout, act_fn, weight_init):
+    def __init__(self, name, backend, nin, nout, activation, weight_init):
         self.name = name
         self.backend = backend
         self.weights = self.backend.gen_weights((nout, nin), weight_init)
-        self.act_fn = getattr(self.backend, act_fn)
-        self.act_fn_de = self.backend.get_derivative(self.act_fn)
+        self.activation = activation
         self.nin = nin
         self.nout = nout
         self.velocity = self.backend.zeros(self.weights.shape)
@@ -36,7 +35,8 @@ class Layer(object):
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t"
                 "velocity: mean=%.05f, min=%.05f, max=%.05f" %
-                (self.name, self.nin, self.nout, self.act_fn.__name__,
+                (self.name, self.nin, self.nout,
+                 self.activation.__class__.__name__,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.output),
                  self.backend.min(self.output),
@@ -54,10 +54,10 @@ class Layer(object):
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
         self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.act_fn(self.pre_act)
+        self.output = self.activation.apply_function(self.pre_act)
 
     def bprop(self, error):
-        self.delta = error * self.act_fn_de(self.pre_act)
+        self.delta = error * self.activation.apply_derivative(self.pre_act)
 
     def update(self, inputs, epsilon, epoch, momentum):
         inputs = self.backend.append_bias(inputs)
@@ -78,7 +78,7 @@ class LayerWithNoBias(Layer):
 
     def fprop(self, inputs):
         self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.act_fn(self.pre_act)
+        self.output = self.activation.apply_function(self.pre_act)
 
     def update(self, inputs, epsilon, epoch, momentum):
         self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
@@ -114,7 +114,7 @@ class AELayer(object):
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
-    def __init__(self, name, backend, nin, nout, act_fn, weight_init,
+    def __init__(self, name, backend, nin, nout, activation, weight_init,
                  weights=None):
         self.name = name
         self.backend = backend
@@ -122,8 +122,7 @@ class AELayer(object):
             self.weights = self.backend.gen_weights((nout, nin), weight_init)
         else:
             self.weights = weights
-        self.act_fn = getattr(self.backend, act_fn)
-        self.act_fn_de = self.backend.get_derivative(self.act_fn)
+        self.activation = activation
         self.nin = nin
         self.nout = nout
         self.output = None
@@ -135,7 +134,8 @@ class AELayer(object):
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.name, self.nin, self.nout, self.act_fn.__name__,
+                (self.name, self.nin, self.nout,
+                 self.activation.__class__.__name__,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.output),
                  self.backend.min(self.output),
@@ -149,16 +149,10 @@ class AELayer(object):
 
     def fprop(self, inputs):
         self.pre_act = self.backend.dot(inputs, self.weights.T())
-        if self.act_fn == self.backend.noact:
-            self.output = self.pre_act
-        else:
-            self.output = self.act_fn(self.pre_act)
+        self.output = self.activation.apply_function(self.pre_act)
 
     def bprop(self, error):
-        if self.act_fn_de == self.backend.noact_prime:
-            self.delta = error
-        else:
-            self.delta = error * self.act_fn_de(self.pre_act)
+        self.delta = error * self.activation.apply_derivative(self.pre_act)
 
     def update(self, inputs, epsilon, epoch):
         self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
@@ -322,8 +316,8 @@ class LocalFilteringLayer(LocalLayer):
         for dst in range(self.ofmsize):
             rflinks = self.rlinks[dst]
             delta_slice = self.delta.take(dst, axis=1)
-            updates[dst] = self.backend.dot(delta_slice.T(), inputs.take(rflinks,
-                                                                 axis=1))
+            updates[dst] = self.backend.dot(delta_slice.T(),
+                                            inputs.take(rflinks, axis=1))
         self.weights.sub(epsilon * updates)
 
     def error(self):
@@ -333,8 +327,9 @@ class LocalFilteringLayer(LocalLayer):
         for dst in range(self.ofmsize):
             # Use the same filter that was used for forward propagation
             # of this receptive field.
-            res = self.backend.dot(self.delta.take(range(dst, dst + 1), axis=1),
-                                   self.weights[dst:(dst + 1 )])
+            res = self.backend.dot(self.delta.take(range(dst, dst + 1),
+                                                   axis=1),
+                                   self.weights[dst:(dst + 1)])
             rflinks = self.rlinks[dst]
             res.add(berror.take(rflinks, axis=1))
             berror[:, rflinks] = res
@@ -453,7 +448,7 @@ class L2PoolingLayer(PoolingLayer):
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
                                              ifmshape, pshape)
-        self.normalized_rf = backend.zeros((batch_size * nfm, self.ifmsize)) 
+        self.normalized_rf = backend.zeros((batch_size * nfm, self.ifmsize))
         self.nout = nfm * self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
 
@@ -470,11 +465,11 @@ class L2PoolingLayer(PoolingLayer):
             inds = self.links.take(dst, axis=0)
             rf = squished_inputs.take(inds, axis=1)
             squished_output[:, dst] = rf.norm(axis=1)
-            denom = squished_output[:, range(dst, dst + 1)].repeat(
-                    self.psize, axis=1)
+            denom = squished_output[:, range(dst, dst + 1)].repeat(self.psize,
+                                                                   axis=1)
             # If the L2 norm is zero, the entire receptive field must be zeros.
-            # In that case, we set the L2 norm to 1 before using it to normalize
-            # the receptive field.
+            # In that case, we set the L2 norm to 1 before using it to
+            # normalize the receptive field.
             denom[denom == 0] = 1
             self.normalized_rf[:, inds] = rf / denom
         self.output = squished_output.reshape((self.output.shape))

@@ -61,6 +61,31 @@ Autoencoder
    mylearn.models.autoencoder.Autoencoder
 
 
+Transforms
+==========
+
+Activation Functions
+--------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   mylearn.transforms.linear.Identity
+   mylearn.transforms.rectified.RectLin
+   mylearn.transforms.logistic.Logistic
+   mylearn.transforms.logistic.PseudoLogistic
+   mylearn.transforms.tanh.Tanh
+
+Cost Functions
+--------------
+
+.. autosummary::
+   :toctree: generated/
+
+   mylearn.transforms.sum_squared.SumSquaredDiffs
+   mylearn.transforms.cross_entropy.CrossEntropy
+
+
 Datasets
 ========
 

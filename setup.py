@@ -5,7 +5,7 @@ import os
 
 
 # Define version information
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 FULLVERSION = VERSION
 write_version = True
 
@@ -29,11 +29,13 @@ setup(name='mylearn',
                 'mylearn.datasets',
                 'mylearn.experiments',
                 'mylearn.models',
+                'mylearn.transforms',
                 'mylearn.util',
                 'mylearn.tests',
                 'mylearn.backends.tests',
                 'mylearn.datasets.tests',
                 'mylearn.experiments.tests',
                 'mylearn.models.tests',
+                'mylearn.transforms.tests',
                 'mylearn.util.tests', ],
       scripts=['bin/mylearn'], )
