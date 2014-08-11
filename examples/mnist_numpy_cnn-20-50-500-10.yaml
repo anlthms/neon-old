@@ -12,7 +12,7 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 10,
-    pkl_path: './mnist.pkl',
+    serialized_path: '/usr/local/data/mnist/mnist_10pct-Numpy.pkl',
   },
 ]
 
@@ -68,7 +68,7 @@ model: {
       name: layer5,
       connectivity: full,
       num_nodes: 500,
-      activation_fn: rectlin,
+      activation: mylearn.transforms.rectified.RectLin,
       weight_init: {
         type: uniform,
         low: -0.1,
@@ -79,7 +79,7 @@ model: {
       name: output,
       connectivity: full,
       num_nodes: 10,
-      activation_fn: logistic,
+      activation: mylearn.transforms.logistic.Logistic,
       weight_init: {
         type: uniform,
         low: -0.1,
@@ -97,8 +97,8 @@ model: {
     saturate_epoch: 5,
     saturated_coef: 0.90,
   },
-  loss_fn: cross_entropy,
-  pkl_path: './mlp-simple.pkl',
+  cost: mylearn.transforms.cross_entropy.CrossEntropy,
+  serialized_path: './cnn-small.pkl',
 }
 
 

@@ -22,8 +22,6 @@ class Dataset(object):
     """
 
     backend = None
-    inputs = {'train': None, 'test': None, 'validation': None}
-    targets = {'train': None, 'test': None, 'validation': None}
 
     def load(self, backend=None):
         """

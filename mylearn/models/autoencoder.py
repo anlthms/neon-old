@@ -7,6 +7,7 @@ import math
 
 from mylearn.models.layer import AELayer
 from mylearn.models.model import Model
+from mylearn.util.factory import Factory
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ class Autoencoder(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        if isinstance(self.cost, str):
+            self.cost = Factory.create(type=self.cost)
 
     def fit(self, datasets):
         """
@@ -29,8 +32,6 @@ class Autoencoder(Model):
         targets = datasets[0].get_inputs(train=True)['train']
         nrecs, nin = inputs.shape
         self.backend = datasets[0].backend
-        self.loss_fn = getattr(self.backend, self.loss_fn)
-        self.loss_fn_de = self.backend.get_derivative(self.loss_fn)
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -59,9 +60,10 @@ class Autoencoder(Model):
                 self.bprop(targets.take(range(start_idx, end_idx), axis=0))
                 self.update(inputs.take(range(start_idx, end_idx), axis=0),
                             self.learning_rate, epoch)
-                error += self.loss_fn(self.layers[-1].output,
-                                      targets.take(range(start_idx, end_idx),
-                                                   axis=0))
+                error += self.cost.apply_function(self.layers[-1].output,
+                                                  targets.take(range(start_idx,
+                                                                     end_idx),
+                                                               axis=0))
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
@@ -97,9 +99,11 @@ class Autoencoder(Model):
 
     def lcreate(self, backend, nin, conf, weights):
         if conf['connectivity'] == 'full':
+            # instantiate the activation function class from string name given
+            activation = Factory.create(type=conf['activation'])
             return AELayer(conf['name'], backend, nin,
                            nout=conf['num_nodes'],
-                           act_fn=conf['activation_fn'],
+                           activation=activation,
                            weight_init=conf['weight_init'],
                            weights=weights)
 
@@ -113,7 +117,7 @@ class Autoencoder(Model):
     def bprop(self, targets):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.loss_fn_de(lastlayer.output, targets) /
+        lastlayer.bprop(self.cost.apply_derivative(lastlayer.output, targets) /
                         targets.shape[0])
         while i > 0:
             error = self.layers[i].error()
@@ -142,7 +146,7 @@ class Autoencoder(Model):
             targets = ds.get_inputs(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    err = self.backend.cross_entropy(preds[item],
-                                                     targets[item])
+                    err = self.cost.apply_function(preds[item],
+                                                   targets[item])
                     logging.info("%s set reconstruction error : %0.5f" %
                                  (item, err))

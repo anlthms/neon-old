@@ -29,11 +29,12 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
     Returns:
         float: min elapsed time (in seconds) of the repeated runs.
     """
-    setup = ("import numpy as np\n" "from %s import %s\n"
+    setup = ("import numpy as np\n" "from %s import %s, %sTensor\n"
              "be = %s(rng_seed=0)\n"
-             "A = be.Tensor(np.random.rand(*%s))\n"
-             "B = be.Tensor(np.random.rand(*%s))\n" %
-             (backend, classname, classname, str(A_dims), str(B_dims)))
+             "A = %sTensor(np.random.rand(*%s))\n"
+             "B = %sTensor(np.random.rand(*%s))\n" %
+             (backend, classname, classname, classname, classname, str(A_dims),
+              classname, str(B_dims)))
     try:
         res = timeit.repeat('be.dot(A, B)', setup=setup, number=number,
                             repeat=repeat)

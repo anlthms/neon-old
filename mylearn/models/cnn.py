@@ -8,6 +8,7 @@ from mylearn.models.layer import LayerWithNoBias
 from mylearn.models.layer import ConvLayer
 from mylearn.models.layer import MaxPoolingLayer, AveragePoolingLayer
 from mylearn.models.mlp import MLP
+from mylearn.util.factory import Factory
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,15 @@ class CNN(MLP):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        if isinstance(self.cost, str):
+            self.cost = Factory.create(type=self.cost)
 
     def lcreate(self, backend, nin, conf):
         if conf['connectivity'] == 'full':
+            activation = Factory.create(type=conf['activation'])
             return LayerWithNoBias(conf['name'], backend, nin,
                                    nout=conf['num_nodes'],
-                                   act_fn=conf['activation_fn'],
+                                   activation=activation,
                                    weight_init=conf['weight_init'])
         if conf['connectivity'] == 'conv':
             input_shape = conf['input_shape'].split()

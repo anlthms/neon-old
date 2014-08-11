@@ -1,4 +1,5 @@
 *.pyc
+*.pkl
 .DS_Store
 .tox
 build

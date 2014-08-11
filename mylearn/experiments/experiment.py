@@ -2,23 +2,13 @@
 Defines how to initialize and run an experiment.
 """
 
-import cPickle
 import logging
 import os
 
 from mylearn.util.factory import Factory
+from mylearn.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
-
-
-def deserialize(load_path):
-        logger.info("deserializing object from: %s" % load_path)
-        return cPickle.load(open(load_path))
-
-
-def serialize(obj, save_path):
-        logger.info("serializing %s to: %s" % (str(obj), save_path))
-        cPickle.dump(obj, open(save_path, 'wb'), -1)
 
 
 class Experiment(object):
@@ -30,18 +20,27 @@ class Experiment(object):
         datasets = []
         for dataset in self.datasets:
             dataset['backend'] = backend
-            if 'pkl_path' in dataset:
-                dpath = dataset['pkl_path']
+            if 'serialized_path' in dataset:
+                dpath = dataset['serialized_path']
                 if os.path.exists(dpath):
                     ds = deserialize(dpath)
                 else:
                     ds = Factory.create(**dataset)
-                    # TODO: fix serialization.  Can't serialize backend module
-                    # serialize(ds, dataset['pkl_path'])
+                    ds.load()
+                    serialize(ds, dpath)
             else:
                 ds = Factory.create(**dataset)
             datasets.append(ds)
-        model = Factory.create(**self.model)
-        model.fit(datasets)
+        if 'serialized_path' in self.model:
+            mpath = self.model['serialized_path']
+            if os.path.exists(mpath):
+                model = deserialize(mpath)
+            else:
+                model = Factory.create(**self.model)
+                model.fit(datasets)
+                serialize(model, mpath)
+        else:
+            model = Factory.create(**self.model)
+            model.fit(datasets)
         predictions = model.predict(datasets)
         model.error_metrics(datasets, predictions)
