@@ -28,6 +28,10 @@ class Numpy(Backend):
     def array(obj):
         return NumpyTensor(np.array(obj))
 
+    @staticmethod
+    def wrap(obj):
+        return NumpyTensor(obj)
+
     def rng_init(self):
         if 'rng_seed' in self.__dict__:
             np.random.seed(self.rng_seed)
@@ -122,6 +126,10 @@ class Numpy(Backend):
             return res
         else:
             return NumpyTensor(res)
+
+    def sqrt(self, x, out):
+        res = np.sqrt(x._tensor, out._tensor)
+        return NumpyTensor(res)
 
     def squish(self, obj, n):
         assert obj.shape[1] % n == 0

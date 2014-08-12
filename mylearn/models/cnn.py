@@ -5,7 +5,8 @@ Contains code to train convnet models and run inference.
 import logging
 
 from mylearn.models.layer import LayerWithNoBias
-from mylearn.models.layer import ConvLayer, MaxPoolingLayer
+from mylearn.models.layer import ConvLayer
+from mylearn.models.layer import MaxPoolingLayer, AveragePoolingLayer
 from mylearn.models.mlp import MLP
 from mylearn.util.factory import Factory
 
@@ -40,6 +41,7 @@ class CNN(MLP):
                              ifmshape=ifmshape,
                              fshape=fshape,
                              nfilt=conf['num_filters'],
+                             stride=conf['stride'],
                              weight_init=conf['weight_init'])
         if conf['connectivity'] == 'mpool':
             input_shape = conf['input_shape'].split()
@@ -50,4 +52,16 @@ class CNN(MLP):
                                    batch_size=self.batch_size,
                                    nfm=conf['num_channels'],
                                    ifmshape=ifmshape,
-                                   pshape=pshape)
+                                   pshape=pshape,
+                                   stride=conf['stride'])
+        if conf['connectivity'] == 'apool':
+            input_shape = conf['input_shape'].split()
+            ifmshape = (int(input_shape[0]), int(input_shape[1]))
+            pooling_shape = conf['pooling_shape'].split()
+            pshape = (int(pooling_shape[0]), int(pooling_shape[1]))
+            return AveragePoolingLayer(conf['name'], backend,
+                                   batch_size=self.batch_size,
+                                   nfm=conf['num_channels'],
+                                   ifmshape=ifmshape,
+                                   pshape=pshape,
+                                   stride=conf['stride'])
