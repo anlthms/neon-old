@@ -6,7 +6,7 @@ import math
 import numpy
 
 def gauss(x, mu, sigma):
-    """  
+    """
     Gaussian density function.
     """
 
@@ -30,7 +30,7 @@ def gaussian_filter(shape):
     # Setting this to a higher value causes the filter to
     # cover more of the gaussian curve.
     spread = 3.0
-    sigma = math.sqrt(midx * midx + midy * midy) / spread 
+    sigma = math.sqrt(midx * midx + midy * midy) / spread
 
     filter = numpy.zeros(shape)
     for i, j in numpy.ndindex(height, width):
