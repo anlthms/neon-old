@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
 import os
+from setuptools import setup
+import subprocess
 
 
 # Define version information
 VERSION = '0.2.0'
 FULLVERSION = VERSION
 write_version = True
+
+git_rev = None
+try:
+    pipe = subprocess.Popen(["git", "rev-parse", "--short", "HEAD"],
+                            stdout=subprocess.PIPE)
+    (so, serr) = pipe.communicate()
+    if pipe.returncode == 0:
+        FULLVERSION += "+%s" % so.strip()
+except:
+    pass
 
 if write_version:
     txt = "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
@@ -21,6 +32,7 @@ if write_version:
 setup(name='mylearn',
       version=VERSION,
       description='Deep learning library with configurable backends',
+      long_description=open('README.md').read(),
       author='Nervana Systems',
       author_email='software@nervanasys.com',
       url='http://www.nervanasys.com',
