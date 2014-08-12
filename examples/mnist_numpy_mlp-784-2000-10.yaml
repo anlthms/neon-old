@@ -13,7 +13,7 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/mnist/mnist-Numpy.pkl',
+    serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
   },
 ]
 
