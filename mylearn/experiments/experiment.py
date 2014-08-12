@@ -16,8 +16,6 @@ class Experiment(object):
         self.__dict__.update(kwargs)
 
     def run(self):
-        print "(u) Backend:", self.backend # (u) what is this?
-        trace()
         backend = Factory.create(**self.backend)
         datasets = []
         for dataset in self.datasets:
@@ -44,5 +42,6 @@ class Experiment(object):
         else:
             model = Factory.create(**self.model)
             model.fit(datasets)
-        predictions = model.predict(datasets)
-        model.error_metrics(datasets, predictions)
+        if self.model.type != 'mylearn.models.rbm.RBM':
+            predictions = model.predict(datasets)
+            model.error_metrics(datasets, predictions)
