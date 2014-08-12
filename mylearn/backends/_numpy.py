@@ -28,6 +28,10 @@ class Numpy(Backend):
     def array(obj):
         return NumpyTensor(np.array(obj))
 
+    @staticmethod
+    def wrap(obj):
+        return NumpyTensor(obj)
+
     def rng_init(self):
         if 'rng_seed' in self.__dict__:
             np.random.seed(self.rng_seed)
@@ -230,37 +234,6 @@ class Numpy(Backend):
         else:
             raise AttributeError("invalid momentum_params specified")
         return coef
-
-    def gauss(self, x, mu, sigma):
-        #FIXME: move this out of the backend.
-        diff = x - mu
-        denom = sigma * math.sqrt(2 * np.pi)
-        return np.exp(-(diff * diff / (2 * sigma * sigma))) / denom
-
-    def gaussian_filter(self, shape):
-        #FIXME: move this out of the backend.
-        assert len(shape) == 2
-        height, width = shape
-        assert height % 2 == 1
-        assert width % 2 == 1
-        midx = width / 2
-        midy = height / 2
-        sigma = math.sqrt(midx * midx + midy * midy) / 3.0
-
-        filter = np.zeros(shape)
-        for i, j in np.ndindex(height, width):
-            # NOTE: This can be optimized by computing a quarter of the output
-            # matrix and then mirroring to fill out the rest.
-            xdiff = j - midx
-            ydiff = i - midy
-            dist = math.sqrt(xdiff * xdiff + ydiff * ydiff)
-            filter[i, j] = self.gauss(dist, 0, sigma)
-        return filter
-
-    def normalized_gaussian_filter(self, count, shape):
-        filter = self.gaussian_filter(shape)
-        filter /= (count * filter.sum())
-        return NumpyTensor(filter.reshape((filter.shape[0] * filter.shape[1], 1)))
 
 
 class NumpyTensor(Tensor):

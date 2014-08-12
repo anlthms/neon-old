@@ -40,6 +40,10 @@ class Cudamat(Backend):
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return CudamatTensor(ndarray)
 
+    @staticmethod
+    def wrap(obj):
+        return CudamatTensor(obj)
+
     def rng_init(self):
         if 'rng_seed' in self.__dict__:
             numpy.random.seed(self.rng_seed)
@@ -121,6 +125,10 @@ class Cudamat(Backend):
         else:
             res = cudamat.max(x._tensor, axis, out)
 
+        return CudamatTensor(res)
+
+    def sqrt(self, x, out):
+        res = cudamat.sqrt(x._tensor, out._tensor)
         return CudamatTensor(res)
 
     def squish(self, obj, n):

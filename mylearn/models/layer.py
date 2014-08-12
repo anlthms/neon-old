@@ -4,6 +4,7 @@ backend.
 """
 
 import logging
+from mylearn.transforms.gaussian import gaussian_filter
 
 logger = logging.getLogger(__name__)
 
@@ -512,7 +513,7 @@ class LCNLayer(LocalLayer):
         self.nin = nifm * self.ifmsize
         self.nout = nifm * self.ifmsize
         self.output = backend.zeros((batch_size, self.nin))
-        self.filter = backend.normalized_gaussian_filter(nifm, fshape)
+        self.filter = self.normalized_gaussian_filters(nifm, fshape)
         self.meanfm = self.backend.zeros((self.batch_size, nifm * self.ofmsize))
         self.ex_meanfm = self.backend.zeros((self.batch_size, self.ifmheight,
                                              self.ifmwidth))
@@ -524,6 +525,15 @@ class LCNLayer(LocalLayer):
                 "utilizing %s backend\n\t" %
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__))
+
+    def normalized_gaussian_filters(self, count, shape):
+        """
+        Return multiple copies of gaussian filters with values adding up to one.
+        """
+
+        filter = gaussian_filter(shape)
+        filter /= (count * filter.sum())
+        return self.backend.wrap(filter.reshape((filter.shape[0] * filter.shape[1], 1)))
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
