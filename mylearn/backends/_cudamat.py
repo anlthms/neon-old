@@ -1,5 +1,5 @@
 """
-A wrapped cudamat GPU based backend.
+A `cudamat <https://github.com/cudamat/cudamat>`_ GPU based backend.
 """
 
 import logging
@@ -21,7 +21,8 @@ class TooSlowToImplementError(Exception):
 
 class Cudamat(Backend):
     """
-    A cudamat based backend for matrix ops.
+    A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
+    operations.
     """
 
     def __init__(self, **kwargs):
@@ -30,8 +31,8 @@ class Cudamat(Backend):
         cudamat.cublas_init()
 
     def zeros(self, shape, dtype=float):
-        return CudamatTensor(cudamat.CUDAMatrix(
-                             numpy.zeros(shape, dtype=numpy.float32)))
+        return CudamatTensor(cudamat.CUDAMatrix(numpy.zeros(shape,
+                             dtype=numpy.float32)))
 
     @staticmethod
     def array(obj):
@@ -247,7 +248,14 @@ class Cudamat(Backend):
 
 class CudamatTensor(Tensor):
     """
-    Wrapped CUDAMatrix tensor
+    Simple wrapped `cudamat.CUDAMatrix` tensor
+
+    Arguments:
+        obj (numpy.ndarray): the actual data values (will be converted
+                             to 2-d row matrix).  Python built-in types like
+                             lists and tuples are also supported.
+        dtype (None, optional): underlying data type of the elements.
+                                Not needed/used for this backend.
     """
     _tensor = None
 
@@ -256,6 +264,8 @@ class CudamatTensor(Tensor):
             self._tensor = obj
         else:
             # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+            # (though the elements can be tuples/lists to create arbitrary n
+            # dimensions)
             if isinstance(obj, (float, int, str, list, tuple)):
                 obj = numpy.array(obj)
             if type(obj) == numpy.ndarray:
@@ -270,17 +280,32 @@ class CudamatTensor(Tensor):
         self.shape = self._tensor.shape
 
     def __str__(self):
+        """
+        Display a suitable representation of this Tensor.
+        Note that this operation requires copying to host.
+
+        Returns:
+            str: the representation
+        """
         return str(self._tensor.asarray())
 
     def __getstate__(self):
         """
         Defines what and how we go about serializing an instance of this class.
+
+        Returns:
+            numpy.ndarray: Representation of the underlying
+                           `cudamat.CUDAMatrix` tensor
         """
         return self._tensor.asarray()
 
     def __setstate__(self, state):
         """
         Defines how we go about deserializing into an instance of this class.
+
+        Arguments:
+            state (numpy.ndarray): Serialized representation of the underlying
+                                   `cudamat.CUDAMatrix` tensor to be unpacked.
         """
         self.__init__(state)
         if not hasattr(cudamat.CUDAMatrix, 'ones'):
@@ -320,6 +345,18 @@ class CudamatTensor(Tensor):
         return res
 
     def __getitem__(self, key):
+        """
+        Extract a subset of elements from this tensor as specified by key.
+
+        Arguments:
+            key (tuple, int): the indices to extract/slice along.
+
+        Returns:
+            CudamatTensor: view or new sliced copy
+
+        Raises:
+            IndexError: if invalid number of dimensions specified in key.
+        """
         res = self
         if isinstance(key, tuple):
             if len(key) > 2:
@@ -332,6 +369,24 @@ class CudamatTensor(Tensor):
         return res
 
     def __setitem__(self, key, value):
+        """
+        Assign values to a subset of elements from this tensor.
+
+        Arguments:
+            key (tuple, int): The indices to which we assign the values
+            value (CudamatTensor, int, float): The values to assign at each
+                                               key position.  Must be scalar
+                                               or if a CudamatTensor, must
+                                               have the right shape.
+
+        Returns:
+            CudamatTensor: update view of this tensor
+
+        Raises:
+            IndexError: if invalid number of dimensions specified in key.
+            NotImplementedError: if invalid value type passed.
+            TooSlowToImplementError: if arbitrarily indexed key passed.
+        """
         if isinstance(value, CudamatTensor):
             value = value._tensor
         elif not isinstance(value, (int, float)):
@@ -345,8 +400,8 @@ class CudamatTensor(Tensor):
                     start, stop, stride = key[0].indices(self.shape[0])
                     if start == 0 and stop == self.shape[0]:
                         if isinstance(key[1], slice):
-                            start, stop, stride = (key[1].indices(
-                                                   self.shape[1]))
+                            start, stop, stride = (key[1].indices(self.
+                                                                  shape[1]))
                             self._tensor.set_col_slice(start, stop, value)
                         elif isinstance(key[1], int):
                             self._tensor.set_col_slice(key[1], key[1] + 1,
@@ -355,8 +410,8 @@ class CudamatTensor(Tensor):
                             raise TooSlowToImplementError("arbitrary "
                                                           "indexing")
                     elif isinstance(key[1], slice):
-                        start_1, stop_1, stride_1 = (key[1].indices(
-                                                     self.shape[1]))
+                        start_1, stop_1, stride_1 = (key[1].indices(self.
+                                                                    shape[1]))
                         if start_1 == 0 and stop_1 == self.shape[1]:
                             self._tensor.set_row_slice(start, stop, value)
                         else:
@@ -367,8 +422,8 @@ class CudamatTensor(Tensor):
                                                       "indexing")
                 elif isinstance(key[0], int):
                     if isinstance(key[1], slice):
-                        start_1, stop_1, stride_1 = (key[1].indices(
-                                                     self.shape[1]))
+                        start_1, stop_1, stride_1 = (key[1].indices(self.
+                                                                    shape[1]))
                         if start_1 == 0 and stop_1 == self.shape[1]:
                             self._tensor.set_row_slice(key[0], key[0] + 1,
                                                        value)
@@ -432,6 +487,17 @@ class CudamatTensor(Tensor):
         raise NotImplementedError()
 
     def __add__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same
+                            dimensions as this Tensor, or be broadcastable
+                            as such.
+
+        Returns:
+            CudamatTensor: containing the element-wise sum values.
+        """
         target = cudamat.empty(self.shape)
         if isinstance(other, CudamatTensor):
             self._tensor.add(other._tensor, target)
@@ -440,6 +506,17 @@ class CudamatTensor(Tensor):
         return CudamatTensor(target)
 
     def __radd__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same
+                            dimensions as this Tensor, or be broadcastable
+                            as such.
+
+        Returns:
+            CudamatTensor: containing the element-wise sum values.
+        """
         target = cudamat.empty(self.shape)
         if isinstance(other, CudamatTensor):
             self._tensor.add(other._tensor, target)
@@ -448,6 +525,17 @@ class CudamatTensor(Tensor):
         return CudamatTensor(target)
 
     def __iadd__(self, other):
+        """
+        Perform element-wise in-place addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same
+                            dimensions as this Tensor, or be broadcastable
+                            as such.
+
+        Returns:
+            CudamatTensor: updated view of this Tensor
+        """
         if isinstance(other, CudamatTensor):
             self._tensor.add(other._tensor)
         else:
@@ -592,14 +680,16 @@ class CudamatTensor(Tensor):
         if len(indices) == 0:
             return self
         if (indices[-1] - indices[0] == len(indices) - 1 and
-            (len(indices) <= 1 or all(x < y for x, y in zip(indices,
-                                      indices[1:])))):
+            (len(indices) <= 1 or all(x < y for x, y in
+                                      zip(indices, indices[1:])))):
             if axis == 0:
-                return CudamatTensor(self._tensor.get_row_slice(
-                                     indices[0], indices[-1] + 1))
+                return CudamatTensor(self._tensor.get_row_slice(indices[0],
+                                                                indices[-1] +
+                                                                1))
             elif axis == 1:
-                return CudamatTensor(self._tensor.get_col_slice(
-                                     indices[0], indices[-1] + 1))
+                return CudamatTensor(self._tensor.get_col_slice(indices[0],
+                                                                indices[-1] +
+                                                                1))
             elif axis is None:
                 # we might be able to do this by first doing a reshape?
                 raise TooSlowToImplementError("need to first reshape")

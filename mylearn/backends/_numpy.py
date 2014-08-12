@@ -1,5 +1,5 @@
 """
-Wraps numpy ndarray and operations into our backend interface.
+Wraps :mod:`numpy` ndarray and operations into our backend interface.
 """
 
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Numpy(Backend):
     """
-    Sets up a numpy based backend for matrix ops.
+    Sets up a :mod:`numpy` based backend for matrix ops.
     """
 
     def __init__(self, **kwargs):
@@ -238,11 +238,13 @@ class Numpy(Backend):
 
 class NumpyTensor(Tensor):
     """
-    Simple wrapped numpy ndarray tensor
+    Simple wrapped `numpy.ndarray` tensor
 
     Arguments:
-        obj (numpy.ndarray): the actual data values
-        dtype (numpy.ndtype): underlying data type of the elements
+        obj (numpy.ndarray): the actual data values.  Python built-in
+                             types like lists and tuples are also supported.
+        dtype (numpy.ndtype, optional): underlying data type of the elements.
+                                        If None will attempt to use float.
     """
     _tensor = None
 
@@ -254,6 +256,12 @@ class NumpyTensor(Tensor):
         self.shape = self._tensor.shape
 
     def __str__(self):
+        """
+        Display a suitable representation of this Tensor.
+
+        Returns:
+            str: the representation.
+        """
         return str(self._tensor)
 
     def _clean(self, val):
@@ -325,18 +333,48 @@ class NumpyTensor(Tensor):
             return self._tensor >= other
 
     def __add__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            NumpyTensor: containing the element-wise sum values.
+        """
         if isinstance(other, NumpyTensor):
             return NumpyTensor(self._tensor + other._tensor)
         else:
             return NumpyTensor(self._tensor + other)
 
     def __radd__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            NumpyTensor: containing the element-wise sum values.
+        """
         if isinstance(other, NumpyTensor):
             return NumpyTensor(other._tensor + self._tensor)
         else:
             return NumpyTensor(other + self._tensor)
 
     def __iadd__(self, other):
+        """
+        Perform element-wise in-place addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            NumpyTensor: containing the element-wise sum values.
+        """
         if isinstance(other, NumpyTensor):
             self._tensor += other._tensor
         else:

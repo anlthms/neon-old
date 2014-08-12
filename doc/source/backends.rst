@@ -13,10 +13,10 @@ Current Implementations
 Adding a new Backend
 --------------------
 
-* Generate a subclass of :class:`mylearn.backends.backend.Backend` including an
-  associated tensor class :class:`mylearn.backends.backend.Backend.Tensor`.
+1. Generate a subclass of :class:`mylearn.backends.backend.Backend` including an
+   associated tensor class :class:`mylearn.backends.backend.Backend.Tensor`.
 
-* Implement overloaded operators to manipulate these tensor objects, as well
-  other operations.
+2. Implement overloaded operators to manipulate these tensor objects, as well
+   other operations.
 
-* To date, these operations have attempted to mimic numpy syntax.
+3. To date, these operations have attempted to mimic numpy syntax.
