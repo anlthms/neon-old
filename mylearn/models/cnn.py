@@ -60,8 +60,8 @@ class CNN(MLP):
             pooling_shape = conf['pooling_shape'].split()
             pshape = (int(pooling_shape[0]), int(pooling_shape[1]))
             return AveragePoolingLayer(conf['name'], backend,
-                                   batch_size=self.batch_size,
-                                   nfm=conf['num_channels'],
-                                   ifmshape=ifmshape,
-                                   pshape=pshape,
-                                   stride=conf['stride'])
+                                       batch_size=self.batch_size,
+                                       nfm=conf['num_channels'],
+                                       ifmshape=ifmshape,
+                                       pshape=pshape,
+                                       stride=conf['stride'])

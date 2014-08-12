@@ -141,7 +141,8 @@ class LocalLayer(object):
     Base class for locally connected layers.
     """
 
-    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape, stride):
+    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape,
+                 stride):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
@@ -261,7 +262,8 @@ class LocalFilteringLayer(LocalLayer):
     def __init__(self, name, backend, batch_size,
                  nifm, ifmshape, fshape, stride, weight_init):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
-                                                  nifm, ifmshape, fshape, stride)
+                                                  nifm, ifmshape, fshape,
+                                                  stride)
         self.nout = self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
@@ -314,7 +316,8 @@ class PoolingLayer(object):
     """
     Base class for pooling layers.
     """
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape, stride):
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+                 stride):
         self.name = name
         self.backend = backend
         self.nfm = nfm
@@ -364,7 +367,8 @@ class MaxPoolingLayer(PoolingLayer):
     """
     Max pooling layer.
     """
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape, stride):
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+                 stride):
         super(MaxPoolingLayer, self).__init__(name, backend, batch_size, nfm,
                                               ifmshape, pshape, stride)
         self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
@@ -423,7 +427,8 @@ class L2PoolingLayer(PoolingLayer):
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
     as output.
     """
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape, stride):
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+                 stride):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
                                              ifmshape, pshape, stride)
         self.normalized_rf = backend.zeros((batch_size * nfm, self.ifmsize))
@@ -469,9 +474,11 @@ class AveragePoolingLayer(PoolingLayer):
     Average pooling.
     """
 
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape, stride):
-        super(AveragePoolingLayer, self).__init__(name, backend, batch_size, nfm,
-                                       ifmshape, pshape, stride)
+    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+                 stride):
+        super(AveragePoolingLayer, self).__init__(name, backend, batch_size,
+                                                  nfm, ifmshape, pshape,
+                                                  stride)
         self.nout = nfm * self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
 
@@ -507,14 +514,16 @@ class LCNLayer(LocalLayer):
     Local contrast normalization.
     """
 
-    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape, stride):
+    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape,
+                 stride):
         super(LCNLayer, self).__init__(name, backend, batch_size, nifm,
                                        ifmshape, fshape, stride)
         self.nin = nifm * self.ifmsize
         self.nout = nifm * self.ifmsize
         self.output = backend.zeros((batch_size, self.nin))
         self.filter = self.normalized_gaussian_filters(nifm, fshape)
-        self.meanfm = self.backend.zeros((self.batch_size, nifm * self.ofmsize))
+        self.meanfm = self.backend.zeros((self.batch_size,
+                                          nifm * self.ofmsize))
         self.ex_meanfm = self.backend.zeros((self.batch_size, self.ifmheight,
                                              self.ifmwidth))
         self.inset_row = self.ifmheight - self.ofmheight
@@ -528,12 +537,14 @@ class LCNLayer(LocalLayer):
 
     def normalized_gaussian_filters(self, count, shape):
         """
-        Return multiple copies of gaussian filters with values adding up to one.
+        Return multiple copies of gaussian filters with values adding up to
+        one.
         """
 
         filter = gaussian_filter(shape)
         filter /= (count * filter.sum())
-        return self.backend.wrap(filter.reshape((filter.shape[0] * filter.shape[1], 1)))
+        return self.backend.wrap(filter.reshape((filter.shape[0] *
+                                                 filter.shape[1], 1)))
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
@@ -548,13 +559,14 @@ class LCNLayer(LocalLayer):
                                             self.ofmwidth))
         for row in range(self.ex_meanfm.shape[0]):
             self.ex_meanfm[row,
-            self.inset_row : (self.inset_row + self.ofmheight),
-            self.inset_col : (self.inset_col + self.ofmwidth)] = (self.rmeanfm[row])
+                           self.inset_row:(self.inset_row + self.ofmheight),
+                           self.inset_col:(self.inset_col + self.ofmwidth)
+                           ] = (self.rmeanfm[row])
 
         self.rex_meanfm = self.ex_meanfm.reshape((self.batch_size, self.nin))
         res = inputs.copy()
         for i in range(self.nifm):
-            res[:, i * self.ifmsize : (i + 1) * self.ifmsize] -= self.rex_meanfm
+            res[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= self.rex_meanfm
         return res
 
     def div_normalize(self, inputs):
