@@ -424,12 +424,34 @@ class CudamatTensor(Tensor):
         raise NotImplementedError()
 
     def __add__(self, other):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
-            self._tensor.add(other._tensor, target)
+        """
+        Add two CudamatTensor. Now supports limited broadcasting to add a vector to a matrix
+        """
+        if self.shape == other.shape:
+            target = cudamat.empty(self.shape)
+            if isinstance(other, CudamatTensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return CudamatTensor(target)
         else:
-            self._tensor.add(other, target)
-        return CudamatTensor(target)
+            #raise NotImplementedError("broadcasting is not supported in cudamat")
+            #
+            if other.shape[1]==1: # [1000x1] vector
+                ones = cudamat.empty((self.shape[0],1))
+                ones.assign(1)
+                other = CudamatTensor(cudamat.dot(ones, other._tensor.T)) # outer product repmat (probably quite inefficient)
+            else: # [1x784] vector
+                #import ipdb; ipdb.set_trace()
+                ones = cudamat.empty((self.shape[0],1))
+                ones.assign(1)
+                other = CudamatTensor(cudamat.dot(ones, other._tensor))
+            target = cudamat.empty(self.shape)
+            if isinstance(other, CudamatTensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return CudamatTensor(target)
 
     def __radd__(self, other):
         target = cudamat.empty(self.shape)
@@ -579,8 +601,16 @@ class CudamatTensor(Tensor):
         return CudamatTensor(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
+        """
+        Take returns a subset of a tensor specified by indices. 
+        Urs modified this to be consistent with numpy, where vectors get flipped to always be rows.
+        """
         # we only support contiguous indices at the moment because this
         # is all cudamat supports efficiently.
+        if isinstance(indices, int):                                                                                                                                                                                                                    
+            indices = [indices, ] # cudamat only supports 2D matrix
+            if self._tensor.shape[0]==1:
+                axis = 1; # fix the axis if we are dealing with a vector. This is a hack and should be done differently.
         if len(indices) == 0:
             return self
         if (indices[-1] - indices[0] == len(indices) - 1 and
@@ -632,11 +662,21 @@ class CudamatTensor(Tensor):
     def sub(self, obj):
         self._tensor.subtract(obj._tensor)
 
-    def sum(self):
-        result = self._tensor.sum(axis=0).sum(axis=1)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
+    def sum(self, axis=None):
+        """
+        Sum elements of a CudamatTensor. If axis is None, all elements are
+        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
+        axis and return a CudamatTensor.
+        """
+        if axis is None:
+            result = self._tensor.sum(axis=0).sum(axis=1)
+            logger.debug('Copying to host')
+            result.copy_to_host()
+            return result.numpy_array[0][0]
+        else:
+            result = self._tensor.sum(axis=axis)
+            logger.debug('major change in functionality of sum')
+            return CudamatTensor(result)
 
     def mean(self):
         result = self._tensor.mean(axis=0).mean(axis=1)
