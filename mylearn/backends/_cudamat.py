@@ -555,9 +555,9 @@ class CudamatTensor(Tensor):
     def __pow__(self, other, modulo=None):
         target = cudamat.empty(self.shape)
         if isinstance(other, CudamatTensor):
-            self._tensor.pow(other._tensor, target)
+            cudamat.pow(self._tensor, other._tensor, target)
         else:
-            self._tensor.pow(other, target)
+            cudamat.pow(self._tensor, other, target)
         return CudamatTensor(target)
 
     def __rpow__(self, other):
@@ -565,18 +565,18 @@ class CudamatTensor(Tensor):
         if isinstance(other, (float, int)):
             other = CudamatTensor(other)
         if isinstance(other, CudamatTensor):
-            other._tensor.pow(self._tensor, target)
+            cudamat.pow(other._tensor, self._tensor, target)
         elif isinstance(other, cudamat.CUDAMatrix):
-            other.pow(self._tensor, target)
+            cudamat.pow(other, self._tensor, target)
         else:
             return NotImplemented
         return CudamatTensor(target)
 
     def __ipow__(self, other):
         if isinstance(other, CudamatTensor):
-            self._tensor.pow(other._tensor)
+            cudamat.pow(self._tensor, other._tensor)
         else:
-            self._tensor.pow(other)
+            cudamat.pow(self._tensor, other)
         return self
 
     def copy(self):
