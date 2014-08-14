@@ -52,19 +52,22 @@ class Dataset(object):
                    validation=False):
         """
         Loads and returns one or more input datasets.
-        :param backend: The underlying data structure type used to hold this
-                        data once loaded.  If None will use whatever is set
-                        for this class
-        :type backend: mylearn.backends.backend child class or None
-        :param train: load a training input dataset
-        :type train: bool
-        :param test: load a hold-out test input dataset
-        :type test: bool
-        :param validation: load a separate validation input dataset
-        :type validation: bool
-        :returns: dict of loaded datasets with keys train, test, validation
+
+        Arguments:
+            backend (mylearn.backends.backend.Backend, None): The underlying
+                    data structure type used to hold this data once loaded.
+                    If None will use whatever is set for this class
+            train (bool, optional): load a training target outcome dataset.
+                                    Defaults to True.
+            test (bool, optional): load a hold-out test target outcome dataset.
+                                   Defaults to False.
+            validation (bool, optional): Load a separate validation target
+                                         outcome dataset.  Defaults to False.
+
+        Returns:
+            dict: of loaded datasets with keys train, test, validation
                   based on what was requested.  Each dataset is a
-                  mylearn.backends.backend.Tensor child class.
+                  mylearn.backends.backend.Tensor instance.
         """
         res = dict()
         if self.inputs['train'] is None:
@@ -84,19 +87,22 @@ class Dataset(object):
                     validation=False):
         """
         Loads and returns one or more labelled outcome datasets.
-        :param backend: The underlying data structure type used to hold this
-                        data once loaded.  If None will use whatever is set
-                        for this class
-        :type backend: mylearn.backends.backend child class or None
-        :param train: load a training target outcome dataset
-        :type train: bool
-        :param test: load a hold-out test target outcome dataset
-        :type test: bool
-        :param validation: load a separate validation target outcome dataset
-        :type validation: bool
-        :returns: dict of loaded datasets with keys train, test, validation
+
+        Arguments:
+            backend (mylearn.backends.backend.Backend, None): The underlying
+                    data structure type used to hold this data once loaded.
+                    If None will use whatever is set for this class
+            train (bool, optional): load a training target outcome dataset.
+                                    Defaults to True.
+            test (bool, optional): load a hold-out test target outcome dataset.
+                                   Defaults to False.
+            validation (bool, optional): Load a separate validation target
+                                         outcome dataset.  Defaults to False.
+
+        Returns:
+            dict: of loaded datasets with keys train, test, validation
                   based on what was requested.  Each dataset is a
-                  mylearn.backends.backend.Tensor child class.
+                  mylearn.backends.backend.Tensor instance.
         """
         # can't have targets without inputs, ensure these are loaded
         res = dict()

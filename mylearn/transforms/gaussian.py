@@ -5,6 +5,7 @@ Utility functions for gaussian operations.
 import math
 import numpy
 
+
 def gauss(x, mu, sigma):
     """
     Gaussian density function.
@@ -14,6 +15,7 @@ def gauss(x, mu, sigma):
     diff = x - mu
     denom = sigma * math.sqrt(2 * numpy.pi)
     return numpy.exp(-(diff * diff / (2 * sigma * sigma))) / denom
+
 
 def gaussian_filter(shape):
     """
@@ -41,4 +43,3 @@ def gaussian_filter(shape):
         dist = math.sqrt(xdiff * xdiff + ydiff * ydiff)
         filter[i, j] = gauss(dist, 0, sigma)
     return filter
-

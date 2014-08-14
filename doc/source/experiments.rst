@@ -7,7 +7,7 @@ Current Implementations
 .. autosummary::
    :toctree: generated/
 
-   mylearn.experiments.experiment
+   mylearn.experiments.experiment.Experiment
 
 Adding a new type of experiment
 --------------------------------

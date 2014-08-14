@@ -18,15 +18,15 @@ else
 endif
 
 
-.PHONY: default build develop clean_pyc clean doc html test dist publish_doc \
-	      benchmark test_all style lint
+.PHONY: default build develop install uninstall test test_all clean_pyc clean \
+	      doc html style lint bench dist publish_doc
 
 default: build
 
 build: clean_pyc
 	python setup.py build_ext --inplace
 
-develop: build
+develop: build .git/hooks/pre-commit
 	-python setup.py develop
 
 install: build
@@ -60,6 +60,10 @@ html: doc
 
 style:
 	-flake8 .
+
+.git/hooks/pre-commit:
+	-flake8 --install-hook
+	-touch .git/hooks/pre-commit
 
 lint:
 	-pylint --output-format=colorized mylearn

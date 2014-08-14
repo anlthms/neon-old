@@ -118,5 +118,5 @@ Miscellaneous
 .. autosummary::
    :toctree: generated/
 
-   mylearn.util.compat
+   mylearn.util.compat.PY3
    mylearn.util.factory.Factory
