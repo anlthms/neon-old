@@ -2,7 +2,7 @@
 # template for DBM layers
 
 backend: {
-  type: mylearn.backends._numpy.Numpy,
+  type: mylearn.backends._cudamat.Cudamat,
   rng_seed: 0,
 }
 
@@ -13,7 +13,7 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/mnist/mnist-Numpy.pkl',
+    serialized_path: '/usr/local/data/mnist/mnist-Cudamat.pkl',
   },
 ]
 
@@ -33,7 +33,7 @@ model: {
       },
     },
   ],
-  num_epochs: 20,
+  num_epochs: 60,
   batch_size: 100,
   learning_rate: 0.01,
   momentum: {
@@ -44,7 +44,7 @@ model: {
     saturated_coef: 0.90,
   },
   cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
-  serialized_path: './rbm-numpy20.pkl',
+  serialized_path: './rbm-cudamat60.pkl',
 }
 
 # logging options that are passed to logging.basicConfig
@@ -56,6 +56,6 @@ model: {
 #   DEBUG    10
 #   NOTSET    0
 logging: {
-  level: 10,
+  level: 20,
   format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
 }

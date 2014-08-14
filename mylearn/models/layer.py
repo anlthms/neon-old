@@ -25,11 +25,7 @@ class Layer(object):
         self.pre_act = None
 
     def __str__(self):
-        # (u) problem computing these means? trace before compute and return them
-        # first time round this works. 
-        trace()
-
-        return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
+         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
                 "utilizing %s backend\n\t"
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
@@ -44,7 +40,7 @@ class Layer(object):
                  self.backend.mean(self.pre_act),
                  self.backend.min(self.pre_act),
                  self.backend.max(self.pre_act),
-                 self.backend.mean(self.weights),
+                 self.backend.mean(self.weights), # (u) issue with mean was fixed by numpy update
                  self.backend.min(self.weights),
                  self.backend.max(self.weights),
                  self.backend.mean(self.velocity),
@@ -93,20 +89,103 @@ class RBMLayer(Layer):
     (u) __init__ takes care of initializing the weights. 
     (u) __str__ gets called in rbm, str(layer), to generate logging info.
     """
+    def positive_explicit_bias(self, inputs):
+        """
+        Positive / upward pass of the CD1 RBM
+        
+        Arguments:
+           inputs - dataset instance
+        
+        Returns:
+           nothing, modifies layer.output 
+        """
+        self.w = self.weights.take(range(1000), axis=0).take(range(784), axis=1)
+        self.b_vis = self.weights.take(1000, axis=0).take(range(784), axis=0) # axis=0 for numpy since it flips the vector
+        self.b_hid = self.weights.take(range(1000), axis=0).take(784, axis=1)
+
+        # stuff taken from hinton
+        self.pre_act = self.backend.dot(inputs, self.w.T()) #  debiased!
+        self.p_hid_plus = self.activation.apply_function(self.pre_act + 1*self.b_hid) #(u) 100 minibach x 1000 hidden units
+        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
+        self.h_act_plus = self.p_hid_plus.sum(axis=0) # 100 x 1000
+        self.v_act_plus = inputs.sum(axis=0) # 100 x 784
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape )
+        self.s_hid_plus = self.p_hid_plus > self.random_numbers # overloads self.p_hid_plus.__gt__(self.random_numbers)
 
     def positive(self, inputs):
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.act_fn(self.pre_act)
+        """
+        Positive / upward pass of the CD1 RBM
+        
+        Arguments:
+           inputs - dataset instance
+        
+        Returns:
+           nothing, modifies layer.p_plus 
+        """
+        inputs = self.backend.append_bias(inputs)                      # (100, 785)
+        self.pre_act = self.backend.dot(inputs, self.weights.T())      # (100, 1001)
+        self.p_hid_plus = self.activation.apply_function(self.pre_act) # 
+        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)    # (785, 1001)
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape )
+        self.s_hid_plus = self.p_hid_plus > self.random_numbers        # (100, 1001)
+
+    def negative_explicit_bias(self, inputs):
+        """
+        Negative / downward pass of the CD1 RBM
+        
+        Arguments:
+           inputs - dataset instance
+        
+        Returns:
+           nothing, modifies layer.output 
+        """
+   
+        self.pre_act = self.backend.dot(self.s_hid_plus, self.w) # 
+        self.x_minus = self.activation.apply_function(self.pre_act + 1*self.b_vis)
+        self.pre_act = self.backend.dot(self.x_minus, self.w.T())
+        self.p_hid_minus = self.activation.apply_function(self.pre_act + 1*self.b_hid)
+        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
+        self.h_act_minus = self.p_hid_minus.sum(axis=0)
+        self.v_act_minus = self.x_minus.sum(axis=0)
 
     def negative(self, inputs):
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.act_fn(self.pre_act)
+        """
+        Negative / downward pass of the CD1 RBM
+        
+        Arguments:
+           inputs - dataset instance
+        
+        Returns:
+           nothing, modifies layer.p_minus 
+        """
+        self.pre_act = self.backend.dot(self.s_hid_plus, self.weights)
+        self.x_minus = self.activation.apply_function(self.pre_act)         # (100, 785)
+        self.pre_act = self.backend.dot(self.x_minus, self.weights.T())     # (100, 1001)
+        self.p_hid_minus = self.activation.apply_function(self.pre_act) 
+        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus) # (785, 1001)
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
+    def update_explicit_bias(self, epsilon, epoch, momentum):
+        """ CD1 weight update """
+        #trace()
+        
+        #self.w += epsilon * (self.p_plus - self.p_minus).T()
+        #self.b_vis += epsilon * (self.v_act_plus - self.v_act_minus)
+        #self.b_hid += epsilon * (self.h_act_plus - self.h_act_minus)
+        # slicing is supported and internally fast by cudamat..
+        self.weights[0:1000, 0:784] += epsilon * (self.p_plus - self.p_minus) # TooSlowToImplementError:
+        self.weights[1000,0:784]    += epsilon * (self.v_act_plus - self.v_act_minus)
+        self.weights[0:1000, 784]   += epsilon * (self.h_act_plus - self.h_act_minus)
 
-    def error(self):
-        return self.backend.dot(self.delta, self.weights)
+
+    def update(self, epsilon, epoch, momentum):
+        """ CD1 weight update """
+        self.weights += epsilon * (self.p_plus - self.p_minus)
+        # [TODO] check that this updates the biases correctly!
+        # epoch, momentum?
+
+    def error(self, inputs):
+        pass
+        #return ((inputs-self.x_minus)**2).mean()
 
 class AELayer(object):
     """

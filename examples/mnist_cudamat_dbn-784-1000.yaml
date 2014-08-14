@@ -2,7 +2,7 @@
 # template for DBM layers
 
 backend: {
-  type: mylearn.backends._numpy.Numpy,
+  type: mylearn.backends._cudamat.Cudamat,
   rng_seed: 0,
 }
 
@@ -13,18 +13,40 @@ datasets: [
     type: mylearn.datasets.mnist.MNIST,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/mnist/mnist-Numpy.pkl',
+    serialized_path: '/usr/local/data/mnist/mnist-Cudamat.pkl',
   },
 ]
 
 # RBM model specification
 model: {
-  type: mylearn.models.rbm.RBM,
+  type: mylearn.models.dbn.DBN,
   layers: [
     {
       name: vis2hid,
       connectivity: full,
+      num_nodes: 500,
+      activation: mylearn.transforms.logistic.Logistic,
+      weight_init: {
+        type: normal,
+        loc: 0.0,
+        scale: 0.01,
+      },
+    },
+    {
+      name: hid2hid,
+      connectivity: full,
       num_nodes: 1000,
+      activation: mylearn.transforms.logistic.Logistic,
+      weight_init: {
+        type: normal,
+        loc: 0.0,
+        scale: 0.01,
+      },
+    },
+    {
+      name: hid2hid2,
+      connectivity: full,
+      num_nodes: 100,
       activation: mylearn.transforms.logistic.Logistic,
       weight_init: {
         type: normal,
@@ -44,7 +66,7 @@ model: {
     saturated_coef: 0.90,
   },
   cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
-  serialized_path: './rbm-numpy20.pkl',
+  serialized_path: './dbn-cudamat20.pkl',
 }
 
 # logging options that are passed to logging.basicConfig
@@ -56,6 +78,6 @@ model: {
 #   DEBUG    10
 #   NOTSET    0
 logging: {
-  level: 10,
+  level: 20,
   format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
 }
