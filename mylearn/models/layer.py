@@ -11,9 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class Layer(object):
+
     """
     Single NNet layer built to handle data from a particular backend
     """
+
     def __init__(self, name, backend, nin, nout, activation, weight_init):
         self.name = name
         self.backend = backend
@@ -26,7 +28,7 @@ class Layer(object):
         self.pre_act = None
 
     def __str__(self):
-         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
+        return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
                 "utilizing %s backend\n\t"
                 "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
                 "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
@@ -41,7 +43,7 @@ class Layer(object):
                  self.backend.mean(self.pre_act),
                  self.backend.min(self.pre_act),
                  self.backend.max(self.pre_act),
-                 self.backend.mean(self.weights), # (u) issue with mean was fixed by numpy update
+                 self.backend.mean(self.weights),
                  self.backend.min(self.weights),
                  self.backend.max(self.weights),
                  self.backend.mean(self.velocity),
@@ -69,6 +71,7 @@ class Layer(object):
 
 
 class LayerWithNoBias(Layer):
+
     """
     Single NNet layer with no bias node - temporary code for testing purposes.
     """
@@ -83,68 +86,78 @@ class LayerWithNoBias(Layer):
     def error(self):
         return self.backend.dot(self.delta, self.weights)
 
+
 class RBMLayer(Layer):
+
     """
     CD1 traning layer for RBM
     (u) inherits __init__ and __str__ from generic layer above.
-    (u) __init__ takes care of initializing the weights. 
+    (u) __init__ takes care of initializing the weights.
     (u) __str__ gets called in rbm, str(layer), to generate logging info.
     """
+
     def positive_explicit_bias(self, inputs):
         """
         Positive / upward pass of the CD1 RBM
-        
+
         Arguments:
            inputs - dataset instance
-        
+
         Returns:
-           nothing, modifies layer.output 
+           nothing
         """
-        self.w = self.weights.take(range(1000), axis=0).take(range(784), axis=1)
-        self.b_vis = self.weights.take(1000, axis=0).take(range(784), axis=0) # axis=0 for numpy since it flips the vector
+        self.w = self.weights.take(
+            range(1000), axis=0).take(range(784), axis=1)
+        self.b_vis = self.weights.take(1000, axis=0).take(range(784), axis=0)
         self.b_hid = self.weights.take(range(1000), axis=0).take(784, axis=1)
 
         # stuff taken from hinton
-        self.pre_act = self.backend.dot(inputs, self.w.T()) #  debiased!
-        self.p_hid_plus = self.activation.apply_function(self.pre_act + 1*self.b_hid) #(u) 100 minibach x 1000 hidden units
+        self.pre_act = self.backend.dot(inputs, self.w.T())
+        self.p_hid_plus = self.activation.apply_function(
+            self.pre_act + 1 * self.b_hid)
         self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
-        self.h_act_plus = self.p_hid_plus.sum(axis=0) # 100 x 1000
-        self.v_act_plus = inputs.sum(axis=0) # 100 x 784
-        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape )
-        self.s_hid_plus = self.p_hid_plus > self.random_numbers # overloads self.p_hid_plus.__gt__(self.random_numbers)
+        self.h_act_plus = self.p_hid_plus.sum(axis=0)
+        self.v_act_plus = inputs.sum(axis=0)
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
+        self.s_hid_plus = self.p_hid_plus > self.random_numbers
 
     def positive(self, inputs):
         """
         Positive / upward pass of the CD1 RBM
-        
+
         Arguments:
            inputs - dataset instance
-        
+
         Returns:
-           nothing, modifies layer.p_plus 
+           nothing
         """
-        inputs = self.backend.append_bias(inputs)                      # (100, 785)
-        self.pre_act = self.backend.dot(inputs, self.weights.T())      # (100, 1001)
-        self.p_hid_plus = self.activation.apply_function(self.pre_act) # 
-        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)    # (785, 1001)
-        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape )
-        self.s_hid_plus = self.p_hid_plus > self.random_numbers        # (100, 1001)
+        inputs = self.backend.append_bias(
+            inputs)                      # (100, 785)
+        self.pre_act = self.backend.dot(
+            inputs, self.weights.T())      # (100, 1001)
+        self.p_hid_plus = self.activation.apply_function(self.pre_act)
+        self.p_plus = self.backend.dot(
+            self.p_hid_plus.T(), inputs)    # (785, 1001)
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
+        self.s_hid_plus = self.p_hid_plus > self.random_numbers
 
     def negative_explicit_bias(self, inputs):
         """
         Negative / downward pass of the CD1 RBM
-        
+
         Arguments:
            inputs - dataset instance
-        
+
         Returns:
-           nothing, modifies layer.output 
+           nothing
         """
-   
-        self.pre_act = self.backend.dot(self.s_hid_plus, self.w) # 
-        self.x_minus = self.activation.apply_function(self.pre_act + 1*self.b_vis)
+
+        self.pre_act = self.backend.dot(self.s_hid_plus, self.w)
+        self.x_minus = self.activation.apply_function(
+            self.pre_act + 1 * self.b_vis)
         self.pre_act = self.backend.dot(self.x_minus, self.w.T())
-        self.p_hid_minus = self.activation.apply_function(self.pre_act + 1*self.b_hid)
+        self.p_hid_minus = self.activation.apply_function(
+            self.pre_act + 1 * self.b_hid)
         self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
         self.h_act_minus = self.p_hid_minus.sum(axis=0)
         self.v_act_minus = self.x_minus.sum(axis=0)
@@ -152,48 +165,50 @@ class RBMLayer(Layer):
     def negative(self, inputs):
         """
         Negative / downward pass of the CD1 RBM
-        
+
         Arguments:
            inputs - dataset instance
-        
+
         Returns:
-           nothing, modifies layer.p_minus 
+           nothing
         """
         self.pre_act = self.backend.dot(self.s_hid_plus, self.weights)
-        self.x_minus = self.activation.apply_function(self.pre_act)         # (100, 785)
-        self.pre_act = self.backend.dot(self.x_minus, self.weights.T())     # (100, 1001)
-        self.p_hid_minus = self.activation.apply_function(self.pre_act) 
-        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus) # (785, 1001)
+        self.x_minus = self.activation.apply_function(
+            self.pre_act)
+        self.pre_act = self.backend.dot(
+            self.x_minus, self.weights.T())
+        self.p_hid_minus = self.activation.apply_function(self.pre_act)
+        self.p_minus = self.backend.dot(
+            self.p_hid_minus.T(), self.x_minus)
 
     def update_explicit_bias(self, epsilon, epoch, momentum):
         """ CD1 weight update """
-        #trace()
-        
-        #self.w += epsilon * (self.p_plus - self.p_minus).T()
-        #self.b_vis += epsilon * (self.v_act_plus - self.v_act_minus)
-        #self.b_hid += epsilon * (self.h_act_plus - self.h_act_minus)
-        # slicing is supported and internally fast by cudamat..
-        self.weights[0:1000, 0:784] += epsilon * (self.p_plus - self.p_minus) # TooSlowToImplementError:
-        self.weights[1000,0:784]    += epsilon * (self.v_act_plus - self.v_act_minus)
-        self.weights[0:1000, 784]   += epsilon * (self.h_act_plus - self.h_act_minus)
 
+        self.weights[0:1000, 0:784] += epsilon * \
+            (self.p_plus - self.p_minus)
+        self.weights[1000, 0:784] += epsilon * \
+            (self.v_act_plus - self.v_act_minus)
+        self.weights[0:1000, 784] += epsilon * \
+            (self.h_act_plus - self.h_act_minus)
 
     def update(self, epsilon, epoch, momentum):
         """ CD1 weight update """
         self.weights += epsilon * (self.p_plus - self.p_minus)
-        # [TODO] check that this updates the biases correctly!
         # epoch, momentum?
 
     def error(self, inputs):
         pass
-        #return ((inputs-self.x_minus)**2).mean()
+        # return ((inputs-self.x_minus)**2).mean()
+
 
 class AELayer(object):
+
     """
     Single NNet layer built to handle data from a particular backend used
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
+
     def __init__(self, name, backend, nin, nout, activation, weight_init,
                  weights=None):
         self.name = name
@@ -242,6 +257,7 @@ class AELayer(object):
 
 
 class LocalLayer(object):
+
     """
     Base class for locally connected layers.
     """
@@ -292,6 +308,7 @@ class LocalLayer(object):
 
 
 class ConvLayer(LocalLayer):
+
     """
     Convolutional layer.
     """
@@ -306,7 +323,7 @@ class ConvLayer(LocalLayer):
                                                 weight_init)
         self.output = backend.zeros((batch_size, self.nout))
         ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
-                                       self.ofmsize))
+                                             self.ofmsize))
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
         for dst in range(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
@@ -347,8 +364,8 @@ class ConvLayer(LocalLayer):
 
     def error(self):
         berror = self.backend.zeros((self.batch_size,
-                                    self.ifmheight * self.ifmwidth *
-                                    self.nifm))
+                                     self.ifmheight * self.ifmwidth *
+                                     self.nifm))
         for dst in range(self.ofmsize):
             res = self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
                                    self.weights)
@@ -359,6 +376,7 @@ class ConvLayer(LocalLayer):
 
 
 class LocalFilteringLayer(LocalLayer):
+
     """
     Local filtering layer. This is very similar to ConvLayer, but the weights
     are not shared.
@@ -418,9 +436,11 @@ class LocalFilteringLayer(LocalLayer):
 
 
 class PoolingLayer(object):
+
     """
     Base class for pooling layers.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         self.name = name
@@ -469,9 +489,11 @@ class PoolingLayer(object):
 
 
 class MaxPoolingLayer(PoolingLayer):
+
     """
     Max pooling layer.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         super(MaxPoolingLayer, self).__init__(name, backend, batch_size, nfm,
@@ -528,10 +550,12 @@ class MaxPoolingLayer(PoolingLayer):
 
 
 class L2PoolingLayer(PoolingLayer):
+
     """
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
     as output.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
@@ -575,6 +599,7 @@ class L2PoolingLayer(PoolingLayer):
 
 
 class AveragePoolingLayer(PoolingLayer):
+
     """
     Average pooling.
     """
@@ -615,6 +640,7 @@ class AveragePoolingLayer(PoolingLayer):
 
 
 class LCNLayer(LocalLayer):
+
     """
     Local contrast normalization.
     """

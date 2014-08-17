@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class TooSlowToImplementError(Exception):
+
     """
     Used to indicate types of operations that would take too long to run.
     """
@@ -20,6 +21,7 @@ class TooSlowToImplementError(Exception):
 
 
 class Cudamat(Backend):
+
     """
     A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
     operations.
@@ -31,8 +33,8 @@ class Cudamat(Backend):
         cudamat.cublas_init()
 
     def zeros(self, shape, dtype=float):
-        return CudamatTensor(cudamat.CUDAMatrix(numpy.zeros(shape,
-                             dtype=numpy.float32)))
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.zeros(shape, dtype=numpy.float32)))
 
     @staticmethod
     def array(obj):
@@ -247,6 +249,7 @@ class Cudamat(Backend):
 
 
 class CudamatTensor(Tensor):
+
     """
     Simple wrapped `cudamat.CUDAMatrix` tensor
 
@@ -508,13 +511,13 @@ class CudamatTensor(Tensor):
                 self._tensor.add(other, target)
             return CudamatTensor(target)
         else:
-            if other.shape[1]==1: # [1000x1] vector
-                ones = cudamat.empty((self.shape[0],1))
+            if other.shape[1] == 1:  # [1000x1] vector
+                ones = cudamat.empty((self.shape[0], 1))
                 ones.assign(1)
-                other = CudamatTensor(cudamat.dot(ones, other._tensor.T)) # outer product repmat (probably quite inefficient)
-            else: # [1x784] vector
-                #import ipdb; ipdb.set_trace()
-                ones = cudamat.empty((self.shape[0],1))
+                # outer product repmat (probably quite inefficient)
+                other = CudamatTensor(cudamat.dot(ones, other._tensor.T))
+            else:  # [1x784] vector
+                ones = cudamat.empty((self.shape[0], 1))
                 ones.assign(1)
                 other = CudamatTensor(cudamat.dot(ones, other._tensor))
             target = cudamat.empty(self.shape)
@@ -695,15 +698,18 @@ class CudamatTensor(Tensor):
 
     def take(self, indices, axis=None):
         """
-        Take returns a subset of a tensor specified by indices. 
-        Urs modified this to be consistent with numpy, where vectors get flipped to always be rows.
+        Take returns a subset of a tensor specified by indices.
+        Urs modified this to be consistent with numpy, where vectors
+        get flipped to always be rows.
         """
         # we only support contiguous indices at the moment because this
         # is all cudamat supports efficiently.
-        if isinstance(indices, int):                                                                                                                                                                                                                    
-            indices = [indices, ] # cudamat only supports 2D matrix
-            if self._tensor.shape[0]==1:
-                axis = 1; # fix the axis if we are dealing with a vector. This is a hack and should be done differently.
+        if isinstance(indices, int):
+            indices = [indices, ]  # cudamat only supports 2D matrix
+            if self._tensor.shape[0] == 1:
+                axis = 1
+                # fix the axis if we are dealing with a vector. This is a hack
+                # and should be done differently.
         if len(indices) == 0:
             return self
         if (indices[-1] - indices[0] == len(indices) - 1 and
@@ -803,6 +809,7 @@ class CudamatTensor(Tensor):
 
 
 class TransposedCudamatTensor(CudamatTensor):
+
     """
     Transposed CUDAMatrix tensor
     """

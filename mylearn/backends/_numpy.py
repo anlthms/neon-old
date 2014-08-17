@@ -75,7 +75,8 @@ class Numpy(Backend):
     @staticmethod
     def append_bias(x):
         """
-        Adds a bias column of ones to NumpyTensor x, returning a new NumpyTensor.
+        Adds a bias column of ones to NumpyTensor x,
+        returning a new NumpyTensor.
         """
         return NumpyTensor(np.concatenate((x._tensor,
                                           np.ones((x.shape[0], 1))),
@@ -132,7 +133,7 @@ class Numpy(Backend):
         return NumpyTensor(res)
 
     def squish(self, obj, n):
-        """ reshape a tensor by increasing the first dimensions by factor n, and 
+        """ reshape a tensor by increasing the first dimensions by factor n, and
         shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))

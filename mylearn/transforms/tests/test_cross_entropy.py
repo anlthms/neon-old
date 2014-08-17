@@ -29,7 +29,7 @@ def test_cross_entropy_CudamatTensor():
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])
     targets = CudamatTensor([0.5, 0.99, 0.01, 0.2])
     expected_result = Cudamat.mean((- targets) * Cudamat.log(outputs) -
-                             (1 - targets) * Cudamat.log(1 - outputs))
+                                   (1 - targets) * Cudamat.log(1 - outputs))
     assert_tensor_near_equal(expected_result, cross_entropy(outputs, targets))
 
 
