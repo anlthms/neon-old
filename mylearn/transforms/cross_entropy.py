@@ -50,7 +50,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
     backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
     backend.multiply(temp[1], outputs, out=temp[1])
     backend.divide(temp[0], temp[1], out=temp[0])
-    return temp[0] 
+    return temp[0]
 
 
 class CrossEntropy(Cost):

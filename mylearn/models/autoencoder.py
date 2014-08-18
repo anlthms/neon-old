@@ -123,7 +123,7 @@ class Autoencoder(MLP):
                 if item in targets and item in preds:
                     tempbuf = self.backend.zeros((preds[item].shape[0],
                                                   preds[item].shape[1]))
-                    temp = [tempbuf, tempbuf.copy()] 
+                    temp = [tempbuf, tempbuf.copy()]
                     err = self.cost.apply_function(self.backend,
                                                    preds[item],
                                                    targets[item],

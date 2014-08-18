@@ -51,7 +51,7 @@ def logistic_and_derivative(backend, inputs, outputs):
         outputs (array_like): Storage for the transformed output.
     """
     # Apply the logistic function.
-    # FIXME: unnecessay wrapping. 
+    # FIXME: unnecessay wrapping.
     backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
     backend.exp(outputs, out=outputs)
     backend.add(outputs, backend.wrap(1.0), out=outputs)

@@ -287,23 +287,27 @@ class CudamatTensor(Tensor):
         if type(obj) == cudamat.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape
-        elif type(obj) == numpy.ndarray:
-            # CUDAMatrix only supports ndarrays with exactly 2 dimensions
-            # (though the elements can be tuples/lists to create arbitrary n
-            # dimensions)
-            #if isinstance(obj, (float, int, str, list, tuple)):
-            #    obj = numpy.array(obj)
-            while obj.ndim < 2:
-                obj = obj.reshape(obj.shape + (1, ))
-            if obj.ndim != 2:
-                raise ValueError("CUDAMatrix only supports 2-D"
-                                 "matrices.  You specifed %d-D" %
-                                 obj.ndim)
-            logger.debug('Copying to GPU')
-            self._tensor = cudamat.CUDAMatrix(obj)
-            self.shape = self._tensor.shape
         else:
-            self._tensor = obj
+            if type(obj) == list:
+                obj = numpy.array(obj)
+
+            if type(obj) == numpy.ndarray:
+                # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+                # (though the elements can be tuples/lists to create arbitrary n
+                # dimensions)
+                #if isinstance(obj, (float, int, str, list, tuple)):
+                #    obj = numpy.array(obj)
+                while obj.ndim < 2:
+                    obj = obj.reshape(obj.shape + (1, ))
+                if obj.ndim != 2:
+                    raise ValueError("CUDAMatrix only supports 2-D"
+                                     "matrices.  You specifed %d-D" %
+                                     obj.ndim)
+                logger.debug('Copying to GPU')
+                self._tensor = cudamat.CUDAMatrix(obj)
+                self.shape = self._tensor.shape
+            else:
+                self._tensor = obj
 
     def __str__(self):
         """

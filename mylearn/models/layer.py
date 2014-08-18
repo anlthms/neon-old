@@ -334,7 +334,7 @@ class LocalFilteringLayer(LocalLayer):
                 self.backend.add(self.bpropbuf,
                                  self.berror.take(rflinks, axis=1),
                                  out=self.bpropbuf)
-                self.berror[:, rflinks] = self.bpropbuf 
+                self.berror[:, rflinks] = self.bpropbuf
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
@@ -343,7 +343,7 @@ class LocalFilteringLayer(LocalLayer):
                              inputs.take(rflinks,axis=1),
                              out=self.updates[dst])
         self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate), 
+                              self.backend.wrap(self.learning_rate),
                               out=self.updates)
         self.backend.subtract(self.weights, self.updates, out=self.weights)
 
@@ -465,7 +465,7 @@ class L2PoolingLayer(PoolingLayer):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
                                              nfm, ifmshape, pshape, stride)
         self.normalized_rf = backend.zeros((batch_size * nfm, self.ifmsize))
-        self.prodbuf = backend.zeros((batch_size * nfm, self.psize)) 
+        self.prodbuf = backend.zeros((batch_size * nfm, self.psize))
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
@@ -492,11 +492,11 @@ class L2PoolingLayer(PoolingLayer):
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
                 inds = self.links[dst]
-                self.backend.multiply(self.normalized_rf[:, inds], 
+                self.backend.multiply(self.normalized_rf[:, inds],
                                       self.rdelta[:, dst:(dst + 1)],
                                       out=self.prodbuf)
-                self.rberror[:, inds] += self.prodbuf 
-                                          
+                self.rberror[:, inds] += self.prodbuf
+
 
 class AveragePoolingLayer(PoolingLayer):
     """
@@ -598,14 +598,13 @@ class LCNLayer(LocalLayer):
                            self.inset_col:(self.inset_col + self.ofmwidth)
                            ] = (self.rmeanfm[row])
 
-        #self.rex_meanfm = self.ex_meanfm.reshape((self.batch_size, self.nin))
         self.intermed[:] = inputs
         for i in xrange(self.nifm):
             self.intermed[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= (
                     self.rex_meanfm)
 
     def div_normalize(self):
-        self.backend.multiply(self.intermed, self.intermed, out=self.output) 
+        self.backend.multiply(self.intermed, self.intermed, out=self.output)
         self.backend.clear(self.denom)
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
@@ -620,7 +619,6 @@ class LCNLayer(LocalLayer):
     def fprop(self, inputs):
         self.sub_normalize(inputs)
         self.div_normalize()
-
 
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
