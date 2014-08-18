@@ -49,3 +49,21 @@ class Activation(object):
             NotImplementedError: Must be implemented in a child class.
         """
         raise NotImplementedError("Should be overridden in child class.")
+
+    @staticmethod
+    def apply_both(backend, inputs, outputs):
+        """
+        Computes the activation function and its derivative by applying it to
+        each element of the dataset passed.
+
+        Arguments:
+            backend (Backend): The backend class to use for computation.
+            inputs (array_like): Input data to be transformed. This also acts as
+                                 storage for the output of the derivative
+                                 function.
+            outputs (array_like): Storage for the transformed output.
+
+        Raises:
+            NotImplementedError: Must be implemented in a child class.
+        """
+        raise NotImplementedError("Should be overridden in child class.")

@@ -40,6 +40,29 @@ def logistic_derivative(dataset):
     return logistic(dataset) * (1 - logistic(dataset))
 
 
+def logistic_and_derivative(backend, inputs, outputs):
+    """
+    Applies logistic function and its derivative to the dataset passed.
+
+    Arguments:
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed. This also acts as
+                             storage for the output of the derivative function.
+        outputs (array_like): Storage for the transformed output.
+    """
+    # Apply the logistic function.
+    # FIXME: unnecessay wrapping. 
+    backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
+    backend.exp(outputs, out=outputs)
+    backend.add(outputs, backend.wrap(1.0), out=outputs)
+    #backend.divide(backend.wrap(1.0), outputs, out=outputs)
+    backend.reciprocal(outputs, out=outputs)
+
+    # Apply the derivative of the logistic function.
+    backend.subtract(backend.wrap(1.0), outputs, out=inputs)
+    backend.multiply(inputs, outputs, out=inputs)
+
+
 def pseudo_logistic(dataset):
     """
     Applies faster, approximate logistic transform to the dataset passed.
@@ -87,7 +110,14 @@ class Logistic(Activation):
         """
         Apply the logistic activation function derivative.
         """
-        return logistic_derivative(dataset)
+        return logistic_derivative(backend, dataset)
+
+    @staticmethod
+    def apply_both(backend, inputs, outputs):
+        """
+        Apply the logistic activation function and its derivative.
+        """
+        return logistic_and_derivative(backend, inputs, outputs)
 
 
 class PseudoLogistic(Activation):

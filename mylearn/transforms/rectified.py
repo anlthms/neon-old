@@ -35,6 +35,25 @@ def rectlin_derivative(dataset):
     return (1 * (dataset > 0))
 
 
+def rectlin_and_derivative(backend, inputs, outputs):
+    """
+    Applies the rectified linear transform and its derivative to the
+    dataset passed.
+
+    Arguments:
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed. This also acts as
+                             storage for the output of the derivative function.
+        outputs (array_like): Storage for the transformed output.
+    """
+    # Rectified linear.
+    backend.greater(inputs, backend.wrap(0), outputs)
+    backend.multiply(inputs, outputs, outputs)
+
+    # The derivative of rectified linear.
+    backend.greater(inputs, backend.wrap(0), inputs)
+
+
 class RectLin(Activation):
     """
     Embodiment of a rectified linear activation function.
@@ -53,3 +72,10 @@ class RectLin(Activation):
         Apply the rectified linear activation function derivative.
         """
         return rectlin_derivative(dataset)
+
+    @staticmethod
+    def apply_both(backend, inputs, outputs):
+        """
+        Apply the rectified linear activation function and its derivative.
+        """
+        return rectlin_and_derivative(backend, inputs, outputs)

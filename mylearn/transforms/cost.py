@@ -33,7 +33,7 @@ class Cost(object):
         raise NotImplementedError("Should be overridden in child class.")
 
     @staticmethod
-    def apply_derivative(outputs, targets):
+    def apply_derivative(outputs, targets, temp):
         """
         Computes the cost function derivative value by applying it to
         each corresponding element of the predicted outputs and known
@@ -42,6 +42,7 @@ class Cost(object):
         Arguments:
             outputs (array_like): The dataset containing predicted values.
             targets (array_like): The dataset containing true outcome values.
+            temp (array_like): Storage for intermediate results.
 
         Returns:
             array_like: The derivative cost values evaluated at each pair of
