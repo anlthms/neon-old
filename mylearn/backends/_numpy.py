@@ -75,7 +75,8 @@ class Numpy(Backend):
     @staticmethod
     def append_bias(x):
         """
-        Adds a bias column to NumpyTensor x, returning a new NumpyTensor.
+        Adds a bias column of ones to NumpyTensor x,
+        returning a new NumpyTensor.
         """
         return NumpyTensor(np.concatenate((x._tensor,
                                           np.ones((x.shape[0], 1))),
@@ -132,6 +133,8 @@ class Numpy(Backend):
         return NumpyTensor(res)
 
     def squish(self, obj, n):
+        """ reshape a tensor by increasing the first dimensions by factor n, and
+        shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
@@ -298,39 +301,39 @@ class NumpyTensor(Tensor):
 
     def __lt__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor < other._tensor
+            return NumpyTensor(self._tensor < other._tensor)
         else:
-            return self._tensor < other
+            return NumpyTensor(self._tensor < other)
 
     def __le__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor <= other._tensor
+            return NumpyTensor(self._tensor <= other._tensor)
         else:
-            return self._tensor <= other
+            return NumpyTensor(self._tensor <= other)
 
     def __eq__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor == other._tensor
+            return NumpyTensor(self._tensor == other._tensor)
         else:
-            return self._tensor == other
+            return NumpyTensor(self._tensor == other)
 
     def __ne__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor != other._tensor
+            return NumpyTensor(self._tensor != other._tensor)
         else:
-            return self._tensor != other
+            return NumpyTensor(self._tensor != other)
 
     def __gt__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor > other._tensor
+            return NumpyTensor(self._tensor > other._tensor)
         else:
-            return self._tensor > other
+            return NumpyTensor(self._tensor > other)
 
     def __ge__(self, other):
         if isinstance(other, NumpyTensor):
-            return self._tensor >= other._tensor
+            return NumpyTensor(self._tensor >= other._tensor)
         else:
-            return self._tensor >= other
+            return NumpyTensor(self._tensor >= other)
 
     def __add__(self, other):
         """
@@ -516,6 +519,13 @@ class NumpyTensor(Tensor):
 
     def mean(self, axis=None, dtype=None, out=None):
         res = np.mean(self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return NumpyTensor(res)
+
+    def sum(self, axis=None, dtype=None, out=None):
+        res = np.sum(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:

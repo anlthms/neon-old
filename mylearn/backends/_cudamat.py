@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class TooSlowToImplementError(Exception):
+
     """
     Used to indicate types of operations that would take too long to run.
     """
@@ -20,6 +21,7 @@ class TooSlowToImplementError(Exception):
 
 
 class Cudamat(Backend):
+
     """
     A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
     operations.
@@ -31,8 +33,8 @@ class Cudamat(Backend):
         cudamat.cublas_init()
 
     def zeros(self, shape, dtype=float):
-        return CudamatTensor(cudamat.CUDAMatrix(numpy.zeros(shape,
-                             dtype=numpy.float32)))
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.zeros(shape, dtype=numpy.float32)))
 
     @staticmethod
     def array(obj):
@@ -247,6 +249,7 @@ class Cudamat(Backend):
 
 
 class CudamatTensor(Tensor):
+
     """
     Simple wrapped `cudamat.CUDAMatrix` tensor
 
@@ -489,6 +492,7 @@ class CudamatTensor(Tensor):
     def __add__(self, other):
         """
         Perform element-wise addition with the items in other.
+        Now supports limited broadcasting to add a vector to a matrix.
 
         Arguments:
             other (Tensor): The Tensor to add.  Must have the same
@@ -498,12 +502,30 @@ class CudamatTensor(Tensor):
         Returns:
             CudamatTensor: containing the element-wise sum values.
         """
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
-            self._tensor.add(other._tensor, target)
+
+        if self.shape == other.shape:
+            target = cudamat.empty(self.shape)
+            if isinstance(other, CudamatTensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return CudamatTensor(target)
         else:
-            self._tensor.add(other, target)
-        return CudamatTensor(target)
+            if other.shape[1] == 1:  # [Nx1] vector
+                ones = cudamat.empty((self.shape[0], 1))
+                ones.assign(1)
+                # outer product repmat (probably quite inefficient)
+                other = CudamatTensor(cudamat.dot(ones, other._tensor.T))
+            else:  # [1xN] vector
+                ones = cudamat.empty((self.shape[0], 1))
+                ones.assign(1)
+                other = CudamatTensor(cudamat.dot(ones, other._tensor))
+            target = cudamat.empty(self.shape)
+            if isinstance(other, CudamatTensor):
+                self._tensor.add(other._tensor, target)
+            else:
+                self._tensor.add(other, target)
+            return CudamatTensor(target)
 
     def __radd__(self, other):
         """
@@ -629,9 +651,9 @@ class CudamatTensor(Tensor):
     def __pow__(self, other, modulo=None):
         target = cudamat.empty(self.shape)
         if isinstance(other, CudamatTensor):
-            self._tensor.pow(other._tensor, target)
+            cudamat.pow(self._tensor, other._tensor, target)
         else:
-            self._tensor.pow(other, target)
+            cudamat.pow(self._tensor, other, target)
         return CudamatTensor(target)
 
     def __rpow__(self, other):
@@ -639,18 +661,18 @@ class CudamatTensor(Tensor):
         if isinstance(other, (float, int)):
             other = CudamatTensor(other)
         if isinstance(other, CudamatTensor):
-            other._tensor.pow(self._tensor, target)
+            cudamat.pow(other._tensor, self._tensor, target)
         elif isinstance(other, cudamat.CUDAMatrix):
-            other.pow(self._tensor, target)
+            cudamat.pow(other, self._tensor, target)
         else:
             return NotImplemented
         return CudamatTensor(target)
 
     def __ipow__(self, other):
         if isinstance(other, CudamatTensor):
-            self._tensor.pow(other._tensor)
+            cudamat.pow(self._tensor, other._tensor)
         else:
-            self._tensor.pow(other)
+            cudamat.pow(self._tensor, other)
         return self
 
     def copy(self):
@@ -675,8 +697,19 @@ class CudamatTensor(Tensor):
         return CudamatTensor(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
+        """
+        Take returns a subset of a tensor specified by indices.
+        Urs modified this to be consistent with numpy, where vectors
+        get flipped to always be rows.
+        """
         # we only support contiguous indices at the moment because this
         # is all cudamat supports efficiently.
+        if isinstance(indices, int):
+            indices = [indices, ]  # cudamat only supports 2D matrix
+            if self._tensor.shape[0] == 1:
+                axis = 1
+                # fix the axis if we are dealing with a vector. This is a hack
+                # and should be done differently.
         if len(indices) == 0:
             return self
         if (indices[-1] - indices[0] == len(indices) - 1 and
@@ -730,11 +763,21 @@ class CudamatTensor(Tensor):
     def sub(self, obj):
         self._tensor.subtract(obj._tensor)
 
-    def sum(self):
-        result = self._tensor.sum(axis=0).sum(axis=1)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
+    def sum(self, axis=None):
+        """
+        Sum elements of a CudamatTensor. If axis is None, all elements are
+        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
+        axis and return a CudamatTensor.
+        """
+        if axis is None:
+            result = self._tensor.sum(axis=0).sum(axis=1)
+            logger.debug('Copying to host')
+            result.copy_to_host()
+            return result.numpy_array[0][0]
+        else:
+            result = self._tensor.sum(axis=axis)
+            logger.debug('major change in functionality of sum')
+            return CudamatTensor(result)
 
     def mean(self):
         result = self._tensor.mean(axis=0).mean(axis=1)
@@ -766,6 +809,7 @@ class CudamatTensor(Tensor):
 
 
 class TransposedCudamatTensor(CudamatTensor):
+
     """
     Transposed CUDAMatrix tensor
     """

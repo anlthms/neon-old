@@ -6,13 +6,16 @@ backend.
 import logging
 from mylearn.transforms.gaussian import gaussian_filter
 
+
 logger = logging.getLogger(__name__)
 
 
 class Layer(object):
+
     """
     Single NNet layer built to handle data from a particular backend
     """
+
     def __init__(self, name, backend, nin, nout, activation, weight_init):
         self.name = name
         self.backend = backend
@@ -68,6 +71,7 @@ class Layer(object):
 
 
 class LayerWithNoBias(Layer):
+
     """
     Single NNet layer with no bias node - temporary code for testing purposes.
     """
@@ -83,12 +87,64 @@ class LayerWithNoBias(Layer):
         return self.backend.dot(self.delta, self.weights)
 
 
+class RBMLayer(Layer):
+
+    """
+    CD1 training layer for RBM
+    """
+
+    def positive(self, inputs):
+        """
+        Positive / upward pass of the CD1 RBM
+
+        Arguments:
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+        """
+        inputs = self.backend.append_bias(inputs)
+        self.pre_act = self.backend.dot(inputs, self.weights.T())
+        self.p_hid_plus = self.activation.apply_function(self.pre_act)
+        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
+        self.s_hid_plus = self.p_hid_plus > self.random_numbers
+
+    def negative(self, inputs):
+        """
+        Negative / downward pass of the CD1 RBM
+
+        Arguments:
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+        """
+        self.pre_act = self.backend.dot(self.s_hid_plus, self.weights)
+        self.x_minus = self.activation.apply_function(self.pre_act)
+        self.pre_act = self.backend.dot(self.x_minus, self.weights.T())
+        self.p_hid_minus = self.activation.apply_function(self.pre_act)
+        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
+
+    def update(self, epsilon, epoch, momentum):
+        """ 
+        CD1 weight update 
+
+        Arguments:
+            epsilon: step size
+            epoch: not used, for future compatibility
+            momentum: not used, for future compatibility
+        """
+        self.weights += epsilon * (self.p_plus - self.p_minus)
+        # epoch, momentum?
+
+    def error(self, inputs):
+        pass
+        # return ((inputs-self.x_minus)**2).mean()
+
+
 class AELayer(object):
+
     """
     Single NNet layer built to handle data from a particular backend used
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
+
     def __init__(self, name, backend, nin, nout, activation, weight_init,
                  weights=None):
         self.name = name
@@ -137,6 +193,7 @@ class AELayer(object):
 
 
 class LocalLayer(object):
+
     """
     Base class for locally connected layers.
     """
@@ -187,6 +244,7 @@ class LocalLayer(object):
 
 
 class ConvLayer(LocalLayer):
+
     """
     Convolutional layer.
     """
@@ -201,7 +259,7 @@ class ConvLayer(LocalLayer):
                                                 weight_init)
         self.output = backend.zeros((batch_size, self.nout))
         ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
-                                       self.ofmsize))
+                                             self.ofmsize))
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
         for dst in range(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
@@ -242,8 +300,8 @@ class ConvLayer(LocalLayer):
 
     def error(self):
         berror = self.backend.zeros((self.batch_size,
-                                    self.ifmheight * self.ifmwidth *
-                                    self.nifm))
+                                     self.ifmheight * self.ifmwidth *
+                                     self.nifm))
         for dst in range(self.ofmsize):
             res = self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
                                    self.weights)
@@ -254,6 +312,7 @@ class ConvLayer(LocalLayer):
 
 
 class LocalFilteringLayer(LocalLayer):
+
     """
     Local filtering layer. This is very similar to ConvLayer, but the weights
     are not shared.
@@ -313,9 +372,11 @@ class LocalFilteringLayer(LocalLayer):
 
 
 class PoolingLayer(object):
+
     """
     Base class for pooling layers.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         self.name = name
@@ -364,9 +425,11 @@ class PoolingLayer(object):
 
 
 class MaxPoolingLayer(PoolingLayer):
+
     """
     Max pooling layer.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         super(MaxPoolingLayer, self).__init__(name, backend, batch_size, nfm,
@@ -423,10 +486,12 @@ class MaxPoolingLayer(PoolingLayer):
 
 
 class L2PoolingLayer(PoolingLayer):
+
     """
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
     as output.
     """
+
     def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
                  stride):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
@@ -470,6 +535,7 @@ class L2PoolingLayer(PoolingLayer):
 
 
 class AveragePoolingLayer(PoolingLayer):
+
     """
     Average pooling.
     """
@@ -510,6 +576,7 @@ class AveragePoolingLayer(PoolingLayer):
 
 
 class LCNLayer(LocalLayer):
+
     """
     Local contrast normalization.
     """
