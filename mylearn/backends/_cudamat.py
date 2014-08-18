@@ -511,12 +511,12 @@ class CudamatTensor(Tensor):
                 self._tensor.add(other, target)
             return CudamatTensor(target)
         else:
-            if other.shape[1] == 1:  # [1000x1] vector
+            if other.shape[1] == 1:  # [Nx1] vector
                 ones = cudamat.empty((self.shape[0], 1))
                 ones.assign(1)
                 # outer product repmat (probably quite inefficient)
                 other = CudamatTensor(cudamat.dot(ones, other._tensor.T))
-            else:  # [1x784] vector
+            else:  # [1xN] vector
                 ones = cudamat.empty((self.shape[0], 1))
                 ones.assign(1)
                 other = CudamatTensor(cudamat.dot(ones, other._tensor))
