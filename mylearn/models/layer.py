@@ -90,109 +90,45 @@ class LayerWithNoBias(Layer):
 class RBMLayer(Layer):
 
     """
-    CD1 traning layer for RBM
-    (u) inherits __init__ and __str__ from generic layer above.
-    (u) __init__ takes care of initializing the weights.
-    (u) __str__ gets called in rbm, str(layer), to generate logging info.
+    CD1 training layer for RBM
     """
-
-    def positive_explicit_bias(self, inputs):
-        """
-        Positive / upward pass of the CD1 RBM
-
-        Arguments:
-           inputs - dataset instance
-
-        Returns:
-           nothing
-        """
-        self.w = self.weights.take(
-            range(1000), axis=0).take(range(784), axis=1)
-        self.b_vis = self.weights.take(1000, axis=0).take(range(784), axis=0)
-        self.b_hid = self.weights.take(range(1000), axis=0).take(784, axis=1)
-
-        # stuff taken from hinton
-        self.pre_act = self.backend.dot(inputs, self.w.T())
-        self.p_hid_plus = self.activation.apply_function(
-            self.pre_act + 1 * self.b_hid)
-        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
-        self.h_act_plus = self.p_hid_plus.sum(axis=0)
-        self.v_act_plus = inputs.sum(axis=0)
-        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
-        self.s_hid_plus = self.p_hid_plus > self.random_numbers
 
     def positive(self, inputs):
         """
         Positive / upward pass of the CD1 RBM
 
         Arguments:
-           inputs - dataset instance
-
-        Returns:
-           nothing
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
         """
-        inputs = self.backend.append_bias(
-            inputs)                      # (100, 785)
-        self.pre_act = self.backend.dot(
-            inputs, self.weights.T())      # (100, 1001)
+        inputs = self.backend.append_bias(inputs)
+        self.pre_act = self.backend.dot(inputs, self.weights.T())
         self.p_hid_plus = self.activation.apply_function(self.pre_act)
-        self.p_plus = self.backend.dot(
-            self.p_hid_plus.T(), inputs)    # (785, 1001)
+        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
         self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
         self.s_hid_plus = self.p_hid_plus > self.random_numbers
-
-    def negative_explicit_bias(self, inputs):
-        """
-        Negative / downward pass of the CD1 RBM
-
-        Arguments:
-           inputs - dataset instance
-
-        Returns:
-           nothing
-        """
-
-        self.pre_act = self.backend.dot(self.s_hid_plus, self.w)
-        self.x_minus = self.activation.apply_function(
-            self.pre_act + 1 * self.b_vis)
-        self.pre_act = self.backend.dot(self.x_minus, self.w.T())
-        self.p_hid_minus = self.activation.apply_function(
-            self.pre_act + 1 * self.b_hid)
-        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
-        self.h_act_minus = self.p_hid_minus.sum(axis=0)
-        self.v_act_minus = self.x_minus.sum(axis=0)
 
     def negative(self, inputs):
         """
         Negative / downward pass of the CD1 RBM
 
         Arguments:
-           inputs - dataset instance
-
-        Returns:
-           nothing
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
         """
         self.pre_act = self.backend.dot(self.s_hid_plus, self.weights)
-        self.x_minus = self.activation.apply_function(
-            self.pre_act)
-        self.pre_act = self.backend.dot(
-            self.x_minus, self.weights.T())
+        self.x_minus = self.activation.apply_function(self.pre_act)
+        self.pre_act = self.backend.dot(self.x_minus, self.weights.T())
         self.p_hid_minus = self.activation.apply_function(self.pre_act)
-        self.p_minus = self.backend.dot(
-            self.p_hid_minus.T(), self.x_minus)
-
-    def update_explicit_bias(self, epsilon, epoch, momentum):
-        """ CD1 weight update """
-
-        self.weights[0:1000, 0:784] += epsilon * \
-            (self.p_plus - self.p_minus)
-        self.weights[1000, 0:784] += epsilon * \
-            (self.v_act_plus - self.v_act_minus)
-        self.weights[0:1000, 784] += epsilon * \
-            (self.h_act_plus - self.h_act_minus)
+        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
 
     def update(self, epsilon, epoch, momentum):
-        """ CD1 weight update """
+        """ 
+        CD1 weight update 
+
+        Arguments:
+            epsilon: step size
+            epoch: not used, for future compatibility
+            momentum: not used, for future compatibility
+        """
         self.weights += epsilon * (self.p_plus - self.p_minus)
         # epoch, momentum?
 
