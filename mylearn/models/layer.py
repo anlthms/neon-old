@@ -143,10 +143,6 @@ class AELayer(LayerWithNoBias):
             self.weights = weights
 
 
-class ClassIsAbstractError(Exception):
-    pass
-
-
 class LocalLayer(object):
     """
     Base class for locally connected layers.
@@ -199,7 +195,7 @@ class LocalLayer(object):
         self.rlinks = self.links.raw()
 
     def fprop(self, inputs):
-        raise ClassIsAbstractError('This class should not be instantiated.')
+        raise NotImplementedError('This class should not be instantiated.')
 
 
 class ConvLayer(LocalLayer):
@@ -405,7 +401,7 @@ class PoolingLayer(object):
             self.rberror = self.backend.squish(self.berror, self.nfm)
 
     def fprop(self, inputs):
-        raise ClassIsAbstractError('This class should not be instantiated.')
+        raise NotImplementedError('This class should not be instantiated.')
 
 class MaxPoolingLayer(PoolingLayer):
     """
