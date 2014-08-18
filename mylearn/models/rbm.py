@@ -59,14 +59,6 @@ class RBM(Model):
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
-        import matplotlib.pyplot as plt
-        for i in range(100):
-            plt.subplot(10, 10, i + 1)
-            plt.imshow(self.layers[0].weights.take(i, axis=0).take(
-                range(784), axis=1).raw().reshape(28, 28))
-            plt.gray()
-        plt.show()
-
     def lcreate(self, backend, nin, conf):
         activation = Factory.create(type=conf['activation'])
         # Add 1 for the bias input.
@@ -77,18 +69,14 @@ class RBM(Model):
 
     def positive(self, inputs):
         """Wrapper for RBMLayer.positive"""
-        # self.layers[0].positive_explicit_bias(inputs)
         self.layers[0].positive(inputs)
         return None
 
     def negative(self, inputs):
         """Wrapper for RBMLayer.negative"""
-        # no error here since it's unspervised.
-        # self.layers[0].negative_explicit_bias(inputs)
         self.layers[0].negative(inputs)
         return None
 
     def update(self, epsilon, epoch, momentum):
         """Wrapper for RBMLayer.update"""
-        # self.layers[0].update_explicit_bias(epsilon, epoch, momentum)
         self.layers[0].update(epsilon, epoch, momentum)
