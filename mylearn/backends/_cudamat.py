@@ -121,6 +121,10 @@ class Cudamat(Backend):
         cudamat.log(x._tensor, out._tensor)
 
     @staticmethod
+    def logistic(x, out):
+        cudamat.sigmoid(x._tensor, out._tensor)
+
+    @staticmethod
     def sum(x):
         if x is None:
             return float('NaN')
