@@ -17,22 +17,16 @@ def logistic(backend, inputs, outputs):
         inputs (array_like): Input data to be transformed
         outputs (array_like): Storage for the transformed output.
     """
-    backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
-    backend.exp(outputs, out=outputs)
-    backend.add(outputs, backend.wrap(1.0), out=outputs)
-    backend.reciprocal(outputs, out=outputs)
-
+    backend.logistic(inputs, out=outputs)
 
 def logistic_derivative(backend, inputs, outputs):
     """
     Applies derivative of the logistic transform to the dataset passed.
 
     Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed
+        outputs (array_like): Storage for the transformed output.
     """
     logistic_and_derivative(backend, inputs, outputs)
 
@@ -47,11 +41,7 @@ def logistic_and_derivative(backend, inputs, outputs):
         outputs (array_like): Storage for the transformed output.
     """
     # Apply the logistic function.
-    # FIXME: unnecessay wrapping.
-    backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
-    backend.exp(outputs, out=outputs)
-    backend.add(outputs, backend.wrap(1.0), out=outputs)
-    backend.reciprocal(outputs, out=outputs)
+    logistic(backend, inputs, outputs)
 
     # Apply the derivative of the logistic function.
     backend.subtract(backend.wrap(1.0), outputs, out=inputs)

@@ -127,6 +127,13 @@ class Numpy(Backend):
         np.log(x._tensor, out=out._tensor)
 
     @staticmethod
+    def logistic(x, out):
+        Numpy.multiply(x, Numpy.wrap(-1.0), out=out)
+        Numpy.exp(out, out=out)
+        Numpy.add(out, Numpy.wrap(1.0), out=out)
+        Numpy.reciprocal(out, out=out)
+
+    @staticmethod
     def clear(x):
         x._tensor[:] = 0
 
