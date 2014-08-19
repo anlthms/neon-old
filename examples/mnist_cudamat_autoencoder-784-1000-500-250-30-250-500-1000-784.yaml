@@ -104,6 +104,13 @@ model: {
   num_epochs: 60,
   batch_size: 100,
   learning_rate: 0.0001,
+  momentum: {
+    type: linear_monotone, #constant, nesterov
+    initial_coef: 0.99,
+    start_epoch: 5,
+    saturate_epoch: 5,
+    saturated_coef: 0.90,
+  },
   cost: mylearn.transforms.cross_entropy.CrossEntropy,
   serialized_path: './sae.pkl',
 }

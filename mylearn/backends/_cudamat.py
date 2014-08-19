@@ -81,8 +81,44 @@ class Cudamat(Backend):
         return CudamatTensor(x._tensor.argmax(axis))
 
     @staticmethod
-    def dot(a, b):
-        return CudamatTensor(cudamat.dot(a._tensor, b._tensor))
+    def dot(a, b, out):
+        cudamat.dot(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def add(a, b, out):
+        a._tensor.add(b._tensor, out._tensor)
+
+    @staticmethod
+    def subtract(a, b, out):
+        if type(a._tensor) != cudamat.CUDAMatrix:
+            b._tensor.subtract(a._tensor, out._tensor)
+            out._tensor.mult(-1.0, out._tensor)
+        else:
+            a._tensor.subtract(b._tensor, out._tensor)
+
+    @staticmethod
+    def multiply(a, b, out):
+        a._tensor.mult(b._tensor, target=out._tensor)
+
+    @staticmethod
+    def divide(a, b, out):
+        a._tensor.divide(b._tensor, out._tensor)
+
+    @staticmethod
+    def reciprocal(a, out):
+        a._tensor.reciprocal(out._tensor)
+
+    @staticmethod
+    def greater(a, b, out):
+        a._tensor.greater_than(b._tensor, out._tensor)
+
+    @staticmethod
+    def exp(x, out):
+        cudamat.exp(x._tensor, out._tensor)
+
+    @staticmethod
+    def log(x, out):
+        cudamat.log(x._tensor, out._tensor)
 
     @staticmethod
     def sum(x):
@@ -146,18 +182,6 @@ class Cudamat(Backend):
 
     def nonzero(self, x):
         raise NotImplementedError()
-
-    @staticmethod
-    def exp(x):
-        target = cudamat.empty(x.shape)
-        cudamat.exp(x._tensor, target)
-        return CudamatTensor(target)
-
-    @staticmethod
-    def log(x):
-        target = cudamat.empty(x.shape)
-        cudamat.log(x._tensor, target)
-        return CudamatTensor(target)
 
     def gen_weights(self, size, weight_params):
         # FIXME: Get rid of duplication.
@@ -265,22 +289,28 @@ class CudamatTensor(Tensor):
     def __init__(self, obj, dtype=None):
         if type(obj) == cudamat.CUDAMatrix:
             self._tensor = obj
+            self.shape = self._tensor.shape
         else:
-            # CUDAMatrix only supports ndarrays with exactly 2 dimensions
-            # (though the elements can be tuples/lists to create arbitrary n
-            # dimensions)
-            if isinstance(obj, (float, int, str, list, tuple)):
+            if type(obj) == list:
                 obj = numpy.array(obj)
+
             if type(obj) == numpy.ndarray:
+                # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+                # (though the elements can be tuples/lists to create arbitrary n
+                # dimensions)
+                #if isinstance(obj, (float, int, str, list, tuple)):
+                #    obj = numpy.array(obj)
                 while obj.ndim < 2:
                     obj = obj.reshape(obj.shape + (1, ))
                 if obj.ndim != 2:
                     raise ValueError("CUDAMatrix only supports 2-D"
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
-            logger.debug('Copying to GPU')
-            self._tensor = cudamat.CUDAMatrix(obj)
-        self.shape = self._tensor.shape
+                logger.debug('Copying to GPU')
+                self._tensor = cudamat.CUDAMatrix(obj)
+                self.shape = self._tensor.shape
+            else:
+                self._tensor = obj
 
     def __str__(self):
         """
@@ -343,8 +373,7 @@ class CudamatTensor(Tensor):
             pass
         else:
             # arbitrary long list, too expensive to support?
-            # raise TooSlowToImplementError("column idx too complex")
-            res = self.get(_slice, dim)
+            raise TooSlowToImplementError("column idx too complex")
         return res
 
     def __getitem__(self, key):
@@ -712,9 +741,7 @@ class CudamatTensor(Tensor):
                 # and should be done differently.
         if len(indices) == 0:
             return self
-        if (indices[-1] - indices[0] == len(indices) - 1 and
-            (len(indices) <= 1 or all(x < y for x, y in
-                                      zip(indices, indices[1:])))):
+        if (indices[-1] - indices[0] == len(indices) - 1):
             if axis == 0:
                 return CudamatTensor(self._tensor.get_row_slice(indices[0],
                                                                 indices[-1] +
@@ -729,33 +756,6 @@ class CudamatTensor(Tensor):
         else:
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
-
-    def get(self, indices, axis=None):
-        # FIXME: This routine is terribly expensive! Should return a view
-        # instead of a newly allocated matrix.
-        if type(indices) == int:
-            indices = [indices]
-        elif type(indices) == CudamatTensor:
-            raise NotImplementedError()
-        if axis == 0 or axis is None:
-            mat = cudamat.empty((len(indices), self._tensor.shape[1]))
-            dst_ind = 0
-            for src_ind in indices:
-                src_ind = int(src_ind)
-                row = self._tensor.get_row_slice(src_ind, src_ind + 1)
-                mat.set_row_slice(dst_ind, dst_ind + 1, row)
-                dst_ind += 1
-        elif axis == 1:
-            mat = cudamat.empty((self._tensor.shape[0], len(indices)))
-            dst_ind = 0
-            for src_ind in indices:
-                src_ind = int(src_ind)
-                col = self._tensor.get_col_slice(src_ind, src_ind + 1)
-                mat.set_col_slice(dst_ind, dst_ind + 1, col)
-                dst_ind += 1
-        else:
-            raise NotImplementedError()
-        return CudamatTensor(mat)
 
     def add(self, obj):
         self._tensor.add(obj._tensor)

@@ -7,7 +7,7 @@ import numpy
 from mylearn.transforms.cost import Cost
 
 
-def cross_entropy(outputs, targets):
+def cross_entropy(backend, outputs, targets, temp):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
@@ -19,18 +19,21 @@ def cross_entropy(outputs, targets):
         array_like: Calculated cross entropy values for each element.  Will
                     have the same shape and type as outputs.
     """
-    # numpy.ndarray doesn't define log() hence the work-around
-    if isinstance(outputs, (int, float, numpy.ndarray)):
-        ln_outputs = numpy.log(outputs)
-        ln_one_minus_outputs = numpy.log(1 - outputs)
-    else:
-        ln_outputs = outputs.log()
-        ln_one_minus_outputs = (1 - outputs).log()
-    return (-targets * ln_outputs -
-            (1 - targets) * ln_one_minus_outputs).mean()
+    # Compute (t-1)*log(1-y).
+    backend.add(targets, backend.wrap(-1.0), out=temp[0])
+    backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
+    backend.log(temp[1], out=temp[1])
+    backend.multiply(temp[0], temp[1], out=temp[0])
+
+    # Compute t*log(y).
+    backend.log(outputs, out=temp[1])
+    backend.multiply(targets, temp[1], out=temp[1])
+
+    backend.subtract(temp[0], temp[1], out=temp[0])
+    return backend.mean(temp[0])
 
 
-def cross_entropy_derivative(outputs, targets):
+def cross_entropy_derivative(backend, outputs, targets, temp):
     """
     Applies derivative of the cross entropy to the pairwise elements from
     outputs and targets.
@@ -43,8 +46,11 @@ def cross_entropy_derivative(outputs, targets):
         array_like: Calculated cross entropy values for each element.  Will
                     have the same shape and backend as outputs.
     """
-    # negative elements should be set to 0, positive to 1
-    return ((outputs - targets) / (outputs * (1.0 - outputs)))
+    backend.subtract(outputs, targets, out=temp[0])
+    backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
+    backend.multiply(temp[1], outputs, out=temp[1])
+    backend.divide(temp[0], temp[1], out=temp[0])
+    return temp[0]
 
 
 class CrossEntropy(Cost):
@@ -53,16 +59,16 @@ class CrossEntropy(Cost):
     """
 
     @staticmethod
-    def apply_function(outputs, targets):
+    def apply_function(backend, outputs, targets, temp):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        return cross_entropy(outputs, targets)
+        return cross_entropy(backend, outputs, targets, temp)
 
     @staticmethod
-    def apply_derivative(outputs, targets):
+    def apply_derivative(backend, outputs, targets, temp):
         """
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
-        return cross_entropy_derivative(outputs, targets)
+        return cross_entropy_derivative(backend, outputs, targets, temp)

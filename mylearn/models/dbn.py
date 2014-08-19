@@ -1,5 +1,5 @@
 """
-Simple deep believe net.
+Simple deep belief net.
 """
 
 import logging
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DBN(Model):
 
     """
-    deep believe net
+    deep belief net
     """
 
     def __init__(self, **kwargs):
@@ -38,7 +38,7 @@ class DBN(Model):
             self.batch_size = nrecs
         layers = []
         for i in xrange(self.nlayers):
-            layer = self.lcreate(self.backend, nin, self.layers[i])
+            layer = self.lcreate(self.backend, nin, self.layers[i], i)
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
             nin = layer.nout - 1  # strip off bias again
@@ -49,9 +49,15 @@ class DBN(Model):
             if i > 0:
                 print 'layer %d: setting inputs to output of previous layer' % i
                 # transform all inputs to generate data for next layer
-                self.positive(inputs, i - 1)
-                inputs = self.layers[i - 1].s_hid_plus.take(
-                         range(self.layers[i - 1].s_hid_plus.shape[1] - 1), axis=1)
+                outputs = self.backend.zeros((inputs.shape[0],
+                                              self.layers[i - 1].s_hid_plus.shape[1] - 1))
+                for batch in xrange(num_batches):
+                    start_idx = batch * self.batch_size
+                    end_idx = min((batch + 1) * self.batch_size, nrecs)
+                    self.positive(inputs[start_idx:end_idx], i - 1)
+                    outputs[start_idx:end_idx] = self.layers[i - 1].s_hid_plus[:,
+                            0:(self.layers[i - 1].s_hid_plus.shape[1] - 1)]
+                inputs = outputs
                 logger.info('inputs (%d, %d) weights (%d,%d)' %
                             (inputs.shape[0], inputs.shape[1],
                              self.layers[i].weights.shape[0], 
@@ -64,23 +70,24 @@ class DBN(Model):
                 for batch in xrange(num_batches):
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
-                    self.positive(
-                        inputs.take(range(start_idx, end_idx), axis=0), i)
-                    self.negative(
-                        inputs.take(range(start_idx, end_idx), axis=0), i)
+                    self.positive(inputs[start_idx:end_idx], i)
+                    self.negative(inputs[start_idx:end_idx], i)
                     self.update(self.learning_rate, epoch, self.momentum, i)
                     error += self.cost.apply_function(
-                                inputs.take(range(start_idx, end_idx), axis=0),
-                                self.layers[i].x_minus.take(range(
-                                    self.layers[i].x_minus.shape[1] - 1), axis=1))
+                                inputs[start_idx:end_idx],
+                                self.layers[i].x_minus[:,
+                                0:(self.layers[i].x_minus.shape[1] - 1)])
                 logger.info('epoch: %d, total training error: %0.5f' %
                             (epoch, error / num_batches))
         # Part 2: up-down finetuning ... [not implemented yet]
 
-    def lcreate(self, backend, nin, conf):
+    def lcreate(self, backend, nin, conf, pos):
         activation = Factory.create(type=conf['activation'])
         # Add 1 for the bias input.
-        return RBMLayer(conf['name'], backend, nin + 1,
+        return RBMLayer(conf['name'], backend,
+                        self.batch_size, pos,
+                        self.learning_rate,
+                        nin + 1,
                         nout=conf['num_nodes'] + 1,
                         activation=activation,
                         weight_init=conf['weight_init'])

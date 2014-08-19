@@ -38,11 +38,13 @@ class MLP(Model):
             self.batch_size = nrecs
         layers = []
         for i in xrange(self.nlayers):
-            layer = self.lcreate(self.backend, nin, self.layers[i])
+            layer = self.lcreate(self.backend, nin, self.layers[i], i)
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
             nin = layer.nout
         self.layers = layers
+        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
+        self.temp = [tempbuf, tempbuf.copy()]
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -52,14 +54,14 @@ class MLP(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs.take(range(start_idx, end_idx), axis=0))
-                self.bprop(targets.take(range(start_idx, end_idx), axis=0))
-                self.update(inputs.take(range(start_idx, end_idx), axis=0),
-                            self.learning_rate, epoch, self.momentum)
-                error += self.cost.apply_function(self.layers[-1].output,
-                                                  targets.take(range(start_idx,
-                                                                     end_idx),
-                                                               axis=0))
+                self.fprop(inputs[start_idx:end_idx])
+                self.bprop(targets[start_idx:end_idx],
+                           inputs[start_idx:end_idx],
+                           epoch, self.momentum)
+                error += self.cost.apply_function(self.backend,
+                                                  self.layers[-1].output,
+                                                  targets[start_idx:end_idx],
+                                                  self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
@@ -70,7 +72,7 @@ class MLP(Model):
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs.take(range(start_idx, end_idx), axis=0))
+            self.fprop(inputs[start_idx:end_idx])
             outputs[start_idx:end_idx, :] = self.layers[-1].output
         return outputs
 
@@ -96,12 +98,14 @@ class MLP(Model):
             res.append(preds)
         return res
 
-    def lcreate(self, backend, nin, conf):
+    def lcreate(self, backend, nin, conf, pos):
         if conf['connectivity'] == 'full':
             # instantiate the activation function class from string name given
             activation = Factory.create(type=conf['activation'])
             # Add 1 for the bias input.
-            return Layer(conf['name'], backend, nin + 1,
+            return Layer(conf['name'], backend, self.batch_size, pos,
+                         self.learning_rate,
+                         nin + 1,
                          nout=conf['num_nodes'],
                          activation=activation,
                          weight_init=conf['weight_init'])
@@ -111,23 +115,24 @@ class MLP(Model):
         for layer in self.layers:
             layer.fprop(y)
             y = layer.output
-        return y
 
-    def bprop(self, targets):
+    def bprop(self, targets, inputs, epoch, momentum):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
-        lastlayer.bprop(self.cost.apply_derivative(lastlayer.output, targets) /
-                        targets.shape[0])
-        while i > 0:
-            error = self.layers[i].error()
+        error = self.cost.apply_derivative(self.backend,
+                                           lastlayer.output, targets,
+                                           self.temp)
+        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+                            out=error)
+        # Update the output layer.
+        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        while i > 1:
             i -= 1
-            self.layers[i].bprop(error)
-
-    def update(self, inputs, epsilon, epoch, momentum):
-        self.layers[0].update(inputs, epsilon, epoch, momentum)
-        for i in xrange(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].output, epsilon, epoch,
-                                  momentum)
+            self.layers[i].bprop(self.layers[i + 1].berror,
+                                 self.layers[i - 1].output,
+                                 epoch, momentum)
+        # Update the first hidden layer.
+        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch, momentum)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,

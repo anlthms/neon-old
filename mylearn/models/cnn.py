@@ -23,10 +23,13 @@ class CNN(MLP):
         if isinstance(self.cost, str):
             self.cost = Factory.create(type=self.cost)
 
-    def lcreate(self, backend, nin, conf):
+    def lcreate(self, backend, nin, conf, pos):
         if conf['connectivity'] == 'full':
             activation = Factory.create(type=conf['activation'])
-            return LayerWithNoBias(conf['name'], backend, nin,
+            return LayerWithNoBias(conf['name'], backend,
+                                   self.batch_size, pos,
+                                   self.learning_rate,
+                                   nin,
                                    nout=conf['num_nodes'],
                                    activation=activation,
                                    weight_init=conf['weight_init'])
@@ -36,7 +39,8 @@ class CNN(MLP):
             filter_shape = conf['filter_shape'].split()
             fshape = (int(filter_shape[0]), int(filter_shape[1]))
             return ConvLayer(conf['name'], backend,
-                             batch_size=self.batch_size,
+                             self.batch_size, pos,
+                             self.learning_rate,
                              nifm=conf['num_input_channels'],
                              ifmshape=ifmshape,
                              fshape=fshape,
@@ -49,7 +53,7 @@ class CNN(MLP):
             pooling_shape = conf['pooling_shape'].split()
             pshape = (int(pooling_shape[0]), int(pooling_shape[1]))
             return MaxPoolingLayer(conf['name'], backend,
-                                   batch_size=self.batch_size,
+                                   self.batch_size, pos,
                                    nfm=conf['num_channels'],
                                    ifmshape=ifmshape,
                                    pshape=pshape,
@@ -60,7 +64,7 @@ class CNN(MLP):
             pooling_shape = conf['pooling_shape'].split()
             pshape = (int(pooling_shape[0]), int(pooling_shape[1]))
             return AveragePoolingLayer(conf['name'], backend,
-                                       batch_size=self.batch_size,
+                                       self.batch_size, pos,
                                        nfm=conf['num_channels'],
                                        ifmshape=ifmshape,
                                        pshape=pshape,

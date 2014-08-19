@@ -91,8 +91,44 @@ class Numpy(Backend):
         return NumpyTensor(np.argmax(x._tensor, axis))
 
     @staticmethod
-    def dot(a, b):
-        return NumpyTensor(np.dot(a._tensor, b._tensor))
+    def dot(a, b, out):
+        np.dot(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def add(a, b, out):
+        np.add(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def subtract(a, b, out):
+        np.subtract(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def multiply(a, b, out):
+        np.multiply(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def divide(a, b, out):
+        np.divide(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def reciprocal(a, out):
+        np.divide(1.0, a._tensor, out._tensor)
+
+    @staticmethod
+    def greater(a, b, out):
+        np.greater(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def exp(x, out):
+        np.exp(x._tensor, out=out._tensor)
+
+    @staticmethod
+    def log(x, out):
+        np.log(x._tensor, out=out._tensor)
+
+    @staticmethod
+    def clear(x):
+        x._tensor[:] = 0
 
     @staticmethod
     def sum(obj):
@@ -143,14 +179,6 @@ class Numpy(Backend):
 
     def nonzero(self, x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
-
-    @staticmethod
-    def exp(x):
-        return NumpyTensor(np.exp(x._tensor))
-
-    @staticmethod
-    def log(x):
-        return NumpyTensor(np.log(x._tensor))
 
     def gen_weights(self, size, weight_params):
         weights = None

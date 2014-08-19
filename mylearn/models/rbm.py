@@ -36,7 +36,7 @@ class RBM(Model):
             self.batch_size = nrecs
         layers = []
         for i in xrange(self.nlayers):
-            layer = self.lcreate(self.backend, nin, self.layers[i])
+            layer = self.lcreate(self.backend, nin, self.layers[i], i)
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
         self.layers = layers
@@ -49,20 +49,22 @@ class RBM(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.positive(inputs.take(range(start_idx, end_idx), axis=0))
-                self.negative(inputs.take(range(start_idx, end_idx), axis=0))
+                self.positive(inputs[start_idx:end_idx])
+                self.negative(inputs[start_idx:end_idx])
                 self.update(self.learning_rate, epoch, self.momentum)
 
-                error += self.cost.apply_function(
-                    inputs.take(range(start_idx, end_idx), axis=0),
-                    self.layers[0].x_minus.take(range(self.layers[0].x_minus.shape[1] - 1), axis=1))
+                error += self.cost.apply_function(inputs[start_idx:end_idx],
+                    self.layers[0].x_minus[:, 0:(self.layers[0].x_minus.shape[1] - 1)])
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
-    def lcreate(self, backend, nin, conf):
+    def lcreate(self, backend, nin, conf, pos):
         activation = Factory.create(type=conf['activation'])
         # Add 1 for the bias input.
-        return RBMLayer(conf['name'], backend, nin + 1,
+        return RBMLayer(conf['name'], backend,
+                        self.batch_size, pos,
+                        self.learning_rate,
+                        nin + 1,
                         nout=conf['num_nodes'] + 1,
                         activation=activation,
                         weight_init=conf['weight_init'])

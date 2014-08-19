@@ -6,22 +6,16 @@ import logging
 import math
 
 from mylearn.models.layer import AELayer
-from mylearn.models.model import Model
+from mylearn.models.mlp import MLP
 from mylearn.util.factory import Factory
 
 logger = logging.getLogger(__name__)
 
 
-class Autoencoder(Model):
+class Autoencoder(MLP):
     """
     Adaptation of multi-layer perceptron.
-    TODO: see if we can't derive from MLP class directly?
     """
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        if isinstance(self.cost, str):
-            self.cost = Factory.create(type=self.cost)
 
     def fit(self, datasets):
         """
@@ -35,6 +29,8 @@ class Autoencoder(Model):
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
+        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
+        self.temp = [tempbuf, tempbuf.copy()]
         layers = []
         assert self.nlayers % 2 == 0
         for i in xrange(self.nlayers):
@@ -42,7 +38,7 @@ class Autoencoder(Model):
                 weights = layers[self.nlayers - i - 1].weights.transpose()
             else:
                 weights = None
-            layer = self.lcreate(self.backend, nin, self.layers[i], weights)
+            layer = self.lcreate(self.backend, nin, self.layers[i], i, weights)
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
             nin = layer.nout
@@ -56,14 +52,14 @@ class Autoencoder(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs.take(range(start_idx, end_idx), axis=0))
-                self.bprop(targets.take(range(start_idx, end_idx), axis=0))
-                self.update(inputs.take(range(start_idx, end_idx), axis=0),
-                            self.learning_rate, epoch)
-                error += self.cost.apply_function(self.layers[-1].output,
-                                                  targets.take(range(start_idx,
-                                                                     end_idx),
-                                                               axis=0))
+                self.fprop(inputs[start_idx:end_idx])
+                self.bprop(targets[start_idx:end_idx],
+                           inputs[start_idx:end_idx],
+                           epoch, self.momentum)
+                error += self.cost.apply_function(self.backend,
+                                                  self.layers[-1].output,
+                                                  targets[start_idx:end_idx],
+                                                  self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
@@ -74,7 +70,7 @@ class Autoencoder(Model):
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs.take(range(start_idx, end_idx), axis=0))
+            self.fprop(inputs[start_idx:end_idx])
             outputs[start_idx:end_idx, :] = self.layers[-1].output
         return outputs
 
@@ -97,37 +93,16 @@ class Autoencoder(Model):
             res.append(preds)
         return res
 
-    def lcreate(self, backend, nin, conf, weights):
+    def lcreate(self, backend, nin, conf, pos, weights):
         if conf['connectivity'] == 'full':
             # instantiate the activation function class from string name given
             activation = Factory.create(type=conf['activation'])
-            return AELayer(conf['name'], backend, nin,
+            return AELayer(conf['name'], backend, self.batch_size, pos,
+                           self.learning_rate, nin,
                            nout=conf['num_nodes'],
                            activation=activation,
                            weight_init=conf['weight_init'],
                            weights=weights)
-
-    def fprop(self, inputs):
-        y = inputs
-        for layer in self.layers:
-            layer.fprop(y)
-            y = layer.output
-        return y
-
-    def bprop(self, targets):
-        i = self.nlayers - 1
-        lastlayer = self.layers[i]
-        lastlayer.bprop(self.cost.apply_derivative(lastlayer.output, targets) /
-                        targets.shape[0])
-        while i > 0:
-            error = self.layers[i].error()
-            i -= 1
-            self.layers[i].bprop(error)
-
-    def update(self, inputs, epsilon, epoch):
-        self.layers[0].update(inputs, epsilon, epoch)
-        for i in xrange(1, self.nlayers):
-            self.layers[i].update(self.layers[i - 1].output, epsilon, epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
@@ -146,7 +121,12 @@ class Autoencoder(Model):
             targets = ds.get_inputs(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    err = self.cost.apply_function(preds[item],
-                                                   targets[item])
+                    tempbuf = self.backend.zeros((preds[item].shape[0],
+                                                  preds[item].shape[1]))
+                    temp = [tempbuf, tempbuf.copy()]
+                    err = self.cost.apply_function(self.backend,
+                                                   preds[item],
+                                                   targets[item],
+                                                   temp)
                     logging.info("%s set reconstruction error : %0.5f" %
                                  (item, err))

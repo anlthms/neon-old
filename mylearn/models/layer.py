@@ -5,6 +5,7 @@ backend.
 
 import logging
 from mylearn.transforms.gaussian import gaussian_filter
+from mylearn.transforms.linear import Identity
 
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ class Layer(object):
     """
     Single NNet layer built to handle data from a particular backend
     """
-
-    def __init__(self, name, backend, nin, nout, activation, weight_init):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
+                 activation, weight_init):
         self.name = name
         self.backend = backend
         self.weights = self.backend.gen_weights((nout, nin), weight_init)
@@ -24,8 +25,15 @@ class Layer(object):
         self.nin = nin
         self.nout = nout
         self.velocity = self.backend.zeros(self.weights.shape)
-        self.output = None
-        self.pre_act = None
+        self.delta = backend.zeros((batch_size, nout))
+        self.updates = backend.zeros((nout, nin))
+        self.pre_act = backend.zeros((batch_size, self.nout))
+        self.output = backend.zeros((batch_size, self.nout))
+        self.pos = pos
+        self.learning_rate = learning_rate
+        if pos > 0:
+            # This is storage for the backward propagated error.
+            self.berror = backend.zeros((batch_size, nin - 1))
 
     def __str__(self):
         return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
@@ -52,22 +60,27 @@ class Layer(object):
 
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.activation.apply_function(self.pre_act)
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error):
-        self.delta = error * self.activation.apply_derivative(self.pre_act)
+    def bprop(self, error, inputs, epoch, momentum):
+        self.backend.multiply(error, self.pre_act, out=self.delta)
+        if self.pos > 0:
+            endcol = self.weights.shape[1] - 1
+            self.backend.dot(self.delta, self.weights[:, 0:endcol],
+                             out=self.berror)
 
-    def update(self, inputs, epsilon, epoch, momentum):
         inputs = self.backend.append_bias(inputs)
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
-        self.velocity = (momentum_coef * self.velocity -
-                         epsilon * self.backend.dot(self.delta.T(), inputs))
-        self.weights += self.velocity
+        self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
+                              out=self.velocity)
+        self.backend.dot(self.delta.T(), inputs, out=self.updates)
 
-    def error(self):
-        return self.backend.dot(self.delta, self.weights.take(
-                                range(self.weights.shape[1] - 1), axis=1))
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.velocity, self.updates, out=self.velocity)
+        self.backend.add(self.weights, self.velocity, out=self.weights)
 
 
 class LayerWithNoBias(Layer):
@@ -75,16 +88,47 @@ class LayerWithNoBias(Layer):
     """
     Single NNet layer with no bias node - temporary code for testing purposes.
     """
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
+                 activation, weight_init):
+        super(LayerWithNoBias, self).__init__(name, backend, batch_size,
+              pos, learning_rate, nin, nout, activation, weight_init)
+        if pos > 0:
+            self.berror = backend.zeros((batch_size, nin))
 
     def fprop(self, inputs):
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.activation.apply_function(self.pre_act)
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        if isinstance(self.activation, Identity) == False:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
+    def bprop(self, error, inputs, epoch, momentum):
+        if isinstance(self.activation, Identity) == False:
+            self.backend.multiply(error, self.pre_act, out=self.delta)
+        else:
+            self.delta = error
+        if self.pos > 0:
+            self.backend.dot(self.delta, self.weights, out=self.berror)
 
-    def error(self):
-        return self.backend.dot(self.delta, self.weights)
+        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
+
+
+class LayerWithNoActivation(LayerWithNoBias):
+    def fprop(self, inputs):
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta = error
+        if self.pos > 0:
+            self.backend.dot(self.delta, self.weights, out=self.berror)
+
+        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
 class RBMLayer(Layer):
@@ -93,6 +137,20 @@ class RBMLayer(Layer):
     CD1 training layer for RBM
     """
 
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
+                 activation, weight_init):
+        super(RBMLayer, self).__init__(name, backend, batch_size, pos,
+                                      learning_rate, nin, nout,
+                                      activation, weight_init)
+        self.p_hid_plus = backend.zeros((batch_size, self.nout))
+        self.s_hid_plus = backend.zeros((batch_size, self.nout))
+        self.p_hid_minus = backend.zeros((batch_size, self.nout))
+        self.p_plus = backend.zeros((self.nout, nin))
+        self.p_minus = backend.zeros((self.nout, nin))
+        self.diff = backend.zeros((self.nout, nin))
+        self.neg_pre_act = backend.zeros((batch_size, self.nin))
+        self.x_minus = backend.zeros((batch_size, self.nin))
+        
     def positive(self, inputs):
         """
         Positive / upward pass of the CD1 RBM
@@ -101,11 +159,12 @@ class RBMLayer(Layer):
            inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
         """
         inputs = self.backend.append_bias(inputs)
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.p_hid_plus = self.activation.apply_function(self.pre_act)
-        self.p_plus = self.backend.dot(self.p_hid_plus.T(), inputs)
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_plus )
+        self.backend.dot(self.p_hid_plus.T(), inputs, out=self.p_plus)
         self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
-        self.s_hid_plus = self.p_hid_plus > self.random_numbers
+        self.backend.greater(self.p_hid_plus, self.random_numbers, out=self.s_hid_plus)
+        #self.s_hid_plus = self.p_hid_plus > self.random_numbers
 
     def negative(self, inputs):
         """
@@ -114,11 +173,11 @@ class RBMLayer(Layer):
         Arguments:
            inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
         """
-        self.pre_act = self.backend.dot(self.s_hid_plus, self.weights)
-        self.x_minus = self.activation.apply_function(self.pre_act)
-        self.pre_act = self.backend.dot(self.x_minus, self.weights.T())
-        self.p_hid_minus = self.activation.apply_function(self.pre_act)
-        self.p_minus = self.backend.dot(self.p_hid_minus.T(), self.x_minus)
+        self.backend.dot(self.s_hid_plus, self.weights, out=self.neg_pre_act)
+        self.activation.apply_function(self.backend, self.neg_pre_act, self.x_minus )
+        self.backend.dot(self.x_minus, self.weights.T(), out=self.pre_act)
+        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_minus)
+        self.backend.dot(self.p_hid_minus.T(), self.x_minus, out=self.p_minus )
 
     def update(self, epsilon, epoch, momentum):
         """ 
@@ -129,67 +188,25 @@ class RBMLayer(Layer):
             epoch: not used, for future compatibility
             momentum: not used, for future compatibility
         """
-        self.weights += epsilon * (self.p_plus - self.p_minus)
+        self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
+        self.backend.multiply(self.diff, self.backend.wrap(epsilon), out=self.diff) 
+        self.backend.add(self.weights, self.diff, out=self.weights)
         # epoch, momentum?
 
-    def error(self, inputs):
-        pass
-        # return ((inputs-self.x_minus)**2).mean()
 
-
-class AELayer(object):
-
+class AELayer(LayerWithNoBias):
     """
     Single NNet layer built to handle data from a particular backend used
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
-
-    def __init__(self, name, backend, nin, nout, activation, weight_init,
-                 weights=None):
-        self.name = name
-        self.backend = backend
-        if weights is None:
-            self.weights = self.backend.gen_weights((nout, nin), weight_init)
-        else:
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
+                 activation, weight_init, weights=None):
+        super(AELayer, self).__init__(name, backend, batch_size, pos,
+                                      learning_rate, nin, nout,
+                                      activation, weight_init)
+        if weights is not None:
             self.weights = weights
-        self.activation = activation
-        self.nin = nin
-        self.nout = nout
-        self.output = None
-        self.pre_act = None
-
-    def __str__(self):
-        return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
-                "utilizing %s backend\n\t"
-                "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.name, self.nin, self.nout,
-                 self.activation.__class__.__name__,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.output),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output),
-                 self.backend.mean(self.pre_act),
-                 self.backend.min(self.pre_act),
-                 self.backend.max(self.pre_act),
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
-
-    def fprop(self, inputs):
-        self.pre_act = self.backend.dot(inputs, self.weights.T())
-        self.output = self.activation.apply_function(self.pre_act)
-
-    def bprop(self, error):
-        self.delta = error * self.activation.apply_derivative(self.pre_act)
-
-    def update(self, inputs, epsilon, epoch):
-        self.weights -= epsilon * self.backend.dot(self.delta.T(), inputs)
-
-    def error(self):
-        return self.backend.dot(self.delta, self.weights)
 
 
 class LocalLayer(object):
@@ -198,18 +215,23 @@ class LocalLayer(object):
     Base class for locally connected layers.
     """
 
-    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape,
-                 stride):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
+                 ifmshape, fshape, stride):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
         self.fheight, self.fwidth = fshape
         self.batch_size = batch_size
+        self.pos = pos
+        self.learning_rate = learning_rate
 
         self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
         self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ofmheight * self.ofmwidth
+        self.nin = nifm * self.ifmsize
+        if pos > 0:
+            self.berror = backend.zeros((batch_size, self.nin))
 
         self.nifm = nifm
         self.fsize = nifm * self.fheight * self.fwidth
@@ -217,15 +239,15 @@ class LocalLayer(object):
         self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             # Collect the column indices for the
             # entire receptive field.
             colinds = []
-            for row in range(self.fheight):
+            for row in xrange(self.fheight):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
-            for ifm in range(1, nifm):
+            for ifm in xrange(1, nifm):
                 colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
@@ -239,8 +261,8 @@ class LocalLayer(object):
             self.links[dst, :] = backend.array(colinds)
         self.rlinks = self.links.raw()
 
-    def bprop(self, error):
-        self.delta = error
+    def fprop(self, inputs):
+        raise NotImplementedError('This class should not be instantiated.')
 
 
 class ConvLayer(LocalLayer):
@@ -249,21 +271,27 @@ class ConvLayer(LocalLayer):
     Convolutional layer.
     """
 
-    def __init__(self, name, backend, batch_size, nifm,
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
                  ifmshape, fshape, nfilt, stride, weight_init):
-        super(ConvLayer, self).__init__(name, backend, batch_size, nifm,
+        super(ConvLayer, self).__init__(name, backend, batch_size, pos,
+                                        learning_rate, nifm,
                                         ifmshape, fshape, stride)
         self.nout = self.ofmsize * nfilt
         self.nfilt = nfilt
-        self.weights = self.backend.gen_weights((nfilt, self.fsize),
+        self.weights = backend.gen_weights((nfilt, self.fsize),
                                                 weight_init)
-        self.output = backend.zeros((batch_size, self.nout))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * nfilt),
-                                             self.ofmsize))
+        ofmstarts = backend.array(range(0, (self.ofmsize * nfilt),
+                                       self.ofmsize))
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
         self.rofmlocs = ofmlocs.raw()
+
+        self.output = backend.zeros((batch_size, self.nout))
+        self.updates = backend.zeros(self.weights.shape)
+        self.prodbuf = backend.zeros((batch_size, nfilt))
+        self.bpropbuf = backend.zeros((batch_size, self.fsize))
+        self.updatebuf = backend.zeros((nfilt, self.fsize))
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -276,39 +304,43 @@ class ConvLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def fprop(self, inputs):
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = self.rlinks[dst]
-            prod = self.backend.dot(inputs.take(rflinks, axis=1),
-                                    self.weights.T())
-            self.output[:, self.rofmlocs[dst]] = prod
+            self.backend.dot(inputs.take(rflinks, axis=1),
+                             self.weights.T(), out=self.prodbuf)
+            self.output[:, self.rofmlocs[dst]] = self.prodbuf
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        wsums = self.backend.zeros(self.weights.shape)
-        for dst in range(self.ofmsize):
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            for dst in xrange(self.ofmsize):
+                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
+                                 self.weights, self.bpropbuf)
+                rflinks = self.rlinks[dst]
+                self.backend.add(self.bpropbuf,
+                                 self.berror.take(rflinks, axis=1),
+                                 out=self.bpropbuf)
+                self.berror[:, rflinks] = self.bpropbuf
+
+        self.backend.clear(self.updates)
+        for dst in xrange(self.ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = self.rlinks[dst]
             delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
-            prod = self.backend.dot(delta_slice.T(), inputs.take(rflinks,
-                                                                 axis=1))
-            wsums.add(prod)
-        # Update the filters after summing the weight updates.
-        self.weights.sub(epsilon * wsums)
 
-    def error(self):
-        berror = self.backend.zeros((self.batch_size,
-                                     self.ifmheight * self.ifmwidth *
-                                     self.nifm))
-        for dst in range(self.ofmsize):
-            res = self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
-                                   self.weights)
-            rflinks = self.rlinks[dst]
-            res.add(berror.take(rflinks, axis=1))
-            berror[:, rflinks] = res
-        return berror
+            self.backend.dot(delta_slice.T(), inputs.take(rflinks, axis=1),
+                             out=self.updatebuf)
+            self.updates.add(self.updatebuf)
+        # Update the filters after summing the weight updates.
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
 class LocalFilteringLayer(LocalLayer):
@@ -318,15 +350,21 @@ class LocalFilteringLayer(LocalLayer):
     are not shared.
     """
 
-    def __init__(self, name, backend, batch_size,
+    def __init__(self, name, backend, batch_size, pos, learning_rate,
                  nifm, ifmshape, fshape, stride, weight_init):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
+                                                  pos, learning_rate,
                                                   nifm, ifmshape, fshape,
                                                   stride)
         self.nout = self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
-                                                weight_init)
+                                                 weight_init)
+
+        self.output = backend.zeros((batch_size, self.nout))
+        self.updates = backend.zeros(self.weights.shape)
+        self.prodbuf = backend.zeros((batch_size, 1))
+        self.bpropbuf = backend.zeros((batch_size, self.fsize))
 
     def __str__(self):
         return ("LocalFilteringLayer %s: %d ifms, "
@@ -339,36 +377,40 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def fprop(self, inputs):
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
             # We use a different filter for each receptive field.
-            prod = self.backend.dot(inputs.take(rflinks, axis=1),
-                                    self.weights[dst].T())
-            self.output[:, dst] = prod
+            self.backend.dot(inputs.take(rflinks, axis=1),
+                             self.weights[dst:(dst + 1)].T(),
+                             out=self.prodbuf)
+            self.output[:, dst:(dst + 1)] = self.prodbuf
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        updates = self.backend.zeros(self.weights.shape)
-        for dst in range(self.ofmsize):
-            rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(dst, axis=1)
-            updates[dst] = self.backend.dot(delta_slice.T(),
-                                            inputs.take(rflinks, axis=1))
-        self.weights.sub(epsilon * updates)
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            for dst in xrange(self.ofmsize):
+                # Use the same filter that was used for forward propagation
+                # of this receptive field.
+                self.backend.dot(self.delta[:, dst:(dst + 1)],
+                                 self.weights[dst:(dst + 1)],
+                                 out=self.bpropbuf)
+                rflinks = self.rlinks[dst]
+                self.backend.add(self.bpropbuf,
+                                 self.berror.take(rflinks, axis=1),
+                                 out=self.bpropbuf)
+                self.berror[:, rflinks] = self.bpropbuf
 
-    def error(self):
-        berror = self.backend.zeros((self.batch_size,
-                                     self.ifmheight * self.ifmwidth *
-                                     self.nifm))
-        for dst in range(self.ofmsize):
-            # Use the same filter that was used for forward propagation
-            # of this receptive field.
-            res = self.backend.dot(self.delta.take(range(dst, dst + 1),
-                                                   axis=1),
-                                   self.weights[dst:(dst + 1)])
+        for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            res.add(berror.take(rflinks, axis=1))
-            berror[:, rflinks] = res
-        return berror
+            delta_slice = self.delta[:, dst]
+            self.backend.dot(delta_slice.T(),
+                             inputs.take(rflinks,axis=1),
+                             out=self.updates[dst])
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
 class PoolingLayer(object):
@@ -376,9 +418,8 @@ class PoolingLayer(object):
     """
     Base class for pooling layers.
     """
-
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
-                 stride):
+    def __init__(self, name, backend, batch_size, pos,
+                 nfm, ifmshape, pshape, stride):
         self.name = name
         self.backend = backend
         self.nfm = nfm
@@ -386,12 +427,15 @@ class PoolingLayer(object):
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.pheight, self.pwidth = pshape
         self.psize = self.pheight * self.pwidth
+        self.pos = pos
         self.batch_size = batch_size
 
         ofmheight = (self.ifmheight - self.pheight) / stride + 1
         ofmwidth = (self.ifmwidth - self.pwidth) / stride + 1
         self.ofmsize = ofmheight * ofmwidth
         self.nin = nfm * self.ifmsize
+        if pos > 0:
+            self.berror = backend.zeros((batch_size, self.nin))
 
         # Figure out the possible connections with the previous layer.
         # Each unit in this layer could be connected to any one of
@@ -399,11 +443,11 @@ class PoolingLayer(object):
         self.links = backend.zeros((self.ofmsize, self.psize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             colinds = []
             # Collect the column indices for the
             # entire receptive field.
-            for row in range(self.pheight):
+            for row in xrange(self.pheight):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.pwidth)
             if (src % self.ifmwidth + self.pwidth + stride) <= self.ifmwidth:
@@ -416,28 +460,30 @@ class PoolingLayer(object):
                 assert src % self.ifmwidth == 0
             self.links[dst, :] = backend.array(colinds)
 
-    def bprop(self, error):
-        self.delta = error
+        self.nout = nfm * self.ofmsize
+        self.output = backend.zeros((batch_size, self.nout))
+        self.delta = backend.zeros((batch_size, self.nout))
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        # There are no weights to update.
-        pass
+        # Reshape the matrices to have a single row per feature map.
+        self.rdelta = self.backend.squish(self.delta, self.nfm)
+        self.routput = self.backend.squish(self.output, self.nfm)
+        if pos > 0:
+            self.rberror = self.backend.squish(self.berror, self.nfm)
 
+    def fprop(self, inputs):
+        raise NotImplementedError('This class should not be instantiated.')
 
 class MaxPoolingLayer(PoolingLayer):
 
     """
     Max pooling layer.
     """
-
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
                  stride):
-        super(MaxPoolingLayer, self).__init__(name, backend, batch_size, nfm,
-                                              ifmshape, pshape, stride)
+        super(MaxPoolingLayer, self).__init__(name, backend, batch_size, pos,
+                                              nfm, ifmshape, pshape, stride)
         self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
                                      dtype='i32')
-        self.nout = nfm * self.ofmsize
-        self.output = backend.zeros((batch_size, self.nout))
 
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
@@ -454,35 +500,26 @@ class MaxPoolingLayer(PoolingLayer):
         # for each input feature map (this is to avoid a loop over
         # each feature map).
         inputs = self.backend.squish(inputs, self.nfm)
-        squished_output = self.backend.squish(self.output, self.nfm)
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
-            rf = inputs.take(self.links.take(dst, axis=0), axis=1)
+            rf = inputs.take(self.links[dst], axis=1)
             # Save the index of the maximum value within the receptive fields.
             self.maxinds[:, dst] = rf.argmax(axis=1)
             # Set the pre-activations to the maximum value.
-            # "fancy" indexing ended up being faster than 1-D take() approach
-            maxvals = rf[range(rf.shape[0]), self.maxinds.take(dst, axis=1)]
-            squished_output[:, dst] = maxvals
+            maxvals = rf[range(rf.shape[0]), self.maxinds[:, dst]]
+            self.routput[:, dst] = maxvals
 
-        # Reshape back to original shape.
-        self.output = squished_output.reshape((self.output.shape))
-
-    def error(self):
-        berror = self.backend.zeros((self.batch_size, self.nin))
-        # Reshape the backpropagated error matrix to have one
-        # row per feature map.
-        rberror = self.backend.squish(berror, self.nfm)
-        # Reshape the delta matrix to have one row per feature map.
-        rdelta = self.backend.squish(self.delta, self.nfm)
-        for dst in range(self.ofmsize):
-            links = self.links.take(dst, axis=0)
-            colinds = self.maxinds.take(dst, axis=1)
-            inds = links.take(colinds, axis=0)
-            rberror[range(rberror.shape[0]), inds] += rdelta.take(dst, axis=1)
-        berror = rberror.reshape(berror.shape)
-        return berror
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta[:] = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            for dst in xrange(self.ofmsize):
+                links = self.links[dst]
+                colinds = self.maxinds[:, dst]
+                inds = links.take(colinds, axis=0)
+                self.rberror[range(self.rberror.shape[0]), inds] += (
+                        self.rdelta[:, dst])
 
 
 class L2PoolingLayer(PoolingLayer):
@@ -491,14 +528,12 @@ class L2PoolingLayer(PoolingLayer):
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
     as output.
     """
-
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
                  stride):
-        super(L2PoolingLayer, self).__init__(name, backend, batch_size, nfm,
-                                             ifmshape, pshape, stride)
+        super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
+                                             nfm, ifmshape, pshape, stride)
         self.normalized_rf = backend.zeros((batch_size * nfm, self.ifmsize))
-        self.nout = nfm * self.ofmsize
-        self.output = backend.zeros((batch_size, self.nout))
+        self.prodbuf = backend.zeros((batch_size * nfm, self.psize))
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
@@ -507,31 +542,28 @@ class L2PoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        squished_inputs = self.backend.squish(inputs, self.nfm)
-        squished_output = self.backend.squish(self.output, self.nfm)
-        for dst in range(self.ofmsize):
-            inds = self.links.take(dst, axis=0)
-            rf = squished_inputs.take(inds, axis=1)
-            squished_output[:, dst] = rf.norm(axis=1)
-            denom = squished_output[:, range(dst, dst + 1)].repeat(self.psize,
-                                                                   axis=1)
+        rinputs = self.backend.squish(inputs, self.nfm)
+        for dst in xrange(self.ofmsize):
+            inds = self.links[dst]
+            rf = rinputs.take(inds, axis=1)
+            self.routput[:, dst] = rf.norm(axis=1)
+            denom = self.routput[:, dst:(dst + 1)].repeat(self.psize, axis=1)
             # If the L2 norm is zero, the entire receptive field must be zeros.
             # In that case, we set the L2 norm to 1 before using it to
             # normalize the receptive field.
             denom[denom == 0] = 1
             self.normalized_rf[:, inds] = rf / denom
-        self.output = squished_output.reshape((self.output.shape))
 
-    def error(self):
-        berror = self.backend.zeros((self.batch_size, self.nin))
-        rberror = self.backend.squish(berror, self.nfm)
-        rdelta = self.backend.squish(self.delta, self.nfm)
-        for dst in range(self.ofmsize):
-            links = self.links.take(dst, axis=0)
-            rberror[:, links] += (self.normalized_rf[:, links] *
-                                  rdelta.take(range(dst, dst + 1), axis=1))
-        berror = rberror.reshape(berror.shape)
-        return berror
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta[:] = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            for dst in xrange(self.ofmsize):
+                inds = self.links[dst]
+                self.backend.multiply(self.normalized_rf[:, inds],
+                                      self.rdelta[:, dst:(dst + 1)],
+                                      out=self.prodbuf)
+                self.rberror[:, inds] += self.prodbuf
 
 
 class AveragePoolingLayer(PoolingLayer):
@@ -540,13 +572,12 @@ class AveragePoolingLayer(PoolingLayer):
     Average pooling.
     """
 
-    def __init__(self, name, backend, batch_size, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
                  stride):
         super(AveragePoolingLayer, self).__init__(name, backend, batch_size,
-                                                  nfm, ifmshape, pshape,
+                                                  pos, nfm, ifmshape, pshape,
                                                   stride)
         self.nout = nfm * self.ofmsize
-        self.output = backend.zeros((batch_size, self.nout))
 
     def __str__(self):
         return ("AveragePoolingLayer %s: %d nin, %d nout, "
@@ -555,24 +586,21 @@ class AveragePoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        squished_inputs = self.backend.squish(inputs, self.nfm)
-        squished_output = self.backend.squish(self.output, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nfm)
         for dst in range(self.ofmsize):
-            inds = self.links.take(dst, axis=0)
-            rf = squished_inputs.take(inds, axis=1)
-            squished_output[:, dst] = rf.mean(axis=1)
-        self.output = squished_output.reshape((self.output.shape))
+            inds = self.links[dst]
+            rf = rinputs.take(inds, axis=1)
+            self.routput[:, dst] = rf.mean(axis=1)
 
-    def error(self):
-        berror = self.backend.zeros((self.batch_size, self.nin))
-        rberror = self.backend.squish(berror, self.nfm)
-        rdelta = self.backend.squish(self.delta, self.nfm)
-        rdelta /= self.psize
-        for dst in range(self.ofmsize):
-            links = self.links.take(dst, axis=0)
-            rberror[:, links] += rdelta.take(range(dst, dst + 1), axis=1)
-        berror = rberror.reshape(berror.shape)
-        return berror
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta[:] = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            self.rdelta /= self.psize
+            for dst in range(self.ofmsize):
+                inds = self.links[dst]
+                self.rberror[:, inds] += (
+                        self.rdelta.take(range(dst, dst + 1), axis=1))
 
 
 class LCNLayer(LocalLayer):
@@ -581,10 +609,10 @@ class LCNLayer(LocalLayer):
     Local contrast normalization.
     """
 
-    def __init__(self, name, backend, batch_size, nifm, ifmshape, fshape,
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(LCNLayer, self).__init__(name, backend, batch_size, nifm,
-                                       ifmshape, fshape, stride)
+        super(LCNLayer, self).__init__(name, backend, batch_size, pos, 0.0,
+                                       nifm, ifmshape, fshape, stride)
         self.nin = nifm * self.ifmsize
         self.nout = nifm * self.ifmsize
         self.output = backend.zeros((batch_size, self.nin))
@@ -593,8 +621,18 @@ class LCNLayer(LocalLayer):
                                           nifm * self.ofmsize))
         self.ex_meanfm = self.backend.zeros((self.batch_size, self.ifmheight,
                                              self.ifmwidth))
+        self.rex_meanfm = self.ex_meanfm.reshape((self.batch_size, self.nin))
         self.inset_row = self.ifmheight - self.ofmheight
         self.inset_col = self.ifmwidth - self.ofmwidth
+
+        self.prodbuf = backend.zeros((batch_size, 1))
+        self.output = backend.zeros((batch_size, self.nout))
+        self.intermed = backend.zeros(self.output.shape)
+        self.delta = backend.zeros((batch_size, self.nout))
+        self.rdelta = self.backend.squish(self.delta, self.nifm)
+        self.denom = self.backend.zeros((self.batch_size, self.nin))
+        if pos > 0:
+            self.rberror = self.backend.squish(self.berror, self.nifm)
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -615,55 +653,49 @@ class LCNLayer(LocalLayer):
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
-        for dst in range(self.ofmsize):
+        for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            prod = self.backend.dot(inputs.take(rflinks, axis=1),
-                                    self.filter)
-            self.meanfm[:, range(dst, dst + 1)] = prod
+            self.backend.dot(inputs.take(rflinks, axis=1), self.filter,
+                             out=self.prodbuf)
+            self.meanfm[:, dst:(dst + 1)] = self.prodbuf
 
         # TODO: handle edges better.
         self.rmeanfm = self.meanfm.reshape((self.batch_size, self.ofmheight,
                                             self.ofmwidth))
-        for row in range(self.ex_meanfm.shape[0]):
+        for row in xrange(self.ex_meanfm.shape[0]):
             self.ex_meanfm[row,
                            self.inset_row:(self.inset_row + self.ofmheight),
                            self.inset_col:(self.inset_col + self.ofmwidth)
                            ] = (self.rmeanfm[row])
 
-        self.rex_meanfm = self.ex_meanfm.reshape((self.batch_size, self.nin))
-        res = inputs.copy()
-        for i in range(self.nifm):
-            res[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= self.rex_meanfm
-        return res
+        self.intermed[:] = inputs
+        for i in xrange(self.nifm):
+            self.intermed[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= (
+                    self.rex_meanfm)
 
-    def div_normalize(self, inputs):
-        res = inputs.copy()
-        res *= res
-        denom = self.backend.zeros((self.batch_size, self.nin))
-        for dst in range(self.ofmsize):
+    def div_normalize(self):
+        self.backend.multiply(self.intermed, self.intermed, out=self.output)
+        self.backend.clear(self.denom)
+        for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            prod = self.backend.dot(res.take(rflinks, axis=1),
-                                    self.filter)
-            denom[:, range(dst, dst + 1)] = prod
-        denom = self.backend.sqrt(denom, out=denom)
-        c = denom.mean()
-        denom[denom < c] = c
-        return inputs / denom
+            self.backend.dot(self.output.take(rflinks, axis=1), self.filter,
+                             out=self.prodbuf)
+            self.denom[:, dst:(dst + 1)] = self.prodbuf
+        self.backend.sqrt(self.denom, out=self.denom)
+        c = self.denom.mean()
+        self.denom[self.denom < c] = c
+        self.backend.divide(self.intermed, self.denom, out=self.output)
 
     def fprop(self, inputs):
-        self.output[:] = self.sub_normalize(inputs)
-        self.output[:] = self.div_normalize(self.output)
+        self.sub_normalize(inputs)
+        self.div_normalize()
 
-    def update(self, inputs, epsilon, epoch, momentum):
-        pass
-
-    def error(self):
-        berror = self.backend.zeros((self.batch_size, self.nin))
-        rberror = self.backend.squish(berror, self.nifm)
-        rdelta = self.backend.squish(self.delta, self.nifm)
-        rdelta /= self.fsize
-        for dst in range(self.ofmsize):
-            links = self.links.take(dst, axis=0)
-            rberror[:, links] += rdelta.take(range(dst, dst + 1), axis=1)
-        berror = rberror.reshape(berror.shape)
-        return berror
+    def bprop(self, error, inputs, epoch, momentum):
+        self.delta[:] = error
+        if self.pos > 0:
+            self.backend.clear(self.berror)
+            self.backend.divide(self.rdelta, self.backend.wrap(self.fsize),
+                                self.rdelta)
+            for dst in xrange(self.ofmsize):
+                links = self.links[dst]
+                self.rberror[:, links] += self.rdelta[:, dst:(dst + 1)]
