@@ -23,7 +23,7 @@ def logistic(backend, inputs, outputs):
     backend.reciprocal(outputs, out=outputs)
 
 
-def logistic_derivative(dataset):
+def logistic_derivative(backend, inputs, outputs):
     """
     Applies derivative of the logistic transform to the dataset passed.
 
@@ -34,9 +34,7 @@ def logistic_derivative(dataset):
         array_like: Transformed copy of the dataset.  Will be in the same
                     format as the input dataset.
     """
-    #return logistic(dataset) * (1 - logistic(dataset))
-    raise NotImplementedError("TODO!")
-
+    logistic_and_derivative(backend, inputs, outputs)
 
 def logistic_and_derivative(backend, inputs, outputs):
     """
@@ -73,11 +71,11 @@ class Logistic(Activation):
         return logistic(backend, inputs, outputs)
 
     @staticmethod
-    def apply_derivative(dataset):
+    def apply_derivative(backend, inputs, outputs):
         """
         Apply the logistic activation function derivative.
         """
-        return logistic_derivative(dataset)
+        return logistic_derivative(backend, inputs, outputs)
 
     @staticmethod
     def apply_both(backend, inputs, outputs):

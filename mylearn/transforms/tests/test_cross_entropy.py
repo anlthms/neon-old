@@ -19,6 +19,7 @@ def test_cross_entropy_NumpyTensor():
 @attr('cuda')
 def test_cross_entropy_CudamatTensor():
     from mylearn.backends._cudamat import Cudamat, CudamatTensor
+    c = Cudamat(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])
     targets = CudamatTensor([0.5, 0.99, 0.01, 0.2])
     temp = [c.zeros(outputs.shape), c.zeros(outputs.shape)]
