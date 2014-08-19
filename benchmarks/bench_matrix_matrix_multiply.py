@@ -32,11 +32,12 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
     setup = ("import numpy as np\n" "from %s import %s, %sTensor\n"
              "be = %s(rng_seed=0)\n"
              "A = %sTensor(np.random.rand(*%s))\n"
-             "B = %sTensor(np.random.rand(*%s))\n" %
+             "B = %sTensor(np.random.rand(*%s))\n"
+             "out = %sTensor(np.empty([%d, %d]))\n" %
              (backend, classname, classname, classname, classname, str(A_dims),
-              classname, str(B_dims)))
+              classname, str(B_dims), classname, A_dims[0], B_dims[1]))
     try:
-        res = timeit.repeat('be.dot(A, B)', setup=setup, number=number,
+        res = timeit.repeat('be.dot(A, B, out)', setup=setup, number=number,
                             repeat=repeat)
     except (NotImplementedError, AttributeError, TooSlowToImplementError):
         res = [float('NaN'), ]
