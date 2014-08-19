@@ -7,10 +7,12 @@ import logging
 from mylearn.transforms.gaussian import gaussian_filter
 from mylearn.transforms.linear import Identity
 
+
 logger = logging.getLogger(__name__)
 
 
 class Layer(object):
+
     """
     Single NNet layer built to handle data from a particular backend
     """
@@ -82,6 +84,7 @@ class Layer(object):
 
 
 class LayerWithNoBias(Layer):
+
     """
     Single NNet layer with no bias node - temporary code for testing purposes.
     """
@@ -128,6 +131,69 @@ class LayerWithNoActivation(LayerWithNoBias):
         self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
+class RBMLayer(Layer):
+
+    """
+    CD1 training layer for RBM
+    """
+
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
+                 activation, weight_init):
+        super(RBMLayer, self).__init__(name, backend, batch_size, pos,
+                                      learning_rate, nin, nout,
+                                      activation, weight_init)
+        self.p_hid_plus = backend.zeros((batch_size, self.nout))
+        self.s_hid_plus = backend.zeros((batch_size, self.nout))
+        self.p_hid_minus = backend.zeros((batch_size, self.nout))
+        self.p_plus = backend.zeros((self.nout, nin))
+        self.p_minus = backend.zeros((self.nout, nin))
+        self.diff = backend.zeros((self.nout, nin))
+        self.neg_pre_act = backend.zeros((batch_size, self.nin))
+        self.x_minus = backend.zeros((batch_size, self.nin))
+        
+    def positive(self, inputs):
+        """
+        Positive / upward pass of the CD1 RBM
+
+        Arguments:
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+        """
+        inputs = self.backend.append_bias(inputs)
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_plus )
+        self.backend.dot(self.p_hid_plus.T(), inputs, out=self.p_plus)
+        self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
+        self.backend.greater(self.p_hid_plus, self.random_numbers, out=self.s_hid_plus)
+        #self.s_hid_plus = self.p_hid_plus > self.random_numbers
+
+    def negative(self, inputs):
+        """
+        Negative / downward pass of the CD1 RBM
+
+        Arguments:
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+        """
+        self.backend.dot(self.s_hid_plus, self.weights, out=self.neg_pre_act)
+        self.activation.apply_function(self.backend, self.neg_pre_act, self.x_minus )
+        self.backend.dot(self.x_minus, self.weights.T(), out=self.pre_act)
+        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_minus)
+        self.backend.dot(self.p_hid_minus.T(), self.x_minus, out=self.p_minus )
+
+    def update(self, epsilon, epoch, momentum):
+        """ 
+        CD1 weight update 
+
+        Arguments:
+            epsilon: step size
+            epoch: not used, for future compatibility
+            momentum: not used, for future compatibility
+        """
+        self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
+        self.backend.multiply(self.diff, self.backend.wrap(epsilon), out=self.diff) 
+        self.backend.add(self.weights, self.diff, out=self.weights)
+        # epoch, momentum?
+
+
 class AELayer(LayerWithNoBias):
     """
     Single NNet layer built to handle data from a particular backend used
@@ -144,6 +210,7 @@ class AELayer(LayerWithNoBias):
 
 
 class LocalLayer(object):
+
     """
     Base class for locally connected layers.
     """
@@ -199,6 +266,7 @@ class LocalLayer(object):
 
 
 class ConvLayer(LocalLayer):
+
     """
     Convolutional layer.
     """
@@ -276,6 +344,7 @@ class ConvLayer(LocalLayer):
 
 
 class LocalFilteringLayer(LocalLayer):
+
     """
     Local filtering layer. This is very similar to ConvLayer, but the weights
     are not shared.
@@ -345,6 +414,7 @@ class LocalFilteringLayer(LocalLayer):
 
 
 class PoolingLayer(object):
+
     """
     Base class for pooling layers.
     """
@@ -404,6 +474,7 @@ class PoolingLayer(object):
         raise NotImplementedError('This class should not be instantiated.')
 
 class MaxPoolingLayer(PoolingLayer):
+
     """
     Max pooling layer.
     """
@@ -452,6 +523,7 @@ class MaxPoolingLayer(PoolingLayer):
 
 
 class L2PoolingLayer(PoolingLayer):
+
     """
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
     as output.
@@ -495,6 +567,7 @@ class L2PoolingLayer(PoolingLayer):
 
 
 class AveragePoolingLayer(PoolingLayer):
+
     """
     Average pooling.
     """
@@ -531,6 +604,7 @@ class AveragePoolingLayer(PoolingLayer):
 
 
 class LCNLayer(LocalLayer):
+
     """
     Local contrast normalization.
     """

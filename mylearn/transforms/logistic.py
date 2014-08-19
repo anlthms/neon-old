@@ -8,22 +8,19 @@ import numpy
 from mylearn.transforms.activation import Activation
 
 
-def logistic(dataset):
+def logistic(backend, inputs, outputs):
     """
     Applies logistic transform to the dataset passed.
 
     Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed
+        outputs (array_like): Storage for the transformed output.
     """
-    if isinstance(dataset, (int, float, numpy.ndarray)):
-        neg_exp = numpy.exp(- dataset)
-    else:
-        neg_exp = (- dataset).exp()
-    return 1.0 / (1.0 + neg_exp)
+    backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
+    backend.exp(outputs, out=outputs)
+    backend.add(outputs, backend.wrap(1.0), out=outputs)
+    backend.reciprocal(outputs, out=outputs)
 
 
 def logistic_derivative(dataset):
@@ -37,7 +34,8 @@ def logistic_derivative(dataset):
         array_like: Transformed copy of the dataset.  Will be in the same
                     format as the input dataset.
     """
-    return logistic(dataset) * (1 - logistic(dataset))
+    #return logistic(dataset) * (1 - logistic(dataset))
+    raise NotImplementedError("TODO!")
 
 
 def logistic_and_derivative(backend, inputs, outputs):
@@ -55,42 +53,11 @@ def logistic_and_derivative(backend, inputs, outputs):
     backend.multiply(inputs, backend.wrap(-1.0), out=outputs)
     backend.exp(outputs, out=outputs)
     backend.add(outputs, backend.wrap(1.0), out=outputs)
-    #backend.divide(backend.wrap(1.0), outputs, out=outputs)
     backend.reciprocal(outputs, out=outputs)
 
     # Apply the derivative of the logistic function.
     backend.subtract(backend.wrap(1.0), outputs, out=inputs)
     backend.multiply(inputs, outputs, out=inputs)
-
-
-def pseudo_logistic(dataset):
-    """
-    Applies faster, approximate logistic transform to the dataset passed.
-
-    Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
-    """
-    return (1.0 / (1.0 + 2 ** (- dataset)))
-
-
-def pseudo_logistic_derivative(dataset):
-    """
-    Applies derivative of the approximate logistic transform to the dataset
-    passed.
-
-    Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
-    """
-    res = pseudo_logistic(dataset)
-    return (log(2) * res * (1.0 - res))
 
 
 class Logistic(Activation):
@@ -99,18 +66,18 @@ class Logistic(Activation):
     """
 
     @staticmethod
-    def apply_function(dataset):
+    def apply_function(backend, inputs, outputs):
         """
         Apply the logistic activation function.
         """
-        return logistic(dataset)
+        return logistic(backend, inputs, outputs)
 
     @staticmethod
     def apply_derivative(dataset):
         """
         Apply the logistic activation function derivative.
         """
-        return logistic_derivative(backend, dataset)
+        return logistic_derivative(dataset)
 
     @staticmethod
     def apply_both(backend, inputs, outputs):
@@ -119,22 +86,3 @@ class Logistic(Activation):
         """
         return logistic_and_derivative(backend, inputs, outputs)
 
-
-class PseudoLogistic(Activation):
-    """
-    Embodiment of an approximate logistic activation function.
-    """
-
-    @staticmethod
-    def apply_function(dataset):
-        """
-        Apply the approximate logistic activation function.
-        """
-        return pseudo_logistic(dataset)
-
-    @staticmethod
-    def apply_derivative(dataset):
-        """
-        Apply the approximate logistic activation function derivative.
-        """
-        return pseudo_logistic_derivative(dataset)

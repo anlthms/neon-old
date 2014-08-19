@@ -4,7 +4,6 @@ Defines how to initialize and run an experiment.
 
 import logging
 import os
-
 from mylearn.util.factory import Factory
 from mylearn.util.persist import serialize, deserialize
 
@@ -42,5 +41,7 @@ class Experiment(object):
         else:
             model = Factory.create(**self.model)
             model.fit(datasets)
-        predictions = model.predict(datasets)
-        model.error_metrics(datasets, predictions)
+        if (self.model['type'] != 'mylearn.models.rbm.RBM') and (
+            self.model['type'] != 'mylearn.models.dbn.DBN'):
+            predictions = model.predict(datasets)
+            model.error_metrics(datasets, predictions)
