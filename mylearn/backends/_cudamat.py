@@ -39,9 +39,9 @@ class Cudamat(Backend):
         # a known cudamat issue as described here:
         # https://github.com/cudamat/cudamat/issues/19
 
-    def zeros(self, shape, dtype=float):
+    def zeros(self, shape, dtype=numpy.float32):
         return CudamatTensor(cudamat.CUDAMatrix(
-            numpy.zeros(shape, dtype=numpy.float32)))
+            numpy.zeros(shape, dtype=dtype)))
 
     @staticmethod
     def array(obj):
@@ -150,6 +150,7 @@ class Cudamat(Backend):
             return float('NaN')
         return x.mean()
 
+    @staticmethod
     def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
@@ -167,6 +168,7 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
+    @staticmethod
     def max(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
@@ -184,22 +186,29 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
+    @staticmethod
     def sqrt(self, x, out):
         res = cudamat.sqrt(x._tensor, out._tensor)
         return CudamatTensor(res)
 
+    @staticmethod
     def squish(self, obj, n):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
+    @staticmethod
     def not_equal(self, x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)
         return CudamatTensor(res)
 
+    @staticmethod
     def nonzero(self, x):
-        raise NotImplementedError()
+        res = x._tensor.copy()
+        res.equals(0)
+        res.equals(0)
+        return CudamatTensor(res)
 
     def gen_weights(self, size, weight_params):
         # FIXME: Get rid of duplication.

@@ -2,8 +2,6 @@
 Cross entropy transform functions and classes.
 """
 
-import numpy
-
 from mylearn.transforms.cost import Cost
 
 

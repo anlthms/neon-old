@@ -54,7 +54,9 @@ class RBM(Model):
                 self.update(self.learning_rate, epoch, self.momentum)
 
                 error += self.cost.apply_function(inputs[start_idx:end_idx],
-                    self.layers[0].x_minus[:, 0:(self.layers[0].x_minus.shape[1] - 1)])
+                                                  self.layers[0].x_minus[:,
+                                                  0:(self.layers[0].x_minus.
+                                                     shape[1] - 1)])
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
