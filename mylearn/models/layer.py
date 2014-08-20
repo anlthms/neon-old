@@ -16,8 +16,8 @@ class Layer(object):
     """
     Single NNet layer built to handle data from a particular backend
     """
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
-                 activation, weight_init):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
+                 nout, activation, weight_init):
         self.name = name
         self.backend = backend
         self.weights = self.backend.gen_weights((nout, nin), weight_init)
@@ -88,20 +88,22 @@ class LayerWithNoBias(Layer):
     """
     Single NNet layer with no bias node - temporary code for testing purposes.
     """
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
-                 activation, weight_init):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
+                 nout, activation, weight_init):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-              pos, learning_rate, nin, nout, activation, weight_init)
+                                              pos, learning_rate, nin, nout,
+                                              activation, weight_init)
         if pos > 0:
             self.berror = backend.zeros((batch_size, nin))
 
     def fprop(self, inputs):
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-        if isinstance(self.activation, Identity) == False:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
+        if not isinstance(self.activation, Identity):
+            self.activation.apply_both(self.backend, self.pre_act,
+                                       self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
-        if isinstance(self.activation, Identity) == False:
+        if not isinstance(self.activation, Identity):
             self.backend.multiply(error, self.pre_act, out=self.delta)
         else:
             self.delta = error
@@ -137,11 +139,11 @@ class RBMLayer(Layer):
     CD1 training layer for RBM
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
-                 activation, weight_init):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
+                 nout, activation, weight_init):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
-                                      learning_rate, nin, nout,
-                                      activation, weight_init)
+                                       learning_rate, nin, nout,
+                                       activation, weight_init)
         self.p_hid_plus = backend.zeros((batch_size, self.nout))
         self.s_hid_plus = backend.zeros((batch_size, self.nout))
         self.p_hid_minus = backend.zeros((batch_size, self.nout))
@@ -150,38 +152,44 @@ class RBMLayer(Layer):
         self.diff = backend.zeros((self.nout, nin))
         self.neg_pre_act = backend.zeros((batch_size, self.nin))
         self.x_minus = backend.zeros((batch_size, self.nin))
-        
+
     def positive(self, inputs):
         """
         Positive / upward pass of the CD1 RBM
 
         Arguments:
-           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which
+                                                      to operate
         """
         inputs = self.backend.append_bias(inputs)
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_plus )
+        self.activation.apply_function(self.backend, self.pre_act,
+                                       self.p_hid_plus)
         self.backend.dot(self.p_hid_plus.T(), inputs, out=self.p_plus)
         self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
-        self.backend.greater(self.p_hid_plus, self.random_numbers, out=self.s_hid_plus)
-        #self.s_hid_plus = self.p_hid_plus > self.random_numbers
+        self.backend.greater(self.p_hid_plus, self.random_numbers,
+                             out=self.s_hid_plus)
 
     def negative(self, inputs):
         """
         Negative / downward pass of the CD1 RBM
 
         Arguments:
-           inputs (mylearn.datasets.dataset.Dataset): dataset upon which to operate
+           inputs (mylearn.datasets.dataset.Dataset): dataset upon which
+                                                      to operate
         """
         self.backend.dot(self.s_hid_plus, self.weights, out=self.neg_pre_act)
-        self.activation.apply_function(self.backend, self.neg_pre_act, self.x_minus )
+        self.activation.apply_function(self.backend, self.neg_pre_act,
+                                       self.x_minus)
         self.backend.dot(self.x_minus, self.weights.T(), out=self.pre_act)
-        self.activation.apply_function(self.backend, self.pre_act, self.p_hid_minus)
-        self.backend.dot(self.p_hid_minus.T(), self.x_minus, out=self.p_minus )
+        self.activation.apply_function(self.backend, self.pre_act,
+                                       self.p_hid_minus)
+        self.backend.dot(self.p_hid_minus.T(), self.x_minus,
+                         out=self.p_minus)
 
     def update(self, epsilon, epoch, momentum):
-        """ 
-        CD1 weight update 
+        """
+        CD1 weight update
 
         Arguments:
             epsilon: step size
@@ -189,7 +197,8 @@ class RBMLayer(Layer):
             momentum: not used, for future compatibility
         """
         self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
-        self.backend.multiply(self.diff, self.backend.wrap(epsilon), out=self.diff) 
+        self.backend.multiply(self.diff, self.backend.wrap(epsilon),
+                              out=self.diff)
         self.backend.add(self.weights, self.diff, out=self.weights)
         # epoch, momentum?
 
@@ -200,8 +209,8 @@ class AELayer(LayerWithNoBias):
     in an Autoencoder.
     TODO: merge with generic Layer above.
     """
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin, nout,
-                 activation, weight_init, weights=None):
+    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
+                 nout, activation, weight_init, weights=None):
         super(AELayer, self).__init__(name, backend, batch_size, pos,
                                       learning_rate, nin, nout,
                                       activation, weight_init)
@@ -279,9 +288,9 @@ class ConvLayer(LocalLayer):
         self.nout = self.ofmsize * nfilt
         self.nfilt = nfilt
         self.weights = backend.gen_weights((nfilt, self.fsize),
-                                                weight_init)
+                                           weight_init)
         ofmstarts = backend.array(range(0, (self.ofmsize * nfilt),
-                                       self.ofmsize))
+                                        self.ofmsize))
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
         for dst in xrange(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
@@ -359,7 +368,7 @@ class LocalFilteringLayer(LocalLayer):
         self.nout = self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
-                                                 weight_init)
+                                                weight_init)
 
         self.output = backend.zeros((batch_size, self.nout))
         self.updates = backend.zeros(self.weights.shape)
@@ -405,7 +414,7 @@ class LocalFilteringLayer(LocalLayer):
             rflinks = self.rlinks[dst]
             delta_slice = self.delta[:, dst]
             self.backend.dot(delta_slice.T(),
-                             inputs.take(rflinks,axis=1),
+                             inputs.take(rflinks, axis=1),
                              out=self.updates[dst])
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
@@ -473,6 +482,7 @@ class PoolingLayer(object):
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
 
+
 class MaxPoolingLayer(PoolingLayer):
 
     """
@@ -519,7 +529,7 @@ class MaxPoolingLayer(PoolingLayer):
                 colinds = self.maxinds[:, dst]
                 inds = links.take(colinds, axis=0)
                 self.rberror[range(self.rberror.shape[0]), inds] += (
-                        self.rdelta[:, dst])
+                    self.rdelta[:, dst])
 
 
 class L2PoolingLayer(PoolingLayer):
@@ -599,8 +609,8 @@ class AveragePoolingLayer(PoolingLayer):
             self.rdelta /= self.psize
             for dst in range(self.ofmsize):
                 inds = self.links[dst]
-                self.rberror[:, inds] += (
-                        self.rdelta.take(range(dst, dst + 1), axis=1))
+                self.rberror[:, inds] += (self.rdelta.take(range(dst, dst + 1),
+                                          axis=1))
 
 
 class LCNLayer(LocalLayer):
@@ -671,7 +681,7 @@ class LCNLayer(LocalLayer):
         self.intermed[:] = inputs
         for i in xrange(self.nifm):
             self.intermed[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= (
-                    self.rex_meanfm)
+                self.rex_meanfm)
 
     def div_normalize(self):
         self.backend.multiply(self.intermed, self.intermed, out=self.output)

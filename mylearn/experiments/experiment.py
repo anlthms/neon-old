@@ -42,6 +42,6 @@ class Experiment(object):
             model = Factory.create(**self.model)
             model.fit(datasets)
         if (self.model['type'] != 'mylearn.models.rbm.RBM') and (
-            self.model['type'] != 'mylearn.models.dbn.DBN'):
+                self.model['type'] != 'mylearn.models.dbn.DBN'):
             predictions = model.predict(datasets)
             model.error_metrics(datasets, predictions)

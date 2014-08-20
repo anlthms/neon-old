@@ -31,7 +31,8 @@ conf = {'name': 'testlayer', 'num_nodes': 2,
         'activation': 'mylearn.transforms.logistic.Logistic',
         'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
 activation = Factory.create(type=conf['activation'])
-layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01, nin + 1, nout=conf['num_nodes'] + 1,
+layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01, nin + 1,
+                 nout=conf['num_nodes'] + 1,
                  activation=activation, weight_init=conf['weight_init'])
 
 # create fake cost

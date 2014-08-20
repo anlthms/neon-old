@@ -19,6 +19,7 @@ def logistic(backend, inputs, outputs):
     """
     backend.logistic(inputs, out=outputs)
 
+
 def logistic_derivative(backend, inputs, outputs):
     """
     Applies derivative of the logistic transform to the dataset passed.
@@ -29,6 +30,7 @@ def logistic_derivative(backend, inputs, outputs):
         outputs (array_like): Storage for the transformed output.
     """
     logistic_and_derivative(backend, inputs, outputs)
+
 
 def logistic_and_derivative(backend, inputs, outputs):
     """
@@ -73,4 +75,3 @@ class Logistic(Activation):
         Apply the logistic activation function and its derivative.
         """
         return logistic_and_derivative(backend, inputs, outputs)
-

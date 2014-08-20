@@ -58,9 +58,9 @@ class Activation(object):
 
         Arguments:
             backend (Backend): The backend class to use for computation.
-            inputs (array_like): Input data to be transformed. This also acts as
-                                 storage for the output of the derivative
-                                 function.
+            inputs (array_like): Input data to be transformed. This also
+                                 acts as storage for the output of the
+                                 derivative function.
             outputs (array_like): Storage for the transformed output.
 
         Raises:

@@ -300,10 +300,8 @@ class CudamatTensor(Tensor):
 
             if type(obj) == numpy.ndarray:
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
-                # (though the elements can be tuples/lists to create arbitrary n
-                # dimensions)
-                #if isinstance(obj, (float, int, str, list, tuple)):
-                #    obj = numpy.array(obj)
+                # (though the elements can be tuples/lists to create arbitrary
+                # n dimensions)
                 while obj.ndim < 2:
                     obj = obj.reshape(obj.shape + (1, ))
                 if obj.ndim != 2:
