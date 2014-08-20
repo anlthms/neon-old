@@ -471,7 +471,15 @@ class CudamatTensor(Tensor):
                     raise TooSlowToImplementError("arbitrary "
                                                   "indexing")
         else:
-            raise IndexError("Cudamat only supports 2-D fancy indexing")
+            # 1-D index, check for form x[:] = value
+            if isinstance(key, slice):
+                start, stop, stride = key.indices(self.shape[0])
+                if start == 0 and stop == self.shape[0]:
+                    self._tensor.assign(value)
+                else:
+                    raise IndexError("1-D partial indexing unsupported")
+            else:
+                raise IndexError("Invalid 1-D index type")
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")

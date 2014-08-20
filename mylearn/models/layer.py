@@ -5,7 +5,6 @@ backend.
 
 import logging
 from mylearn.transforms.gaussian import gaussian_filter
-from mylearn.transforms.linear import Identity
 
 
 logger = logging.getLogger(__name__)
@@ -98,15 +97,10 @@ class LayerWithNoBias(Layer):
 
     def fprop(self, inputs):
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-        if not isinstance(self.activation, Identity):
-            self.activation.apply_both(self.backend, self.pre_act,
-                                       self.output)
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
-        if not isinstance(self.activation, Identity):
-            self.backend.multiply(error, self.pre_act, out=self.delta)
-        else:
-            self.delta = error
+        self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
 
