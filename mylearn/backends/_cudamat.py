@@ -151,7 +151,7 @@ class Cudamat(Backend):
         return x.mean()
 
     @staticmethod
-    def min(self, x, axis=None, out=None, keepdims=False):
+    def min(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -169,7 +169,7 @@ class Cudamat(Backend):
         return CudamatTensor(res)
 
     @staticmethod
-    def max(self, x, axis=None, out=None, keepdims=False):
+    def max(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -187,24 +187,24 @@ class Cudamat(Backend):
         return CudamatTensor(res)
 
     @staticmethod
-    def sqrt(self, x, out):
+    def sqrt(x, out):
         res = cudamat.sqrt(x._tensor, out._tensor)
         return CudamatTensor(res)
 
     @staticmethod
-    def squish(self, obj, n):
+    def squish(obj, n):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
     @staticmethod
-    def not_equal(self, x, y):
+    def not_equal(x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)
         return CudamatTensor(res)
 
     @staticmethod
-    def nonzero(self, x):
+    def nonzero(x):
         res = x._tensor.copy()
         res.equals(0)
         res.equals(0)

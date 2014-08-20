@@ -173,23 +173,23 @@ class Numpy(Backend):
             return NumpyTensor(res)
 
     @staticmethod
-    def sqrt(self, x, out):
+    def sqrt(x, out):
         res = np.sqrt(x._tensor, out._tensor)
         return NumpyTensor(res)
 
     @staticmethod
-    def squish(self, obj, n):
+    def squish(obj, n):
         """ reshape a tensor by increasing the first dimensions by factor n, and
         shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
     @staticmethod
-    def not_equal(self, x, y):
+    def not_equal(x, y):
         return NumpyTensor(np.not_equal(x._tensor, y._tensor))
 
     @staticmethod
-    def nonzero(self, x):
+    def nonzero(x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
 
     def gen_weights(self, size, weight_params):
