@@ -33,10 +33,11 @@ class Numpy(Backend):
         return NumpyTensor(obj)
 
     def rng_init(self):
+        seed = None
         if 'rng_seed' in self.__dict__:
-            np.random.seed(self.rng_seed)
-        else:
-            raise AttributeError("rng_seed not specified in config")
+            seed = self.rng_seed
+            logger.info("Seeding random number generator with: %s" % str(seed))
+        np.random.seed(seed)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         """

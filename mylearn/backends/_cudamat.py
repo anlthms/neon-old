@@ -29,8 +29,15 @@ class Cudamat(Backend):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.rng_init()
         cudamat.cublas_init()
+        self.rng_init()
+
+    def __del__(self):
+        pass
+        # cudamat.cublas_shutdown()
+        # the above is what we ought to do, but generates Exceptions due to
+        # a known cudamat issue as described here:
+        # https://github.com/cudamat/cudamat/issues/19
 
     def zeros(self, shape, dtype=float):
         return CudamatTensor(cudamat.CUDAMatrix(
@@ -48,10 +55,17 @@ class Cudamat(Backend):
         return CudamatTensor(obj)
 
     def rng_init(self):
+        seed = None
         if 'rng_seed' in self.__dict__:
-            numpy.random.seed(self.rng_seed)
-        else:
-            raise AttributeError("rng_seed not specified in config")
+            seed = self.rng_seed
+        numpy.random.seed(seed)
+        try:
+            cudamat.CUDAMatrix.init_random(seed)
+        except TypeError:
+            if seed is not None:
+                logger.warn("Must seed random number generator with an "
+                            "integer.  You specified: %s" % str(seed))
+            cudamat.CUDAMatrix.init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
