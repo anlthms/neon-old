@@ -132,7 +132,8 @@ class MLP(Model):
                                  self.layers[i - 1].output,
                                  epoch, momentum)
         # Update the first hidden layer.
-        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch, momentum)
+        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch,
+                                 momentum)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
