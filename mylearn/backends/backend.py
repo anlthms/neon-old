@@ -3,23 +3,19 @@
 Houses low-level code for performing underlying data manipulation operations.
 """
 
-import yaml
+from mylearn.util.persist import YAMLable
 
 
-class Backend(yaml.YAMLObject):
+class Backend(YAMLable):
     """
     Generic backend used to manipulate data.  This abstract
     base class defines what operation each concrete backend must support.
     Inherits configuration file handling via `yaml.YAMLObject
     <http://pyyaml.org/wiki/PyYAMLDocumentation#YAMLObject>`_
 
-    Attributes:
-        yaml_loader (yaml.SafeLoader): parser used to load backend.
-
     Notes:
         See the list of `implemented backends </backends.html>`_
     """
-    yaml_loader = yaml.SafeLoader
 
     @staticmethod
     def array(obj, dtype=None, copy=True, order=None, subok=False,

@@ -8,7 +8,6 @@ import logging
 import sys
 
 import mylearn
-from mylearn.experiments.fit_predict_err import FitPredictErrorExperiment
 from mylearn.util.persist import deserialize
 
 
@@ -31,13 +30,11 @@ def main():
     """
     # read in yaml configuration and initialize objects
     args = parse_args()
-    experiment = FitPredictErrorExperiment(**deserialize(args.yaml_file))
+    experiment = deserialize(args.yaml_file)
 
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)
-    else:
-        logging.basicConfig()
-    
+
     # carry out the experiment
     experiment.run()
 

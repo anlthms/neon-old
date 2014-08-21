@@ -11,18 +11,37 @@ logger = logging.getLogger(__name__)
 
 
 class Layer(object):
-
     """
     Single NNet layer built to handle data from a particular backend
+
+    Attributes:
+        name (str): Used to identify this layer when logging.
+        backend (mylearn.backends.backend.Backend): underlying type for stored
+                                                    data parameters like
+                                                    weights.
+        batch_size (int): Number of examples presented at each iteration
+        pos (int): The layers position (0-based)
+        weights (mylearn.backends.backend.Tensor): weight values associated
+                                                   with each node.
+        activation (mylearn.transforms.activation.Activation): activation
+                   function to apply to each node during a forward propogation
+        nin (int): Number of inputs to this layer.
+        nout (int): Number of outputs from this layer.
+        output (mylearn.backends.backend.Tensor): final transformed output
+                                                  values from this layer.
+        pre_act (mylearn.backends.backend.Tensor): intermediate node values
+                                                   from this layer prior
+                                                   to applying activation
+                                                   transform.
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
                  nout, activation, weight_init):
         self.name = name
         self.backend = backend
-        self.weights = self.backend.gen_weights((nout, nin), weight_init)
         self.activation = activation
         self.nin = nin
         self.nout = nout
+        self.weights = self.backend.gen_weights((nout, nin), weight_init)
         self.velocity = self.backend.zeros(self.weights.shape)
         self.delta = backend.zeros((batch_size, nout))
         self.updates = backend.zeros((nout, nin))
