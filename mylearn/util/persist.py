@@ -78,9 +78,9 @@ def deserialize(load_path):
     global yaml_initialized
     if not isinstance(load_path, file):
         load_path = file(load_path)
-    logger.info("deserializing object from:  %s" % load_path.name)
-    if (load_path.name.lower().endswith('.yaml') or 
-        load_path.name.lower().endswith('.yml')):
+    fname = load_path.name
+    logger.info("deserializing object from:  %s" % fname)
+    if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
         if not yaml_initialized:
             initialize_yaml()
         return yaml.safe_load(load_path)
@@ -93,7 +93,7 @@ def serialize(obj, save_path):
     Dumps a python data structure to a saved on-disk representation.  We
     currently support writing to the following file formats (expected filename
     extension in brackets):
-    
+
         * python pickle (.pkl)
 
     Arguments:

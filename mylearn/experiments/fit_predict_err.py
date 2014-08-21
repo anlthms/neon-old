@@ -4,10 +4,8 @@ is evaluated on the predictions made.
 """
 
 import logging
-import os
 
 from mylearn.experiments.fit import FitExperiment
-from mylearn.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
 

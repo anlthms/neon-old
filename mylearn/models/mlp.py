@@ -26,8 +26,7 @@ class MLP(Model):
         logger.info('commencing model fitting')
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
-        nrecs, nin = inputs.shape
-        self.backend.rng_init()
+        nrecs = inputs.shape[0]
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs

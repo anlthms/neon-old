@@ -5,12 +5,13 @@ backend.
 
 import logging
 from mylearn.transforms.gaussian import gaussian_filter
+from mylearn.util.persist import YAMLable
 
 
 logger = logging.getLogger(__name__)
 
 
-class Layer(object):
+class Layer(YAMLable):
     """
     Single NNet layer built to handle data from a particular backend
 
