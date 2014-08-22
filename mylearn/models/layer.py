@@ -375,7 +375,7 @@ class LocalFilteringLayer(LocalLayer):
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, 1))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.recon = backend.zeros((batch_size, nifm * self.ifmsize)) 
+        self.recon = backend.zeros((batch_size, nifm * self.ifmsize))
 
     def __str__(self):
         return ("LocalFilteringLayer %s: %d ifms, "
@@ -388,7 +388,7 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def pretrain(self, inputs):
-        #TODO
+        # TODO
         pass
 
     def fprop(self, inputs):

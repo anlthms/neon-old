@@ -58,7 +58,7 @@ class GB(MLP):
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
                     output = inputs[start_idx:end_idx]
                     # Forward propagate the input all the way to
-                    # the layer that we are pretraining. 
+                    # the layer that we are pretraining.
                     for i in range(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
