@@ -365,6 +365,7 @@ class LocalFilteringLayer(LocalLayer):
                                                   pos, learning_rate,
                                                   nifm, ifmshape, fshape,
                                                   stride)
+        self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nout = self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
@@ -374,6 +375,7 @@ class LocalFilteringLayer(LocalLayer):
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, 1))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
+        self.recon = backend.zeros((batch_size, nifm * self.ifmsize)) 
 
     def __str__(self):
         return ("LocalFilteringLayer %s: %d ifms, "
@@ -384,6 +386,10 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.mean(self.weights),
                  self.backend.min(self.weights),
                  self.backend.max(self.weights)))
+
+    def pretrain(self, inputs):
+        #TODO
+        pass
 
     def fprop(self, inputs):
         for dst in xrange(self.ofmsize):
