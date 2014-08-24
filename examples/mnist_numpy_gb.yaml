@@ -1,0 +1,113 @@
+# Experiment settings to train/test a GB model on MNIST.
+
+backend: {
+  type: mylearn.backends._numpy.Numpy,
+  rng_seed: 0,
+}
+
+datasets: [
+  # MNIST data
+  {
+    #type: !!python/object:dataset.MNIST,
+    type: mylearn.datasets.mnist.MNIST,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+    serialized_path: '/usr/local/data/mnist/mnist_10pct-Numpy.pkl',
+  },
+]
+
+# GB model specification
+model: {
+  type: mylearn.models.gb.GB,
+  layers: [
+    {
+      name: layer1,
+      connectivity: lf,
+      num_input_channels: 1,
+      input_shape: 28 28,
+      filter_shape: 5 5,
+      stride: 1,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer2,
+      connectivity: l2pool,
+      num_channels: 1,
+      input_shape: 24 24,
+      pooling_shape: 2 2,
+      stride: 1,
+    },
+    {
+      name: layer3,
+      connectivity: lcn,
+      num_channels: 1,
+      input_shape: 23 23,
+      filter_shape: 5 5,
+      stride: 1,
+    },
+    {
+      name: layer4,
+      connectivity: lf,
+      num_input_channels: 1,
+      input_shape: 23 23,
+      filter_shape: 5 5,
+      stride: 1,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+    {
+      name: layer5,
+      connectivity: l2pool,
+      num_channels: 1,
+      input_shape: 19 19,
+      pooling_shape: 2 2,
+      stride: 1,
+    },
+    {
+      name: layer7,
+      connectivity: lcn,
+      num_channels: 1,
+      input_shape: 18 18,
+      filter_shape: 3 3,
+      stride: 1,
+    },
+    {
+      name: output,
+      connectivity: full,
+      num_nodes: 10,
+      activation: mylearn.transforms.logistic.Logistic,
+      weight_init: {
+        type: uniform,
+        low: -0.1,
+        high: 0.1,
+      },
+    },
+  ],
+  num_pretraining_epochs: 2,
+  num_epochs: 2,
+  batch_size: 100,
+  learning_rate: 0.1,
+  momentum: {
+    type: linear_monotone,
+    initial_coef: 0.99,
+    start_epoch: 5,
+    saturate_epoch: 5,
+    saturated_coef: 0.90,
+  },
+  pretraining_cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
+  cost: mylearn.transforms.cross_entropy.CrossEntropy,
+}
+
+
+# logging options that are passed to logging.basicConfig
+logging: {
+  level: 10,  #logging.DEBUG == 10
+  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+}

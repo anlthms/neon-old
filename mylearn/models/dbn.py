@@ -43,6 +43,7 @@ class DBN(Model):
             layers.append(layer)
             nin = layer.nout - 1  # strip off bias again
         self.layers = layers
+        self.temp = self.backend.zeros((self.batch_size, inputs.shape[1]))
 
         # Part 1: Unsupervised pretraining
         for i in xrange(self.nlayers):
@@ -74,9 +75,11 @@ class DBN(Model):
                     self.negative(inputs[start_idx:end_idx], i)
                     self.update(self.learning_rate, epoch, self.momentum, i)
                     error += self.cost.apply_function(
+                                self.backend,
                                 inputs[start_idx:end_idx],
                                 self.layers[i].x_minus[:,
-                                0:(self.layers[i].x_minus.shape[1] - 1)])
+                                0:(self.layers[i].x_minus.shape[1] - 1)],
+                                self.temp)
                 logger.info('epoch: %d, total training error: %0.5f' %
                             (epoch, error / num_batches))
         # Part 2: up-down finetuning ... [not implemented yet]

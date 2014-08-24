@@ -40,6 +40,7 @@ class RBM(Model):
             logger.info('created layer:\n\t%s' % str(layer))
             layers.append(layer)
         self.layers = layers
+        self.temp = self.backend.zeros((self.batch_size, nin))
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -53,8 +54,11 @@ class RBM(Model):
                 self.negative(inputs[start_idx:end_idx])
                 self.update(self.learning_rate, epoch, self.momentum)
 
-                error += self.cost.apply_function(inputs[start_idx:end_idx],
-                    self.layers[0].x_minus[:, 0:(self.layers[0].x_minus.shape[1] - 1)])
+                error += self.cost.apply_function(self.backend,
+                                                  inputs[start_idx:end_idx],
+                                                  self.layers[0].x_minus[:,
+                                                  0:(self.layers[0].x_minus.shape[1] - 1)],
+                                                  self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 

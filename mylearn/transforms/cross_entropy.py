@@ -12,8 +12,10 @@ def cross_entropy(backend, outputs, targets, temp):
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
     Arguments:
+        backend (Backend): The backend class to use for computation.
         outputs (array_like): predicted output values to be compared.
         targets (array_like): known outcome values to be compared against.
+        temp (array_like): temporary buffers.
 
     Returns:
         array_like: Calculated cross entropy values for each element.  Will
@@ -39,8 +41,10 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
     outputs and targets.
 
     Arguments:
+        backend (Backend): The backend class to use for computation.
         outputs (array_like): predicted output values to be compared.
         targets (array_like): known outcome values to be compared against.
+        temp (array_like): temporary buffers.
 
     Returns:
         array_like: Calculated cross entropy values for each element.  Will
