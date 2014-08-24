@@ -105,7 +105,7 @@ class Layer(YAMLable):
 class LayerWithNoBias(Layer):
 
     """
-    Single NNet layer with no bias node - temporary code for testing purposes.
+    Single NNet layer with no bias node
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
                  nout, activation, weight_init):
@@ -232,7 +232,7 @@ class AELayer(LayerWithNoBias):
             self.weights = weights
 
 
-class LocalLayer(object):
+class LocalLayer(YAMLable):
 
     """
     Base class for locally connected layers.
@@ -436,7 +436,7 @@ class LocalFilteringLayer(LocalLayer):
         self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
-class PoolingLayer(object):
+class PoolingLayer(YAMLable):
 
     """
     Base class for pooling layers.
@@ -487,11 +487,46 @@ class PoolingLayer(object):
         self.output = backend.zeros((batch_size, self.nout))
         self.delta = backend.zeros((batch_size, self.nout))
 
-        # Reshape the matrices to have a single row per feature map.
+        # setup reshaped view variables
+        self._init_reshaped_views()
+
+    def _init_reshaped_views(self):
+        """
+        Initialize reshaped view references to the arrays such that there is a
+        single row per feature map.
+        """
         self.rdelta = self.backend.squish(self.delta, self.nfm)
         self.routput = self.backend.squish(self.output, self.nfm)
-        if pos > 0:
+        if self.pos > 0:
             self.rberror = self.backend.squish(self.berror, self.nfm)
+
+    def __getstate__(self):
+        """
+        Fine-grained control over the serialization to disk of an instance of
+        this class.
+        """
+        # since we will load a shared memory view, prevent writing reshaped
+        # object copies to disk
+        res = self.__dict__.copy()
+        res['rdelta'] = None
+        res['routput'] = None
+        if self.pos > 0:
+            res['rberror'] = None
+        return res
+
+    def __setstate__(self, state):
+        """
+        Fine-grained control over the loading of serialized object
+        representation of this class.
+
+        In this case we need to ensure that reshaped view references are
+        restored (copies of these variables are created when writing to disk)
+
+        Arguments:
+            state (dict): keyword attribute values to be loaded.
+        """
+        self.__dict__.update(state)
+        self._init_reshaped_views()
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
@@ -512,12 +547,16 @@ class MaxPoolingLayer(PoolingLayer):
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
                 "utilizing %s backend\n\t"
-                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t" %
+                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t"
+                "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.maxinds),
                  self.backend.min(self.maxinds),
-                 self.backend.max(self.maxinds)))
+                 self.backend.max(self.maxinds),
+                 self.backend.mean(self.output),
+                 self.backend.min(self.output),
+                 self.backend.max(self.output)))
 
     def fprop(self, inputs):
         # Reshape the input so that we have a separate row

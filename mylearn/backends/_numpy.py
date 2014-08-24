@@ -529,6 +529,10 @@ class NumpyTensor(Tensor):
         return NumpyTensor(self._tensor.T)
 
     def reshape(self, shape):
+        # TODO: Some layer code (ex. PoolingLayer) currently depends
+        # on squish/reshape always returning a view of the existing
+        # data, but numpy.reshape does not guarantee this.  We should remove
+        # reliance on this dependency.
         return NumpyTensor(self._tensor.reshape(shape))
 
     def argmax(self, axis):

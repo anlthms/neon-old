@@ -18,12 +18,17 @@ class MLP(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        for req_param in ['layers']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
 
     def fit(self, datasets):
         """
         Learn model weights on the given datasets.
         """
-        logger.info('commencing model fitting')
+        for layer in self.layers:
+            logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
         nrecs = inputs.shape[0]
@@ -36,6 +41,7 @@ class MLP(Model):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):

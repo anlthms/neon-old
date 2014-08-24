@@ -85,11 +85,11 @@ class MNIST(Dataset):
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
                 train_idcs = range(60000)
-                if self.sample_pct < 100:
-                    numpy.random.shuffle(train_idcs)
                 if 'sample_pct' in self.__dict__:
                     if self.sample_pct > 1.0:
                         self.sample_pct /= 100.0
+                    if self.sample_pct < 1.0:
+                        numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
