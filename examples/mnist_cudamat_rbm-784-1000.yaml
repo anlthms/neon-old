@@ -1,61 +1,64 @@
 # Experiment settings to train/test a RBM on MNIST.
 # template for DBM layers
 
-backend: {
-  type: mylearn.backends._cudamat.Cudamat,
-  rng_seed: 0,
-}
-
-datasets: [
-  # MNIST data
-  {
-    #type: !!python/object:dataset.MNIST,
-    type: mylearn.datasets.mnist.MNIST,
-    repo_path: '/usr/local/data',
-    sample_pct: 100,
-    serialized_path: '/usr/local/data/mnist/mnist-Cudamat.pkl',
+!obj:mylearn.experiments.fit.FitExperiment {
+  backend: &be !obj:mylearn.backends._cudamat.Cudamat {
+    rng_seed: 0,
   },
-]
 
-# RBM model specification
-model: {
-  type: mylearn.models.rbm.RBM,
-  layers: [
-    {
-      name: vis2hid,
-      connectivity: full,
-      num_nodes: 1000,
-      activation: mylearn.transforms.logistic.Logistic,
-      weight_init: {
-        type: normal,
-        loc: 0.0,
-        scale: 0.01,
-      },
+  datasets: [
+    # MNIST data
+    !obj:mylearn.datasets.mnist.MNIST {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+      serialized_path: '/usr/local/data/mnist/mnist-Cudamat.pkl',
     },
   ],
-  num_epochs: 60,
-  batch_size: 100,
-  learning_rate: 0.01,
-  momentum: {
-    type: linear_monotone, #constant, nesterov
-    initial_coef: 0.99,
-    start_epoch: 5,
-    saturate_epoch: 5,
-    saturated_coef: 0.90,
+  
+  # RBM model specification
+  model: !obj:mylearn.models.rbm.RBM {
+    num_epochs: 60,
+    batch_size: &bs 100,
+    learning_rate: &lr 0.01,
+    momentum: {
+      type: linear_monotone, #constant, nesterov
+      initial_coef: 0.99,
+      start_epoch: 5,
+      saturate_epoch: 5,
+      saturated_coef: 0.90,
+    },
+    cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
+    serialized_path: './rbm-cudamat60.pkl',
+    layers: [
+      !obj:mylearn.models.layer.RBMLayer {
+        name: vis2hid,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rate: *lr,
+        nin: 785, # num inputs + 1 for bias
+        nout: 1001, # num outputs + 1 for bias
+        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        weight_init: {
+          type: normal,
+          loc: 0.0,
+          scale: 0.01,
+        },
+      },
+    ],
   },
-  cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
-  serialized_path: './rbm-cudamat60.pkl',
-}
-
-# logging options that are passed to logging.basicConfig
-# level value thresholds (set level lower to display them):
-#   CRITICAL 50
-#   ERROR    40
-#   WARNING  30
-#   INFO     20
-#   DEBUG    10
-#   NOTSET    0
-logging: {
-  level: 20,
-  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
 }
