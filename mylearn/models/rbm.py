@@ -4,9 +4,7 @@ Simple restricted Boltzmann Machine model.
 
 import logging
 import math
-from mylearn.models.layer import RBMLayer
 from mylearn.models.model import Model
-from mylearn.util.factory import Factory
 
 logger = logging.getLogger(__name__)
 
