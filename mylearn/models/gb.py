@@ -16,11 +16,6 @@ class GB(MLP):
     Google Brain class
     """
 
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        #if isinstance(self.pretrain_cost, str):
-        #    self.pretrain_cost = Factory.create(type=self.pretrain_cost)
-
     def pretrain(self, inputs):
         logger.info('commencing unsupervised pretraining')
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
@@ -82,7 +77,7 @@ class GB(MLP):
             self.batch_size = nrecs
         self.trainable_layers = []
         for ind in xrange(self.nlayers):
-            layer = self.layers[ind] 
+            layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)
                 layer.pretrain_mode()
