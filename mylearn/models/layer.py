@@ -373,8 +373,54 @@ class LocalFilteringLayer(LocalLayer):
     are not shared.
     """
 
+    class DeFilter(object):
+        """
+        Local defiltering layer. This reverses the actions
+        of a filtering layer.
+        """
+        def __init__(self, prev):
+            self.output = prev.backend.zeros((prev.batch_size, prev.nin))
+            self.weights = prev.weights.copy()
+            self.updates = prev.backend.zeros(self.weights.shape)
+            self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
+            self.bpropbuf = prev.backend.zeros((prev.batch_size, 1))
+            self.berror = prev.backend.zeros((prev.batch_size, prev.ofmsize))
+            self.temp = [prev.backend.zeros(self.output.shape)]
+            self.learning_rate = prev.pretrain_learning_rate
+            self.backend = prev.backend
+            self.rlinks = prev.rlinks
+            self.prev = prev
+
+        def fprop(self, inputs):
+            self.backend.clear(self.output)
+            for dst in xrange(self.prev.ofmsize):
+                rflinks = self.rlinks[dst]
+                self.backend.dot(inputs[:, dst:(dst + 1)],
+                                 self.weights[dst:(dst + 1)],
+                                 out=self.prodbuf)
+                self.output[:, rflinks] += self.prodbuf
+
+        def bprop(self, error, inputs, epoch, momentum):
+            for dst in xrange(self.prev.ofmsize):
+                rflinks = self.rlinks[dst]
+                self.backend.dot(error[:, rflinks],
+                                 self.weights[dst:(dst + 1)].T(),
+                                 out=self.bpropbuf)
+                self.berror[:, dst:(dst+1)] = self.bpropbuf
+
+            for dst in xrange(self.prev.ofmsize):
+                rflinks = self.rlinks[dst]
+                delta_slice = error[:, rflinks]
+                self.backend.dot(self.output[:, dst:(dst+1)].T(), delta_slice,
+                                 out=self.updates[dst:(dst+1)])
+            self.backend.multiply(self.updates,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=self.updates)
+            self.backend.subtract(self.weights, self.updates, out=self.weights)
+
     def __init__(self, name, backend, batch_size, pos, learning_rate,
-                 nifm, ifmshape, fshape, stride, weight_init):
+                 nifm, ifmshape, fshape, stride, weight_init, pretrain=True,
+                 pretrain_learning_rate=0.0):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rate,
                                                   nifm, ifmshape, fshape,
@@ -384,12 +430,13 @@ class LocalFilteringLayer(LocalLayer):
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
                                                 weight_init)
-
-        self.output = backend.zeros((batch_size, self.nout))
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, 1))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.recon = backend.zeros((batch_size, nifm * self.ifmsize))
+        if pretrain is True:
+            self.pretrain_learning_rate = pretrain_learning_rate
+            self.train_learning_rate = self.learning_rate
+            self.defilter = LocalFilteringLayer.DeFilter(self)
 
     def __str__(self):
         return ("LocalFilteringLayer %s: %d ifms, "
@@ -401,9 +448,30 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.min(self.weights),
                  self.backend.max(self.weights)))
 
-    def pretrain(self, inputs):
-        # TODO
-        pass
+    def pretrain_mode(self):
+        self.learning_rate = self.pretrain_learning_rate
+
+    def train_mode(self):
+        self.learning_rate = self.train_learning_rate
+
+    def pretrain(self, inputs, cost, epoch, momentum):
+        # Forward propagate the input through this layer and a
+        # defiltering layer to reconstruct the input.
+        self.fprop(inputs)
+        self.defilter.fprop(self.output)
+
+        # Now backward propagate the reconstruction error through
+        # the defiltering layer and the current layer, in order to
+        # update the weights.
+        error = cost.apply_derivative(self.backend, self.defilter.output,
+                                      inputs, self.defilter.temp)
+        self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
+                            out=error)
+        self.defilter.bprop(error, self.output, epoch, momentum)
+        self.bprop(self.defilter.berror, inputs, epoch, momentum)
+        error = cost.apply_function(self.backend, self.defilter.output,
+                                    inputs, self.defilter.temp)
+        return error
 
     def fprop(self, inputs):
         for dst in xrange(self.ofmsize):

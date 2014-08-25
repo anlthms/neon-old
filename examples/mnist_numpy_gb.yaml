@@ -18,10 +18,11 @@
   
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
-    num_pretraining_epochs: 2,
     num_epochs: 2,
+    num_pretrain_epochs: 4,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
+    pretrain_learning_rate: &plr 0.00001,
     momentum: {
       type: linear_monotone,
       initial_coef: 0.99,
@@ -29,7 +30,7 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    pretraining_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
+    pretrain_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:mylearn.models.layer.LocalFilteringLayer {
@@ -38,6 +39,7 @@
         batch_size: *bs,
         pos: 0,
         learning_rate: *lr,
+        pretrain_learning_rate: *plr,
         nifm: 1,
         ifmshape: [28, 28],
         fshape: [5, 5],
@@ -74,6 +76,7 @@
         batch_size: *bs,
         pos: 3,
         learning_rate: *lr,
+        pretrain_learning_rate: *plr,
         nifm: 1,
         ifmshape: [23, 23],
         fshape: [5, 5],
