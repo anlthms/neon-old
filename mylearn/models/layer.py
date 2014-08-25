@@ -5,25 +5,44 @@ backend.
 
 import logging
 from mylearn.transforms.gaussian import gaussian_filter
-from mylearn.transforms.linear import Identity
+from mylearn.util.persist import YAMLable
 
 
 logger = logging.getLogger(__name__)
 
 
-class Layer(object):
-
+class Layer(YAMLable):
     """
     Single NNet layer built to handle data from a particular backend
+
+    Attributes:
+        name (str): Used to identify this layer when logging.
+        backend (mylearn.backends.backend.Backend): underlying type for stored
+                                                    data parameters like
+                                                    weights.
+        batch_size (int): Number of examples presented at each iteration
+        pos (int): The layers position (0-based)
+        weights (mylearn.backends.backend.Tensor): weight values associated
+                                                   with each node.
+        activation (mylearn.transforms.activation.Activation): activation
+                   function to apply to each node during a forward propogation
+        nin (int): Number of inputs to this layer.
+        nout (int): Number of outputs from this layer.
+        output (mylearn.backends.backend.Tensor): final transformed output
+                                                  values from this layer.
+        pre_act (mylearn.backends.backend.Tensor): intermediate node values
+                                                   from this layer prior
+                                                   to applying activation
+                                                   transform.
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
                  nout, activation, weight_init):
         self.name = name
         self.backend = backend
-        self.weights = self.backend.gen_weights((nout, nin), weight_init)
         self.activation = activation
         self.nin = nin
         self.nout = nout
+        self.weights = self.backend.gen_weights((nout, nin), weight_init)
         self.velocity = self.backend.zeros(self.weights.shape)
         self.delta = backend.zeros((batch_size, nout))
         self.updates = backend.zeros((nout, nin))
@@ -86,7 +105,7 @@ class Layer(object):
 class LayerWithNoBias(Layer):
 
     """
-    Single NNet layer with no bias node - temporary code for testing purposes.
+    Single NNet layer with no bias node
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
                  nout, activation, weight_init):
@@ -98,16 +117,10 @@ class LayerWithNoBias(Layer):
 
     def fprop(self, inputs):
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-        if not isinstance(self.activation, Identity):
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
-        else:
-            self.output = self.pre_act
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
-        if not isinstance(self.activation, Identity):
-            self.backend.multiply(error, self.pre_act, out=self.delta)
-        else:
-            self.delta = error
+        self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
 
@@ -219,7 +232,7 @@ class AELayer(LayerWithNoBias):
             self.weights = weights
 
 
-class LocalLayer(object):
+class LocalLayer(YAMLable):
 
     """
     Base class for locally connected layers.
@@ -406,7 +419,7 @@ class LocalFilteringLayer(LocalLayer):
             self.backend.subtract(self.weights, self.updates, out=self.weights)
 
     def __init__(self, name, backend, batch_size, pos, learning_rate,
-                 nifm, ifmshape, fshape, stride, weight_init, pretrain=False,
+                 nifm, ifmshape, fshape, stride, weight_init, pretrain=True,
                  pretrain_learning_rate=0.0):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rate,
@@ -497,7 +510,7 @@ class LocalFilteringLayer(LocalLayer):
         self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
-class PoolingLayer(object):
+class PoolingLayer(YAMLable):
 
     """
     Base class for pooling layers.
@@ -548,11 +561,46 @@ class PoolingLayer(object):
         self.output = backend.zeros((batch_size, self.nout))
         self.delta = backend.zeros((batch_size, self.nout))
 
-        # Reshape the matrices to have a single row per feature map.
+        # setup reshaped view variables
+        self._init_reshaped_views()
+
+    def _init_reshaped_views(self):
+        """
+        Initialize reshaped view references to the arrays such that there is a
+        single row per feature map.
+        """
         self.rdelta = self.backend.squish(self.delta, self.nfm)
         self.routput = self.backend.squish(self.output, self.nfm)
-        if pos > 0:
+        if self.pos > 0:
             self.rberror = self.backend.squish(self.berror, self.nfm)
+
+    def __getstate__(self):
+        """
+        Fine-grained control over the serialization to disk of an instance of
+        this class.
+        """
+        # since we will load a shared memory view, prevent writing reshaped
+        # object copies to disk
+        res = self.__dict__.copy()
+        res['rdelta'] = None
+        res['routput'] = None
+        if self.pos > 0:
+            res['rberror'] = None
+        return res
+
+    def __setstate__(self, state):
+        """
+        Fine-grained control over the loading of serialized object
+        representation of this class.
+
+        In this case we need to ensure that reshaped view references are
+        restored (copies of these variables are created when writing to disk)
+
+        Arguments:
+            state (dict): keyword attribute values to be loaded.
+        """
+        self.__dict__.update(state)
+        self._init_reshaped_views()
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
@@ -573,12 +621,16 @@ class MaxPoolingLayer(PoolingLayer):
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
                 "utilizing %s backend\n\t"
-                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t" %
+                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t"
+                "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.maxinds),
                  self.backend.min(self.maxinds),
-                 self.backend.max(self.maxinds)))
+                 self.backend.max(self.maxinds),
+                 self.backend.mean(self.output),
+                 self.backend.min(self.output),
+                 self.backend.max(self.output)))
 
     def fprop(self, inputs):
         # Reshape the input so that we have a separate row

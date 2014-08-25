@@ -47,10 +47,12 @@ We want to strive to have as few of these as possible
 
 
 ## Issue Tracking ##
-* http://192.168.20.2/algorithms/mylearn/issues
+* http://nervanasys.atlassian.net/browse/MYL
 
 
 ## Documentation ##
+* [Main Source](http://192.168.20.2:5700)
+* [Developer Guide](http://192.168.20.2:5700/developing_mylearn.html)
 * [API](http://192.168.20.2:5700)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model)
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture)

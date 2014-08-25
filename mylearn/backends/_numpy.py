@@ -33,10 +33,11 @@ class Numpy(Backend):
         return NumpyTensor(obj)
 
     def rng_init(self):
+        seed = None
         if 'rng_seed' in self.__dict__:
-            np.random.seed(self.rng_seed)
-        else:
-            raise AttributeError("rng_seed not specified in config")
+            seed = self.rng_seed
+            logger.info("Seeding random number generator with: %s" % str(seed))
+        np.random.seed(seed)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         """
@@ -171,20 +172,24 @@ class Numpy(Backend):
         else:
             return NumpyTensor(res)
 
-    def sqrt(self, x, out):
+    @staticmethod
+    def sqrt(x, out):
         res = np.sqrt(x._tensor, out._tensor)
         return NumpyTensor(res)
 
-    def squish(self, obj, n):
+    @staticmethod
+    def squish(obj, n):
         """ reshape a tensor by increasing the first dimensions by factor n, and
         shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    def not_equal(self, x, y):
+    @staticmethod
+    def not_equal(x, y):
         return NumpyTensor(np.not_equal(x._tensor, y._tensor))
 
-    def nonzero(self, x):
+    @staticmethod
+    def nonzero(x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
 
     def gen_weights(self, size, weight_params):
@@ -524,6 +529,10 @@ class NumpyTensor(Tensor):
         return NumpyTensor(self._tensor.T)
 
     def reshape(self, shape):
+        # TODO: Some layer code (ex. PoolingLayer) currently depends
+        # on squish/reshape always returning a view of the existing
+        # data, but numpy.reshape does not guarantee this.  We should remove
+        # reliance on this dependency.
         return NumpyTensor(self._tensor.reshape(shape))
 
     def argmax(self, axis):

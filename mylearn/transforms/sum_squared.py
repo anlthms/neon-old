@@ -2,10 +2,6 @@
 Sum of squares transform functions and classes.
 """
 
-import numpy as np
-
-from mylearn.backends._cudamat import Cudamat, CudamatTensor
-from mylearn.backends._numpy import Numpy, NumpyTensor
 from mylearn.transforms.cost import Cost
 
 

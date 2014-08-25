@@ -12,7 +12,6 @@ import numpy
 
 from mylearn.util.compat import PY3
 
-from mylearn.backends._numpy import Numpy
 from mylearn.datasets.dataset import Dataset
 
 if PY3:
@@ -26,32 +25,30 @@ logger = logging.getLogger(__name__)
 class MNIST(Dataset):
     """
     Sets up an MNIST dataset.
-    """
 
+    Attributes:
+        raw_base_url (str): where to find the source data
+        raw_train_input_gz (str): URL of the full path to raw train inputs
+        raw_train_target_gz (str): URL of the full path to raw train targets
+        raw_test_input_gz (str): URL of the full path to raw test inputs
+        raw_test_target_gz (str): URL of the full path to raw test targets
+        backend (mylearn.backends.Backend): backend used for this data
+        inputs (dict): structure housing the loaded train/test/validation
+                       input data
+        targets (dict): structure housing the loaded train/test/validation
+                        target data
+
+    Kwargs:
+        repo_path (str, optional): where to locally host this dataset on disk
+    """
     raw_base_url = 'http://yann.lecun.com/exdb/mnist/'
     raw_train_input_gz = basejoin(raw_base_url, 'train-images-idx3-ubyte.gz')
     raw_train_target_gz = basejoin(raw_base_url, 'train-labels-idx1-ubyte.gz')
     raw_test_input_gz = basejoin(raw_base_url, 't10k-images-idx3-ubyte.gz')
     raw_test_target_gz = basejoin(raw_base_url, 't10k-labels-idx1-ubyte.gz')
 
-    # use numpy as default backend
-    backend = Numpy
-
     def __init__(self, **kwargs):
-        """
-        Creates a new MNIST instance.
-
-        The following optional keyword args are supported (can be read from
-        config file too):
-
-        :param repo_path: where to locally host this dataset on disk
-        :type repo_path: str or None
-        :returns: new MNIST dataset instance
-        :rtype: MNIST
-        """
         self.__dict__.update(kwargs)
-        self.inputs = {'train': None, 'test': None, 'validation': None}
-        self.targets = {'train': None, 'test': None, 'validation': None}
 
     def read_image_file(self, fname, dtype=None):
         """
@@ -88,11 +85,11 @@ class MNIST(Dataset):
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
                 train_idcs = range(60000)
-                if self.sample_pct < 100:
-                    numpy.random.shuffle(train_idcs)
                 if 'sample_pct' in self.__dict__:
                     if self.sample_pct > 1.0:
                         self.sample_pct /= 100.0
+                    if self.sample_pct < 1.0:
+                        numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):

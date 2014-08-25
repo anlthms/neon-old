@@ -1,114 +1,133 @@
-# Experiment settings to train/test a GB model on MNIST.
+# Experiment settings to train/test a "Google Brain" style sparse autoencoder
+# model on MNIST.
 
-backend: {
-  type: mylearn.backends._numpy.Numpy,
-  rng_seed: 0,
-}
-
-datasets: [
-  # MNIST data
-  {
-    #type: !!python/object:dataset.MNIST,
-    type: mylearn.datasets.mnist.MNIST,
-    repo_path: '/usr/local/data',
-    sample_pct: 10,
-    serialized_path: '/usr/local/data/mnist/mnist_10pct-Numpy.pkl',
+!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:mylearn.backends._numpy.Numpy {
+    rng_seed: 0,
   },
-]
-
-# GB model specification
-model: {
-  type: mylearn.models.gb.GB,
-  layers: [
-    {
-      name: layer1,
-      connectivity: lf,
-      num_input_channels: 1,
-      input_shape: 28 28,
-      filter_shape: 5 5,
-      stride: 1,
-      weight_init: {
-        type: uniform,
-        low: -0.1,
-        high: 0.1,
-      },
-    },
-    {
-      name: layer2,
-      connectivity: l2pool,
-      num_channels: 1,
-      input_shape: 24 24,
-      pooling_shape: 2 2,
-      stride: 1,
-    },
-    {
-      name: layer3,
-      connectivity: lcn,
-      num_channels: 1,
-      input_shape: 23 23,
-      filter_shape: 5 5,
-      stride: 1,
-    },
-    {
-      name: layer4,
-      connectivity: lf,
-      num_input_channels: 1,
-      input_shape: 23 23,
-      filter_shape: 5 5,
-      stride: 1,
-      weight_init: {
-        type: uniform,
-        low: -0.1,
-        high: 0.1,
-      },
-    },
-    {
-      name: layer5,
-      connectivity: l2pool,
-      num_channels: 1,
-      input_shape: 19 19,
-      pooling_shape: 2 2,
-      stride: 1,
-    },
-    {
-      name: layer7,
-      connectivity: lcn,
-      num_channels: 1,
-      input_shape: 18 18,
-      filter_shape: 3 3,
-      stride: 1,
-    },
-    {
-      name: output,
-      connectivity: full,
-      num_nodes: 10,
-      activation: mylearn.transforms.logistic.Logistic,
-      weight_init: {
-        type: uniform,
-        low: -0.1,
-        high: 0.1,
-      },
+  
+  datasets: [
+    # MNIST data
+    !obj:mylearn.datasets.mnist.MNIST {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
     },
   ],
-  num_epochs: 2,
-  num_pretrain_epochs: 4,
-  batch_size: 100,
-  learning_rate: 0.1,
-  pretrain_learning_rate: 0.00001,
-  momentum: {
-    type: linear_monotone,
-    initial_coef: 0.99,
-    start_epoch: 5,
-    saturate_epoch: 5,
-    saturated_coef: 0.90,
+  
+  # Google Brain model specification
+  model: !obj:mylearn.models.gb.GB {
+    num_epochs: 2,
+    num_pretrain_epochs: 4,
+    batch_size: &bs 100,
+    learning_rate: &lr 0.1,
+    pretrain_learning_rate: &plr 0.00001,
+    momentum: {
+      type: linear_monotone,
+      initial_coef: 0.99,
+      start_epoch: 5,
+      saturate_epoch: 5,
+      saturated_coef: 0.90,
+    },
+    pretrain_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
+    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    layers: [
+      !obj:mylearn.models.layer.LocalFilteringLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rate: *lr,
+        pretrain_learning_rate: *plr,
+        nifm: 1,
+        ifmshape: [28, 28],
+        fshape: [5, 5],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:mylearn.models.layer.L2PoolingLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nfm: 1,
+        ifmshape: [24, 24],
+        pshape: [2, 2],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LCNLayer {
+        name: layer3,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        nifm: 1,
+        ifmshape: [23, 23],
+        fshape: [5, 5],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LocalFilteringLayer {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        learning_rate: *lr,
+        pretrain_learning_rate: *plr,
+        nifm: 1,
+        ifmshape: [23, 23],
+        fshape: [5, 5],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:mylearn.models.layer.L2PoolingLayer {
+        name: layer5,
+        backend: *be,
+        batch_size: *bs,
+        pos: 4,
+        nfm: 1,
+        ifmshape: [19, 19],
+        pshape: [2, 2],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LCNLayer {
+        name: layer6,
+        backend: *be,
+        batch_size: *bs,
+        pos: 5,
+        nifm: 1,
+        ifmshape: [18, 18],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LayerWithNoBias {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 6,
+        learning_rate: *lr,
+        nin: 324, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nout: 10,
+        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+    ],
   },
-  pretrain_cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
-  cost: mylearn.transforms.cross_entropy.CrossEntropy,
-}
-
-
-# logging options that are passed to logging.basicConfig
-logging: {
-  level: 10,  #logging.DEBUG == 10
-  format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  
+  # logging options that are passed to logging.basicConfig
+  logging: {
+    level: 10,  #logging.DEBUG == 10
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
 }

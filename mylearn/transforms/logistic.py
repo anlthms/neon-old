@@ -2,9 +2,6 @@
 Logistic transform functions and classes.
 """
 
-from math import log
-import numpy
-
 from mylearn.transforms.activation import Activation
 
 
@@ -29,7 +26,10 @@ def logistic_derivative(backend, inputs, outputs):
         inputs (array_like): Input data to be transformed
         outputs (array_like): Storage for the transformed output.
     """
-    logistic_and_derivative(backend, inputs, outputs)
+    tmp = backend.zeros(inputs.shape)
+    backend.logistic(inputs, outputs)
+    backend.subtract(backend.wrap(1.0), outputs, out=tmp)
+    backend.multiply(outputs, tmp, outputs)
 
 
 def logistic_and_derivative(backend, inputs, outputs):
@@ -45,7 +45,8 @@ def logistic_and_derivative(backend, inputs, outputs):
     # Apply the logistic function.
     logistic(backend, inputs, outputs)
 
-    # Apply the derivative of the logistic function.
+    # Apply the derivative of the logistic function, storing the result in
+    # inputs
     backend.subtract(backend.wrap(1.0), outputs, out=inputs)
     backend.multiply(inputs, outputs, out=inputs)
 
