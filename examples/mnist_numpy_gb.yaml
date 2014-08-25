@@ -90,10 +90,11 @@ model: {
       },
     },
   ],
-  num_pretraining_epochs: 2,
   num_epochs: 2,
+  num_pretrain_epochs: 4,
   batch_size: 100,
   learning_rate: 0.1,
+  pretrain_learning_rate: 0.00001,
   momentum: {
     type: linear_monotone,
     initial_coef: 0.99,
@@ -101,7 +102,7 @@ model: {
     saturate_epoch: 5,
     saturated_coef: 0.90,
   },
-  pretraining_cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
+  pretrain_cost: mylearn.transforms.sum_squared.SumSquaredDiffs,
   cost: mylearn.transforms.cross_entropy.CrossEntropy,
 }
 

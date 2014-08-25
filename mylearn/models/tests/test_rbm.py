@@ -56,7 +56,7 @@ def test_cudamat_negative():
 @attr('cuda')
 def test_cudamat_cost():
     # import ipdb; ipdb.set_trace()
-    temp = myBackend.zeros(inputs.shape)
+    temp = [myBackend.zeros(inputs.shape)]
     thecost = cost.apply_function(myBackend, inputs, layer.x_minus.take(
                                   range(layer.x_minus.shape[1] - 1), axis=1),
                                   temp)

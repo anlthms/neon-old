@@ -23,9 +23,9 @@ def sum_squared_diffs(backend, outputs, targets, temp):
     Returns:
         scalar: Calculated sum of squared diff values for each element.
     """
-    backend.subtract(outputs, targets, temp)
-    backend.multiply(temp, temp, temp)
-    return 0.5 * backend.sum(temp)
+    backend.subtract(outputs, targets, temp[0])
+    backend.multiply(temp[0], temp[0], temp[0])
+    return 0.5 * backend.sum(temp[0])
 
 
 def sum_squared_diffs_derivative(backend, outputs, targets, temp):
@@ -44,8 +44,8 @@ def sum_squared_diffs_derivative(backend, outputs, targets, temp):
                     Will have the same shape as outputs.
     """
 
-    backend.subtract(outputs, targets, temp)
-    return temp
+    backend.subtract(outputs, targets, temp[0])
+    return temp[0]
 
 
 class SumSquaredDiffs(Cost):
