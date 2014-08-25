@@ -10,10 +10,11 @@ After discussing with Scott, we want:
 """
 from nose.plugins.attrib import attr
 import numpy as np
-from mylearn.models.layer import RBMLayer
-from mylearn.util.factory import Factory
-from mylearn.backends._cudamat import Cudamat, CudamatTensor
 
+from mylearn.backends._cudamat import Cudamat, CudamatTensor
+from mylearn.models.layer import RBMLayer
+from mylearn.transforms.logistic import Logistic
+from mylearn.transforms.sum_squared import SumSquaredDiffs
 from mylearn.util.testing import assert_tensor_near_equal
 
 
@@ -28,15 +29,14 @@ myBackend = Cudamat(**kwargs)  # gives a backend!
 # create fake layer
 nin = 2
 conf = {'name': 'testlayer', 'num_nodes': 2,
-        'activation': 'mylearn.transforms.logistic.Logistic',
         'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
-activation = Factory.create(type=conf['activation'])
+activation = Logistic()
 layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01, nin + 1,
                  nout=conf['num_nodes'] + 1,
                  activation=activation, weight_init=conf['weight_init'])
 
 # create fake cost
-cost = Factory.create(type='mylearn.transforms.sum_squared.SumSquaredDiffs')
+cost = SumSquaredDiffs()
 
 
 @attr('cuda')
@@ -55,7 +55,6 @@ def test_cudamat_negative():
 
 @attr('cuda')
 def test_cudamat_cost():
-    # import ipdb; ipdb.set_trace()
     temp = myBackend.zeros(inputs.shape)
     thecost = cost.apply_function(myBackend, inputs, layer.x_minus.take(
                                   range(layer.x_minus.shape[1] - 1), axis=1),
