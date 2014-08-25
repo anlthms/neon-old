@@ -5,9 +5,7 @@ Simple multi-layer perceptron model.
 import logging
 import math
 
-from mylearn.models.layer import Layer
 from mylearn.models.model import Model
-from mylearn.util.factory import Factory
 
 
 logger = logging.getLogger(__name__)
@@ -20,35 +18,30 @@ class MLP(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        if isinstance(self.cost, str):
-            self.cost = Factory.create(type=self.cost)
+        for req_param in ['layers']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
 
     def fit(self, datasets):
         """
         Learn model weights on the given datasets.
         """
-        logger.info('commencing model fitting')
+        for layer in self.layers:
+            logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
-        nrecs, nin = inputs.shape
-        self.backend = datasets[0].backend
-        self.backend.rng_init()
+        nrecs = inputs.shape[0]
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
-        layers = []
-        for i in xrange(self.nlayers):
-            layer = self.lcreate(self.backend, nin, self.layers[i], i)
-            logger.info('created layer:\n\t%s' % str(layer))
-            layers.append(layer)
-            nin = layer.nout
-        self.layers = layers
         tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
         self.temp = [tempbuf, tempbuf.copy()]
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
@@ -97,18 +90,6 @@ class MLP(Model):
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
         return res
-
-    def lcreate(self, backend, nin, conf, pos):
-        if conf['connectivity'] == 'full':
-            # instantiate the activation function class from string name given
-            activation = Factory.create(type=conf['activation'])
-            # Add 1 for the bias input.
-            return Layer(conf['name'], backend, self.batch_size, pos,
-                         self.learning_rate,
-                         nin + 1,
-                         nout=conf['num_nodes'],
-                         activation=activation,
-                         weight_init=conf['weight_init'])
 
     def fprop(self, inputs):
         y = inputs

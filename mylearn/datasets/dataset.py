@@ -5,6 +5,7 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 import logging
 import os
 
+from mylearn.backends._numpy import Numpy
 from mylearn.util.compat import PY3
 
 if PY3:
@@ -22,16 +23,49 @@ class Dataset(object):
     """
 
     backend = None
+    inputs = {'train': None, 'test': None, 'validation': None}
+    targets = {'train': None, 'test': None, 'validation': None}
+
+    def __getstate__(self):
+        """
+        Defines what and how we go about serializing an instance of this class.
+        In this case we also want to include and loaded datasets and backend
+        references.
+
+        Returns:
+            dict: keyword args, plus current inputs, targets, backend
+        """
+        self.__dict__['backend'] = self.backend
+        self.__dict__['inputs'] = self.inputs
+        self.__dict__['targets'] = self.targets
+        return self.__dict__
+
+    def __setstate__(self, state):
+        """
+        Defines how we go about deserializing and loading an instance of this
+        class from a specified state.
+
+        Arguments:
+            state (dict): attribute values to be loaded.
+        """
+        self.__dict__.update(state)
+        if self.backend is None:
+            # use Numpy as a default backend
+            self.backend = Numpy()
 
     def load(self, backend=None):
         """
         Makes the dataset data avilable for use.
         Needs to be implemented in every concrete Dataset child class.
 
-        :param backend: The underlying data structure type used to hold this
-                        data once loaded.  If None will use whatever is set
-                        as default for this class
-        :type backend: mylearn.backends.backend child class or None
+        Arguments:
+            backend (mylearn.backends.backend.Backend, optional): The
+                     underlying data structure type used to hold this
+                     data once loaded.  If None will use
+                     `mylearn.backends._numpy.Numpy`
+
+        Raises:
+            NotImplementedError: should be overridden in child class
         """
         raise NotImplementedError()
 

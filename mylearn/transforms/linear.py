@@ -2,47 +2,48 @@
 Simple linear transform functions and classes.
 """
 
-import numpy as np
-
-from mylearn.backends._cudamat import CudamatTensor
-from mylearn.backends._numpy import NumpyTensor
 from mylearn.transforms.activation import Activation
 
 
-def identity(dataset):
+def identity(backend, inputs, outputs):
     """
     Applies identity (i.e. no) transform to the dataset passed.
 
     Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: the dataset.
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed
+        outputs (array_like): Storage for the transformed output.
     """
-    return dataset
+    outputs[:] = inputs
 
 
-def identity_derivative(dataset):
+def identity_derivative(backend, inputs, outputs):
     """
     Applies derivative of the identity linear transform to the dataset passed.
 
     Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed
+        outputs (array_like): Storage for the transformed output.
     """
-    if isinstance(dataset, (int, float)):
-        return 1.0
-    else:
-        res = np.ones(dataset.shape)
-        if isinstance(dataset, CudamatTensor):
-            return CudamatTensor(res)
-        elif isinstance(dataset, NumpyTensor):
-            return NumpyTensor(res)
-        else:
-            return res
+    outputs[:] = 1.0
+
+
+def identity_and_derivative(backend, inputs, outputs):
+    """
+    Applies identity function and its derivative to the dataset passed.
+
+    Arguments:
+        backend (Backend): The backend class to use for computation.
+        inputs (array_like): Input data to be transformed. This also acts as
+                             storage for the output of the derivative function.
+        outputs (array_like): Storage for the transformed output.
+    """
+    # Apply the identity function.
+    identity(backend, inputs, outputs)
+
+    # Apply the derivative of the identity function.
+    inputs[:] = 1.0
 
 
 class Identity(Activation):
@@ -51,15 +52,22 @@ class Identity(Activation):
     """
 
     @staticmethod
-    def apply_function(dataset):
+    def apply_function(backend, inputs, outputs):
         """
         Apply the identity linear activation function.
         """
-        return identity(dataset)
+        return identity(backend, inputs, outputs)
 
     @staticmethod
-    def apply_derivative(dataset):
+    def apply_derivative(backend, inputs, outputs):
         """
         Apply the identity linear activation function derivative.
         """
-        return identity_derivative(dataset)
+        return identity_derivative(backend, inputs, outputs)
+
+    @staticmethod
+    def apply_both(backend, inputs, outputs):
+        """
+        Apply the identity activation function and its derivative.
+        """
+        return identity_and_derivative(backend, inputs, outputs)

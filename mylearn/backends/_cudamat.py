@@ -29,12 +29,19 @@ class Cudamat(Backend):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.rng_init()
         cudamat.cublas_init()
+        self.rng_init()
 
-    def zeros(self, shape, dtype=float):
+    def __del__(self):
+        pass
+        # cudamat.cublas_shutdown()
+        # the above is what we ought to do, but generates Exceptions due to
+        # a known cudamat issue as described here:
+        # https://github.com/cudamat/cudamat/issues/19
+
+    def zeros(self, shape, dtype=numpy.float32):
         return CudamatTensor(cudamat.CUDAMatrix(
-            numpy.zeros(shape, dtype=numpy.float32)))
+            numpy.zeros(shape, dtype=dtype)))
 
     @staticmethod
     def array(obj):
@@ -48,10 +55,17 @@ class Cudamat(Backend):
         return CudamatTensor(obj)
 
     def rng_init(self):
+        seed = None
         if 'rng_seed' in self.__dict__:
-            numpy.random.seed(self.rng_seed)
-        else:
-            raise AttributeError("rng_seed not specified in config")
+            seed = self.rng_seed
+        numpy.random.seed(seed)
+        try:
+            cudamat.CUDAMatrix.init_random(seed)
+        except TypeError:
+            if seed is not None:
+                logger.warn("Must seed random number generator with an "
+                            "integer.  You specified: %s" % str(seed))
+            cudamat.CUDAMatrix.init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
@@ -136,7 +150,8 @@ class Cudamat(Backend):
             return float('NaN')
         return x.mean()
 
-    def min(self, x, axis=None, out=None, keepdims=False):
+    @staticmethod
+    def min(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -153,7 +168,8 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
-    def max(self, x, axis=None, out=None, keepdims=False):
+    @staticmethod
+    def max(x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -170,22 +186,29 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
-    def sqrt(self, x, out):
+    @staticmethod
+    def sqrt(x, out):
         res = cudamat.sqrt(x._tensor, out._tensor)
         return CudamatTensor(res)
 
-    def squish(self, obj, n):
+    @staticmethod
+    def squish(obj, n):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    def not_equal(self, x, y):
+    @staticmethod
+    def not_equal(x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)
         return CudamatTensor(res)
 
-    def nonzero(self, x):
-        raise NotImplementedError()
+    @staticmethod
+    def nonzero(x):
+        res = x._tensor.copy()
+        res.equals(0)
+        res.equals(0)
+        return CudamatTensor(res)
 
     def gen_weights(self, size, weight_params):
         # FIXME: Get rid of duplication.
@@ -471,7 +494,15 @@ class CudamatTensor(Tensor):
                     raise TooSlowToImplementError("arbitrary "
                                                   "indexing")
         else:
-            raise IndexError("Cudamat only supports 2-D fancy indexing")
+            # 1-D index, check for form x[:] = value
+            if isinstance(key, slice):
+                start, stop, stride = key.indices(self.shape[0])
+                if start == 0 and stop == self.shape[0]:
+                    self._tensor.assign(value)
+                else:
+                    raise IndexError("1-D partial indexing unsupported")
+            else:
+                raise IndexError("Invalid 1-D index type")
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")

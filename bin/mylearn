@@ -6,10 +6,10 @@ Driver script for running mylearn model experiments.
 import argparse
 import logging
 import sys
-import yaml
 
 import mylearn
-from mylearn.experiments.experiment import Experiment
+from mylearn.util.persist import deserialize
+
 
 
 def parse_args():
@@ -28,15 +28,14 @@ def main():
     """
     Point of code entry.
     """
-    # read in yaml params
+    # read in yaml configuration and initialize objects
     args = parse_args()
-    cfg = yaml.safe_load(args.yaml_file)
+    experiment = deserialize(args.yaml_file)
 
-    if 'logging' in cfg:
-        logging.basicConfig(**cfg['logging'])
-    
-    # execute based on what is in config
-    experiment = Experiment(**cfg)
+    if hasattr(experiment, 'logging'):
+        logging.basicConfig(**experiment.logging)
+
+    # carry out the experiment
     experiment.run()
 
 
