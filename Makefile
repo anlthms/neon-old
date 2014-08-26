@@ -51,6 +51,7 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
+	-rm -f mylearn/backends/fixpt_dtype.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

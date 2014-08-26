@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
+import numpy as np
 import os
-from setuptools import setup
+from setuptools import setup, Extension
 import subprocess
 
 
@@ -50,4 +51,8 @@ setup(name='mylearn',
                 'mylearn.models.tests',
                 'mylearn.transforms.tests',
                 'mylearn.util.tests', ],
-      scripts=['bin/mylearn'], )
+      scripts=['bin/mylearn'],
+      ext_modules=[
+          Extension('mylearn.backends.fixpt_dtype',
+                    sources=['mylearn/backends/fixpt_dtype.c'],
+                    include_dirs=[np.get_include()])])
