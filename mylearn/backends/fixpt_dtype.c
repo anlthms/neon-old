@@ -244,7 +244,7 @@ PyMethodDef module_methods[] = {
 #if defined(NPY_PY3K)
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "fixpt",
+    "fixpt_dtype",
     NULL,
     -1,
     module_methods,
@@ -370,21 +370,32 @@ PyMODINIT_FUNC initfixpt_dtype(void) {
 
     import_array();
     if (PyErr_Occurred()) {
+#if defined(NPY_PY3K)
+        return NULL;
+#else
         return;
+#endif
     }
 
 #if defined(NPY_PY3K)
-    m = PyModule_Create("fixpt_dtype", &moduledef);
+    m = PyModule_Create(&moduledef);
 #else
     m = Py_InitModule("fixpt_dtype", module_methods);
 #endif
 
     if (!m) {
+#if defined(NPY_PY3K)
+        return NULL;
+#else
         return;
+#endif
     }
 
     /* add the new types */
     Py_INCREF(&PyFixPt_Type);
     PyModule_AddObject(m, "fixpt", (PyObject*)&PyFixPt_Type);
 
+#if defined(NPY_PY3K)
+    return m;
+#endif
 }
