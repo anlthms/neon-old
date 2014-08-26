@@ -21,6 +21,7 @@ class GB(MLP):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
+            layer.pretrain_mode()
             for epoch in xrange(self.num_pretrain_epochs):
                 error = 0.0
                 for batch in xrange(num_batches):
@@ -46,7 +47,6 @@ class GB(MLP):
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        self.backend.rng_init()
         tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
         self.temp = [tempbuf, tempbuf.copy()]
 
@@ -80,7 +80,6 @@ class GB(MLP):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)
-                layer.pretrain_mode()
             logger.info('created layer:\n\t%s' % str(layer))
 
         self.pretrain(inputs)

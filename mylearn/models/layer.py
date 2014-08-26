@@ -380,7 +380,8 @@ class LocalFilteringLayer(LocalLayer):
         """
         def __init__(self, prev):
             self.output = prev.backend.zeros((prev.batch_size, prev.nin))
-            self.weights = prev.weights.copy()
+            # We use tied weights for filtering and defiltering. 
+            self.weights = prev.weights
             self.updates = prev.backend.zeros(self.weights.shape)
             self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
             self.bpropbuf = prev.backend.zeros((prev.batch_size, 1))
@@ -407,16 +408,8 @@ class LocalFilteringLayer(LocalLayer):
                                  self.weights[dst:(dst + 1)].T(),
                                  out=self.bpropbuf)
                 self.berror[:, dst:(dst+1)] = self.bpropbuf
-
-            for dst in xrange(self.prev.ofmsize):
-                rflinks = self.rlinks[dst]
-                delta_slice = error[:, rflinks]
-                self.backend.dot(self.output[:, dst:(dst+1)].T(), delta_slice,
-                                 out=self.updates[dst:(dst+1)])
-            self.backend.multiply(self.updates,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=self.updates)
-            self.backend.subtract(self.weights, self.updates, out=self.weights)
+            # The weights are shared with the previous layer. We don't update
+            # them here - let the previous layer do that work.
 
     def __init__(self, name, backend, batch_size, pos, learning_rate,
                  nifm, ifmshape, fshape, stride, weight_init, pretrain=True,
