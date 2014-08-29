@@ -50,7 +50,8 @@ if __name__ == '__main__':
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:
         for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
-                                   ('mylearn.backends._cudamat', 'Cudamat')]:
+                                   ('mylearn.backends._cudamat', 'Cudamat'),
+                                   ('mylearn.backends.fixedpoint', 'FixedPoint')]:
             sys.stdout.write("%s\t%dx%d dot %dx%d\t%d loop, best of %d:" %
                              (classname, A_dims[0], A_dims[1], B_dims[0],
                               B_dims[1], number, repeat))

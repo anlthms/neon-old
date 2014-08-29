@@ -1,4 +1,4 @@
-/* Various Fixed Point decimal numbers for use within Numpy */
+/* Fixed Point decimal number type for use within Numpy */
 
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION
 
@@ -9,20 +9,34 @@
 #include <numpy/arrayobject.h>
 #include <numpy/npy_3kcompat.h>
 
-/* default parameters when not specified */
+/* default parameters assigned when not specified */
 #define DEF_SIGNED 1
 #define DEF_INT_BITS 5
 #define DEF_FRAC_BITS 10
-#define DEF_OVERFLOW "saturate"
-#define DEF_ROUNDING "truncate"
+#define DEF_OVERFLOW OFL_SATURATE
+#define DEF_ROUNDING RND_TRUNCATE
 
-/* TODO: convert overflow and rounding strings to enums */
+/* types of overflow handling supported */
+typedef enum {
+  OFL_SATURATE,
+  OFL_WRAP
+} ofl_t;
 
-static const int64_t all_ones[33] = {
-    0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4096, 8191, 16383,
-    32767, 65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607,
-    16777215, 33554431, 67108863, 134217727, 268435455, 536870911, 1073741823,
-    2147483547, 4294967295
+/* types of rounding supported */
+typedef enum {
+  RND_TRUNCATE,
+  RND_NEAREST,
+  RND_CEILING,
+  RND_FLOOR,
+  RND_ZERO
+} rnd_t;
+
+/* some useful constants - used to speed up various operations below */
+static const int64_t bin_pow[33] = {
+    1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
+    32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608,
+    16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824,
+    2147483548, 4294967296
 };
 
 typedef struct {
@@ -30,14 +44,14 @@ typedef struct {
     uint8_t int_bits;
     uint8_t frac_bits;
     int64_t val;
-    char overflow[16];
-    char rounding[16];
+    ofl_t overflow;
+    rnd_t rounding;
 }  fixpt;
 
 
 static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
                                           uint8_t int_bits, uint8_t frac_bits,
-                                          char *overflow, char *rounding) {
+                                          ofl_t overflow, rnd_t rounding) {
     fixpt fi;
     int word_len = sign_bit + int_bits + frac_bits;
     double int_val, uint_val;
@@ -46,12 +60,12 @@ static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
     fi.sign_bit = sign_bit;
     fi.int_bits = int_bits;
     fi.frac_bits = frac_bits;
-    strncpy(fi.overflow, overflow, sizeof(fi.overflow));
-    strncpy(fi.rounding, rounding, sizeof(fi.rounding));
+    fi.overflow = overflow;
+    fi.rounding = rounding;
 
     if (word_len <= 32) {
         // 1. scale input up to raw binary integer representation
-        int_val = float_val * exp2(frac_bits);
+        int_val = float_val * bin_pow[frac_bits];
         uint_val = fabs(int_val);
         // 2. perform rounding/truncation
         if (uint_val < 4.503599627370496E+15) {
@@ -93,8 +107,8 @@ static NPY_INLINE fixpt fixpt_add(fixpt x, fixpt y) {
         res.sign_bit = x.sign_bit;
         res.int_bits = x.int_bits;
         res.frac_bits = x.frac_bits;
-        strncpy(res.overflow, x.overflow, sizeof(x.overflow));
-        strncpy(res.rounding, x.rounding, sizeof(x.rounding));
+        res.overflow = x.overflow;
+        res.rounding = x.rounding;
         res.val = x.val + y.val;
         max_int = 1 << (res.int_bits + res.frac_bits + (1 - res.sign_bit));
         if (res.val >= max_int) {
@@ -116,8 +130,8 @@ static NPY_INLINE fixpt fixpt_subtract(fixpt x, fixpt y) {
         res.sign_bit = x.sign_bit;
         res.int_bits = x.int_bits;
         res.frac_bits = x.frac_bits;
-        strncpy(res.overflow, x.overflow, sizeof(x.overflow));
-        strncpy(res.rounding, x.rounding, sizeof(x.rounding));
+        res.overflow = x.overflow;
+        res.rounding = x.rounding;
         res.val = x.val - y.val;
         max_int = 1 << (res.int_bits + res.frac_bits + (1 - res.sign_bit));
         if (res.val >= max_int) {
@@ -130,6 +144,51 @@ static NPY_INLINE fixpt fixpt_subtract(fixpt x, fixpt y) {
     return res;
 }
 
+static NPY_INLINE fixpt fixpt_multiply(fixpt x, fixpt y) {
+    fixpt res;
+    int64_t max_int;
+
+    if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
+        x.frac_bits == y.frac_bits) {
+        res.sign_bit = x.sign_bit;
+        res.int_bits = x.int_bits;
+        res.frac_bits = x.frac_bits;
+        res.overflow = x.overflow;
+        res.rounding = x.rounding;
+        res.val = x.val * y.val / bin_pow[res.frac_bits];
+        max_int = 1 << (res.int_bits + res.frac_bits + (1 - res.sign_bit));
+        if (res.val >= max_int) {
+            /* overflow */
+            res.val = max_int - 1;
+        } 
+    } else {
+        printf("TODO: add mixed fp type conversion");
+    }
+    return res;
+}
+
+static NPY_INLINE fixpt fixpt_divide(fixpt x, fixpt y) {
+    fixpt res;
+    int64_t max_int;
+
+    if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
+        x.frac_bits == y.frac_bits) {
+        res.sign_bit = x.sign_bit;
+        res.int_bits = x.int_bits;
+        res.frac_bits = x.frac_bits;
+        res.overflow = x.overflow;
+        res.rounding = x.rounding;
+        res.val = x.val / y.val * bin_pow[res.frac_bits];
+        max_int = 1 << (res.int_bits + res.frac_bits + (1 - res.sign_bit));
+        if (res.val >= max_int) {
+            /* overflow */
+            res.val = max_int - 1;
+        } 
+    } else {
+        printf("TODO: add mixed fp type conversion");
+    }
+    return res;
+}
 typedef struct {
     PyObject_HEAD;
     fixpt fi;
@@ -142,26 +201,26 @@ static NPY_INLINE int PyFixPt_Check(PyObject* object) {
 }
 
 static PyObject* PyFixPt_FromFixPt(fixpt x) {
-    PyFixPt* p = (PyFixPt*)PyFixPt_Type.tp_alloc(&PyFixPt_Type,0);
+    PyFixPt* p = (PyFixPt*) PyFixPt_Type.tp_alloc(&PyFixPt_Type, 0);
     if (p) {
         p->fi = x;
     }
-    return (PyObject*)p;
+    return (PyObject*) p;
 }
 
 static PyObject* pyfixpt_new(PyTypeObject* type, PyObject* args,
-                              PyObject* kwds) {
+                             PyObject* kwds) {
     
     double val = 0.0;
     uint8_t sign_bit = DEF_SIGNED;
     uint8_t int_bits = DEF_INT_BITS;
     uint8_t frac_bits = DEF_FRAC_BITS;
-    char *overflow = DEF_OVERFLOW;
-    char *rounding = DEF_ROUNDING;
+    ofl_t overflow = DEF_OVERFLOW;
+    rnd_t rounding = DEF_ROUNDING;
     char* kwnames[] = {"val", "sign_bit", "int_bits", "frac_bits", "overflow",
                        "rounding", NULL};
     fixpt fi;
-    if (PyArg_ParseTupleAndKeywords(args, kwds, "d|bbbss", kwnames,
+    if (PyArg_ParseTupleAndKeywords(args, kwds, "d|bbbbb", kwnames,
                                     &val, &sign_bit, &int_bits, &frac_bits,
                                     &overflow, &rounding)) {
         fi = make_fixpt_double(val, sign_bit, int_bits, frac_bits, overflow,
@@ -218,23 +277,40 @@ static PyObject* pyfixpt_new(PyTypeObject* type, PyObject* args,
 #define FIXPT_BINOP(name) FIXPT_BINOP_2(name, fixpt_##name(x, y))
 FIXPT_BINOP(add)
 FIXPT_BINOP(subtract)
+FIXPT_BINOP(multiply)
+FIXPT_BINOP(divide)
+
+
+/**
+ * Write a decimal representation of the number into the buffer passed.
+ * ex. "+4.53"
+ */
+static void fixpt_to_str(fixpt x, char buf[]) {
+
+    size_t pos;
+
+    /* we *may* need up to frac_bits precision after the decimal but typically
+     * that isn't the case.  So we write that, then truncate trailing zeros.
+     */
+    sprintf(buf, "%+.*f", x.frac_bits < 1 ? 1 : x.frac_bits,
+            (double) x.val / bin_pow[x.frac_bits]);
+    pos = strlen(buf) - 1;
+    while (pos > 0 && buf[pos] == '0' && buf[pos - 1] != '.') {
+      buf[pos--] = '\0';
+    }
+}
 
 
 static PyObject* pyfixpt_repr(PyObject* self) {
     fixpt x = ((PyFixPt*)self)->fi;
-    uint64_t frac_val = (uint64_t) ((llabs(x.val) & all_ones[x.frac_bits]) *
-                                    exp2(- x.frac_bits) * pow(10, x.frac_bits));
-    /* strip any trailing zeros from the fractional part */
-    while (frac_val > 0 && frac_val % 10 == 0) {
-      frac_val /= 10;
-    }
-    /* TODO: ensure correct number of leading zeros present */
-    return PyUString_FromFormat("fixpt(%c%lld.%llu, sign_bit=%d, int_bits=%d, "
-                                "frac_bits=%d, overflow='%s', rounding='%s')",
-                                x.val > 0 ? '+': '-',
-                                llabs(x.val) >> x.frac_bits,
-                                frac_val, x.sign_bit, x.int_bits, x.frac_bits,
-                                x.overflow, x.rounding);
+    char buf[256];
+    char val[64];
+
+    fixpt_to_str(x, val);
+    snprintf(buf, 256, "fixpt(%s, sign_bit=%d, int_bits=%d, frac_bits=%d, "
+             "overflow=%d, rounding=%d)", val, x.sign_bit, x.int_bits,
+             x.frac_bits, x.overflow, x.rounding);
+    return PyUString_FromString(buf);
 }
 
 PyMethodDef module_methods[] = {
@@ -258,8 +334,8 @@ static struct PyModuleDef moduledef = {
 static PyNumberMethods pyfixpt_as_number = {
     pyfixpt_add,          /* nb_add */
     pyfixpt_subtract,     /* nb_subtract */
-    0,     /* nb_multiply */
-    0,       /* nb_divide */
+    pyfixpt_multiply,     /* nb_multiply */
+    pyfixpt_divide,       /* nb_divide */
     0,    /* nb_remainder */
     0,                       /* nb_divmod */
     0,                       /* nb_power */

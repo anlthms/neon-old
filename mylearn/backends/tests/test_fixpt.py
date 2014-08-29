@@ -7,8 +7,8 @@ DEFAULT_FP_VALS = {
     "sign_bit": True,
     "int_bits": 5,
     "frac_bits": 10,
-    "overflow": "saturate",
-    "rounding": "truncate"
+    "overflow": 0,  # 0 == OFL_SATURATE
+    "rounding": 0  # 0 == RND_TRUNCATE
 }
 
 
@@ -21,12 +21,12 @@ def check_rep(x, exp_val, **kwargs):
     args["exp_val"] = abs(exp_val)
     print(repr(x))
     print("fixpt({sym}{exp_val}, sign_bit={sign_bit}, int_bits={int_bits}, "
-          "frac_bits={frac_bits}, overflow='{overflow}', "
-          "rounding='{rounding}')".format(**args))
+          "frac_bits={frac_bits}, overflow={overflow}, "
+          "rounding={rounding})".format(**args))
     print("")
     assert repr(x) == ("fixpt({sym}{exp_val}, sign_bit={sign_bit}, "
                        "int_bits={int_bits}, frac_bits={frac_bits}, "
-                       "overflow='{overflow}', rounding='{rounding}')".
+                       "overflow={overflow}, rounding={rounding})".
                        format(**args))
 
 
@@ -35,8 +35,8 @@ def test_creation_and_rep():
         "sign_bit": False,
         "int_bits": 3,
         "frac_bits": 9,
-        "overflow": 'saturate',
-        "rounding": 'truncate',
+        "overflow": 0,
+        "rounding": 0
     }
     x = fixpt(1.0, **params)
     check_rep(x, 1.0, **params)
@@ -49,7 +49,7 @@ def test_defaulting():
     params = {
         "int_bits": 4,
         "sign_bit": 0,
-        "overflow": 'saturate',
+        "overflow": 0,
         "frac_bits": 3,
     }
     x = fixpt(9.0, **params)
@@ -61,11 +61,10 @@ def test_fraction_rep():
         "sign_bit": True,
         "int_bits": 1,
     }
-    # for frac_bits in range(0, 6):
-    for frac_bits in range(0, 4):
+    for frac_bits in range(0, 6):
         params["frac_bits"] = frac_bits
         x = fixpt(1.1, **params)
-        exp_val = 0.
+        exp_val = 0.0
         step_size = 2**(- frac_bits)
         while (exp_val + step_size) < 0.1:
             exp_val += step_size
@@ -76,6 +75,15 @@ def test_fraction_rep():
         # yield check_rep, x, exp_val, **params
         check_rep(x, exp_val, **params)
 
+
+def test_negative_rep():
+    x = fixpt(-3.0)
+    check_rep(x, -3.0)
+
+
+def test_negative_frac():
+    x = fixpt(-4.7)
+    check_rep(x, -4.7001953125)
 
 def test_addition():
     x = fixpt(4)
