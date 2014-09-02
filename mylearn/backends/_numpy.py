@@ -25,6 +25,10 @@ class Numpy(Backend):
         return NumpyTensor(np.zeros(shape, dtype))
 
     @staticmethod
+    def ones(shape, dtype=float):
+        return NumpyTensor(np.ones(shape, dtype))
+
+    @staticmethod
     def array(obj):
         return NumpyTensor(np.array(obj))
 

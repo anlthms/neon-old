@@ -5,7 +5,7 @@
   backend: &be !obj:mylearn.backends._numpy.Numpy {
     rng_seed: 0,
   },
-  
+
   datasets: [
     # MNIST data
     !obj:mylearn.datasets.mnist.MNIST {
@@ -15,14 +15,17 @@
       serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
     },
   ],
-  
+
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
-    num_epochs: 2,
+    num_epochs: 4,
     num_pretrain_epochs: 4,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
-    pretrain_learning_rate: &plr 0.00001,
+    pretraining: &pt True,
+    sparsity: &sp 0.1,
+    pretrain_learning_rate: &plr 0.001,
+    tied_weights: &tw True,
     momentum: {
       type: linear_monotone,
       initial_coef: 0.99,
@@ -34,15 +37,18 @@
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:mylearn.models.layer.LocalFilteringLayer {
-        name: layer1,
+        name: layer0,
+        pretraining: *pt,
+        sparsity: *sp,
         backend: *be,
         batch_size: *bs,
         pos: 0,
         learning_rate: *lr,
         pretrain_learning_rate: *plr,
+        tied_weights: *tw,
         nifm: 1,
         ifmshape: [28, 28],
-        fshape: [5, 5],
+        fshape: [4, 4],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -51,35 +57,38 @@
         },
       },
       !obj:mylearn.models.layer.L2PoolingLayer {
-        name: layer2,
+        name: layer1,
         backend: *be,
         batch_size: *bs,
         pos: 1,
         nfm: 1,
-        ifmshape: [24, 24],
-        pshape: [2, 2],
+        ifmshape: [25, 25],
+        pshape: [3, 3],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
-        name: layer3,
+        name: layer2,
         backend: *be,
         batch_size: *bs,
         pos: 2,
         nifm: 1,
         ifmshape: [23, 23],
-        fshape: [5, 5],
+        fshape: [3, 3],
         stride: 1,
       },
       !obj:mylearn.models.layer.LocalFilteringLayer {
-        name: layer4,
+        name: layer3,
+        pretraining: *pt,
+        sparsity: *sp,
         backend: *be,
         batch_size: *bs,
         pos: 3,
         learning_rate: *lr,
         pretrain_learning_rate: *plr,
+        tied_weights: *tw,
         nifm: 1,
         ifmshape: [23, 23],
-        fshape: [5, 5],
+        fshape: [3, 3],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -88,22 +97,62 @@
         },
       },
       !obj:mylearn.models.layer.L2PoolingLayer {
-        name: layer5,
+        name: layer4,
         backend: *be,
         batch_size: *bs,
         pos: 4,
         nfm: 1,
-        ifmshape: [19, 19],
-        pshape: [2, 2],
+        ifmshape: [21, 21],
+        pshape: [3, 3],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
-        name: layer6,
+        name: layer5,
         backend: *be,
         batch_size: *bs,
         pos: 5,
         nifm: 1,
-        ifmshape: [18, 18],
+        ifmshape: [19, 19],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LocalFilteringLayer {
+        name: layer6,
+        pretraining: *pt,
+        sparsity: *sp,
+        backend: *be,
+        batch_size: *bs,
+        pos: 6,
+        learning_rate: *lr,
+        pretrain_learning_rate: *plr,
+        tied_weights: *tw,
+        nifm: 1,
+        ifmshape: [19, 19],
+        fshape: [3, 3],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:mylearn.models.layer.L2PoolingLayer {
+        name: layer7,
+        backend: *be,
+        batch_size: *bs,
+        pos: 7,
+        nfm: 1,
+        ifmshape: [17, 17],
+        pshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LCNLayer {
+        name: layer8,
+        backend: *be,
+        batch_size: *bs,
+        pos: 8,
+        nifm: 1,
+        ifmshape: [15, 15],
         fshape: [3, 3],
         stride: 1,
       },
@@ -111,9 +160,9 @@
         name: output,
         backend: *be,
         batch_size: *bs,
-        pos: 6,
+        pos: 9,
         learning_rate: *lr,
-        nin: 324, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 225, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:mylearn.transforms.logistic.Logistic {},
         weight_init: {
@@ -124,7 +173,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   logging: {
     level: 10,  #logging.DEBUG == 10
