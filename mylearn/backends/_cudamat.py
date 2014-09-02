@@ -44,6 +44,11 @@ class Cudamat(Backend):
             numpy.zeros(shape, dtype=dtype)))
 
     @staticmethod
+    def ones(self, shape, dtype=numpy.float32):
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.ones(shape, dtype=dtype)))
+
+    @staticmethod
     def array(obj):
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
