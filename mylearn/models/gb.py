@@ -112,8 +112,8 @@ class GB(MLP):
 
     def visualize(self):
         """
-        This function may be called after pretraining to visualize
-        the features.
+        This function tries to generate synthetic input data that maximizes
+        the probability of activating the output neurons.
         """
         import matplotlib.pyplot as plt
         logger.info('visualize')
@@ -126,6 +126,8 @@ class GB(MLP):
                                   range(self.batch_size)]
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
         inc = 0.1
+        # Do a greedy search to find input data that maximizes the output
+        # of neurons in the last LCN layer.
         for loops in range(20):
             inc *= -0.9
             count = 0

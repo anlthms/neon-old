@@ -767,6 +767,7 @@ class LCNLayer(LocalLayer):
 
     """
     Local contrast normalization.
+    TODO: support for multiple input feature maps.
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
@@ -776,23 +777,28 @@ class LCNLayer(LocalLayer):
         self.nin = nifm * self.ifmsize
         self.nout = self.nin
         self.output = backend.zeros((batch_size, self.nout))
+        self.routput = self.output.reshape((batch_size,
+                                            self.ifmheight,
+                                            self.ifmwidth))
         self.filters = self.normalized_gaussian_filters(nifm, fshape)
         self.meanfm = self.backend.zeros((batch_size, self.ofmsize))
         self.rmeanfm = self.meanfm.reshape((batch_size,
                                             self.ofmheight,
                                             self.ofmwidth))
-        self.ex_meanfm = self.backend.zeros((batch_size,
-                                             self.ifmheight,
-                                             self.ifmwidth))
-        self.rex_meanfm = self.ex_meanfm.reshape((batch_size,
-                                                  self.ifmsize))
         assert (self.ifmheight - self.ofmheight) % 2 == 0
         assert (self.ifmwidth - self.ofmwidth) % 2 == 0
-        self.inset_row = (self.ifmheight - self.ofmheight) / 2
-        self.inset_col = (self.ifmwidth - self.ofmwidth) / 2
 
         self.prodbuf = backend.zeros((batch_size, 1))
         self.intermed = backend.zeros(self.output.shape)
+        self.rintermed = self.intermed.reshape((batch_size,
+                                                self.ifmheight,
+                                                self.ifmwidth))
+        # Compute co-ordinates for the mean feature map obtained by
+        # convolving.
+        self.start_row = (self.ifmheight - self.ofmheight) / 2
+        self.end_row = self.start_row + self.ofmheight
+        self.start_col = (self.ifmwidth - self.ofmwidth) / 2
+        self.end_col = self.start_col + self.ofmwidth
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -814,20 +820,17 @@ class LCNLayer(LocalLayer):
         filters = filters.reshape((count * shape[0] * shape[1], 1))
         return filters
 
-    def expand_image(self, exfm, fm):
-        row = self.inset_row
-        col = self.inset_col
-        # Copy to the middle of the expanded canvas.
-        exfm[:, row:(row + self.ofmheight), col:(col + self.ofmwidth)] = fm
-
+    def expand_image(self, exfm):
         # Fill the borders with duplicated rows/columns.
-        exfm[:, :row, :] = exfm[:, row:(row + 1), :]
-        exfm[:, (row + self.ofmheight):self.ifmheight, :] = (
-            exfm[:, (row + self.ofmheight - 1):(row + self.ofmheight), :])
+        exfm[:, :self.start_row, :] = (
+            exfm[:, self.start_row:(self.start_row + 1), :])
+        exfm[:, self.end_row:self.ifmheight, :] = (
+            exfm[:, (self.end_row - 1):self.end_row, :])
 
-        exfm[:, :, :col] = exfm[:, :, col:(col + 1)]
-        exfm[:, :, (col + self.ofmwidth):self.ifmwidth] = (
-            exfm[:, :, (col + self.ofmwidth - 1):(col + self.ofmwidth)])
+        exfm[:, :, :self.start_col] = (
+            exfm[:, :, self.start_col:(self.start_col + 1)])
+        exfm[:, :, self.end_col:self.ifmwidth] = (
+            exfm[:, :, (self.end_col - 1):self.end_col])
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
@@ -837,9 +840,16 @@ class LCNLayer(LocalLayer):
                              out=self.prodbuf)
             self.meanfm[:, dst:(dst + 1)] = self.prodbuf
 
-        self.expand_image(self.ex_meanfm, self.rmeanfm)
-        self.intermed[:] = inputs
-        self.intermed -= self.rex_meanfm
+        rinputs = inputs.reshape((self.batch_size,
+                                  self.ifmheight, self.ifmwidth))
+        self.backend.subtract(rinputs[:,
+                              self.start_row:self.end_row,
+                              self.start_col:self.end_col],
+                              self.rmeanfm,
+                              out=self.rintermed[:,
+                              self.start_row:self.end_row,
+                              self.start_col:self.end_col])
+        self.expand_image(self.rintermed)
 
     def div_normalize(self):
         self.backend.multiply(self.intermed, self.intermed, out=self.output)
@@ -852,8 +862,14 @@ class LCNLayer(LocalLayer):
         self.backend.sqrt(self.meanfm, out=self.meanfm)
         mean = self.meanfm.mean()
         self.meanfm[self.meanfm < mean] = mean
-        self.expand_image(self.ex_meanfm, self.rmeanfm)
-        self.backend.divide(self.intermed, self.rex_meanfm, out=self.output)
+        self.backend.divide(self.rintermed[:,
+                            self.start_row:self.end_row,
+                            self.start_col:self.end_col],
+                            self.rmeanfm,
+                            out=self.routput[:,
+                            self.start_row:self.end_row,
+                            self.start_col:self.end_col])
+        self.expand_image(self.routput)
 
     def fprop(self, inputs):
         self.sub_normalize(inputs)
