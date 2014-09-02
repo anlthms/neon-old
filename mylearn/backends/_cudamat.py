@@ -43,7 +43,6 @@ class Cudamat(Backend):
         return CudamatTensor(cudamat.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
-    @staticmethod
     def ones(self, shape, dtype=numpy.float32):
         return CudamatTensor(cudamat.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
