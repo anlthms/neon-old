@@ -93,7 +93,7 @@ class GB(MLP):
         self.backend.rng_init()
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
+            self.batch_size = self.nrecs
         self.trainable_layers = []
         for ind in xrange(self.nlayers):
             layer = self.layers[ind]
@@ -117,8 +117,7 @@ class GB(MLP):
         """
         import matplotlib.pyplot as plt
         logger.info('visualize')
-        inputs = self.backend.uniform(low=-0.1, high=0.1,
-                                      size=(self.batch_size, self.nin))
+        inputs = self.backend.ones((self.batch_size, self.nin))
         self.normalize(inputs)
         lastlayer = self.layers[-2]
         self.fprop(inputs)

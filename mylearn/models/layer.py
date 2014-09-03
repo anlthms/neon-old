@@ -239,7 +239,7 @@ class LocalLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 ifmshape, fshape, stride):
+                 nofm, ifmshape, fshape, stride):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
@@ -257,7 +257,15 @@ class LocalLayer(YAMLable):
             self.berror = backend.zeros((batch_size, self.nin))
 
         self.nifm = nifm
+        self.nofm = nofm
         self.fsize = nifm * self.fheight * self.fwidth
+        ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
+                                        self.ofmsize))
+        ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
+        for dst in xrange(self.ofmsize):
+            ofmlocs[dst, :] = ofmstarts + dst
+        self.rofmlocs = ofmlocs.raw()
+
         # Figure out the connections with the previous layer.
         self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
@@ -301,32 +309,24 @@ class ConvLayer(LocalLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 ifmshape, fshape, nfilt, stride, weight_init):
+                 nofm, ifmshape, fshape, stride, weight_init):
         super(ConvLayer, self).__init__(name, backend, batch_size, pos,
-                                        learning_rate, nifm,
+                                        learning_rate, nifm, nofm,
                                         ifmshape, fshape, stride)
-        self.nout = self.ofmsize * nfilt
-        self.nfilt = nfilt
-        self.weights = backend.gen_weights((nfilt, self.fsize),
+        self.nout = self.ofmsize * nofm
+        self.weights = backend.gen_weights((nofm, self.fsize),
                                            weight_init)
-        ofmstarts = backend.array(range(0, (self.ofmsize * nfilt),
-                                        self.ofmsize))
-        ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
-        for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = ofmstarts + dst
-        self.rofmlocs = ofmlocs.raw()
-
         self.output = backend.zeros((batch_size, self.nout))
         self.updates = backend.zeros(self.weights.shape)
-        self.prodbuf = backend.zeros((batch_size, nfilt))
+        self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.updatebuf = backend.zeros((nfilt, self.fsize))
+        self.updatebuf = backend.zeros((nofm, self.fsize))
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
                 "utilizing %s backend\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.name, self.nifm, self.nfilt,
+                (self.name, self.nifm, self.nofm,
                  self.backend.__class__.__name__,
                  self.backend.mean(self.weights),
                  self.backend.min(self.weights),
@@ -379,20 +379,21 @@ class LocalFilteringLayer(LocalLayer):
     are not shared.
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate,
-                 nifm, ifmshape, fshape, stride, weight_init, pretraining,
+                 nifm, nofm, ifmshape, fshape, stride, weight_init, pretraining,
                  pretrain_learning_rate, sparsity, tied_weights):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rate,
-                                                  nifm, ifmshape, fshape,
+                                                  nifm, nofm, ifmshape, fshape,
                                                   stride)
         self.ifmsize = ifmshape[0] * ifmshape[1]
-        self.nout = self.ofmsize
+        self.nout = self.ofmsize * nofm
         self.output = backend.zeros((batch_size, self.nout))
-        self.weights = self.backend.gen_weights((self.ofmsize, self.fsize),
+        self.weights = self.backend.gen_weights((self.nout, self.fsize),
                                                 weight_init)
         self.updates = backend.zeros(self.weights.shape)
-        self.prodbuf = backend.zeros((batch_size, 1))
+        self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
+        self.updatebuf = backend.zeros((nofm, self.fsize))
         if pretraining is True:
             self.sparsity = sparsity
             self.pretrain_learning_rate = pretrain_learning_rate
@@ -452,9 +453,9 @@ class LocalFilteringLayer(LocalLayer):
             rflinks = self.rlinks[dst]
             # We use a different filter for each receptive field.
             self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights[dst:(dst + 1)].T(),
+                             self.weights.take(self.rofmlocs[dst], axis=0).T(),
                              out=self.prodbuf)
-            self.output[:, dst:(dst + 1)] = self.prodbuf
+            self.output[:, self.rofmlocs[dst]] = self.prodbuf
 
     def bprop(self, error, inputs, epoch, momentum):
         self.delta = error
@@ -463,9 +464,9 @@ class LocalFilteringLayer(LocalLayer):
             for dst in xrange(self.ofmsize):
                 # Use the same filter that was used for forward propagation
                 # of this receptive field.
-                self.backend.dot(self.delta[:, dst:(dst + 1)],
-                                 self.weights[dst:(dst + 1)],
-                                 out=self.bpropbuf)
+                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
+                                 self.weights.take(self.rofmlocs[dst], axis=0),
+                                 self.bpropbuf)
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,
                                  self.berror.take(rflinks, axis=1),
@@ -474,10 +475,12 @@ class LocalFilteringLayer(LocalLayer):
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta[:, dst]
+            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
             self.backend.dot(delta_slice.T(),
                              inputs.take(rflinks, axis=1),
-                             out=self.updates[dst])
+                             out=self.updatebuf)
+            self.updates[self.rofmlocs[dst]] = self.updatebuf
+            
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
@@ -767,22 +770,24 @@ class LCNLayer(LocalLayer):
 
     """
     Local contrast normalization.
-    TODO: support for multiple input feature maps.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, fshape,
                  stride):
         super(LCNLayer, self).__init__(name, backend, batch_size, pos, 0.0,
-                                       nifm, ifmshape, fshape, stride)
-        self.nin = nifm * self.ifmsize
+                                       nfm, nfm, ifmshape, fshape, stride)
+        self.nfm = nfm
+        self.nin = nfm * self.ifmsize
         self.nout = self.nin
         self.output = backend.zeros((batch_size, self.nout))
         self.routput = self.output.reshape((batch_size,
+                                            self.nfm,
                                             self.ifmheight,
                                             self.ifmwidth))
-        self.filters = self.normalized_gaussian_filters(nifm, fshape)
+        self.filters = self.normalized_gaussian_filters(nfm, fshape)
         self.meanfm = self.backend.zeros((batch_size, self.ofmsize))
         self.rmeanfm = self.meanfm.reshape((batch_size,
+                                            1,
                                             self.ofmheight,
                                             self.ofmwidth))
         assert (self.ifmheight - self.ofmheight) % 2 == 0
@@ -791,6 +796,7 @@ class LCNLayer(LocalLayer):
         self.prodbuf = backend.zeros((batch_size, 1))
         self.intermed = backend.zeros(self.output.shape)
         self.rintermed = self.intermed.reshape((batch_size,
+                                                self.nfm,
                                                 self.ifmheight,
                                                 self.ifmwidth))
         # Compute co-ordinates for the mean feature map obtained by
@@ -822,15 +828,15 @@ class LCNLayer(LocalLayer):
 
     def expand_image(self, exfm):
         # Fill the borders with duplicated rows/columns.
-        exfm[:, :self.start_row, :] = (
-            exfm[:, self.start_row:(self.start_row + 1), :])
-        exfm[:, self.end_row:self.ifmheight, :] = (
-            exfm[:, (self.end_row - 1):self.end_row, :])
+        exfm[:, :, :self.start_row, :] = (
+            exfm[:, :, self.start_row:(self.start_row + 1), :])
+        exfm[:, :, self.end_row:self.ifmheight, :] = (
+            exfm[:, :, (self.end_row - 1):self.end_row, :])
 
-        exfm[:, :, :self.start_col] = (
-            exfm[:, :, self.start_col:(self.start_col + 1)])
-        exfm[:, :, self.end_col:self.ifmwidth] = (
-            exfm[:, :, (self.end_col - 1):self.end_col])
+        exfm[:, :, :, :self.start_col] = (
+            exfm[:, :, :, self.start_col:(self.start_col + 1)])
+        exfm[:, :, :, self.end_col:self.ifmwidth] = (
+            exfm[:, :, :, (self.end_col - 1):self.end_col])
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
@@ -840,13 +846,13 @@ class LCNLayer(LocalLayer):
                              out=self.prodbuf)
             self.meanfm[:, dst:(dst + 1)] = self.prodbuf
 
-        rinputs = inputs.reshape((self.batch_size,
+        rinputs = inputs.reshape((self.batch_size, self.nfm,
                                   self.ifmheight, self.ifmwidth))
-        self.backend.subtract(rinputs[:,
+        self.backend.subtract(rinputs[:, :,
                               self.start_row:self.end_row,
                               self.start_col:self.end_col],
                               self.rmeanfm,
-                              out=self.rintermed[:,
+                              out=self.rintermed[:, :,
                               self.start_row:self.end_row,
                               self.start_col:self.end_col])
         self.expand_image(self.rintermed)
@@ -862,11 +868,11 @@ class LCNLayer(LocalLayer):
         self.backend.sqrt(self.meanfm, out=self.meanfm)
         mean = self.meanfm.mean()
         self.meanfm[self.meanfm < mean] = mean
-        self.backend.divide(self.rintermed[:,
+        self.backend.divide(self.rintermed[:, :,
                             self.start_row:self.end_row,
                             self.start_col:self.end_col],
                             self.rmeanfm,
-                            out=self.routput[:,
+                            out=self.routput[:, :,
                             self.start_row:self.end_row,
                             self.start_col:self.end_col])
         self.expand_image(self.routput)

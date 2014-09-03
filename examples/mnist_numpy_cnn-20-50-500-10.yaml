@@ -38,9 +38,9 @@
         pos: 0,
         learning_rate: *lr,
         nifm: 1,
+        nofm: 20,
         ifmshape: [28, 28],
         fshape: [5, 5],
-        nfilt: 20,
         stride: 1,
         weight_init: {
           type: uniform,
@@ -65,9 +65,9 @@
         pos: 2,
         learning_rate: *lr,
         nifm: 20,
+        nofm: 50,
         ifmshape: [12, 12],
         fshape: [5, 5],
-        nfilt: 50,
         stride: 1,
         weight_init: {
           type: uniform,
