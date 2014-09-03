@@ -38,6 +38,12 @@ static const int64_t bin_pow[33] = {
     16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824,
     2147483548, 4294967296
 };
+static const int64_t ones[33] = {
+    1, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191, 16383,
+    32767, 65535, 131071, 262143, 524287, 1048575, 2097151, 4194303, 8388607,
+    16777215, 33554431, 67108863, 134217727, 268435455, 536870911, 1073741823,
+    2147483547, 4294967295
+};
 
 typedef struct {
     uint8_t sign_bit;
@@ -69,10 +75,16 @@ static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
         uint_val = fabs(int_val);
         // 2. perform rounding/truncation
         if (uint_val < 4.503599627370496E+15) {
-            if (uint_val >= 0.5) {
-                int_val = floor(int_val + 0.5);
-            } else {
-                int_val *= 0.0;
+            // scaled number fits entirely within fraction part of double
+            // (52 bits)
+            if (rounding == RND_TRUNCATE) {
+                int_val = floor(int_val);
+            } else if (rounding == RND_NEAREST) {
+                if (uint_val >= 0.5) {
+                    int_val = floor(int_val + 0.5);
+                } else {
+                    int_val *= 0.0;
+                }
             }
         }
         // 3. handle overflows and assign value
@@ -83,11 +95,22 @@ static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
                 fi.val = (int64_t) int_val;
             } else {
                 // negative overflow
-                fi.val = (int64_t) -max_int;
+                if (overflow == OFL_SATURATE) {
+                    fi.val = (int64_t) -max_int;
+                } else {
+                    // OFL_WRAP (this is undefined for signed ints)
+                    printf("undefined negative overflow wrapping");
+                    fi.val = ((int64_t) int_val) & ones[word_len];
+                }
             }
         } else if (int_val >= max_int) {
             // positive overflow
-            fi.val = (int64_t) (max_int - 1);
+            if (overflow == OFL_SATURATE) {
+                fi.val = (int64_t) (max_int - 1);
+            } else {
+                // OFL_WRAP
+                fi.val = ((int64_t) int_val) & ones[word_len];
+            }
         } else {
             // non-representable double val (like nan, inf, etc.)
             fi.val = 0;

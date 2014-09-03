@@ -24,6 +24,7 @@ class FixedPoint(Numpy):
 # temporary helper to ensure elements converted to fixpt
 to_fixpt = np.vectorize(lambda x: fixpt(x), otypes=[fixpt, ])
 
+
 class FixedPointTensor(NumpyTensor):
     """
     CPU based configurable fixed point data structure.

@@ -36,7 +36,7 @@ def test_creation_and_rep():
         "int_bits": 3,
         "frac_bits": 9,
         "overflow": 0,
-        "rounding": 0
+        "rounding": 0,
     }
     x = fixpt(1.0, **params)
     check_rep(x, 1.0, **params)
@@ -56,10 +56,11 @@ def test_defaulting():
     check_rep(x, 9.0, **params)
 
 
-def test_fraction_rep():
+def test_fracbit_rep():
     params = {
         "sign_bit": True,
         "int_bits": 1,
+        "rounding": 1,  # RND_NEAREST
     }
     for frac_bits in range(0, 6):
         params["frac_bits"] = frac_bits
@@ -76,14 +77,56 @@ def test_fraction_rep():
         check_rep(x, exp_val, **params)
 
 
+def test_overflow_saturate():
+    params = {
+        "int_bits": 3,
+        "frac_bits": 3,
+        "overflow": 0,
+        "rounding": 0,
+    }
+    # 3 int bits and 3 frac bits allows signed numbers in range [-8, 7.875]
+    x = fixpt(21.9, **params)
+    check_rep(x, 7.875, **params)
+
+
+def test_overflow_wrap():
+    params = {
+        "sign_bit": 0,
+        "int_bits": 3,
+        "frac_bits": 3,
+        "overflow": 1,  # OFL_WRAP
+        "rounding": 0,  # RND_TRUNCATE
+    }
+    x = fixpt(21.9, **params)
+    # 21.9_10 -> 175_10 after scaling and truncation (multiply by 2**3)
+    #         -> 10101111_2
+    #         ->   101111_2 (wrap overflow)
+    #         -> 5.875_10 (Q3.3 conversion back to decimal)
+    check_rep(x, 5.875, **params)
+
 def test_negative_rep():
     x = fixpt(-3.0)
     check_rep(x, -3.0)
 
 
 def test_negative_frac():
-    x = fixpt(-4.7)
-    check_rep(x, -4.7001953125)
+    params = {
+        "frac_bits": 10,
+    }
+    x = fixpt(-4.7, **params)
+    check_rep(x, -4.7001953125, **params)
+
+
+def test_overflow_neg_saturate():
+    params = {
+        "int_bits": 3,
+        "frac_bits": 3,
+        "overflow": 0,
+        "rounding": 0,
+    }
+    x = fixpt(-21.9, **params)
+    check_rep(x, -8.0, **params)
+
 
 def test_addition():
     x = fixpt(4)
@@ -91,11 +134,38 @@ def test_addition():
     check_rep(x + y, 14.0)
 
 
-def test_overflow_addition():
+def test_overflow_saturated_addition():
     params = {
         "int_bits": 5,
         "frac_bits": 10,
+        "overflow": 0,
     }
-    x = fixpt(24, **params)
+    x = fixpt(24.567, **params)
     y = fixpt(10, **params)
     check_rep(x + y, 31.9990234375, **params)
+
+
+def test_rounding_truncated_addition():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 0,
+    }
+    # with 3 fractional bits
+    x = fixpt(14.567, **params) # --> 116.536 --> 116 after truncation
+    y = fixpt(10, **params) # --> 80 (after truncation)
+    # 196_10 --> 11000.100_2 -> 24.5_10 Q5.3 (.125 * 4 for frac)
+    check_rep(x + y, 24.5, **params)
+
+
+def test_rounding_nearest_addition():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 1,  # RND_NEAREST
+    }
+    # with 3 fractional bits
+    x = fixpt(14.567, **params) # --> 116.536 --> 117 after round nearest
+    y = fixpt(10, **params) # --> 80 (after truncation)
+    # 197_10 --> 11000.101_2 -> 24.625_10 Q5.3 (.125 * 5 for frac)
+    check_rep(x + y, 24.625, **params)
