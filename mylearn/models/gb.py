@@ -4,9 +4,11 @@ Contains code to train Google Brain models and run inference.
 
 import logging
 import math
+import os
 
 from mylearn.models.layer import LocalFilteringLayer
 from mylearn.models.mlp import MLP
+from mylearn.util.persist import ensure_dirs_exist
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,8 @@ class GB(MLP):
                 logger.info('epoch: %d, total training error: %0.5f' %
                             (epoch, error / num_batches))
                 self.save_figs([output, layer.defilter.output],
-                               ['recon/input', 'recon/output'], ind)
+                               [os.path.join('recon', 'input'),
+                                os.path.join('recon', 'output')], ind)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayer):
@@ -89,11 +92,9 @@ class GB(MLP):
     def fit(self, datasets):
         inputs = datasets[0].get_inputs(train=True)['train']
         self.nrecs, self.nin = inputs.shape
-        self.backend = datasets[0].backend
-        self.backend.rng_init()
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
+            self.batch_size = self.nrecs
         self.trainable_layers = []
         for ind in xrange(self.nlayers):
             layer = self.layers[ind]
@@ -156,7 +157,8 @@ class GB(MLP):
                     assert self.layers[0].nifm == 1
                     rimg = inputs[ind].raw().reshape(ifmshape)
                 plt.imshow(rimg, interpolation='nearest', cmap='gray')
-                plt.savefig('imgs/img' + str(ind))
+                plt.savefig(ensure_dirs_exist(os.path.join('imgs', 'img') +
+                                              str(ind)))
 
     def save_figs(self, imgs, names, ind):
         import matplotlib.pyplot as plt
@@ -174,4 +176,4 @@ class GB(MLP):
             else:
                 plt.imshow(img.reshape((width, width)),
                            interpolation='nearest', cmap='gray')
-            plt.savefig(names[i] + str(ind))
+            plt.savefig(ensure_dirs_exist(names[i] + str(ind)))

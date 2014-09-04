@@ -4,6 +4,7 @@ Utility functions for saving various types of objects state.
 
 import cPickle
 import logging
+import os
 
 import yaml
 
@@ -12,6 +13,24 @@ logger = logging.getLogger(__name__)
 # ensure yaml constructors and so forth get registered prior to first load
 # attempt.
 yaml_initialized = False
+
+
+def ensure_dirs_exist(path):
+    """
+    Simple helper that ensures that any directories specified in the path are
+    created prior to use.
+
+    Arguments:
+        path (str): the path (may be to a file or directory).  Any intermediate
+                    directories will be created.
+
+    Returns:
+        str: The unmodified path value.
+    """
+    outdir = os.path.dirname(path)
+    if outdir is not '' and not os.path.isdir(outdir):
+        os.makedirs(outdir)
+    return path
 
 
 def obj_multi_constructor(loader, tag_suffix, node):
