@@ -24,7 +24,7 @@ if CUDA_GPU:
 class TestCudaRBM:
 
     @attr('cuda')
-    def setup_class(self):
+    def setup(self):
         # reusable fake data
         self.inputs = CudamatTensor(np.ones((100, 2)))
 
@@ -53,13 +53,15 @@ class TestCudaRBM:
 
     @attr('cuda')
     def test_cudamat_negative(self):
+        self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
         target = [0.5039286,  0.50391388,  0.50086939]
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[0], target)
 
     @attr('cuda')
     def test_cudamat_cost(self):
-        # import ipdb; ipdb.set_trace()
+        self.layer.positive(self.inputs)
+        self.layer.negative(self.inputs)
         temp = [self.myBackend.zeros(self.inputs.shape)]
         thecost = self.cost.apply_function(self.myBackend, self.inputs,
                                            self.layer.x_minus.take(range(
