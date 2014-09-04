@@ -38,7 +38,8 @@ class GB(MLP):
                                             self.momentum)
                 logger.info('epoch: %d, total training error: %0.5f' %
                             (epoch, error / num_batches))
-                self.save_figs([output, layer.defilter.output],
+                self.save_figs(layer.nifm, layer.ifmshape,
+                               [output, layer.defilter.output],
                                ['recon/input', 'recon/output'], ind)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
@@ -124,10 +125,10 @@ class GB(MLP):
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
-        inc = 0.1
+        inc = 0.01
         # Do a greedy search to find input data that maximizes the output
         # of neurons in the last LCN layer.
-        for loops in range(20):
+        for loops in range(10):
             inc *= -0.9
             count = 0
             for col in range(self.nin):
@@ -151,26 +152,28 @@ class GB(MLP):
                     for dim in range(3):
                         rimg[:ifmshape[0], :ifmshape[1], dim] = (
                             img[dim, :ifmshape[0], :ifmshape[1]])
+                    plt.imshow(rimg, interpolation='nearest')
                 else:
                     assert self.layers[0].nifm == 1
                     rimg = inputs[ind].raw().reshape(ifmshape)
-                plt.imshow(rimg, interpolation='nearest', cmap='gray')
+                    plt.imshow(rimg, interpolation='nearest', cmap='gray')
                 plt.savefig('imgs/img' + str(ind))
 
-    def save_figs(self, imgs, names, ind):
+    def save_figs(self, nfm, fmshape, imgs, names, ind):
         import matplotlib.pyplot as plt
         assert len(names) == len(imgs)
+        height, width = fmshape
         for i in range(len(names)):
             img = imgs[i].raw()[0]
-            width = math.sqrt(img.shape[0])
-            if width * width != img.shape[0]:
-                width = math.sqrt(img.shape[0] / 3)
-                img = img.reshape((3, width, width))
-                rimg = img.copy().reshape((width, width, 3))
+            img = img.reshape((nfm, height, width))
+            if nfm == 3:
+                # Plot in color.
+                rimg = img.copy().reshape((height, width, 3))
                 for dim in range(3):
-                    rimg[:width, :width, dim] = img[dim, :width, :width]
+                    rimg[:height, :width, dim] = img[dim, :height, :width]
                 plt.imshow(rimg, interpolation='nearest')
             else:
-                plt.imshow(img.reshape((width, width)),
+                # Save the first feature map.
+                plt.imshow(img[0].reshape((height, width)),
                            interpolation='nearest', cmap='gray')
             plt.savefig(names[i] + str(ind))

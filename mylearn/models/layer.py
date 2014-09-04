@@ -243,6 +243,7 @@ class LocalLayer(YAMLable):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmshape = ifmshape
         self.fheight, self.fwidth = fshape
         self.batch_size = batch_size
         self.pos = pos
@@ -250,6 +251,7 @@ class LocalLayer(YAMLable):
 
         self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
         self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
+        self.ofmshape = (self.ofmheight, self.ofmwidth)
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ofmheight * self.ofmwidth
         self.nin = nifm * self.ifmsize
@@ -379,8 +381,8 @@ class LocalFilteringLayer(LocalLayer):
     are not shared.
     """
     def __init__(self, name, backend, batch_size, pos, learning_rate,
-                 nifm, nofm, ifmshape, fshape, stride, weight_init, pretraining,
-                 pretrain_learning_rate, sparsity, tied_weights):
+                 nifm, nofm, ifmshape, fshape, stride, weight_init,
+                 pretraining, pretrain_learning_rate, sparsity, tied_weights):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rate,
                                                   nifm, nofm, ifmshape, fshape,
@@ -480,7 +482,7 @@ class LocalFilteringLayer(LocalLayer):
                              inputs.take(rflinks, axis=1),
                              out=self.updatebuf)
             self.updates[self.rofmlocs[dst]] = self.updatebuf
-            
+
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
@@ -502,8 +504,9 @@ class LocalDeFilteringLayer(object):
             self.weights = prev.weights.copy()
         self.updates = prev.backend.zeros(self.weights.shape)
         self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
-        self.bpropbuf = prev.backend.zeros((prev.batch_size, 1))
-        self.berror = prev.backend.zeros((prev.batch_size, prev.ofmsize))
+        self.bpropbuf = prev.backend.zeros((prev.batch_size, prev.nofm))
+        self.updatebuf = prev.backend.zeros((prev.nofm, prev.fsize))
+        self.berror = prev.backend.zeros((prev.batch_size, prev.nout))
         self.temp = [prev.backend.zeros(self.output.shape)]
         self.learning_rate = prev.pretrain_learning_rate
         self.backend = prev.backend
@@ -514,8 +517,9 @@ class LocalDeFilteringLayer(object):
         self.backend.clear(self.output)
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
-            self.backend.dot(inputs[:, dst:(dst + 1)],
-                             self.weights[dst:(dst + 1)],
+            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]],
+                             self.weights.take(self.prev.rofmlocs[dst],
+                                               axis=0),
                              out=self.prodbuf)
             self.output[:, rflinks] += self.prodbuf
 
@@ -523,12 +527,15 @@ class LocalDeFilteringLayer(object):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(error[:, rflinks],
-                             self.weights[dst:(dst + 1)].T(),
+                             self.weights.take(self.prev.rofmlocs[dst],
+                                               axis=0).T(),
                              out=self.bpropbuf)
-            self.berror[:, dst:(dst+1)] = self.bpropbuf
+            self.berror[:, self.prev.rofmlocs[dst]] = self.bpropbuf
             delta_slice = error[:, rflinks]
-            self.backend.dot(self.output[:, dst:(dst+1)].T(), delta_slice,
-                             out=self.updates[dst:(dst+1)])
+            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]].T(),
+                             delta_slice,
+                             out=self.updatebuf)
+            self.updates[self.prev.rofmlocs[dst]] = self.updatebuf
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
