@@ -8,7 +8,7 @@ import math
 import cudamat
 
 from mylearn.backends.backend import Backend, Tensor
-from mylear.util.error import TooSlowToImplementError
+from mylearn.util.error import TooSlowToImplementError
 
 logger = logging.getLogger(__name__)
 
