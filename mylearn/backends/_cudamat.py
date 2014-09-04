@@ -8,16 +8,9 @@ import math
 import cudamat
 
 from mylearn.backends.backend import Backend, Tensor
+from mylearn.util.error import TooSlowToImplementError
 
 logger = logging.getLogger(__name__)
-
-
-class TooSlowToImplementError(Exception):
-
-    """
-    Used to indicate types of operations that would take too long to run.
-    """
-    pass
 
 
 class Cudamat(Backend):
