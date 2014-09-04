@@ -9,14 +9,8 @@ import os
 import cPickle
 import numpy as np
 
-from mylearn.util.compat import PY3
-
 from mylearn.datasets.dataset import Dataset
 
-if PY3:
-    from urllib.parse import urljoin as basejoin
-else:
-    from urllib import basejoin
 
 logger = logging.getLogger(__name__)
 
