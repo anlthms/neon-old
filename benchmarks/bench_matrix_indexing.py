@@ -6,7 +6,8 @@ Times various indexing approaches (fancy vs. take)
 import sys
 import timeit
 
-from mylearn.backends._cudamat import TooSlowToImplementError
+from mylearn.util.compat import CUDA_GPU
+from mylearn.util.error import TooSlowToImplementError
 
 
 def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
@@ -90,13 +91,15 @@ def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
 if __name__ == '__main__':
     number = 10000
     repeat = 3
+    test_backends = [('mylearn.backends._numpy', 'Numpy'), ]
+    if CUDA_GPU:
+        test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
     # contiguous slice testing
     for A_dims, slices, axes in [((5, 5), slice(0, 2), 0),
                                  ((5, 5), slice(0, 2), 1),
                                  ((100, 500), slice(95, 400), 0),
                                  ((100, 500), slice(95, 400), 1)]:
-        for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
-                                   ('mylearn.backends._cudamat', 'Cudamat')]:
+        for backend, classname in test_backends:
             sys.stdout.write("%s\t%dx%d %d:%d %s slice\t%d loop, best of %d:" %
                              (classname, A_dims[0], A_dims[1], slices.start,
                               slices.stop, "row" if axes == 0 else "col",
@@ -108,8 +111,7 @@ if __name__ == '__main__':
     for A_dims, indices in [((5, 5), [0, 4, 2]),
                             ((100, 500), [50, 10, 90, 22, 95, 0, 5, 9, 95]),
                             ((16000, 16000), [1500, 200, 300, 1599])]:
-        for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
-                                   ('mylearn.backends._cudamat', 'Cudamat')]:
+        for backend, classname in test_backends:
             for name, lop, rop in [('fancy', '[', ']'),
                                    ('take', '.take(', ', 0)')]:
                 sys.stdout.write("%s\t%dx%d %d %s indices\t%d loop, "
