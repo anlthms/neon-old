@@ -446,9 +446,10 @@ class LocalFilteringLayer(LocalLayer):
         # through the current layer.
         berror = self.defilter.berror + self.pooling.berror
         self.bprop(berror, inputs, epoch, momentum)
-        error = cost.apply_function(self.backend, self.defilter.output,
+        rcost = cost.apply_function(self.backend, self.defilter.output,
                                     inputs, self.defilter.temp)
-        return error
+        spcost = self.sparsity * self.pooling.output.sum()
+        return rcost, spcost
 
     def fprop(self, inputs):
         for dst in xrange(self.ofmsize):
@@ -878,19 +879,6 @@ class LCNLayer(YAMLable):
         canvas[:, :,
                start_row:(canvas.shape[2] - start_row),
                start_col:(canvas.shape[3] - start_col)] = inset
-
-        canvas[:, :, 0:start_row, :] = (
-            canvas[:, :, range(2*start_row - 1, start_row - 1, -1), :])
-        canvas[:, :, :, 0:start_col] = (
-            canvas[:, :, :, range(2*start_col - 1, start_col - 1, -1)])
-        canvas[:, :, (canvas.shape[2] - start_row):canvas.shape[2], :] = (
-            canvas[:, :,
-                   range(canvas.shape[2] - start_row - 1,
-                         canvas.shape[2] - 2 * start_row - 1, -1), :])
-        canvas[:, :, :, (canvas.shape[3] - start_col):canvas.shape[3]] = (
-            canvas[:, :, :,
-                   range(canvas.shape[3] - start_col - 1,
-                         canvas.shape[3] - 2*start_col - 1, -1)])
 
     def sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.batch_size, self.nfm,

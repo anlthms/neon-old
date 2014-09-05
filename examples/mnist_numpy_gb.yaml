@@ -19,7 +19,7 @@
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
     num_epochs: 4,
-    num_pretrain_epochs: 0,
+    num_pretrain_epochs: 8,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
     pretraining: &pt True,

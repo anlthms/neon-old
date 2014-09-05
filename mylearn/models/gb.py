@@ -26,7 +26,9 @@ class GB(MLP):
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
             for epoch in xrange(self.num_pretrain_epochs):
-                error = 0.0
+                tcost = 0.0
+                trcost = 0.0
+                tspcost = 0.0
                 for batch in xrange(num_batches):
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
@@ -36,10 +38,16 @@ class GB(MLP):
                     for i in xrange(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
-                    error += layer.pretrain(output, self.pretrain_cost, epoch,
-                                            self.momentum)
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))
+                    rcost, spcost = layer.pretrain(output,
+                                                   self.pretrain_cost,
+                                                   epoch,
+                                                   self.momentum)
+                    trcost += rcost
+                    tspcost += spcost
+                tcost = trcost + tspcost
+                logger.info('epoch: %d, cost: %0.2f, %0.2f, %0.2f' %
+                            (epoch, trcost / num_batches,
+                             tspcost / num_batches, tcost / num_batches))
                 self.save_figs(layer.nifm, layer.ifmshape,
                                [output, layer.defilter.output],
                                [os.path.join('recon', 'input'),
@@ -48,8 +56,6 @@ class GB(MLP):
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayer):
                 layer.train_mode()
-        #if self.num_pretrain_epochs > 0:
-        #    self.visualize()
 
     def train(self, inputs, targets):
         """
@@ -106,6 +112,8 @@ class GB(MLP):
         self.pretrain(inputs)
         targets = datasets[0].get_targets(train=True)['train']
         self.train(inputs, targets)
+        if self.num_pretrain_epochs > 0:
+            self.visualize()
 
     def normalize(self, data):
         norms = data.norm(axis=1)

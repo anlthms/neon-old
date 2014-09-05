@@ -18,13 +18,13 @@
 
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
-    num_epochs: 8,
-    num_pretrain_epochs: 8,
+    num_epochs: 4,
+    num_pretrain_epochs: 10,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
+    learning_rate: &lr 0.1,
     pretraining: &pt True,
-    sparsity: &sp 0.0,
-    pretrain_learning_rate: &plr 0.01,
+    sparsity: &sp 0.1,
+    pretrain_learning_rate: &plr 0.001,
     tied_weights: &tw True,
     momentum: {
       type: linear_monotone,
@@ -49,7 +49,7 @@
         nifm: 3,
         nofm: 8,
         ifmshape: [32, 32],
-        fshape: [4, 4],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -63,8 +63,8 @@
         batch_size: *bs,
         pos: 1,
         nfm: 8,
-        ifmshape: [29, 29],
-        pshape: [3, 3],
+        ifmshape: [27, 27],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -73,7 +73,7 @@
         batch_size: *bs,
         pos: 2,
         nfm: 8,
-        ifmshape: [27, 27],
+        ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
       },
@@ -89,8 +89,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [27, 27],
-        fshape: [3, 3],
+        ifmshape: [23, 23],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -104,8 +104,8 @@
         batch_size: *bs,
         pos: 4,
         nfm: 8,
-        ifmshape: [25, 25],
-        pshape: [3, 3],
+        ifmshape: [18, 18],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -114,7 +114,7 @@
         batch_size: *bs,
         pos: 5,
         nfm: 8,
-        ifmshape: [23, 23],
+        ifmshape: [14, 14],
         fshape: [3, 3],
         stride: 1,
       },
@@ -130,8 +130,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [23, 23],
-        fshape: [3, 3],
+        ifmshape: [14, 14],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -145,8 +145,8 @@
         batch_size: *bs,
         pos: 7,
         nfm: 8,
-        ifmshape: [21, 21],
-        pshape: [3, 3],
+        ifmshape: [9, 9],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -155,7 +155,7 @@
         batch_size: *bs,
         pos: 8,
         nfm: 8,
-        ifmshape: [19, 19],
+        ifmshape: [5, 5],
         fshape: [3, 3],
         stride: 1,
       },
@@ -165,7 +165,7 @@
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 2888, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:mylearn.transforms.logistic.Logistic {},
         weight_init: {
