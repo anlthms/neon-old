@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 class Numpy(Backend):
     """
-    Sets up a :mod:`numpy` based backend for matrix ops.
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    32-bit element data types for any arrays constructed.
+
+    See also:
+        Numpy64, NumpyTensor
     """
 
     def __init__(self, **kwargs):
@@ -21,16 +25,16 @@ class Numpy(Backend):
         self.rng_init()
 
     @staticmethod
-    def zeros(shape, dtype=float):
+    def zeros(shape, dtype=np.float32):
         return NumpyTensor(np.zeros(shape, dtype))
 
     @staticmethod
-    def ones(shape, dtype=float):
+    def ones(shape, dtype=np.float32):
         return NumpyTensor(np.ones(shape, dtype))
 
     @staticmethod
-    def array(obj):
-        return NumpyTensor(np.array(obj))
+    def array(obj, dtype=np.float32):
+        return NumpyTensor(np.array(obj, dtype))
 
     @staticmethod
     def wrap(obj):
@@ -147,7 +151,7 @@ class Numpy(Backend):
         return obj._tensor.sum()
 
     @staticmethod
-    def mean(x, axis=None, dtype=None, out=None, keepdims=False):
+    def mean(x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)
@@ -283,6 +287,28 @@ class Numpy(Backend):
         return coef
 
 
+class Numpy64(Numpy):
+    """
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    64-bit element data types for any arrays constructed.
+
+    See also:
+        Numpy, Numpy64Tensor
+    """
+
+    @staticmethod
+    def zeros(shape, dtype=np.float64):
+        return NumpyTensor(np.zeros(shape, dtype))
+
+    @staticmethod
+    def ones(shape, dtype=np.float64):
+        return NumpyTensor(np.ones(shape, dtype))
+
+    @staticmethod
+    def array(obj, dtype=np.float64):
+        return NumpyTensor(np.array(obj, dtype))
+
+
 class NumpyTensor(Tensor):
     """
     Simple wrapped `numpy.ndarray` tensor
@@ -291,11 +317,16 @@ class NumpyTensor(Tensor):
         obj (numpy.ndarray): the actual data values.  Python built-in
                              types like lists and tuples are also supported.
         dtype (numpy.ndtype, optional): underlying data type of the elements.
-                                        If None will attempt to use float.
+                                        If None will use float32.
+
+    See also:
+        Numpy, NumpyTensor64
     """
     _tensor = None
 
     def __init__(self, obj, dtype=None):
+        if dtype is None:
+            dtype = np.float32
         if type(obj) != np.ndarray:
             self._tensor = np.array(obj, dtype)
         else:
@@ -565,16 +596,43 @@ class NumpyTensor(Tensor):
     def exp(self):
         return NumpyTensor(np.exp(self._tensor))
 
-    def mean(self, axis=None, dtype=None, out=None):
+    def mean(self, axis=None, dtype=np.float32, out=None):
         res = np.mean(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
             return NumpyTensor(res)
 
-    def sum(self, axis=None, dtype=None, out=None):
+    def sum(self, axis=None, dtype=np.float32, out=None):
         res = np.sum(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
             return NumpyTensor(res)
+
+
+class Numpy64Tensor(NumpyTensor):
+    """
+    Simple wrapped `numpy.ndarray` tensor, defaults to 64-bit elements.
+
+    Arguments:
+        obj (numpy.ndarray): the actual data values.  Python built-in
+                             types like lists and tuples are also supported.
+        dtype (numpy.ndtype, optional): underlying data type of the elements.
+                                        If None will use `numpy.float64`.
+
+    See also:
+        Numpy64, NumpyTensor
+    """
+    _tensor = None
+
+    def __init__(self, obj, dtype=None):
+        if dtype is None:
+            dtype = np.float64
+        if type(obj) != np.ndarray:
+            self._tensor = np.array(obj, dtype)
+        else:
+            self._tensor = obj
+            if self._tensor.dtype != np.float64:
+                self._tensor = self._tensor.astype(np.float64)
+        self.shape = self._tensor.shape
