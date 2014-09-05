@@ -36,8 +36,10 @@ def main():
         logging.basicConfig(**experiment.logging)
 
     # carry out the experiment
-    experiment.run()
+    result = experiment.run()
+    return experiment, result
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    experiment, result = main()
+    sys.exit(result)

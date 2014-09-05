@@ -284,6 +284,12 @@ class LocalLayer(YAMLable):
             self.links[dst, :] = backend.array(colinds)
         self.rlinks = self.links.raw()
 
+    def normalize_weights(self, weights):
+        norms = weights.norm(axis=1)
+        self.backend.divide(weights,
+                            norms.reshape((norms.shape[0], 1)),
+                            out=weights)
+
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
 
@@ -372,55 +378,9 @@ class LocalFilteringLayer(LocalLayer):
     Local filtering layer. This is very similar to ConvLayer, but the weights
     are not shared.
     """
-
-    class DeFilter(object):
-        """
-        Local defiltering layer. This reverses the actions
-        of a filtering layer.
-        """
-        def __init__(self, prev):
-            self.output = prev.backend.zeros((prev.batch_size, prev.nin))
-            self.weights = prev.weights.copy()
-            self.updates = prev.backend.zeros(self.weights.shape)
-            self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
-            self.bpropbuf = prev.backend.zeros((prev.batch_size, 1))
-            self.berror = prev.backend.zeros((prev.batch_size, prev.ofmsize))
-            self.temp = [prev.backend.zeros(self.output.shape)]
-            self.learning_rate = prev.pretrain_learning_rate
-            self.backend = prev.backend
-            self.rlinks = prev.rlinks
-            self.prev = prev
-
-        def fprop(self, inputs):
-            self.backend.clear(self.output)
-            for dst in xrange(self.prev.ofmsize):
-                rflinks = self.rlinks[dst]
-                self.backend.dot(inputs[:, dst:(dst + 1)],
-                                 self.weights[dst:(dst + 1)],
-                                 out=self.prodbuf)
-                self.output[:, rflinks] += self.prodbuf
-
-        def bprop(self, error, inputs, epoch, momentum):
-            for dst in xrange(self.prev.ofmsize):
-                rflinks = self.rlinks[dst]
-                self.backend.dot(error[:, rflinks],
-                                 self.weights[dst:(dst + 1)].T(),
-                                 out=self.bpropbuf)
-                self.berror[:, dst:(dst+1)] = self.bpropbuf
-
-            for dst in xrange(self.prev.ofmsize):
-                rflinks = self.rlinks[dst]
-                delta_slice = error[:, rflinks]
-                self.backend.dot(self.output[:, dst:(dst+1)].T(), delta_slice,
-                                 out=self.updates[dst:(dst+1)])
-            self.backend.multiply(self.updates,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=self.updates)
-            self.backend.subtract(self.weights, self.updates, out=self.weights)
-
     def __init__(self, name, backend, batch_size, pos, learning_rate,
-                 nifm, ifmshape, fshape, stride, weight_init, pretrain=True,
-                 pretrain_learning_rate=0.0):
+                 nifm, ifmshape, fshape, stride, weight_init, pretraining,
+                 pretrain_learning_rate, sparsity, tied_weights):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rate,
                                                   nifm, ifmshape, fshape,
@@ -433,10 +393,11 @@ class LocalFilteringLayer(LocalLayer):
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, 1))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        if pretrain is True:
+        if pretraining is True:
+            self.sparsity = sparsity
             self.pretrain_learning_rate = pretrain_learning_rate
             self.train_learning_rate = self.learning_rate
-            self.defilter = LocalFilteringLayer.DeFilter(self)
+            self.tied_weights = tied_weights
 
     def __str__(self):
         return ("LocalFilteringLayer %s: %d ifms, "
@@ -448,8 +409,10 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.min(self.weights),
                  self.backend.max(self.weights)))
 
-    def pretrain_mode(self):
+    def pretrain_mode(self, pooling):
         self.learning_rate = self.pretrain_learning_rate
+        self.pooling = pooling
+        self.defilter = LocalDeFilteringLayer(self, self.tied_weights)
 
     def train_mode(self):
         self.learning_rate = self.train_learning_rate
@@ -459,16 +422,27 @@ class LocalFilteringLayer(LocalLayer):
         # defiltering layer to reconstruct the input.
         self.fprop(inputs)
         self.defilter.fprop(self.output)
+        # Forward propagate the output of this layer through a
+        # pooling layer. The output of the pooling layer is used
+        # to optimize sparsity.
+        self.pooling.fprop(self.output)
 
-        # Now backward propagate the reconstruction error through
-        # the defiltering layer and the current layer, in order to
-        # update the weights.
+        # Backward propagate the gradient of the reconstruction error
+        # through the defiltering layer.
         error = cost.apply_derivative(self.backend, self.defilter.output,
                                       inputs, self.defilter.temp)
         self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
                             out=error)
         self.defilter.bprop(error, self.output, epoch, momentum)
-        self.bprop(self.defilter.berror, inputs, epoch, momentum)
+        # Now backward propagate the gradient of the output of the
+        # pooling layer.
+        error = ((self.sparsity / inputs.shape[0]) *
+                 (self.backend.ones(self.pooling.output.shape)))
+        self.pooling.bprop(error, self.output, epoch, momentum)
+        # Aggregate the errors from both layers before back propagating
+        # through the current layer.
+        berror = self.defilter.berror + self.pooling.berror
+        self.bprop(berror, inputs, epoch, momentum)
         error = cost.apply_function(self.backend, self.defilter.output,
                                     inputs, self.defilter.temp)
         return error
@@ -508,6 +482,55 @@ class LocalFilteringLayer(LocalLayer):
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
         self.backend.subtract(self.weights, self.updates, out=self.weights)
+        self.normalize_weights(self.weights)
+
+
+class LocalDeFilteringLayer(object):
+    """
+    Local defiltering layer. This reverses the actions
+    of a local filtering layer.
+    """
+    def __init__(self, prev, tied_weights):
+        self.output = prev.backend.zeros((prev.batch_size, prev.nin))
+        if tied_weights is True:
+            # Share the weights with the previous layer.
+            self.weights = prev.weights
+        else:
+            self.weights = prev.weights.copy()
+        self.updates = prev.backend.zeros(self.weights.shape)
+        self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
+        self.bpropbuf = prev.backend.zeros((prev.batch_size, 1))
+        self.berror = prev.backend.zeros((prev.batch_size, prev.ofmsize))
+        self.temp = [prev.backend.zeros(self.output.shape)]
+        self.learning_rate = prev.pretrain_learning_rate
+        self.backend = prev.backend
+        self.rlinks = prev.rlinks
+        self.prev = prev
+
+    def fprop(self, inputs):
+        self.backend.clear(self.output)
+        for dst in xrange(self.prev.ofmsize):
+            rflinks = self.rlinks[dst]
+            self.backend.dot(inputs[:, dst:(dst + 1)],
+                             self.weights[dst:(dst + 1)],
+                             out=self.prodbuf)
+            self.output[:, rflinks] += self.prodbuf
+
+    def bprop(self, error, inputs, epoch, momentum):
+        for dst in xrange(self.prev.ofmsize):
+            rflinks = self.rlinks[dst]
+            self.backend.dot(error[:, rflinks],
+                             self.weights[dst:(dst + 1)].T(),
+                             out=self.bpropbuf)
+            self.berror[:, dst:(dst+1)] = self.bpropbuf
+            delta_slice = error[:, rflinks]
+            self.backend.dot(self.output[:, dst:(dst+1)].T(), delta_slice,
+                             out=self.updates[dst:(dst+1)])
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
+        self.prev.normalize_weights(self.weights)
 
 
 class PoolingLayer(YAMLable):
@@ -744,6 +767,7 @@ class LCNLayer(LocalLayer):
 
     """
     Local contrast normalization.
+    TODO: support for multiple input feature maps.
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
@@ -751,25 +775,30 @@ class LCNLayer(LocalLayer):
         super(LCNLayer, self).__init__(name, backend, batch_size, pos, 0.0,
                                        nifm, ifmshape, fshape, stride)
         self.nin = nifm * self.ifmsize
-        self.nout = nifm * self.ifmsize
-        self.output = backend.zeros((batch_size, self.nin))
-        self.filter = self.normalized_gaussian_filters(nifm, fshape)
-        self.meanfm = self.backend.zeros((self.batch_size,
-                                          nifm * self.ofmsize))
-        self.ex_meanfm = self.backend.zeros((self.batch_size, self.ifmheight,
-                                             self.ifmwidth))
-        self.rex_meanfm = self.ex_meanfm.reshape((self.batch_size, self.nin))
-        self.inset_row = self.ifmheight - self.ofmheight
-        self.inset_col = self.ifmwidth - self.ofmwidth
+        self.nout = self.nin
+        self.output = backend.zeros((batch_size, self.nout))
+        self.routput = self.output.reshape((batch_size,
+                                            self.ifmheight,
+                                            self.ifmwidth))
+        self.filters = self.normalized_gaussian_filters(nifm, fshape)
+        self.meanfm = self.backend.zeros((batch_size, self.ofmsize))
+        self.rmeanfm = self.meanfm.reshape((batch_size,
+                                            self.ofmheight,
+                                            self.ofmwidth))
+        assert (self.ifmheight - self.ofmheight) % 2 == 0
+        assert (self.ifmwidth - self.ofmwidth) % 2 == 0
 
         self.prodbuf = backend.zeros((batch_size, 1))
-        self.output = backend.zeros((batch_size, self.nout))
         self.intermed = backend.zeros(self.output.shape)
-        self.delta = backend.zeros((batch_size, self.nout))
-        self.rdelta = self.backend.squish(self.delta, self.nifm)
-        self.denom = self.backend.zeros((self.batch_size, self.nin))
-        if pos > 0:
-            self.rberror = self.backend.squish(self.berror, self.nifm)
+        self.rintermed = self.intermed.reshape((batch_size,
+                                                self.ifmheight,
+                                                self.ifmwidth))
+        # Compute co-ordinates for the mean feature map obtained by
+        # convolving.
+        self.start_row = (self.ifmheight - self.ofmheight) / 2
+        self.end_row = self.start_row + self.ofmheight
+        self.start_col = (self.ifmwidth - self.ofmwidth) / 2
+        self.end_col = self.start_col + self.ofmwidth
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -782,57 +811,70 @@ class LCNLayer(LocalLayer):
         Return multiple copies of gaussian filters with values adding up to
         one.
         """
+        assert(len(shape) == 2)
+        single = gaussian_filter(shape)
+        single /= (count * single.sum())
+        filters = self.backend.zeros((count, shape[0], shape[1]))
+        filters[:] = single
 
-        filter = gaussian_filter(shape)
-        filter /= (count * filter.sum())
-        return self.backend.wrap(filter.reshape((filter.shape[0] *
-                                                 filter.shape[1], 1)))
+        filters = filters.reshape((count * shape[0] * shape[1], 1))
+        return filters
+
+    def expand_image(self, exfm):
+        # Fill the borders with duplicated rows/columns.
+        exfm[:, :self.start_row, :] = (
+            exfm[:, self.start_row:(self.start_row + 1), :])
+        exfm[:, self.end_row:self.ifmheight, :] = (
+            exfm[:, (self.end_row - 1):self.end_row, :])
+
+        exfm[:, :, :self.start_col] = (
+            exfm[:, :, self.start_col:(self.start_col + 1)])
+        exfm[:, :, self.end_col:self.ifmwidth] = (
+            exfm[:, :, (self.end_col - 1):self.end_col])
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            self.backend.dot(inputs.take(rflinks, axis=1), self.filter,
+            self.backend.dot(inputs.take(rflinks, axis=1), self.filters,
                              out=self.prodbuf)
             self.meanfm[:, dst:(dst + 1)] = self.prodbuf
 
-        # TODO: handle edges better.
-        self.rmeanfm = self.meanfm.reshape((self.batch_size, self.ofmheight,
-                                            self.ofmwidth))
-        for row in xrange(self.ex_meanfm.shape[0]):
-            self.ex_meanfm[row,
-                           self.inset_row:(self.inset_row + self.ofmheight),
-                           self.inset_col:(self.inset_col + self.ofmwidth)
-                           ] = (self.rmeanfm[row])
-
-        self.intermed[:] = inputs
-        for i in xrange(self.nifm):
-            self.intermed[:, i * self.ifmsize:(i + 1) * self.ifmsize] -= (
-                self.rex_meanfm)
+        rinputs = inputs.reshape((self.batch_size,
+                                  self.ifmheight, self.ifmwidth))
+        self.backend.subtract(rinputs[:,
+                              self.start_row:self.end_row,
+                              self.start_col:self.end_col],
+                              self.rmeanfm,
+                              out=self.rintermed[:,
+                              self.start_row:self.end_row,
+                              self.start_col:self.end_col])
+        self.expand_image(self.rintermed)
 
     def div_normalize(self):
         self.backend.multiply(self.intermed, self.intermed, out=self.output)
-        self.backend.clear(self.denom)
+        self.backend.clear(self.meanfm)
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            self.backend.dot(self.output.take(rflinks, axis=1), self.filter,
+            self.backend.dot(self.output.take(rflinks, axis=1), self.filters,
                              out=self.prodbuf)
-            self.denom[:, dst:(dst + 1)] = self.prodbuf
-        self.backend.sqrt(self.denom, out=self.denom)
-        c = self.denom.mean()
-        self.denom[self.denom < c] = c
-        self.backend.divide(self.intermed, self.denom, out=self.output)
+            self.meanfm[:, dst:(dst + 1)] = self.prodbuf
+        self.backend.sqrt(self.meanfm, out=self.meanfm)
+        mean = self.meanfm.mean()
+        self.meanfm[self.meanfm < mean] = mean
+        self.backend.divide(self.rintermed[:,
+                            self.start_row:self.end_row,
+                            self.start_col:self.end_col],
+                            self.rmeanfm,
+                            out=self.routput[:,
+                            self.start_row:self.end_row,
+                            self.start_col:self.end_col])
+        self.expand_image(self.routput)
 
     def fprop(self, inputs):
         self.sub_normalize(inputs)
         self.div_normalize()
 
     def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            self.backend.divide(self.rdelta, self.backend.wrap(self.fsize),
-                                self.rdelta)
-            for dst in xrange(self.ofmsize):
-                links = self.links[dst]
-                self.rberror[:, links] += self.rdelta[:, dst:(dst + 1)]
+            self.berror[:] = error

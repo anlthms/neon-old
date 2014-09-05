@@ -8,16 +8,9 @@ import math
 import cudamat
 
 from mylearn.backends.backend import Backend, Tensor
+from mylearn.util.error import TooSlowToImplementError
 
 logger = logging.getLogger(__name__)
-
-
-class TooSlowToImplementError(Exception):
-
-    """
-    Used to indicate types of operations that would take too long to run.
-    """
-    pass
 
 
 class Cudamat(Backend):
@@ -42,6 +35,10 @@ class Cudamat(Backend):
     def zeros(self, shape, dtype=numpy.float32):
         return CudamatTensor(cudamat.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
+
+    def ones(self, shape, dtype=numpy.float32):
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.ones(shape, dtype=dtype)))
 
     @staticmethod
     def array(obj):

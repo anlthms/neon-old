@@ -3,7 +3,8 @@
 import sys
 import timeit
 
-from mylearn.backends._cudamat import TooSlowToImplementError
+from mylearn.util.compat import CUDA_GPU
+from mylearn.util.error import TooSlowToImplementError
 
 
 def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
@@ -46,13 +47,15 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
 if __name__ == '__main__':
     number = 100
     repeat = 3
+    test_backends = [('mylearn.backends._numpy', 'Numpy'),
+                     #  ('mylearn.backends.fixedpoint', 'FixedPoint')]
+                     ]
+    if CUDA_GPU:
+        test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
     for A_dims, B_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:
-        for backend, classname in [('mylearn.backends._numpy', 'Numpy'),
-                                   ('mylearn.backends._cudamat', 'Cudamat'),
-                                   ('mylearn.backends.fixedpoint',
-                                    'FixedPoint')]:
+        for backend, classname in test_backends:
             sys.stdout.write("%s\t%dx%d dot %dx%d\t%d loop, best of %d:" %
                              (classname, A_dims[0], A_dims[1], B_dims[0],
                               B_dims[1], number, repeat))
