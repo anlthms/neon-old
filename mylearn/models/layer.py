@@ -773,7 +773,31 @@ class AveragePoolingLayer(PoolingLayer):
                                           axis=1))
 
 
-class LCNLayer(LocalLayer):
+class Convolver(LocalLayer):
+
+    """
+    Lightweight convolutional layer that only does fprop.
+    """
+
+    def __init__(self, backend, batch_size, nifm,
+                 nofm, ifmshape, fshape, stride, weights):
+        super(Convolver, self).__init__('conv', backend, batch_size, 0,
+                                        0.0, nifm, nofm,
+                                        ifmshape, fshape, stride)
+        self.nout = self.ofmsize * nofm
+        self.weights = weights
+        self.output = backend.zeros((batch_size, self.nout))
+        self.prodbuf = backend.zeros((batch_size, nofm))
+
+    def fprop(self, inputs):
+        for dst in xrange(self.ofmsize):
+            rflinks = self.rlinks[dst]
+            self.backend.dot(inputs.take(rflinks, axis=1),
+                             self.weights.T(), out=self.prodbuf)
+            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+
+
+class LCNLayer(YAMLable):
 
     """
     Local contrast normalization.
@@ -781,37 +805,53 @@ class LCNLayer(LocalLayer):
 
     def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, fshape,
                  stride):
-        super(LCNLayer, self).__init__(name, backend, batch_size, pos, 0.0,
-                                       nfm, nfm, ifmshape, fshape, stride)
+        self.name = name
+        self.backend = backend
+        self.batch_size = batch_size
+        self.pos = pos
         self.nfm = nfm
+        self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.fsize = fshape[0] * fshape[1]
         self.nin = nfm * self.ifmsize
-        self.nout = self.nin
-        self.output = backend.zeros((batch_size, self.nout))
-        self.routput = self.output.reshape((batch_size,
-                                            self.nfm,
-                                            self.ifmheight,
-                                            self.ifmwidth))
         self.filters = self.normalized_gaussian_filters(nfm, fshape)
-        self.meanfm = self.backend.zeros((batch_size, self.ofmsize))
-        self.rmeanfm = self.meanfm.reshape((batch_size,
-                                            1,
-                                            self.ofmheight,
-                                            self.ofmwidth))
-        assert (self.ifmheight - self.ofmheight) % 2 == 0
-        assert (self.ifmwidth - self.ofmwidth) % 2 == 0
 
-        self.prodbuf = backend.zeros((batch_size, 1))
-        self.intermed = backend.zeros(self.output.shape)
-        self.rintermed = self.intermed.reshape((batch_size,
-                                                self.nfm,
-                                                self.ifmheight,
-                                                self.ifmwidth))
-        # Compute co-ordinates for the mean feature map obtained by
-        # convolving.
-        self.start_row = (self.ifmheight - self.ofmheight) / 2
-        self.end_row = self.start_row + self.ofmheight
-        self.start_col = (self.ifmwidth - self.ofmwidth) / 2
-        self.end_col = self.start_col + self.ofmwidth
+        self.conv1 = Convolver(backend, batch_size, nfm, 1,
+                               ifmshape, fshape, stride,
+                               self.filters)
+        self.conv2 = Convolver(backend, batch_size, nfm, 1,
+                               self.conv1.ofmshape, fshape, stride,
+                               self.filters)
+        self.meanfm = self.conv1.output
+        self.rmeanfm = self.meanfm.reshape((batch_size, 1,
+                                            self.conv1.ofmheight,
+                                            self.conv1.ofmwidth))
+        self.meanfm2 = self.conv2.output
+        self.rmeanfm2 = self.meanfm2.reshape((batch_size, 1,
+                                              self.conv2.ofmheight,
+                                              self.conv2.ofmwidth))
+        self.intermed = backend.zeros((batch_size, nfm * self.conv1.ofmsize))
+        self.intermed2 = backend.zeros((batch_size, nfm * self.conv1.ofmsize))
+        self.rintermed = self.intermed.reshape((batch_size, nfm,
+                                                self.conv1.ofmheight,
+                                                self.conv1.ofmwidth))
+
+        self.hdiff = self.conv1.ifmheight - self.conv2.ifmheight
+        self.wdiff = self.conv1.ifmwidth - self.conv2.ifmwidth
+        assert self.hdiff % 2 == 0
+        assert self.wdiff % 2 == 0
+
+        self.nout = nfm * self.conv2.ofmsize
+        self.output = backend.zeros((batch_size, self.nout))
+        self.routput = self.output.reshape((batch_size, nfm,
+                                            self.conv2.ofmheight,
+                                            self.conv2.ofmwidth))
+        self.start_row = self.hdiff / 2
+        self.start_col = self.wdiff / 2
+        if pos > 0:
+            self.berror2 = backend.zeros(
+                (batch_size, nfm * self.conv2.ifmsize))
+            self.berror = backend.zeros((batch_size, self.nin))
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -830,64 +870,51 @@ class LCNLayer(LocalLayer):
         filters = self.backend.zeros((count, shape[0], shape[1]))
         filters[:] = single
 
-        filters = filters.reshape((count * shape[0] * shape[1], 1))
+        filters = filters.reshape((1, count * shape[0] * shape[1]))
         return filters
-
-    def expand_image(self, exfm):
-        # Fill the borders with duplicated rows/columns.
-        exfm[:, :, :self.start_row, :] = (
-            exfm[:, :, self.start_row:(self.start_row + 1), :])
-        exfm[:, :, self.end_row:self.ifmheight, :] = (
-            exfm[:, :, (self.end_row - 1):self.end_row, :])
-
-        exfm[:, :, :, :self.start_col] = (
-            exfm[:, :, :, self.start_col:(self.start_col + 1)])
-        exfm[:, :, :, self.end_col:self.ifmwidth] = (
-            exfm[:, :, :, (self.end_col - 1):self.end_col])
 
     def sub_normalize(self, inputs):
         # Convolve with gaussian filters to obtain a "mean" feature map.
-        for dst in xrange(self.ofmsize):
-            rflinks = self.rlinks[dst]
-            self.backend.dot(inputs.take(rflinks, axis=1), self.filters,
-                             out=self.prodbuf)
-            self.meanfm[:, dst:(dst + 1)] = self.prodbuf
-
+        self.conv1.fprop(inputs)
         rinputs = inputs.reshape((self.batch_size, self.nfm,
                                   self.ifmheight, self.ifmwidth))
         self.backend.subtract(rinputs[:, :,
-                              self.start_row:self.end_row,
-                              self.start_col:self.end_col],
+                              self.start_row:(rinputs.shape[2] -
+                                              self.start_row),
+                              self.start_col:(rinputs.shape[3] -
+                                              self.start_col)],
                               self.rmeanfm,
-                              out=self.rintermed[:, :,
-                              self.start_row:self.end_row,
-                              self.start_col:self.end_col])
-        self.expand_image(self.rintermed)
+                              out=self.rintermed)
 
     def div_normalize(self):
-        self.backend.multiply(self.intermed, self.intermed, out=self.output)
-        self.backend.clear(self.meanfm)
-        for dst in xrange(self.ofmsize):
-            rflinks = self.rlinks[dst]
-            self.backend.dot(self.output.take(rflinks, axis=1), self.filters,
-                             out=self.prodbuf)
-            self.meanfm[:, dst:(dst + 1)] = self.prodbuf
-        self.backend.sqrt(self.meanfm, out=self.meanfm)
-        mean = self.meanfm.mean()
-        self.meanfm[self.meanfm < mean] = mean
+        self.backend.multiply(self.intermed, self.intermed, out=self.intermed2)
+        self.conv2.fprop(self.intermed2)
+        self.backend.sqrt(self.meanfm2, out=self.meanfm2)
+        mean = self.meanfm2.mean()
+        self.meanfm2[self.meanfm2 < mean] = mean
         self.backend.divide(self.rintermed[:, :,
-                            self.start_row:self.end_row,
-                            self.start_col:self.end_col],
-                            self.rmeanfm,
-                            out=self.routput[:, :,
-                            self.start_row:self.end_row,
-                            self.start_col:self.end_col])
-        self.expand_image(self.routput)
+                            self.start_row:(self.rintermed.shape[2] -
+                                            self.start_row),
+                            self.start_col:(self.rintermed.shape[3] -
+                                            self.start_col)],
+                            self.rmeanfm2,
+                            out=self.routput)
 
     def fprop(self, inputs):
         self.sub_normalize(inputs)
         self.div_normalize()
 
     def bprop(self, error, inputs, epoch, momentum):
+        error /= self.fsize
         if self.pos > 0:
-            self.berror[:] = error
+            self.backend.clear(self.berror2)
+            for dst in xrange(self.conv2.ofmsize):
+                rflinks = self.conv2.rlinks[dst]
+                self.berror2[:, rflinks] += error.take(
+                    self.conv2.rofmlocs[dst], axis=1)
+
+            self.backend.clear(self.berror)
+            for dst in xrange(self.conv1.ofmsize):
+                rflinks = self.conv1.rlinks[dst]
+                self.berror[:, rflinks] += (
+                    self.berror2.take(self.conv1.rofmlocs[dst], axis=1))

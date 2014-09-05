@@ -1,5 +1,5 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
-# model on MNIST.
+# model on CIFAR10.
 
 !obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:mylearn.backends._numpy.Numpy {
@@ -7,23 +7,23 @@
   },
 
   datasets: [
-    # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    # CIFAR10 data
+    !obj:mylearn.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
-    num_epochs: 4,
-    num_pretrain_epochs: 0,
+    num_epochs: 8,
+    num_pretrain_epochs: 8,
     batch_size: &bs 100,
-    learning_rate: &lr 0.1,
+    learning_rate: &lr 0.01,
     pretraining: &pt True,
-    sparsity: &sp 0.1,
+    sparsity: &sp 0.0,
     pretrain_learning_rate: &plr 0.01,
     tied_weights: &tw True,
     momentum: {
@@ -46,9 +46,9 @@
         learning_rate: *lr,
         pretrain_learning_rate: *plr,
         tied_weights: *tw,
-        nifm: 1,
+        nifm: 3,
         nofm: 8,
-        ifmshape: [28, 28],
+        ifmshape: [32, 32],
         fshape: [4, 4],
         stride: 1,
         weight_init: {
@@ -63,7 +63,7 @@
         batch_size: *bs,
         pos: 1,
         nfm: 8,
-        ifmshape: [25, 25],
+        ifmshape: [29, 29],
         pshape: [3, 3],
         stride: 1,
       },
@@ -73,7 +73,7 @@
         batch_size: *bs,
         pos: 2,
         nfm: 8,
-        ifmshape: [23, 23],
+        ifmshape: [27, 27],
         fshape: [3, 3],
         stride: 1,
       },
@@ -89,7 +89,7 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [19, 19],
+        ifmshape: [27, 27],
         fshape: [3, 3],
         stride: 1,
         weight_init: {
@@ -104,7 +104,7 @@
         batch_size: *bs,
         pos: 4,
         nfm: 8,
-        ifmshape: [17, 17],
+        ifmshape: [25, 25],
         pshape: [3, 3],
         stride: 1,
       },
@@ -114,7 +114,48 @@
         batch_size: *bs,
         pos: 5,
         nfm: 8,
-        ifmshape: [15, 15],
+        ifmshape: [23, 23],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LocalFilteringLayer {
+        name: layer6,
+        pretraining: *pt,
+        sparsity: *sp,
+        backend: *be,
+        batch_size: *bs,
+        pos: 6,
+        learning_rate: *lr,
+        pretrain_learning_rate: *plr,
+        tied_weights: *tw,
+        nifm: 8,
+        nofm: 8,
+        ifmshape: [23, 23],
+        fshape: [3, 3],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:mylearn.models.layer.L2PoolingLayer {
+        name: layer7,
+        backend: *be,
+        batch_size: *bs,
+        pos: 7,
+        nfm: 8,
+        ifmshape: [21, 21],
+        pshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LCNLayer {
+        name: layer8,
+        backend: *be,
+        batch_size: *bs,
+        pos: 8,
+        nfm: 8,
+        ifmshape: [19, 19],
         fshape: [3, 3],
         stride: 1,
       },
@@ -124,7 +165,7 @@
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 968, # previous nout (nfm * ifmshape[0] * ifmshape[1])
+        nin: 2888, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:mylearn.transforms.logistic.Logistic {},
         weight_init: {
