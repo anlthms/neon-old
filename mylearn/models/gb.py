@@ -48,8 +48,8 @@ class GB(MLP):
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayer):
                 layer.train_mode()
-        if self.num_pretrain_epochs > 0:
-            self.visualize()
+        #if self.num_pretrain_epochs > 0:
+        #    self.visualize()
 
     def train(self, inputs, targets):
         """
