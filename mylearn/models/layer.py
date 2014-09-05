@@ -817,8 +817,8 @@ class LCNLayer(YAMLable):
         self.nout = self.nin
         self.filters = self.normalized_gaussian_filters(nfm, fshape)
 
-        self.exifmheight = (self.ifmheight - 1) * stride + self.fheight  
-        self.exifmwidth = (self.ifmwidth - 1) * stride + self.fwidth  
+        self.exifmheight = (self.ifmheight - 1) * stride + self.fheight
+        self.exifmwidth = (self.ifmwidth - 1) * stride + self.fwidth
         self.exifmsize = self.exifmheight * self.exifmwidth
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
@@ -829,7 +829,7 @@ class LCNLayer(YAMLable):
         self.conv = Convolver(backend, batch_size, nfm, 1,
                               self.exifmshape, fshape, stride,
                               self.filters)
-        assert self.conv.ofmsize == self.ifmsize 
+        assert self.conv.ofmsize == self.ifmsize
 
         self.hdiff = self.exifmheight - self.ifmheight
         self.wdiff = self.exifmwidth - self.ifmwidth
@@ -842,7 +842,7 @@ class LCNLayer(YAMLable):
         self.rmeanfm = self.meanfm.reshape((batch_size, 1,
                                             self.ifmheight,
                                             self.ifmwidth))
-        
+
         self.output = backend.zeros((batch_size, self.nout))
         self.routput = self.output.reshape((batch_size, nfm,
                                             self.ifmheight,
@@ -877,8 +877,21 @@ class LCNLayer(YAMLable):
     def copy_inset(self, canvas, inset, start_row, start_col):
         canvas[:, :,
                start_row:(canvas.shape[2] - start_row),
-               start_col:(canvas.shape[3] - start_col)] = inset 
-        
+               start_col:(canvas.shape[3] - start_col)] = inset
+
+        canvas[:, :, 0:start_row, :] = (
+            canvas[:, :, range(2*start_row - 1, start_row - 1, -1), :])
+        canvas[:, :, :, 0:start_col] = (
+            canvas[:, :, :, range(2*start_col - 1, start_col - 1, -1)])
+        canvas[:, :, (canvas.shape[2] - start_row):canvas.shape[2], :] = (
+            canvas[:, :,
+                   range(canvas.shape[2] - start_row - 1,
+                         canvas.shape[2] - 2 * start_row - 1, -1), :])
+        canvas[:, :, :, (canvas.shape[3] - start_col):canvas.shape[3]] = (
+            canvas[:, :, :,
+                   range(canvas.shape[3] - start_col - 1,
+                         canvas.shape[3] - 2*start_col - 1, -1)])
+
     def sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.batch_size, self.nfm,
                                   self.ifmheight, self.ifmwidth))
