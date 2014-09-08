@@ -26,6 +26,7 @@
     sparsity: &sp 0.1,
     pretrain_learning_rate: &plr 0.01,
     tied_weights: &tw True,
+    visualize: False,
     momentum: {
       type: linear_monotone,
       initial_coef: 0.99,

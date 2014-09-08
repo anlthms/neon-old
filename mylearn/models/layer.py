@@ -392,6 +392,7 @@ class LocalFilteringLayer(LocalLayer):
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
                                                 weight_init)
+        self.normalize_weights(self.weights)
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))

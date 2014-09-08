@@ -48,10 +48,11 @@ class GB(MLP):
                 logger.info('epoch: %d, cost: %0.2f, %0.2f, %0.2f' %
                             (epoch, trcost / num_batches,
                              tspcost / num_batches, tcost / num_batches))
-                self.save_figs(layer.nifm, layer.ifmshape,
-                               [output, layer.defilter.output],
-                               [os.path.join('recon', 'input'),
-                                os.path.join('recon', 'output')], ind)
+                if self.visualize:
+                    self.save_figs(layer.nifm, layer.ifmshape,
+                                   [output, layer.defilter.output],
+                                   [os.path.join('recon', 'input'),
+                                    os.path.join('recon', 'output')], ind)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayer):
@@ -72,7 +73,7 @@ class GB(MLP):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
-                if epoch <= self.num_epochs / 10:
+                if epoch <= 0:
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
                                     epoch, self.momentum)
@@ -109,24 +110,25 @@ class GB(MLP):
                 self.trainable_layers.append(ind)
             logger.info('created layer:\n\t%s' % str(layer))
 
-        self.pretrain(inputs)
+        if self.pretraining:
+            self.pretrain(inputs)
         targets = datasets[0].get_targets(train=True)['train']
         self.train(inputs, targets)
-        if self.num_pretrain_epochs > 0:
-            self.visualize()
+        if self.visualize:
+            self.compute_optimal_stimulus()
 
     def normalize(self, data):
         norms = data.norm(axis=1)
         self.backend.divide(data, norms.reshape((norms.shape[0], 1)),
                             out=data)
 
-    def visualize(self):
+    def compute_optimal_stimulus(self):
         """
         This function tries to generate synthetic input data that maximizes
         the probability of activating the output neurons.
         """
         import matplotlib.pyplot as plt
-        logger.info('visualize')
+        logger.info('visualizing features...')
         inputs = self.backend.ones((self.batch_size, self.nin))
         self.normalize(inputs)
         lastlayer = self.layers[-2]
@@ -134,7 +136,7 @@ class GB(MLP):
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
-        inc = 0.01
+        inc = 0.1
         # Do a greedy search to find input data that maximizes the output
         # of neurons in the last LCN layer.
         for loops in range(10):
