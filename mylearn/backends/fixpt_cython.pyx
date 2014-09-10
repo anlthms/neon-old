@@ -4,8 +4,6 @@ import numpy as np
 cimport cython
 cimport numpy as np
 
-# TODO: create lookup table structs for max_int and max_int - 1
-
 # though we don't use the Numpy C-API, this call prevents compiler warnings
 np.import_array()
 
@@ -47,7 +45,7 @@ cpdef inline elemtype_t fixed_from_float(double floatval, int sign_bit,
                                          int int_bits, int frac_bits,
                                          ofl_t overflow, rnd_t rounding):
     cdef elemtype_t fixedval, max_int
-    assert frac_bits <= 15
+    assert (sign_bit + int_bits + frac_bits) <= 32
     # truncate / round result
     if rounding == RND_TRUNCATE:
         # truncation done with cast to int
