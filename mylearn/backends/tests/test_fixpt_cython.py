@@ -222,9 +222,9 @@ def test_basic_matmatmul():
     })
     A = np.array([[create(1.0, **params), create(2.0, **params)],
                   [create(3.0, **params), create(4.0, **params)]],
-                 dtype=np.int32)
+                 dtype=np.int64)
     B = np.copy(A, order="F")
-    out = np.empty([2, 2], dtype=np.int32)
+    out = np.empty([2, 2], dtype=np.int64)
     naive_dot(A, B, out, **params)
     exp_res = np.array([[7.0, 10.0],
                         [15.0, 22.0]])

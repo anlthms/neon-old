@@ -10,7 +10,7 @@ cimport numpy as np
 np.import_array()
 
 # define the storage used for each fixed-point element
-ctypedef np.int32_t elemtype_t
+ctypedef np.int64_t elemtype_t
 
 # overflow handling mechanisms
 ctypedef enum ofl_t:
