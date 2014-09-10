@@ -104,6 +104,7 @@ def test_overflow_wrap():
     #         -> 5.875_10 (Q3.3 conversion back to decimal)
     check_rep(x, 5.875, **params)
 
+
 def test_negative_rep():
     x = fixpt(-3.0)
     check_rep(x, -3.0)
@@ -152,8 +153,8 @@ def test_rounding_truncated_addition():
         "rounding": 0,
     }
     # with 3 fractional bits
-    x = fixpt(14.567, **params) # --> 116.536 --> 116 after truncation
-    y = fixpt(10, **params) # --> 80 (after truncation)
+    x = fixpt(14.567, **params)  # --> 116.536 --> 116 after truncation
+    y = fixpt(10, **params)  # --> 80 (after truncation)
     # 196_10 --> 11000.100_2 -> 24.5_10 Q5.3 (.125 * 4 for frac)
     check_rep(x + y, 24.5, **params)
 
@@ -165,7 +166,7 @@ def test_rounding_nearest_addition():
         "rounding": 1,  # RND_NEAREST
     }
     # with 3 fractional bits
-    x = fixpt(14.567, **params) # --> 116.536 --> 117 after round nearest
-    y = fixpt(10, **params) # --> 80 (after truncation)
+    x = fixpt(14.567, **params)  # --> 116.536 --> 117 after round nearest
+    y = fixpt(10, **params)  # --> 80 (after truncation)
     # 197_10 --> 11000.101_2 -> 24.625_10 Q5.3 (.125 * 5 for frac)
     check_rep(x + y, 24.625, **params)

@@ -30,6 +30,22 @@ if write_version:
     finally:
         a.close()
 
+use_cython = True
+suffix = "pyx"
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    use_cython = False
+    suffix = "c"
+extensions = [Extension('mylearn.backends.fixpt_dtype',
+                        sources=['mylearn/backends/fixpt_dtype.c'],
+                        include_dirs=[np.get_include()]),
+              Extension('mylearn.backends.fixpt_cython',
+                        ['mylearn/backends/fixpt_cython.' + suffix],
+                        include_dirs=[np.get_include()])]
+if use_cython:
+    extensions = cythonize(extensions)
+
 setup(name='mylearn',
       version=VERSION,
       description='Deep learning library with configurable backends',
@@ -52,7 +68,4 @@ setup(name='mylearn',
                 'mylearn.transforms.tests',
                 'mylearn.util.tests', ],
       scripts=['bin/mylearn'],
-      ext_modules=[
-          Extension('mylearn.backends.fixpt_dtype',
-                    sources=['mylearn/backends/fixpt_dtype.c'],
-                    include_dirs=[np.get_include()])])
+      ext_modules=extensions)

@@ -25,6 +25,7 @@ We want to strive to have as few of these as possible
 * [sphinx](http://sphinx-doc.org/) for documentation generation
   * sphinxcontrib-napoleon for google style autodoc parsing
 * [cudamat](https://github.com/cudamat/cudamat) for GPU based backend
+* [Cython](http://cython.org/) for fixedpoint backend compilation
 
 
 ## Usage ##
