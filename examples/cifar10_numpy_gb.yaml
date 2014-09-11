@@ -19,7 +19,8 @@
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
     num_epochs: 4,
-    num_pretrain_epochs: 10,
+    num_pretrain_epochs: 1,
+    num_initial_epochs: 1,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
     pretraining: &pt True,
@@ -27,6 +28,7 @@
     pretrain_learning_rate: &plr 0.001,
     tied_weights: &tw True,
     visualize: False,
+    spot_check: True,
     momentum: {
       type: linear_monotone,
       initial_coef: 0.99,
@@ -166,7 +168,7 @@
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 200, # previous nout (nfm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:mylearn.transforms.logistic.Logistic {},
         weight_init: {
