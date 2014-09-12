@@ -9,6 +9,7 @@ np.import_array()
 
 # define the storage used for each fixed-point element
 ctypedef np.int64_t elemtype_t
+elemtype = np.int64
 
 # overflow handling mechanisms
 ctypedef enum ofl_t:
@@ -94,6 +95,40 @@ cpdef char* fixed_repr(double floatval, int sign_bit, int int_bits,
                           sign_bit, int_bits, frac_bits, overflow, rounding))
     return res
     
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def fixed_from_float_array(np.ndarray[float, ndim=2, mode="c"] A not None,
+                           int sign_bit, int int_bits, int frac_bits, ofl_t
+                           overflow, rnd_t rounding):
+    """
+    Construct a 2-d fixed-point array from the values in the floating point
+    array given.
+    """
+    cdef Py_ssize_t x, y
+    cdef np.ndarray[elemtype_t, ndim=2] res = np.empty_like(A, dtype=elemtype)
+    for x in xrange(res.shape[0]):
+        for y in xrange(res.shape[1]):
+            res[x, y] = fixed_from_float(A[x, y], sign_bit, int_bits,
+                                         frac_bits, overflow, rounding)
+    return res
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def fixed_to_float_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
+                         int sign_bit, int int_bits, int frac_bits, ofl_t
+                           overflow, rnd_t rounding):
+    """
+    Construct a 2-d floating-point array from the values in the fixed point
+    array given.
+    """
+    cdef Py_ssize_t x, y
+    cdef np.ndarray[float, ndim=2] res = np.empty_like(A, dtype=np.float32)
+    for x in xrange(res.shape[0]):
+        for y in xrange(res.shape[1]):
+            res[x, y] = fixed_to_float(A[x, y], sign_bit, int_bits,
+                                       frac_bits, overflow, rounding)
+    return res
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
