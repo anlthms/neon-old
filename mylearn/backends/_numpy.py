@@ -200,7 +200,7 @@ class Numpy(Backend):
     def nonzero(x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
 
-    def gen_weights(self, size, weight_params):
+    def gen_weights(self, size, weight_params, dtype=np.float32):
         weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0
@@ -239,7 +239,11 @@ class Numpy(Backend):
             logger.info('separately initializing bias weights to %0.2f' %
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
-
+        if weights._tensor.dtype != dtype:
+            # unfortunately we typically can't avoid a copy here, or initialize
+            # to appropriate size up front.  For instance see:
+            # http://stackoverflow.com/q/19523166
+            weights._tensor = weights._tensor.astype(dtype)
         return weights
 
     def get_momentum_coef(self, epoch, momentum_params):
@@ -307,6 +311,9 @@ class Numpy64(Numpy):
     @staticmethod
     def array(obj, dtype=np.float64):
         return NumpyTensor(np.array(obj, dtype))
+
+    def gen_weights(self, size, weight_params, dtype=np.float64):
+        return super(Numpy64, self).gen_weights(size, weight_params, dtype)
 
 
 class NumpyTensor(Tensor):
