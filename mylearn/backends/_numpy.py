@@ -82,13 +82,13 @@ class Numpy(Backend):
         return NumpyTensor(np.random.normal(loc, scale, size))
 
     @staticmethod
-    def append_bias(x):
+    def append_bias(x, dtype=np.float32):
         """
         Adds a bias column of ones to NumpyTensor x,
         returning a new NumpyTensor.
         """
         return NumpyTensor(np.concatenate((x._tensor,
-                                          np.ones((x.shape[0], 1))),
+                                          np.ones((x.shape[0], 1), dtype)),
                                           axis=1))
 
     @staticmethod
@@ -336,6 +336,8 @@ class NumpyTensor(Tensor):
             dtype = np.float32
         if type(obj) != np.ndarray:
             self._tensor = np.array(obj, dtype)
+        elif obj.dtype != dtype:
+            self._tensor = obj.astype(dtype)
         else:
             self._tensor = obj
         self.shape = self._tensor.shape
@@ -360,14 +362,14 @@ class NumpyTensor(Tensor):
             int, array_like, NumpyTensor: Transformed val
         """
         if isinstance(val, tuple):
-            val = tuple(x._tensor if isinstance(x, NumpyTensor) else x
+            val = tuple(x._tensor if isinstance(x, self.__class__) else x
                         for x in val)
-        if isinstance(val, NumpyTensor):
+        if isinstance(val, self.__class__):
             val = val._tensor
         return val
 
     def __getitem__(self, key):
-        return NumpyTensor(self._tensor[self._clean(key)])
+        return self.__class__(self._tensor[self._clean(key)])
 
     def __setitem__(self, key, value):
         self._tensor[self._clean(key)] = self._clean(value)
@@ -379,43 +381,43 @@ class NumpyTensor(Tensor):
         return float(self._tensor)
 
     def __neg__(self):
-        return NumpyTensor(- self._tensor)
+        return self.__class__(- self._tensor)
 
     def __lt__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor < other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor < other._tensor)
         else:
-            return NumpyTensor(self._tensor < other)
+            return self.__class__(self._tensor < other)
 
     def __le__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor <= other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor <= other._tensor)
         else:
-            return NumpyTensor(self._tensor <= other)
+            return self.__class__(self._tensor <= other)
 
     def __eq__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor == other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor == other._tensor)
         else:
-            return NumpyTensor(self._tensor == other)
+            return self.__class__(self._tensor == other)
 
     def __ne__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor != other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor != other._tensor)
         else:
-            return NumpyTensor(self._tensor != other)
+            return self.__class__(self._tensor != other)
 
     def __gt__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor > other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor > other._tensor)
         else:
-            return NumpyTensor(self._tensor > other)
+            return self.__class__(self._tensor > other)
 
     def __ge__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor >= other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor >= other._tensor)
         else:
-            return NumpyTensor(self._tensor >= other)
+            return self.__class__(self._tensor >= other)
 
     def __add__(self, other):
         """
@@ -426,12 +428,12 @@ class NumpyTensor(Tensor):
                             as this Tensor, or be broadcastable as such.
 
         Returns:
-            NumpyTensor: containing the element-wise sum values.
+            self.__class__: containing the element-wise sum values.
         """
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor + other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor + other._tensor)
         else:
-            return NumpyTensor(self._tensor + other)
+            return self.__class__(self._tensor + other)
 
     def __radd__(self, other):
         """
@@ -442,12 +444,12 @@ class NumpyTensor(Tensor):
                             as this Tensor, or be broadcastable as such.
 
         Returns:
-            NumpyTensor: containing the element-wise sum values.
+            self.__class__: containing the element-wise sum values.
         """
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor + self._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor + self._tensor)
         else:
-            return NumpyTensor(other + self._tensor)
+            return self.__class__(other + self._tensor)
 
     def __iadd__(self, other):
         """
@@ -458,47 +460,47 @@ class NumpyTensor(Tensor):
                             as this Tensor, or be broadcastable as such.
 
         Returns:
-            NumpyTensor: containing the element-wise sum values.
+            self.__class__: containing the element-wise sum values.
         """
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor += other._tensor
         else:
             self._tensor += other
         return self
 
     def __sub__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor - other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor - other._tensor)
         else:
-            return NumpyTensor(self._tensor - other)
+            return self.__class__(self._tensor - other)
 
     def __rsub__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor - self._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor - self._tensor)
         else:
-            return NumpyTensor(other - self._tensor)
+            return self.__class__(other - self._tensor)
 
     def __isub__(self, other):
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor -= other._tensor
         else:
             self._tensor -= other
         return self
 
     def __mul__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor * other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor * other._tensor)
         else:
-            return NumpyTensor(self._tensor * other)
+            return self.__class__(self._tensor * other)
 
     def __rmul__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor * self._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor * self._tensor)
         else:
-            return NumpyTensor(other * self._tensor)
+            return self.__class__(other * self._tensor)
 
     def __imul__(self, other):
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor *= other._tensor
         else:
             self._tensor *= other
@@ -510,29 +512,29 @@ class NumpyTensor(Tensor):
 
     def __truediv__(self, other):
         # python3 fractional division
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor / other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor / other._tensor)
         else:
-            return NumpyTensor(self._tensor / other)
+            return self.__class__(self._tensor / other)
 
     def __rdiv__(self, other):
         return self.__rtruediv__(other)
 
     def __rtruediv__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor / self._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor / self._tensor)
         else:
-            return NumpyTensor(other / self._tensor)
+            return self.__class__(other / self._tensor)
 
     def __idiv__(self, other):
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor /= other._tensor
         else:
             self._tensor /= other
         return self
 
     def __itruediv__(self, other):
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor /= other._tensor
         else:
             self._tensor /= other
@@ -540,50 +542,50 @@ class NumpyTensor(Tensor):
 
     def __pow__(self, other, modulo=None):
         # TODO: determine how ternary modulo needs to be handled
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor ** other._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor ** other._tensor)
         else:
-            return NumpyTensor(self._tensor ** other)
+            return self.__class__(self._tensor ** other)
 
     def __rpow__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor ** self._tensor)
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor ** self._tensor)
         else:
-            return NumpyTensor(other ** self._tensor)
+            return self.__class__(other ** self._tensor)
 
     def __ipow__(self, other):
-        if isinstance(other, NumpyTensor):
+        if isinstance(other, self.__class__):
             self._tensor **= other._tensor
         else:
             self._tensor **= other
         return self
 
     def copy(self):
-        return NumpyTensor(np.copy(self._tensor))
+        return self.__class__(np.copy(self._tensor))
 
     def raw(self):
         return self._tensor
 
     def T(self):
-        return NumpyTensor(self._tensor.T)
+        return self.__class__(self._tensor.T)
 
     def transpose(self):
-        return NumpyTensor(self._tensor.T)
+        return self.__class__(self._tensor.T)
 
     def reshape(self, shape):
         # TODO: Some layer code (ex. PoolingLayer) currently depends
         # on squish/reshape always returning a view of the existing
         # data, but numpy.reshape does not guarantee this.  We should remove
         # reliance on this dependency.
-        return NumpyTensor(self._tensor.reshape(shape))
+        return self.__class__(self._tensor.reshape(shape))
 
     def argmax(self, axis):
-        return NumpyTensor(self._tensor.argmax(axis))
+        return self.__class__(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
-        if type(indices) == NumpyTensor:
+        if type(indices) == self.__class__:
             indices = indices._tensor
-        return NumpyTensor(self._tensor.take(indices, axis))
+        return self.__class__(self._tensor.take(indices, axis))
 
     def add(self, obj):
         self._tensor += obj._tensor
@@ -592,30 +594,30 @@ class NumpyTensor(Tensor):
         self._tensor -= obj._tensor
 
     def norm(self, axis):
-        return NumpyTensor(np.sqrt((self._tensor * self._tensor).sum(axis)))
+        return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
 
     def repeat(self, repeats, axis):
-        return NumpyTensor(self._tensor.repeat(repeats, axis))
+        return self.__class__(self._tensor.repeat(repeats, axis))
 
     def log(self):
-        return NumpyTensor(np.log(self._tensor))
+        return self.__class__(np.log(self._tensor))
 
     def exp(self):
-        return NumpyTensor(np.exp(self._tensor))
+        return self.__class__(np.exp(self._tensor))
 
     def mean(self, axis=None, dtype=np.float32, out=None):
         res = np.mean(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
-            return NumpyTensor(res)
+            return self.__class__(res)
 
     def sum(self, axis=None, dtype=np.float32, out=None):
         res = np.sum(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
-            return NumpyTensor(res)
+            return self.__class__(res)
 
 
 class Numpy64Tensor(NumpyTensor):
