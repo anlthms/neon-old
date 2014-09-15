@@ -26,15 +26,15 @@ class Numpy(Backend):
 
     @staticmethod
     def zeros(shape, dtype=np.float32):
-        return NumpyTensor(np.zeros(shape, dtype))
+        return NumpyTensor(np.zeros(shape, dtype), dtype)
 
     @staticmethod
     def ones(shape, dtype=np.float32):
-        return NumpyTensor(np.ones(shape, dtype))
+        return NumpyTensor(np.ones(shape, dtype), dtype)
 
     @staticmethod
     def array(obj, dtype=np.float32):
-        return NumpyTensor(np.array(obj, dtype))
+        return NumpyTensor(np.array(obj, dtype), dtype)
 
     @staticmethod
     def wrap(obj):
@@ -89,7 +89,7 @@ class Numpy(Backend):
         """
         return NumpyTensor(np.concatenate((x._tensor,
                                           np.ones((x.shape[0], 1), dtype)),
-                                          axis=1))
+                                          axis=1), dtype)
 
     @staticmethod
     def copy(a):
@@ -302,18 +302,62 @@ class Numpy64(Numpy):
 
     @staticmethod
     def zeros(shape, dtype=np.float64):
-        return NumpyTensor(np.zeros(shape, dtype))
+        return Numpy64Tensor(np.zeros(shape, dtype), dtype)
 
     @staticmethod
     def ones(shape, dtype=np.float64):
-        return NumpyTensor(np.ones(shape, dtype))
+        return Numpy64Tensor(np.ones(shape, dtype), dtype)
 
     @staticmethod
     def array(obj, dtype=np.float64):
-        return NumpyTensor(np.array(obj, dtype))
+        return Numpy64Tensor(np.array(obj, dtype), dtype)
+
+    @staticmethod
+    def wrap(obj):
+        return Numpy64Tensor(obj)
+
+    def uniform(self, low=0.0, high=1.0, size=1):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            low (float, optional): Minimal sample value that can be returned.
+                                   Defaults to 0.0
+            high (float, optional): Maximal sample value.  Open ended range so
+                                    maximal value slightly less.  Defaults to
+                                    1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            Numpy64Tensor: Of specified size filled with these random
+                           numbers.
+        """
+        return Numpy64Tensor(np.random.uniform(low, high, size))
+
+    def normal(self, loc=0.0, scale=1.0, size=1):
+        """
+        Gaussian/Normal random number sample generation
+
+        Arguments:
+            loc (float, optional): Where to center distribution.  Defaults
+                                   to 0.0
+            scale (float, optional): Standard deviaion.  Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            Numpy64Tensor: Of specified size filled with these random
+                         numbers.
+        """
+        return Numpy64Tensor(np.random.normal(loc, scale, size))
 
     def gen_weights(self, size, weight_params, dtype=np.float64):
         return super(Numpy64, self).gen_weights(size, weight_params, dtype)
+
+    @staticmethod
+    def append_bias(x, dtype=np.float64):
+        return Numpy64Tensor(np.concatenate((x._tensor,
+                                            np.ones((x.shape[0], 1), dtype)),
+                                            axis=1), dtype)
 
 
 class NumpyTensor(Tensor):
@@ -369,7 +413,8 @@ class NumpyTensor(Tensor):
         return val
 
     def __getitem__(self, key):
-        return self.__class__(self._tensor[self._clean(key)])
+        return self.__class__(self._tensor[self._clean(key)],
+                              dtype=self._tensor.dtype)
 
     def __setitem__(self, key, value):
         self._tensor[self._clean(key)] = self._clean(value)
@@ -381,7 +426,8 @@ class NumpyTensor(Tensor):
         return float(self._tensor)
 
     def __neg__(self):
-        return self.__class__(- self._tensor)
+        return self.__class__(- self._tensor,
+                              dtype=self._tensor.dtype)
 
     def __lt__(self, other):
         if isinstance(other, self.__class__):
@@ -561,23 +607,27 @@ class NumpyTensor(Tensor):
         return self
 
     def copy(self):
-        return self.__class__(np.copy(self._tensor))
+        return self.__class__(np.copy(self._tensor),
+                              dtype=self._tensor.dtype)
 
     def raw(self):
         return self._tensor
 
     def T(self):
-        return self.__class__(self._tensor.T)
+        return self.__class__(self._tensor.T,
+                              dtype=self._tensor.dtype)
 
     def transpose(self):
-        return self.__class__(self._tensor.T)
+        return self.__class__(self._tensor.T,
+                              dtype=self._tensor.dtype)
 
     def reshape(self, shape):
         # TODO: Some layer code (ex. PoolingLayer) currently depends
         # on squish/reshape always returning a view of the existing
         # data, but numpy.reshape does not guarantee this.  We should remove
         # reliance on this dependency.
-        return self.__class__(self._tensor.reshape(shape))
+        return self.__class__(self._tensor.reshape(shape),
+                              dtype=self._tensor.dtype)
 
     def argmax(self, axis):
         return self.__class__(self._tensor.argmax(axis))
@@ -585,7 +635,8 @@ class NumpyTensor(Tensor):
     def take(self, indices, axis=None):
         if type(indices) == self.__class__:
             indices = indices._tensor
-        return self.__class__(self._tensor.take(indices, axis))
+        return self.__class__(self._tensor.take(indices, axis),
+                              self._tensor.dtype)
 
     def add(self, obj):
         self._tensor += obj._tensor

@@ -281,7 +281,7 @@ class LocalLayer(YAMLable):
                 # Shift the filter down by one stride.
                 src += stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds)
+            self.links[dst, :] = backend.array(colinds, dtype='i32')
         self.rlinks = self.links.raw()
 
     def normalize_weights(self, weights):
@@ -310,7 +310,7 @@ class ConvLayer(LocalLayer):
         self.weights = backend.gen_weights((nfilt, self.fsize),
                                            weight_init)
         ofmstarts = backend.array(range(0, (self.ofmsize * nfilt),
-                                        self.ofmsize))
+                                        self.ofmsize), dtype='i32')
         ofmlocs = backend.zeros((self.ofmsize, nfilt), dtype='i32')
         for dst in xrange(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
@@ -578,7 +578,7 @@ class PoolingLayer(YAMLable):
                 # Shift the pooling window down by one stride.
                 src += stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds)
+            self.links[dst, :] = backend.array(colinds, dtype='i32')
 
         self.nout = nfm * self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))

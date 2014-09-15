@@ -51,7 +51,7 @@ class FixedPoint(Numpy):
     rounding = 0
 
     @classmethod
-    def zeros(cls, shape):
+    def zeros(cls, shape, dtype=np.float32):
         """
         Instantiates a new FixedPointTensor object whose elements are all set
         to zero.
@@ -59,14 +59,14 @@ class FixedPoint(Numpy):
         Arguments:
             shape (int or sequence of ints): Shape of the new array.
         """
-        return FixedPointTensor(np.zeros(shape, dtype=np.float32),
+        return FixedPointTensor(np.zeros(shape, dtype=dtype),
                                 sign_bit=cls.sign_bit, int_bits=cls.int_bits,
                                 frac_bits=cls.frac_bits,
                                 overflow=cls.overflow, rounding=cls.rounding)
 
     @classmethod
-    def array(cls, obj):
-        return FixedPointTensor(np.array(obj, dtype=np.float32),
+    def array(cls, obj, dtype=np.float32):
+        return FixedPointTensor(np.array(obj, dtype=dtype),
                                 sign_bit=cls.sign_bit, int_bits=cls.int_bits,
                                 frac_bits=cls.frac_bits,
                                 overflow=cls.overflow, rounding=cls.rounding)
