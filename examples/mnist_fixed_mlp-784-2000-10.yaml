@@ -34,7 +34,7 @@
       saturated_coef: 0.90,
     },
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-simple.pkl',
+    serialized_path: './mlp-fixpt_simple.pkl',
     layers: [
       !obj:mylearn.models.layer.Layer {
         name: h0,

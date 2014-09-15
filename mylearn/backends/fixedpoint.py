@@ -157,18 +157,16 @@ class FixedPoint(Numpy):
         """
         return FixedPointTensor(np.random.normal(loc, scale, size))
 
-
     @staticmethod
     def append_bias(x):
         """
         Adds a bias column of ones to FixedPointTensor x,
         returning a new FixedPointTensor.
         """
-        return FixedPointTensor(np.concatenate((fixed_to_float_array(x._tensor,
-                                x.sign_bit, x.int_bits, x.frac_bits,
-                                x.overflow, x.rounding),
-                                np.ones((x.shape[0], 1), dtype=np.float32)),
-                                axis=1))
+        float_x = fixed_to_float_array(x._tensor, x.sign_bit, x.int_bits,
+                                       x.frac_bits, x.overflow, x.rounding)
+        bias = np.ones((x.shape[0], 1), dtype=np.float32)
+        return FixedPointTensor(np.concatenate((float_x, bias), axis=1))
 
     @staticmethod
     def dot(a, b, out):
