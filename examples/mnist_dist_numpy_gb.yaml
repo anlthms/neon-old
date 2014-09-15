@@ -1,0 +1,91 @@
+# Experiment settings to train/test a "Google Brain" style sparse autoencoder
+# model on MNIST.
+
+!obj:mylearn.experiments.fit_predict_err_dist.FitPredictErrorExperiment {
+  backend: &be !obj:mylearn.backends._numpy.Numpy {
+    rng_seed: 0,
+  },
+
+  datasets: [
+    # MNIST data
+    !obj:mylearn.datasets.mnist_dist.MNIST_Dist {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/MNIST_Dist/mnist_dist_10pct-Numpy_',
+    },
+  ],
+
+  # Google Brain model specification
+  model: !obj:mylearn.models.gb_dist.GB_Dist {
+    num_epochs: 1,
+    num_pretrain_epochs: 2,
+    num_initial_epochs: 1,
+    batch_size: &bs 1,
+    learning_rate: &lr 0.1,
+    pretraining: &pt True,
+    sparsity: &sp 0.1,
+    pretrain_learning_rate: &plr 0.01,
+    tied_weights: &tw True,
+    visualize: False,
+    spot_check: True,
+    momentum: {
+      type: linear_monotone,
+      initial_coef: 0.99,
+      start_epoch: 5,
+      saturate_epoch: 5,
+      saturated_coef: 0.90,
+    },
+    pretrain_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
+    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    layers: [
+      !obj:mylearn.models.layer.LocalFilteringLayer_dist {
+        name: layer0,
+        pretraining: *pt,
+        sparsity: *sp,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rate: *lr,
+        pretrain_learning_rate: *plr,
+        tied_weights: *tw,
+        nifm: 1,
+        nofm: 8,
+        ifmshape: [28, 28],
+        fshape: [4, 4],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:mylearn.models.layer.L2PoolingLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nfm: 8,
+        ifmshape: [25, 25],
+        pshape: [3, 3],
+        stride: 1,
+      },
+      !obj:mylearn.models.layer.LCNLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        nfm: 8,
+        ifmshape: [23, 23],
+        fshape: [3, 3],
+        stride: 1,
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  logging: {
+    level: 10,  #logging.DEBUG == 10
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
