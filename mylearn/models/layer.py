@@ -817,7 +817,9 @@ class LCNLayer(YAMLable):
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.nin = nfm * self.ifmsize
         self.nout = self.nin
-        self.filters = self.normalized_gaussian_filters(nfm, fshape)
+        self.filters, self.fpeak = self.normalized_gaussian_filters(nfm,
+                                                                    fshape)
+        self.fpeakdiff = 1.0 - self.fpeak
 
         self.exifmheight = (self.ifmheight - 1) * stride + self.fheight
         self.exifmwidth = (self.ifmwidth - 1) * stride + self.fwidth
@@ -855,6 +857,7 @@ class LCNLayer(YAMLable):
         self.rtemp2 = self.temp2.reshape(self.routput.shape)
         if pos > 0:
             self.berror = backend.zeros((batch_size, self.nin))
+            self.berror2 = backend.zeros((batch_size, self.nin))
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -870,11 +873,14 @@ class LCNLayer(YAMLable):
         assert(len(shape) == 2)
         single = gaussian_filter(shape)
         single /= (count * single.sum())
+        assert shape[0] % 2 == 1
+        assert shape[1] % 2 == 1
+        center = single[shape[0] / 2, shape[1] / 2]
         filters = self.backend.zeros((count, shape[0], shape[1]))
         filters[:] = single
 
         filters = filters.reshape((1, count * shape[0] * shape[1]))
-        return filters
+        return filters, center
 
     def copy_inset(self, canvas, inset, start_row, start_col):
         canvas[:, :,
@@ -907,3 +913,56 @@ class LCNLayer(YAMLable):
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
             self.berror[:] = error
+
+    def bprop1(self, error, inputs, epoch, momentum):
+        # TODO: simplify this and replace bprop() above.
+        if self.pos > 0:
+            # Back propagate through divisive normalization.
+            self.backend.multiply(self.output, self.output, out=self.berror2)
+            self.backend.multiply(self.berror2, self.backend.wrap(self.fpeak),
+                                  out=self.berror2)
+            self.backend.subtract(self.backend.wrap(1.0), self.berror2,
+                                  out=self.berror2)
+            self.backend.multiply(self.output, self.berror2, out=self.berror2)
+            self.temp3 = self.temp1.copy()
+            self.berror2[self.temp1 == 0] = 0.0
+            self.temp1[self.temp1 == 0] = 1.0
+            self.backend.divide(self.berror2, self.temp1, out=self.berror2)
+
+            for dst in xrange(self.conv.ofmsize):
+                divout = self.output.take(self.conv.rofmlocs[dst], axis=1)
+                assert divout.shape[1] == self.nfm
+                self.backend.multiply(divout, divout, out=divout)
+                self.backend.multiply(divout, divout, out=divout)
+                subout = self.temp3.take(self.conv.rofmlocs[dst], axis=1)
+                self.backend.divide(divout, subout, out=divout)
+                self.backend.divide(divout, subout, out=divout)
+
+                rflinks = self.conv.rlinks[dst]
+                assert rflinks.shape[0] % self.nfm == 0
+                sublen = rflinks.shape[0] / self.nfm
+                assert sublen * self.nfm == self.filters.shape[1]
+                for fm in xrange(self.nfm):
+                    framelinks = rflinks[(fm * sublen):(fm + 1) * sublen]
+                    frame = self.temp3.take(framelinks, axis=1)
+                    assert frame.shape[1] % 2 == 0
+                    frame[:, frame.shape[1] / 2] = 0
+                    self.backend.dot(frame, self.filters[0, 0:sublen],
+                                     out=frame)
+                    self.backend.multiply(frame, divout[:, nfm], frame)
+                    self.backend.subtract(self.berror2, frame, self.berror2)
+            self.backend.multiply(error, self.berror2, self.berror2)
+
+            # Back propagate through subtractive normalization.
+            self.berror[:] = self.backend.wrap(self.fpeakdiff)
+            for dst in xrange(self.conv.ofmsize):
+                rflinks = self.conv.rlinks[dst]
+                assert rflinks.shape[0] % self.nfm == 0
+                sublen = rflinks.shape[0] / self.nfm
+                assert sublen * self.nfm == self.filters.shape[1]
+                for fm in xrange(self.nfm):
+                    self.backend.subtract(self.berror,
+                                          self.filters[0, 0:sublen],
+                                          self.berror)
+            self.backend.multiply(self.berror2, self.berror,
+                                  self.berror)

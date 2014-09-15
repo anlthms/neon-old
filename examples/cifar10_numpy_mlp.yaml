@@ -16,6 +16,7 @@
 
   # simple MLP model specification
   model: !obj:mylearn.models.mlp.MLP {
+    backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
     learning_rate: &lr 0.01,

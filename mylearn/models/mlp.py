@@ -22,6 +22,9 @@ class MLP(Model):
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
+        self.nlayers = len(self.layers)
+        tempbuf = self.backend.zeros((self.batch_size, self.layers[-1].nout))
+        self.temp = [tempbuf, tempbuf.copy()]
 
     def fit(self, datasets):
         """
@@ -32,11 +35,8 @@ class MLP(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
         nrecs = inputs.shape[0]
-        self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
-        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
-        self.temp = [tempbuf, tempbuf.copy()]
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.

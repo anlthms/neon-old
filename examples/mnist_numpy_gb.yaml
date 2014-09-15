@@ -18,6 +18,7 @@
 
   # Google Brain model specification
   model: !obj:mylearn.models.gb.GB {
+    backend: *be,
     num_epochs: 4,
     num_pretrain_epochs: 8,
     num_initial_epochs: 1,

@@ -17,6 +17,7 @@
   
   # Autoencoder model specification
   model: !obj:mylearn.models.autoencoder.Autoencoder {
+    backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
     learning_rate: &lr 0.0001,
