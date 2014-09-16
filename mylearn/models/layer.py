@@ -7,7 +7,7 @@ import logging
 from mylearn.transforms.gaussian import gaussian_filter
 from mylearn.util.persist import YAMLable
 import mylearn.util.distarray.localActArray as laa
-#from mpi4py import MPI
+# from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -338,9 +338,9 @@ class LocalLayer_dist(YAMLable):
         ofmlocs = self.backend.zeros((self.ofmsize, self.nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
             ofmlocs[dst, :] = ofmstarts + dst
+        # stores the flattened px location across
+        # ofm in columns
         self.rofmlocs = ofmlocs.raw()
-                                    # stores the flattened px location across
-                                    # ofm in columns
 
         # Figure out the connections with the previous layer.
         self.links = self.backend.zeros(
@@ -724,7 +724,7 @@ class LocalFilteringLayer_dist(LocalLayer_dist):
                              self.weights.take(self.rofmlocs[dst], axis=0).T(),
                              out=self.prodbuf)
 
-            #size: # mbs x nofm
+            # size: # mbs x nofm
             self.output[:, self.rofmlocs[dst]] = self.prodbuf
 
     def bprop(self, error, inputs, epoch, momentum):
@@ -758,7 +758,7 @@ class LocalFilteringLayer_dist(LocalLayer_dist):
                 self.rofmlocs[dst], axis=1)  # mbs x nofm
             self.backend.dot(delta_slice.T(),  # nofm x mbs
                              inputs.take(rflinks, axis=1),
-                             #mbs x nifm
+                             # mbs x nifm
                              out=self.updatebuf)
             self.updates[
                 self.rofmlocs[dst]] = self.updatebuf  # nofm x nifm
@@ -1119,14 +1119,14 @@ class L2PoolingLayer(PoolingLayer):
                 inds = self.links[dst]
                 rf = rinputs.take(inds, axis=1)
                 denom = self.routput[:, dst:(dst + 1)].copy()
-                # If the L2 norm is zero, the entire receptive field must be zeros.
-                # In that case, we set the L2 norm to 1 before using it to
-                # normalize the receptive field.
+                # If the L2 norm is zero, the entire receptive field must be
+                # zeros. In that case, we set the L2 norm to 1 before using
+                # it to normalize the receptive field.
                 denom[denom == 0] = 1
                 self.backend.divide(rf, denom, out=rf)
-                self.backend.multiply(self.rdelta[:,
-                                      dst:(dst + 1)].repeat(self.psize, axis=1),
-                                      rf, out=self.prodbuf)
+                self.backend.multiply(
+                    self.rdelta[:, dst:(dst + 1)].repeat(self.psize, axis=1),
+                    rf, out=self.prodbuf)
                 self.rberror[:, inds] += self.prodbuf
 
 
