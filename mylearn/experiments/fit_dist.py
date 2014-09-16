@@ -45,7 +45,9 @@ class FitExperiment(Experiment):
                 ds.backend = self.backend
             if hasattr(ds, 'serialized_path'):
                 if os.path.exists(ds.serialized_path):
-                    self.datasets[ds_idx] = deserialize(ds.serialized_path + str(MPI.COMM_WORLD.rank) + '.pkl')
+                    self.datasets[ds_idx] = deserialize(
+                        ds.serialized_path +
+                        str(MPI.COMM_WORLD.rank) + '.pkl')
                 else:
                     ds.load()
                     serialize(ds, ds.serialized_path)
