@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class MNIST_Dist(Dataset):
+
     """
     Sets up an MNIST dataset.
 
@@ -56,30 +57,31 @@ class MNIST_Dist(Dataset):
         """
         Carries out the actual reading of MNIST image files.
         """
-        
+
         with open(fname, 'rb') as f:
             magic, num_images, rows, cols = struct.unpack('>iiii', f.read(16))
             if magic != 2051:
                 raise ValueError('invalid MNIST image file: ' + fname)
             fullImage = numpy.fromfile(f, dtype='uint8').reshape((num_images,
-                                                              rows, cols))
-        
+                                                                  rows, cols))
+
         if dtype is not None:
             dtype = numpy.dtype(dtype)
             fullImage = fullImage.astype(dtype)
             fullImage /= 255.
 
-        #read corresponding quadrant of the image
+        # read corresponding quadrant of the image
         commRank = MPI.COMM_WORLD.rank
-        #todo: will change for different dimensions
+        # todo: will change for different dimensions
         rI = [0, 0, 14, 14]
-        cI = [0, 14, 0, 14]        
-        array = numpy.empty((num_images,14,14), dtype=dtype)
+        cI = [0, 14, 0, 14]
+        array = numpy.empty((num_images, 14, 14), dtype=dtype)
         lPtr = 0
-        for r in range(rI[commRank], rI[commRank]+14):
-          array[:,lPtr] = fullImage[:,r,range(cI[commRank], cI[commRank]+14)] 
-          lPtr += 1
-        
+        for r in range(rI[commRank], rI[commRank] + 14):
+            array[:, lPtr] = fullImage[
+                :, r, range(cI[commRank], cI[commRank] + 14)]
+            lPtr += 1
+
         return array
 
     def read_label_file(self, fname):
@@ -123,11 +125,12 @@ class MNIST_Dist(Dataset):
                     if 'images' in repo_file and 'train' in repo_file:
                         indat = self.read_image_file(repo_file, 'float32')
                         # flatten to 1D images
-                        indat = indat.reshape((60000, 784/comm.size))[train_idcs]
+                        indat = indat.reshape(
+                            (60000, 784 / comm.size))[train_idcs]
                         self.inputs['train'] = self.backend.array(indat)
                     elif 'images' in repo_file and 't10k' in repo_file:
                         indat = self.read_image_file(repo_file, 'float32')
-                        indat = indat.reshape((10000, 784/comm.size))
+                        indat = indat.reshape((10000, 784 / comm.size))
                         self.inputs['test'] = self.backend.array(indat)
                     elif 'labels' in repo_file and 'train' in repo_file:
                         indat = self.read_label_file(repo_file)[train_idcs]
@@ -146,6 +149,7 @@ class MNIST_Dist(Dataset):
                         logger.error('problems loading: %s' % name)
             else:
                 raise AttributeError('repo_path not specified in config')
-            self.serialized_path += str(comm.rank) + '.pkl' #append comm to serialzed_path
+            self.serialized_path += str(
+                comm.rank) + '.pkl'  # append comm to serialzed_path
 
                 # TODO: try and download and read in directly?

@@ -135,7 +135,7 @@ class MLP(Model):
                 if item in targets and item in preds:
                     misclass = ds.backend.not_equal(preds[item],
                                                     ds.backend.argmax(
-                                                    targets[item], axis=1))
+                                                        targets[item], axis=1))
                     err = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * err))

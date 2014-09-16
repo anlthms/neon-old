@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class GB_Dist(MLP):
+
     """
     Google Brain class
     """
@@ -31,7 +32,7 @@ class GB_Dist(MLP):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer_dist):
                 self.trainable_layers.append(ind)
-            #logger.info('created layer:\n\t%s' % str(layer))
+            # logger.info('created layer:\n\t%s' % str(layer))
 
         targets = datasets[0].get_targets(train=True)['train']
 
@@ -50,15 +51,23 @@ class GB_Dist(MLP):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
-            #MPI: initialize the distributed global array
-            inputs_dist = gaa.GlobalActArray(batchSize=self.batch_size, actSize=layer.ifmshape[0], actChannels=layer.nifm, 
-                                                    filterSize=layer.fwidth, backend=self.backend) #assuming filters are square
+            # MPI: initialize the distributed global array
+            inputs_dist = gaa.GlobalActArray(
+                batchSize=self.batch_size, actSize=layer.ifmshape[0],
+                actChannels=layer.nifm, filterSize=layer.fwidth,
+                backend=self.backend)  # assuming filters are square
 
-            #update params to account for halos
-            layer.adjustForHalos([inputs_dist.localActArray.heightWithHalos, inputs_dist.localActArray.widthWithHalos])
-            print 'Adjusting for halos: layer ', ind, '; comm: ', MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
+            # update params to account for halos
+            layer.adjustForHalos(
+                [inputs_dist.localActArray.heightWithHalos,
+                    inputs_dist.localActArray.widthWithHalos])
+            print 'Adjusting for halos: layer ', ind, '; comm: ', \
+                MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
             pooling = self.layers[self.trainable_layers[ind] + 1]
-            pooling.adjustForDist([layer.ifmshape[0] - layer.fheight+1, layer.ifmshape[1] - layer.fwidth +1] ) #assumes stride of 1 for pooling layer
+            pooling.adjustForDist(
+                [layer.ifmshape[0] - layer.fheight + 1,
+                    layer.ifmshape[1] - layer.fwidth + 1])
+                                  #assumes stride of 1 for pooling layer
             layer.pretrain_mode(pooling)
             for epoch in xrange(self.num_pretrain_epochs):
                 tcost = 0.0
@@ -67,22 +76,22 @@ class GB_Dist(MLP):
                 for batch in xrange(num_batches):
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                    #todo: fix for MPI the fprop to current layer
+                    # todo: fix for MPI the fprop to current layer
                     output = inputs[start_idx:end_idx]
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in xrange(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
-                    #MPI: set mini-batch to localImage
+                    # MPI: set mini-batch to localImage
                     inputs_dist.localActArray.localImage = output
-                    #perform halo exchanges
+                    # perform halo exchanges
                     inputs_dist.localActArray.sendRecvHalos()
-                    #make consistent chunk
+                    # make consistent chunk
                     inputs_dist.localActArray.makeLocalChunkConsistent()
 
-                    print MPI.COMM_WORLD.rank,'batch #', batch
-                    #todo: MPI: fix for backprop
+                    print MPI.COMM_WORLD.rank, 'batch #', batch
+                    # todo: MPI: fix for backprop
                     rcost, spcost = layer.pretrain(inputs_dist,
                                                    self.pretrain_cost,
                                                    epoch,
