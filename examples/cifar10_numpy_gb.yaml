@@ -29,7 +29,7 @@
     pretrain_learning_rate: &plr 0.001,
     tied_weights: &tw True,
     visualize: False,
-    spot_check: True,
+    spot_check: False,
     momentum: {
       type: linear_monotone,
       initial_coef: 0.99,
