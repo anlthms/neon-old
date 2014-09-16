@@ -107,6 +107,9 @@ class GradientChecker(Experiment):
         inputs = self.datasets[0].get_inputs(train=True)['train']
         targets = self.datasets[0].get_targets(train=True)['train']
 
+        self.model.fprop(inputs)
+        self.model.bprop(targets, inputs, 0, 0.0)
+
         self.save_state()
         self.model.fprop(inputs)
         self.model.bprop(targets, inputs, 0, 0.0)

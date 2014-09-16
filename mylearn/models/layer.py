@@ -1044,12 +1044,10 @@ class L2PoolingLayer(PoolingLayer):
                  stride):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
                                              nfm, ifmshape, pshape, stride)
-        self.normalized_rf = self.backend.zeros((batch_size * nfm, self.ifmsize))
         self.prodbuf = self.backend.zeros((batch_size * nfm, self.psize))
 
     def adjustForDist(self, ifmshape):
         super(L2PoolingLayer, self).adjustForDist(ifmshape)
-        self.normalized_rf = self.backend.zeros((self.batch_size * self.nfm, self.ifmsize))
         self.prodbuf = self.backend.zeros((self.batch_size * self.nfm, self.psize))
 
     def __str__(self):
@@ -1064,22 +1062,24 @@ class L2PoolingLayer(PoolingLayer):
             inds = self.links[dst]
             rf = rinputs.take(inds, axis=1)
             self.routput[:, dst] = rf.norm(axis=1)
-            denom = self.routput[:, dst:(dst + 1)].repeat(self.psize, axis=1)
-            # If the L2 norm is zero, the entire receptive field must be zeros.
-            # In that case, we set the L2 norm to 1 before using it to
-            # normalize the receptive field.
-            denom[denom == 0] = 1
-            self.normalized_rf[:, inds] = rf / denom
 
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
+        rinputs = self.backend.squish(inputs, self.nfm)
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
                 inds = self.links[dst]
-                self.backend.multiply(self.normalized_rf[:, inds],
-                                      self.rdelta[:, dst:(dst + 1)],
-                                      out=self.prodbuf)
+                rf = rinputs.take(inds, axis=1)
+                denom = self.routput[:, dst:(dst + 1)].copy()
+                # If the L2 norm is zero, the entire receptive field must be zeros.
+                # In that case, we set the L2 norm to 1 before using it to
+                # normalize the receptive field.
+                denom[denom == 0] = 1
+                self.backend.divide(rf, denom, out=rf)
+                self.backend.multiply(self.rdelta[:,
+                                      dst:(dst + 1)].repeat(self.psize, axis=1),
+                                      rf, out=self.prodbuf)
                 self.rberror[:, inds] += self.prodbuf
 
 
