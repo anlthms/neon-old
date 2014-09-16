@@ -10,7 +10,7 @@ from mylearn.util.compat import CUDA_GPU
 from mylearn.util.error import TooSlowToImplementError
 
 
-def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
+def bench_mat_indexing(backend, classname, a_dims, indices, lop, rop,
                        number=10000, repeat=3):
     """
     Generates a random matrix of specified shape utilizing the supplied
@@ -21,7 +21,7 @@ def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
         backend (str): The dotted module path of the underlying backend
         classname (str): The name of the Backend child class importable from
                          the module desribed in `backend`
-        A_dims (list): tuple of positive integers specifying the dimesnions of
+        a_dims (list): tuple of positive integers specifying the dimesnions of
                        the matrix to index.
         indices (array_like): list of positive integers to index into.
         lop (str): How to call the indexing.  Should be something like '.take('
@@ -41,7 +41,7 @@ def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
              "be = %s(rng_seed=0)\n"
              "A = %sTensor(np.random.rand(*%s))\n" %
              (backend, classname, classname, classname, classname,
-              str(A_dims)))
+              str(a_dims)))
     try:
         res = timeit.repeat('A%s%s%s' % (lop, indices, rop), setup=setup,
                             number=number, repeat=repeat)
@@ -50,7 +50,7 @@ def bench_mat_indexing(backend, classname, A_dims, indices, lop, rop,
     return min(res)
 
 
-def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
+def bench_mat_slicing(backend, classname, a_dims, slices, axes, number=10000,
                       repeat=3):
     """
     Generates a random matrix of specified shape utilizing the supplied
@@ -61,7 +61,7 @@ def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
         backend (str): The dotted module path of the underlying backend
         classname (str): The name of the Backend child class importable from
                          the module desribed in `backend`
-        A_dims (list): tuple of positive integers specifying the dimesnions of
+        a_dims (list): tuple of positive integers specifying the dimesnions of
                        the matrix to index.
         slices (slice): slice object giving contiguous region to index.
         axes (int): dimension along which to slice.
@@ -78,8 +78,8 @@ def bench_mat_slicing(backend, classname, A_dims, slices, axes, number=10000,
              "be = %s(rng_seed=0)\n"
              "A = %sTensor(np.random.rand(*%s))\n" %
              (backend, classname, classname, classname, classname,
-              str(A_dims)))
-    index_str = [':', ] * len(A_dims)
+              str(a_dims)))
+    index_str = [':', ] * len(a_dims)
     index_str[axes] = '%d:%d' % (slices.start, slices.stop)
     try:
         res = timeit.repeat('A[%s]' % ', '.join(index_str), setup=setup,
@@ -95,30 +95,30 @@ if __name__ == '__main__':
     if CUDA_GPU:
         test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
     # contiguous slice testing
-    for A_dims, slices, axes in [((5, 5), slice(0, 2), 0),
+    for a_dims, slices, axes in [((5, 5), slice(0, 2), 0),
                                  ((5, 5), slice(0, 2), 1),
                                  ((100, 500), slice(95, 400), 0),
                                  ((100, 500), slice(95, 400), 1)]:
         for backend, classname in test_backends:
             sys.stdout.write("%s\t%dx%d %d:%d %s slice\t%d loop, best of %d:" %
-                             (classname, A_dims[0], A_dims[1], slices.start,
+                             (classname, a_dims[0], a_dims[1], slices.start,
                               slices.stop, "row" if axes == 0 else "col",
                               number, repeat))
             sys.stdout.flush()
             sys.stdout.write("\t%f sec\n" % bench_mat_slicing(backend,
-                             classname, A_dims, slices, axes, number, repeat))
+                             classname, a_dims, slices, axes, number, repeat))
     # arbitrary index testing
-    for A_dims, indices in [((5, 5), [0, 4, 2]),
+    for a_dims, indices in [((5, 5), [0, 4, 2]),
                             ((100, 500), [50, 10, 90, 22, 95, 0, 5, 9, 95]),
                             ((16000, 16000), [1500, 200, 300, 1599])]:
         for backend, classname in test_backends:
             for name, lop, rop in [('fancy', '[', ']'),
                                    ('take', '.take(', ', 0)')]:
                 sys.stdout.write("%s\t%dx%d %d %s indices\t%d loop, "
-                                 "best of %d:" % (classname, A_dims[0],
-                                                  A_dims[1], len(indices),
+                                 "best of %d:" % (classname, a_dims[0],
+                                                  a_dims[1], len(indices),
                                                   name, number, repeat))
                 sys.stdout.flush()
                 sys.stdout.write("\t%f sec\n" % bench_mat_indexing(backend,
-                                 classname, A_dims, indices, lop, rop, number,
+                                 classname, a_dims, indices, lop, rop, number,
                                  repeat))

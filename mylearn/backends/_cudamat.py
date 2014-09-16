@@ -741,7 +741,7 @@ class CudamatTensor(Tensor):
         self._tensor.copy_to_host()
         return self._tensor.numpy_array
 
-    def T(self):
+    def T(self): # flake8: noqa
         # CUDAMatrix.T is a transposed view.
         return TransposedCudamatTensor(self._tensor, self._tensor.T)
 

@@ -6,7 +6,7 @@ import logging
 import math
 import os
 
-from mylearn.models.layer import LocalFilteringLayer_dist
+from mylearn.models.layer_dist import LocalFilteringLayer_dist
 from mylearn.models.mlp import MLP
 from mylearn.util.persist import ensure_dirs_exist
 import mylearn.util.distarray.globalActArray as gaa
@@ -65,7 +65,7 @@ class GB_Dist(MLP):
                 MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
             pooling = self.layers[self.trainable_layers[ind] + 1]
             # assumes stride of 1 for pooling layer
-            pooling.adjustForDist(
+            pooling.adjust_for_dist(
                 [layer.ifmshape[0] - layer.fheight + 1,
                     layer.ifmshape[1] - layer.fwidth + 1])
             layer.pretrain_mode(pooling)

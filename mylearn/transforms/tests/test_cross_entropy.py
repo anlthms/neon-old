@@ -7,7 +7,7 @@ from mylearn.transforms.cross_entropy import (cross_entropy,
 from mylearn.util.testing import assert_tensor_near_equal
 
 
-def test_cross_entropy_NumpyTensor():
+def test_cross_entropy_numpytensor():
     outputs = NumpyTensor([0.5, 0.9, 0.1, 0.0001])
     targets = NumpyTensor([0.5, 0.99, 0.01, 0.2])
     temp = [Numpy.zeros(outputs.shape), Numpy.zeros(outputs.shape)]
@@ -18,7 +18,7 @@ def test_cross_entropy_NumpyTensor():
 
 
 @attr('cuda')
-def test_cross_entropy_CudamatTensor():
+def test_cross_entropy_cudamattensor():
     from mylearn.backends._cudamat import Cudamat, CudamatTensor
     c = Cudamat(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])
@@ -30,7 +30,7 @@ def test_cross_entropy_CudamatTensor():
                                                             targets, temp))
 
 
-def test_cross_entropy_derivative_NumpyTensor():
+def test_cross_entropy_derivative_numpytensor():
     outputs = NumpyTensor([0.5, 0.9, 0.1, 0.0001])
     targets = NumpyTensor([0.5, 0.99, 0.01, 0.2])
     temp = [Numpy.zeros(outputs.shape), Numpy.zeros(outputs.shape)]
@@ -42,7 +42,7 @@ def test_cross_entropy_derivative_NumpyTensor():
 
 
 @attr('cuda')
-def test_cross_entropy_derivative_CudamatTensor():
+def test_cross_entropy_derivative_cudamattensor():
     from mylearn.backends._cudamat import Cudamat, CudamatTensor
     c = Cudamat(rng_seed=0)
     outputs = CudamatTensor([0.5, 0.9, 0.1, 0.0001])

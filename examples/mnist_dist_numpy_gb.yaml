@@ -40,7 +40,7 @@
     pretrain_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:mylearn.models.layer.LocalFilteringLayer_dist {
+      !obj:mylearn.models.layer_dist.LocalFilteringLayer_dist {
         name: layer0,
         pretraining: *pt,
         sparsity: *sp,

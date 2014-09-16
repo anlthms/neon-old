@@ -2,10 +2,7 @@
 Dataset with fake data for testing purposes.
 """
 
-import tarfile
 import logging
-import os
-import cPickle
 import numpy as np
 
 from mylearn.datasets.dataset import Dataset

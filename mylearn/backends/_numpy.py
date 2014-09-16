@@ -526,7 +526,7 @@ class NumpyTensor(Tensor):
     def raw(self):
         return self._tensor
 
-    def T(self):
+    def T(self):  # flake8: noqa
         return NumpyTensor(self._tensor.T)
 
     def transpose(self):

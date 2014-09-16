@@ -3,7 +3,6 @@ Numerical gradient checking to validate backprop code.
 """
 
 import logging
-import os
 import numpy as np
 
 from mylearn.experiments.experiment import Experiment

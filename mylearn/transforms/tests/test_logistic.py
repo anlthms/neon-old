@@ -6,7 +6,7 @@ from mylearn.transforms.logistic import logistic, logistic_derivative
 from mylearn.util.testing import assert_tensor_near_equal
 
 
-def test_logistic_NumpyTensor():
+def test_logistic_numpytensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     temp = Numpy.zeros((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
@@ -15,7 +15,7 @@ def test_logistic_NumpyTensor():
 
 
 @attr('cuda')
-def test_logistic_CudamatTensor():
+def test_logistic_cudamattensor():
     from mylearn.backends._cudamat import Cudamat, CudamatTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
@@ -25,7 +25,7 @@ def test_logistic_CudamatTensor():
     assert_tensor_near_equal(CudamatTensor(outputs), temp)
 
 
-def test_logistic_derivative_NumpyTensor():
+def test_logistic_derivative_numpytensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     outputs = outputs * (1.0 - outputs)
@@ -35,7 +35,7 @@ def test_logistic_derivative_NumpyTensor():
 
 
 @attr('cuda')
-def test_logistic_derivative_CudamatTensor():
+def test_logistic_derivative_cudamattensor():
     from mylearn.backends._cudamat import Cudamat, CudamatTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
