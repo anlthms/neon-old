@@ -20,13 +20,13 @@ def test_rectlin_mixed():
                         rectlin(np.array([[4, 0], [-2, 9]])))
 
 
-def test_rectlin_NumpyTensor():
+def test_rectlin_numpytensor():
     assert_tensor_equal(NumpyTensor([[4, 0], [0, 9]]),
                         rectlin(NumpyTensor([[4, 0], [-2, 9]])))
 
 
 @attr('cuda')
-def test_rectlin_CudamatTensor():
+def test_rectlin_cudamattensor():
     from mylearn.backends._cudamat import CudamatTensor
     assert_tensor_equal(CudamatTensor([[4, 0], [0, 9]]),
                         rectlin(CudamatTensor([[4, 0], [-2, 9]])))
@@ -54,13 +54,13 @@ def test_rectlin_derivative_mixed():
                         rectlin_derivative(np.array([[4, 0], [-2, 9]])))
 
 
-def test_rectlin_derivative_NumpyTensor():
+def test_rectlin_derivative_numpytensor():
     assert_tensor_equal(NumpyTensor([[1, 0], [0, 1]]),
                         rectlin_derivative(NumpyTensor([[4, 0], [-2, 9]])))
 
 
 @attr('cuda')
-def test_rectlin_derivative_CudamatTensor():
+def test_rectlin_derivative_cudamattensor():
     from mylearn.backends._cudamat import CudamatTensor
     assert_tensor_equal(CudamatTensor([[1, 0], [0, 1]]),
                         rectlin_derivative(CudamatTensor([[4, 0], [-2, 9]])))

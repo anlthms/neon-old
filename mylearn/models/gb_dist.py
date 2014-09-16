@@ -6,24 +6,68 @@ import logging
 import math
 import os
 
-from mylearn.models.layer import LocalFilteringLayer
+from mylearn.models.layer_dist import LocalFilteringLayer_dist
 from mylearn.models.mlp import MLP
 from mylearn.util.persist import ensure_dirs_exist
+import mylearn.util.distarray.globalActArray as gaa
+from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
 
-class GB(MLP):
+class GB_Dist(MLP):
+
     """
     Google Brain class
     """
+
+    def fit(self, datasets):
+        inputs = datasets[0].get_inputs(train=True)['train']
+        self.nrecs, self.nin = inputs.shape
+        self.nlayers = len(self.layers)
+        if 'batch_size' not in self.__dict__:
+            self.batch_size = self.nrecs
+        self.trainable_layers = []
+        for ind in xrange(self.nlayers):
+            layer = self.layers[ind]
+            if isinstance(layer, LocalFilteringLayer_dist):
+                self.trainable_layers.append(ind)
+            # logger.info('created layer:\n\t%s' % str(layer))
+
+        targets = datasets[0].get_targets(train=True)['train']
+
+        if self.pretraining:
+            self.pretrain(inputs)
+            if self.visualize:
+                self.compute_optimal_stimulus()
+        if self.spot_check:
+            test_inputs = datasets[0].get_inputs(test=True)['test']
+            test_targets = datasets[0].get_targets(test=True)['test']
+            self.check_predictions(inputs, targets, test_inputs, test_targets)
+        self.train(inputs, targets)
 
     def pretrain(self, inputs):
         logger.info('commencing unsupervised pretraining')
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
+            # MPI: initialize the distributed global array
+            inputs_dist = gaa.GlobalActArray(
+                batchSize=self.batch_size, actSize=layer.ifmshape[0],
+                actChannels=layer.nifm, filterSize=layer.fwidth,
+                backend=self.backend)  # assuming filters are square
+
+            # update params to account for halos
+            layer.adjustForHalos(
+                [inputs_dist.localActArray.heightWithHalos,
+                    inputs_dist.localActArray.widthWithHalos])
+            print 'Adjusting for halos: layer ', ind, '; comm: ', \
+                MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
             pooling = self.layers[self.trainable_layers[ind] + 1]
+            # assumes stride of 1 for pooling layer
+            pooling.adjust_for_dist(
+                [layer.ifmshape[0] - layer.fheight + 1,
+                    layer.ifmshape[1] - layer.fwidth + 1])
             layer.pretrain_mode(pooling)
             for epoch in xrange(self.num_pretrain_epochs):
                 tcost = 0.0
@@ -32,16 +76,27 @@ class GB(MLP):
                 for batch in xrange(num_batches):
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
+                    # todo: fix for MPI the fprop to current layer
                     output = inputs[start_idx:end_idx]
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in xrange(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
-                    rcost, spcost = layer.pretrain(output,
+                    # MPI: set mini-batch to localImage
+                    inputs_dist.localActArray.localImage = output
+                    # perform halo exchanges
+                    inputs_dist.localActArray.sendRecvHalos()
+                    # make consistent chunk
+                    inputs_dist.localActArray.makeLocalChunkConsistent()
+
+                    print MPI.COMM_WORLD.rank, 'batch #', batch
+                    # todo: MPI: fix for backprop
+                    rcost, spcost = layer.pretrain(inputs_dist,
                                                    self.pretrain_cost,
                                                    epoch,
                                                    self.momentum)
+
                     trcost += rcost
                     tspcost += spcost
                 tcost = trcost + tspcost
@@ -53,9 +108,10 @@ class GB(MLP):
                                    [output, layer.defilter.output],
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
+        print "Done with pretraining"
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
-            if isinstance(layer, LocalFilteringLayer):
+            if isinstance(layer, LocalFilteringLayer_dist):
                 layer.train_mode()
 
     def train(self, inputs, targets):
@@ -151,30 +207,6 @@ class GB(MLP):
         self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                             out=error)
         self.layers[-1].bprop(error, self.layers[-2].output, epoch, momentum)
-
-    def fit(self, datasets):
-        inputs = datasets[0].get_inputs(train=True)['train']
-        self.nrecs, self.nin = inputs.shape
-        self.nlayers = len(self.layers)
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = self.nrecs
-        self.trainable_layers = []
-        for ind in xrange(self.nlayers):
-            layer = self.layers[ind]
-            if isinstance(layer, LocalFilteringLayer):
-                self.trainable_layers.append(ind)
-            logger.info('created layer:\n\t%s' % str(layer))
-
-        targets = datasets[0].get_targets(train=True)['train']
-        if self.pretraining:
-            self.pretrain(inputs)
-            if self.visualize:
-                self.compute_optimal_stimulus()
-        if self.spot_check:
-            test_inputs = datasets[0].get_inputs(test=True)['test']
-            test_targets = datasets[0].get_targets(test=True)['test']
-            self.check_predictions(inputs, targets, test_inputs, test_targets)
-        self.train(inputs, targets)
 
     def normalize(self, data):
         norms = data.norm(axis=1)

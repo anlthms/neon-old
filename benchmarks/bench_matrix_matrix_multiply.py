@@ -7,7 +7,7 @@ from mylearn.util.compat import CUDA_GPU
 from mylearn.util.error import TooSlowToImplementError
 
 
-def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
+def bench_mat_mat_multiply(backend, classname, a_dims, b_dims, number=10000,
                            repeat=3):
     """
     Generates two random matrices of specified shape utilizing the supplied
@@ -17,9 +17,9 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
         backend (str): The dotted module path of the underlying backend
         classname (str): The name of the Backend child class importable from
                          the module desribed in `backend`
-        A_dims (list): tuple of positive integers specifying the dimesnions of
+        a_dims (list): tuple of positive integers specifying the dimesnions of
                        the left-hand side matrix operand.
-        B_dims (list): tuple of positive integers specifying the dimesnions of
+        b_dims (list): tuple of positive integers specifying the dimesnions of
                        the right-hand side matrix operand.
         number (int, optional): The number of times to perform the operation
                                 so that per loop time can be reported.
@@ -32,13 +32,13 @@ def bench_mat_mat_multiply(backend, classname, A_dims, B_dims, number=10000,
     """
     setup = ("import numpy as np\n" "from %s import %s, %sTensor\n"
              "be = %s(rng_seed=0)\n"
-             "A = %sTensor(np.random.rand(*%s))\n"
-             "B = %sTensor(np.random.rand(*%s))\n"
+             "a = %sTensor(np.random.rand(*%s))\n"
+             "b = %sTensor(np.random.rand(*%s))\n"
              "out = %sTensor(np.empty([%d, %d]))\n" %
-             (backend, classname, classname, classname, classname, str(A_dims),
-              classname, str(B_dims), classname, A_dims[0], B_dims[1]))
+             (backend, classname, classname, classname, classname, str(a_dims),
+              classname, str(b_dims), classname, a_dims[0], b_dims[1]))
     try:
-        res = timeit.repeat('be.dot(A, B, out)', setup=setup, number=number,
+        res = timeit.repeat('be.dot(a, b, out)', setup=setup, number=number,
                             repeat=repeat)
     except (NotImplementedError, AttributeError, TooSlowToImplementError):
         res = [float('NaN'), ]
@@ -52,13 +52,13 @@ if __name__ == '__main__':
                      ]
     if CUDA_GPU:
         test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
-    for A_dims, B_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
+    for a_dims, b_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:
         for backend, classname in test_backends:
             sys.stdout.write("%s\t%dx%d dot %dx%d\t%d loop, best of %d:" %
-                             (classname, A_dims[0], A_dims[1], B_dims[0],
-                              B_dims[1], number, repeat))
+                             (classname, a_dims[0], a_dims[1], b_dims[0],
+                              b_dims[1], number, repeat))
             sys.stdout.flush()
             sys.stdout.write("\t%f sec\n" % bench_mat_mat_multiply(backend,
-                             classname, A_dims, B_dims, number, repeat))
+                             classname, a_dims, b_dims, number, repeat))

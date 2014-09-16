@@ -14,14 +14,14 @@ def test_tanh_basics():
                              tanh(np.array([0, 1, -2])))
 
 
-def test_tanh_NumpyTensor():
+def test_tanh_numpytensor():
     assert_tensor_near_equal(NumpyTensor([true_tanh(0), true_tanh(1),
                                           true_tanh(-2)]),
                              tanh(NumpyTensor([0, 1, -2])))
 
 
 @attr('cuda')
-def test_tanh_CudamatTensor():
+def test_tanh_cudamattensor():
     from mylearn.backends._cudamat import CudamatTensor
     assert_tensor_near_equal(CudamatTensor([true_tanh(0), true_tanh(1),
                                             true_tanh(-2)]),
@@ -35,7 +35,7 @@ def test_tanh_derivative_basics():
                              tanh_derivative(np.array([0, 1, -2])))
 
 
-def test_tanh_derivative_NumpyTensor():
+def test_tanh_derivative_numpytensor():
     assert_tensor_near_equal(NumpyTensor([1 - true_tanh(0) ** 2,
                                           1 - true_tanh(1) ** 2,
                                           1 - true_tanh(-2) ** 2]),
@@ -43,7 +43,7 @@ def test_tanh_derivative_NumpyTensor():
 
 
 @attr('cuda')
-def test_tanh_derivative_CudamatTensor():
+def test_tanh_derivative_cudamattensor():
     from mylearn.backends._cudamat import CudamatTensor
     assert_tensor_near_equal(CudamatTensor([1 - true_tanh(0) ** 2,
                                             1 - true_tanh(1) ** 2,
