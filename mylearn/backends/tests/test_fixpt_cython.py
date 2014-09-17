@@ -378,7 +378,7 @@ def test_rounding_truncated_division():
     y = create(3.2, **params)  # --> 25.6 --> 25 (after truncation)
     # 84_10 --> 672_10 (after pre-scaling) / 25_10
     # 672 / 25 --> 26.88_10 (division)
-    #          --> 26_10 (truncated) 
+    #          --> 26_10 (truncated)
     #          --> 011.010_2
     #          --> 3.25_10 Q5.2 (.125 * 2 for frac)
     assert as_decimal(scale(x, **scaleparams) / y, **params) == 3.25
@@ -414,12 +414,12 @@ def test_basic_matmatmul():
         "int_bits": 5,
         "frac_bits": 3,
     })
-    A = np.array([[create(1.0, **params), create(2.0, **params)],
+    a = np.array([[create(1.0, **params), create(2.0, **params)],
                   [create(3.0, **params), create(4.0, **params)]],
                  dtype=np.int64)
-    B = np.copy(A, order="F")
+    b = np.copy(a, order="F")
     out = np.empty([2, 2], dtype=np.int64)
-    naive_dot(A, B, out, **params)
+    naive_dot(a, b, out, **params)
     exp_res = np.array([[7.0, 10.0],
                         [15.0, 22.0]])
     assert_tensor_equal(as_decimal(out, **params), exp_res)
