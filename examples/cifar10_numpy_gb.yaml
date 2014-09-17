@@ -1,5 +1,5 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
-# model on MNIST.
+# model on CIFAR10.
 
 !obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:mylearn.backends._numpy.Numpy {
@@ -7,12 +7,12 @@
   },
 
   datasets: [
-    # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    # CIFAR10 data
+    !obj:mylearn.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
@@ -20,13 +20,13 @@
   model: !obj:mylearn.models.gb.GB {
     backend: *be,
     num_epochs: 4,
-    num_pretrain_epochs: 8,
+    num_pretrain_epochs: 1,
     num_initial_epochs: 1,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
     pretraining: &pt True,
     sparsity: &sp 0.1,
-    pretrain_learning_rate: &plr 0.01,
+    pretrain_learning_rate: &plr 0.001,
     tied_weights: &tw True,
     visualize: False,
     spot_check: False,
@@ -50,10 +50,10 @@
         learning_rate: *lr,
         pretrain_learning_rate: *plr,
         tied_weights: *tw,
-        nifm: 1,
+        nifm: 3,
         nofm: 8,
-        ifmshape: [28, 28],
-        fshape: [4, 4],
+        ifmshape: [32, 32],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -67,8 +67,8 @@
         batch_size: *bs,
         pos: 1,
         nfm: 8,
-        ifmshape: [25, 25],
-        pshape: [3, 3],
+        ifmshape: [27, 27],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -94,7 +94,7 @@
         nifm: 8,
         nofm: 8,
         ifmshape: [23, 23],
-        fshape: [3, 3],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -108,8 +108,8 @@
         batch_size: *bs,
         pos: 4,
         nfm: 8,
-        ifmshape: [21, 21],
-        pshape: [3, 3],
+        ifmshape: [18, 18],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -118,7 +118,7 @@
         batch_size: *bs,
         pos: 5,
         nfm: 8,
-        ifmshape: [19, 19],
+        ifmshape: [14, 14],
         fshape: [3, 3],
         stride: 1,
       },
@@ -134,8 +134,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [19, 19],
-        fshape: [3, 3],
+        ifmshape: [14, 14],
+        fshape: [6, 6],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -149,8 +149,8 @@
         batch_size: *bs,
         pos: 7,
         nfm: 8,
-        ifmshape: [17, 17],
-        pshape: [3, 3],
+        ifmshape: [9, 9],
+        pshape: [5, 5],
         stride: 1,
       },
       !obj:mylearn.models.layer.LCNLayer {
@@ -159,7 +159,7 @@
         batch_size: *bs,
         pos: 8,
         nfm: 8,
-        ifmshape: [15, 15],
+        ifmshape: [5, 5],
         fshape: [3, 3],
         stride: 1,
       },
@@ -169,7 +169,7 @@
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 1800, # previous nout (nfm * ifmshape[0] * ifmshape[1])
+        nin: 200, # previous nout (nfm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:mylearn.transforms.logistic.Logistic {},
         weight_init: {

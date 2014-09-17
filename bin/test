@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+"""
+Driver script for running mylearn model experiments.
+"""
+
+import argparse
+import logging
+import sys
+
+import mylearn
+from mylearn.util.persist import deserialize
+from mylearn.experiments.check_grad import GradientChecker
+
+
+def parse_args():
+    """
+    Sets up and handles command line argument parsing.
+    """
+    parser = argparse.ArgumentParser(description='run basic tests.')
+    parser.add_argument('yaml_file', type=argparse.FileType('r'),
+                        help='configuration file settings')
+    return(parser.parse_args())
+
+
+def main():
+    """
+    Point of code entry.
+    """
+    # read in yaml configuration and initialize objects
+    args = parse_args()
+    experiment = deserialize(args.yaml_file)
+
+    if hasattr(experiment, 'logging'):
+        logging.basicConfig(**experiment.logging)
+
+    checker = GradientChecker()
+    checker.transfer(experiment)
+    result = checker.run()
+    return experiment, result
+
+
+if __name__ == '__main__':
+    experiment, result = main()
+    sys.exit(result)

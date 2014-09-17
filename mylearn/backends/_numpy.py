@@ -613,7 +613,7 @@ class NumpyTensor(Tensor):
     def raw(self):
         return self._tensor
 
-    def T(self):
+    def T(self):  # flake8: noqa
         return self.__class__(self._tensor.T,
                               dtype=self._tensor.dtype)
 
