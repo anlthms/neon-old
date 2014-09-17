@@ -30,9 +30,13 @@ cpdef inline elemtype_t fp_rescale(elemtype_t inval, int in_sign_bit,
     outval = inval
     # scale to expected output format
     if in_frac_bits != out_frac_bits:
-        if in_frac_bits > out_frac_bits & rounding == RND_TRUNCATE:
+        if (in_frac_bits > out_frac_bits) & (rounding == RND_TRUNCATE):
             outval = inval >> (in_frac_bits - out_frac_bits)
-        elif in_frac_bits < out_frac_bits & rounding == RND_TRUNCATE:
+        elif (in_frac_bits > out_frac_bits) & (rounding == RND_NEAREST):
+            # add 0.5 prior to rescale to nearest
+            outval = ((inval + (1 << (in_frac_bits - out_frac_bits - 1))) >>
+                     (in_frac_bits - out_frac_bits))
+        elif in_frac_bits < out_frac_bits:
             outval = inval << (out_frac_bits - in_frac_bits)
         else:
             print("unsupported rounding format")

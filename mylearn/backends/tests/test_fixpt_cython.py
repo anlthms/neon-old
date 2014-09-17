@@ -209,9 +209,203 @@ def test_rounding_nearest_addition():
     }
     # with 3 fractional bits
     x = create(14.567, **params)  # --> 116.536 --> 117 after round nearest
-    y = create(10, **params)  # --> 80 (after truncation)
+    y = create(10, **params)  # --> 80 (after round nearest)
     # 197_10 --> 11000.101_2 -> 24.625_10 Q5.3 (.125 * 5 for frac)
     assert as_decimal(scale(x + y, **scaleparams), **params) == 24.625
+
+
+def test_subtraction():
+    x = create(10)
+    y = create(4)
+    assert as_decimal(scale(x - y)) == 6.0
+
+
+def test_overflow_saturated_subtraction():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 10,
+        "overflow": 0,
+    }
+    x = create(24.567, **params)
+    y = create(-10, **params)
+    assert as_decimal(scale(x - y), **params) == 31.9990234375
+
+
+def test_rounding_truncated_subtraction():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 0,
+    }
+    scaleparams = {
+        "in_int_bits": 5,
+        "out_int_bits": 5,
+        "in_frac_bits": 3,
+        "out_frac_bits": 3,
+        "rounding": 0,
+    }
+    # with 3 fractional bits
+    x = create(14.567, **params)  # --> 116.536 --> 116 after truncation
+    y = create(10, **params)  # --> 80 (after truncation)
+    # 36_10 --> 00100.100_2 -> 4.5_10 Q5.3 (.125 * 4 for frac)
+    assert as_decimal(scale(x - y, **scaleparams), **params) == 4.5
+
+
+def test_rounding_nearest_subtraction():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 1,  # RND_NEAREST
+    }
+    scaleparams = {
+        "in_int_bits": 5,
+        "out_int_bits": 5,
+        "in_frac_bits": 3,
+        "out_frac_bits": 3,
+        "rounding": 1,
+    }
+    # with 3 fractional bits
+    x = create(14.567, **params)  # --> 116.536 --> 117 after round nearest
+    y = create(10, **params)  # --> 80 (after round nearest)
+    # 37_10 --> 10100.101_2 -> 4.625_10 Q5.3 (.125 * 5 for frac)
+    assert as_decimal(scale(x - y, **scaleparams), **params) == 4.625
+
+
+def test_multiplication():
+    x = create(2)
+    y = create(4)
+    scaleparams = {
+        "in_int_bits": 10,
+        "out_int_bits": 5,
+        "in_frac_bits": 20,
+        "out_frac_bits": 10,
+        "rounding": 0,
+    }
+    assert as_decimal(scale(x * y, **scaleparams)) == 8
+
+
+def test_overflow_saturated_multiplication():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 10,
+        "overflow": 0,
+    }
+    scaleparams = {
+        "in_int_bits": 10,
+        "out_int_bits": 5,
+        "in_frac_bits": 20,
+        "out_frac_bits": 10,
+        "rounding": 0,
+    }
+    x = create(24.567, **params)
+    y = create(10, **params)
+    assert as_decimal(scale(x * y, **scaleparams), **params) == 31.9990234375
+
+
+def test_rounding_truncated_multiplication():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 0,
+    }
+    scaleparams = {
+        "in_int_bits": 10,
+        "out_int_bits": 5,
+        "in_frac_bits": 6,
+        "out_frac_bits": 3,
+        "rounding": 0,
+    }
+    # with 3 fractional bits
+    x = create(1.567, **params)  # --> 12.536 --> 12 after truncation
+    y = create(3.2, **params)  # --> 25.6 --> 25 (after truncation)
+    # 300_10 --> 100.101100_2 (pre rescale) --> 100.101_2 (rescaled)
+    #        --> 4.625_10 Q5.3 (.125 * 5 for frac)
+    assert as_decimal(scale(x * y, **scaleparams), **params) == 4.625
+
+
+def test_rounding_nearest_multiplication():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 1,  # RND_NEAREST
+    }
+    scaleparams = {
+        "in_int_bits": 10,
+        "out_int_bits": 5,
+        "in_frac_bits": 6,
+        "out_frac_bits": 3,
+        "rounding": 1,
+    }
+    # with 3 fractional bits
+    x = create(1.567, **params)  # --> 12.536 --> 13 after round nearest
+    y = create(3.2, **params)  # --> 25.6 --> 26 (after round nearest)
+    # 338_10 --> 0000000101.010010_2 (pre rescale)
+    #        --> 00101.010_2 (rescaled round near)
+    #        --> 5.25_10 Q5.3 (.125 * 2 for frac)
+    assert as_decimal(scale(x * y, **scaleparams), **params) == 5.25
+
+
+def test_division():
+    x = create(17)
+    y = create(4)
+    scaleparams = {
+        "in_int_bits": 5,
+        "out_int_bits": 10,
+        "in_frac_bits": 10,
+        "out_frac_bits": 20,
+        "rounding": 0,
+    }
+    # for division we need to shift the numerator to output scale before
+    # we do the integer divide
+    assert as_decimal(scale(x, **scaleparams) / y) == 4.25
+
+
+def test_rounding_truncated_division():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 0,
+    }
+    scaleparams = {
+        "in_int_bits": 5,
+        "out_int_bits": 10,
+        "in_frac_bits": 3,
+        "out_frac_bits": 6,
+        "rounding": 0,
+    }
+    # with 3 fractional bits
+    x = create(10.567, **params)  # --> 84.536 --> 84 after truncation
+    y = create(3.2, **params)  # --> 25.6 --> 25 (after truncation)
+    # 84_10 --> 672_10 (after pre-scaling) / 25_10
+    # 672 / 25 --> 26.88_10 (division)
+    #          --> 26_10 (truncated) 
+    #          --> 011.010_2
+    #          --> 3.25_10 Q5.2 (.125 * 2 for frac)
+    assert as_decimal(scale(x, **scaleparams) / y, **params) == 3.25
+
+
+def test_rounding_nearest_division():
+    params = {
+        "int_bits": 5,
+        "frac_bits": 3,
+        "rounding": 1,  # RND_NEAREST
+    }
+    scaleparams = {
+        "in_int_bits": 5,
+        "out_int_bits": 10,
+        "in_frac_bits": 3,
+        "out_frac_bits": 6,
+        "rounding": 1,
+    }
+    # with 3 fractional bits
+    x = create(10.567, **params)  # --> 84.536 --> 85 after round nearest
+    y = create(3.2, **params)  # --> 25.6 --> 26 (after round nearest)
+    # 85_10 --> 680_10 (after pre-scaling) / 26_10
+    # 680 / 26 --> 26.153846153_10 (division)
+    #          --> 26_10 (round to nearest)
+    #          --> 011.010_2
+    #          --> 3.25_10 Q5.2 (.125 * 2 for frac)
+    assert as_decimal(scale(x, **scaleparams) / y, **params) == 3.25
 
 
 def test_basic_matmatmul():
