@@ -24,7 +24,15 @@ We want to strive to have as few of these as possible
 * [nose](https://nose.readthedocs.org/en/latest/) for running tests
 * [sphinx](http://sphinx-doc.org/) for documentation generation
   * sphinxcontrib-napoleon for google style autodoc parsing
+* [flake8](https://flake8.readthedocs.org/) for style checking
+  * pep8-naming for variable name checking
 * [cudamat](https://github.com/cudamat/cudamat) for GPU based backend
+* [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
+  calculations
+* [matplotlib](http://matplotlib.org) for Google Brain feature visualization
+* [openmpi](http://www.open-mpi.org), [mpi4py](http://mpi4py.scipy.org) for
+  distributed tensors.
+  
 
 
 ## Usage ##
