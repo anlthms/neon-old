@@ -930,10 +930,9 @@ class LCNLayer(YAMLable):
             self.sqtemp = backend.zeros(self.output.shape)
             for fm in xrange(nfm):
                 self.bprop_filters[fm] = self.filters.copy()
-                rfilter =  self.bprop_filters[fm].reshape(
+                rfilter = self.bprop_filters[fm].reshape(
                     (nfm, self.fheight, self.fwidth))
-                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0 
-             
+                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -964,14 +963,14 @@ class LCNLayer(YAMLable):
 
     def copy_from_inset(self, canvas, start_row, start_col):
         return canvas[:, :,
-            self.start_row:(canvas.shape[2] - start_row),
-            self.start_col:(canvas.shape[3] - start_col)]
+                      self.start_row:(canvas.shape[2] - start_row),
+                      self.start_col:(canvas.shape[3] - start_col)]
 
     def fprop_sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.batch_size, self.nfm,
                                   self.ifmheight, self.ifmwidth))
         self.copy_to_inset(self.rexinputs, rinputs,
-                        self.start_row, self.start_col)
+                           self.start_row, self.start_col)
         # Convolve with gaussian filters to obtain a "mean" feature map.
         self.conv.fprop(self.exinputs)
         self.backend.subtract(rinputs, self.rmeanfm, out=self.rsubout)
@@ -1001,9 +1000,9 @@ class LCNLayer(YAMLable):
         for fm in range(self.nfm):
             for dst in xrange(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm 
-                filt = self.bprop_filters[fm] 
-                self.backend.multiply( error[:, loc], filt, out=self.prodbuf) 
+                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                filt = self.bprop_filters[fm]
+                self.backend.multiply(error[:, loc], filt, out=self.prodbuf)
                 self.exerror[:, rflinks] -= self.prodbuf
         self.reshape_error()
 
@@ -1027,8 +1026,8 @@ class LCNLayer(YAMLable):
                 rflinks = self.conv.rlinks[dst]
                 self.copy_to_inset(self.rexinputs, self.rsubtemp,
                                    self.start_row, self.start_col)
-                rrexinputs = self.rexinputs.reshape((self.batch_size,
-                                                     self.nfm * self.exifmsize))
+                rrexinputs = self.rexinputs.reshape(
+                    (self.batch_size, self.nfm * self.exifmsize))
                 frame = rrexinputs.take(rflinks, axis=1)
                 self.backend.multiply(frame, self.filters, out=frame)
                 self.backend.multiply(frame, self.diverror[:, loc], out=frame)
@@ -1037,7 +1036,7 @@ class LCNLayer(YAMLable):
                 rframe[:, fm:(fm + 1),
                        self.fheight / 2, self.fwidth / 2] -= divout
                 self.backend.multiply(error[:, loc].repeat(self.fsize, axis=1),
-                                      frame, out=frame) 
+                                      frame, out=frame)
                 self.exerror[:, rflinks] -= frame
         self.reshape_error()
 
@@ -1048,7 +1047,7 @@ class LCNLayer(YAMLable):
 
     def bprop_fast(self, error, inputs, epoch, momentum):
         """
-        An incorrect, but much faster version of backprop. 
+        An incorrect, but much faster version of backprop.
         """
         if self.pos > 0:
             self.berror[:] = error
