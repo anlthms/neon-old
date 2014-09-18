@@ -18,7 +18,14 @@ class Cudamat(Backend):
     """
     A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
     operations.
+
+    Attributes:
+        epsilon (float): the unit roundoff for the elements underlying this
+                         tensor.
     """
+    # we need to cast epsilon to float to ensure it works with some of the type
+    # checking in cudamat functions like less_than() and so forth
+    epsilon = float(numpy.finfo(numpy.float32).eps)
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -50,6 +57,24 @@ class Cudamat(Backend):
     @staticmethod
     def wrap(obj):
         return CudamatTensor(obj)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = CudamatTensor(cudamat.empty((a.shape[0], a.shape[1])))
+        # storage needed here is pretty atrocious.  Any way we could speed this
+        # up?  Would iterating element wise be faster?
+        clip_mask = cudamat.empty((a.shape[0], a.shape[1]))
+        clip_vals = cudamat.empty((a.shape[0], a.shape[1]))
+        # clip values < a_min to a_min in out
+        a._tensor.less_than(a_min, clip_mask)
+        clip_vals.assign(a_min)
+        cudamat.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        # clip values > a_max to a_max in out
+        out._tensor.greater_than(a_max, clip_mask)
+        clip_vals.assign(a_max)
+        cudamat.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        return out
 
     def rng_init(self):
         seed = None
@@ -181,6 +206,14 @@ class Cudamat(Backend):
         else:
             res = cudamat.max(x._tensor, axis, out)
 
+        return CudamatTensor(res)
+
+    @staticmethod
+    def fabs(x, out=None):
+        if out is not None:
+            res = cudamat.abs(x._tensor, out._tensor)
+        else:
+            res = cudamat.abs(x._tensor)
         return CudamatTensor(res)
 
     @staticmethod

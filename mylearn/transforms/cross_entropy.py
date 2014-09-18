@@ -9,6 +9,10 @@ def cross_entropy(backend, outputs, targets, temp):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
+    Given that this is undefined for predicted outputs equal to exactly 0 or
+    1.0, we first clip these outputs to epsilon (backend machine precision) and
+    1.0 - epsilon respectively.
+
     Arguments:
         backend (Backend): The backend class to use for computation.
         outputs (array_like): predicted output values to be compared.
@@ -22,11 +26,13 @@ def cross_entropy(backend, outputs, targets, temp):
     # Compute (t-1)*log(1-y).
     backend.add(targets, backend.wrap(-1.0), out=temp[0])
     backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
+    backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(temp[0], temp[1], out=temp[0])
 
     # Compute t*log(y).
-    backend.log(outputs, out=temp[1])
+    backend.clip(outputs, backend.epsilon, 1 - backend.epsilon, out=temp[1])
+    backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
 
     backend.subtract(temp[0], temp[1], out=temp[0])
@@ -37,6 +43,10 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
     """
     Applies derivative of the cross entropy to the pairwise elements from
     outputs and targets.
+
+    Note that this is undefined for predicted outputs equal to exactly 0 or
+    1.0, so we clip these to epsilon (backend machine precision) and 1.0 -
+    epsilon respectively.
 
     Arguments:
         backend (Backend): The backend class to use for computation.
@@ -51,6 +61,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
     backend.subtract(outputs, targets, out=temp[0])
     backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
     backend.multiply(temp[1], outputs, out=temp[1])
+    backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
     backend.divide(temp[0], temp[1], out=temp[0])
     return temp[0]
 

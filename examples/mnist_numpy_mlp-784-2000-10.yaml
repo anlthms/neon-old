@@ -4,6 +4,11 @@
 !obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:mylearn.backends._numpy.Numpy {
     rng_seed: 0,
+    # set which numpy issues raise exceptions, warnings, etc.
+    # see: numpy.seterr()
+    seterr_handling: {
+      all: 'warn',
+    },
   },
   
   datasets: [
@@ -74,7 +79,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

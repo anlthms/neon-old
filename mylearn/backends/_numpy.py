@@ -16,12 +16,17 @@ class Numpy(Backend):
     Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
     32-bit element data types for any arrays constructed.
 
+    Attributes:
+        epsilon (float): the unit roundoff for the elements underlying this
+                         tensor.
     See also:
         Numpy64, NumpyTensor
     """
+    epsilon = np.finfo(np.float32).eps
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.err_init()
         self.rng_init()
 
     @staticmethod
@@ -39,6 +44,21 @@ class Numpy(Backend):
     @staticmethod
     def wrap(obj):
         return NumpyTensor(obj)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = NumpyTensor(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
+
+    def err_init(self):
+        # support numpy.seterr settings:
+        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
+        if 'seterr_handling' in self.__dict__:
+            logger.info("Updating numpy.seterr settings: %s" %
+                        str(self.seterr_handling))
+            np.seterr(**self.seterr_handling)
 
     def rng_init(self):
         seed = None
@@ -181,6 +201,14 @@ class Numpy(Backend):
             return NumpyTensor(res)
 
     @staticmethod
+    def fabs(x, out=None):
+        if out is not None:
+            res = np.fabs(x._tensor, out._tensor)
+        else:
+            res = np.fabs(x._tensor)
+        return NumpyTensor(res)
+
+    @staticmethod
     def sqrt(x, out):
         res = np.sqrt(x._tensor, out._tensor)
         return NumpyTensor(res)
@@ -299,6 +327,7 @@ class Numpy64(Numpy):
     See also:
         Numpy, Numpy64Tensor
     """
+    epsilon = np.finfo(np.float64).eps
 
     @staticmethod
     def zeros(shape, dtype=np.float64):
@@ -358,6 +387,13 @@ class Numpy64(Numpy):
         return Numpy64Tensor(np.concatenate((x._tensor,
                                             np.ones((x.shape[0], 1), dtype)),
                                             axis=1), dtype)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = Numpy64Tensor(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
 
 
 class NumpyTensor(Tensor):

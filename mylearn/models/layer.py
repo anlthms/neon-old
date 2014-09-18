@@ -57,27 +57,35 @@ class Layer(YAMLable):
             self.berror = backend.zeros((batch_size, nin - 1))
 
     def __str__(self):
-        return ("Layer %s: %d inputs, %d nodes, %s act_fn, "
-                "utilizing %s backend\n\t"
-                "y: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "z: mean=%.05f, min=%.05f, max=%.05f,\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t"
-                "velocity: mean=%.05f, min=%.05f, max=%.05f" %
-                (self.name, self.nin, self.nout,
-                 self.activation.__class__.__name__,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.output),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output),
-                 self.backend.mean(self.pre_act),
-                 self.backend.min(self.pre_act),
-                 self.backend.max(self.pre_act),
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights),
-                 self.backend.mean(self.velocity),
-                 self.backend.min(self.velocity),
-                 self.backend.max(self.velocity)))
+        return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
+                "utilizing {be_nm} backend\n\t"
+                "y: mean={y_avg:g}, min={y_min:g}, abs_min={y_absmin:g}, "
+                "max={y_max:g},\n\t"
+                "z: mean={z_avg:g}, min={z_min:g}, abs_min={z_absmin:g}, "
+                "max={z_max:g},\n\t"
+                "weights: mean={w_avg:g}, min={w_min:g}, abs_min={w_absmin:g},"
+                " max={w_max:g},\n\t"
+                "velocity: mean={v_avg:g}, min={v_min:g}, "
+                "abs_min={v_absmin:g}, max={w_max:g},\n\t".format
+                (lyr_nm=self.name, nin=self.nin, nout=self.nout,
+                 act_nm=self.activation.__class__.__name__,
+                 be_nm=self.backend.__class__.__name__,
+                 y_avg=self.backend.mean(self.output),
+                 y_min=self.backend.min(self.output),
+                 y_absmin=self.backend.min(self.backend.fabs(self.output)),
+                 y_max=self.backend.max(self.output),
+                 z_avg=self.backend.mean(self.pre_act),
+                 z_min=self.backend.min(self.pre_act),
+                 z_absmin=self.backend.min(self.backend.fabs(self.pre_act)),
+                 z_max=self.backend.max(self.pre_act),
+                 w_avg=self.backend.mean(self.weights),
+                 w_min=self.backend.min(self.weights),
+                 w_absmin=self.backend.min(self.backend.fabs(self.weights)),
+                 w_max=self.backend.max(self.weights),
+                 v_avg=self.backend.mean(self.velocity),
+                 v_min=self.backend.min(self.velocity),
+                 v_absmin=self.backend.min(self.backend.fabs(self.velocity)),
+                 v_max=self.backend.max(self.velocity)))
 
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
