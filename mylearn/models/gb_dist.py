@@ -6,16 +6,16 @@ import logging
 import math
 import os
 
-from mylearn.models.layer_dist import LocalFilteringLayer_dist
+from mylearn.models.layer_dist import LocalFilteringLayerDist
 from mylearn.models.mlp import MLP
 from mylearn.util.persist import ensure_dirs_exist
-import mylearn.util.distarray.globalActArray as gaa
+from mylearn.util.distarray.global_array import GlobalArray
 from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
 
-class GB_Dist(MLP):
+class GBDist(MLP):
 
     """
     Google Brain class
@@ -30,7 +30,7 @@ class GB_Dist(MLP):
         self.trainable_layers = []
         for ind in xrange(self.nlayers):
             layer = self.layers[ind]
-            if isinstance(layer, LocalFilteringLayer_dist):
+            if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
             # logger.info('created layer:\n\t%s' % str(layer))
 
@@ -44,7 +44,8 @@ class GB_Dist(MLP):
             test_inputs = datasets[0].get_inputs(test=True)['test']
             test_targets = datasets[0].get_targets(test=True)['test']
             self.check_predictions(inputs, targets, test_inputs, test_targets)
-        self.train(inputs, targets)
+        if self.num_epochs > 0:
+            self.train(inputs, targets)
 
     def pretrain(self, inputs):
         logger.info('commencing unsupervised pretraining')
@@ -52,15 +53,17 @@ class GB_Dist(MLP):
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             # MPI: initialize the distributed global array
-            inputs_dist = gaa.GlobalActArray(
-                batchSize=self.batch_size, actSize=layer.ifmshape[0],
-                actChannels=layer.nifm, filterSize=layer.fwidth,
-                backend=self.backend)  # assuming filters are square
+            # this call assumes that filters are square
+            inputs_dist = GlobalArray(batch_size=self.batch_size,
+                                      act_size=layer.ifmshape[0],
+                                      act_channels=layer.nifm,
+                                      filter_size=layer.fwidth,
+                                      backend=self.backend)
 
             # update params to account for halos
-            layer.adjustForHalos(
-                [inputs_dist.localActArray.heightWithHalos,
-                    inputs_dist.localActArray.widthWithHalos])
+            layer.adjust_for_halos(
+                [inputs_dist.local_array.height_with_halos,
+                    inputs_dist.local_array.width_with_halos])
             print 'Adjusting for halos: layer ', ind, '; comm: ', \
                 MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
             pooling = self.layers[self.trainable_layers[ind] + 1]
@@ -83,12 +86,12 @@ class GB_Dist(MLP):
                     for i in xrange(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
-                    # MPI: set mini-batch to localImage
-                    inputs_dist.localActArray.localImage = output
+                    # MPI: set mini-batch to local_image
+                    inputs_dist.local_array.local_image = output
                     # perform halo exchanges
-                    inputs_dist.localActArray.sendRecvHalos()
+                    inputs_dist.local_array.send_recv_halos()
                     # make consistent chunk
-                    inputs_dist.localActArray.makeLocalChunkConsistent()
+                    inputs_dist.local_array.make_local_chunk_consistent()
 
                     print MPI.COMM_WORLD.rank, 'batch #', batch
                     # todo: MPI: fix for backprop
@@ -111,7 +114,7 @@ class GB_Dist(MLP):
         print "Done with pretraining"
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
-            if isinstance(layer, LocalFilteringLayer_dist):
+            if isinstance(layer, LocalFilteringLayerDist):
                 layer.train_mode()
 
     def train(self, inputs, targets):

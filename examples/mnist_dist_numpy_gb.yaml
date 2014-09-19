@@ -8,16 +8,16 @@
 
   datasets: [
     # MNIST data
-    !obj:mylearn.datasets.mnist_dist.MNIST_Dist {
+    !obj:mylearn.datasets.mnist_dist.MNISTDist {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      serialized_path: '/usr/local/data/MNIST_Dist/mnist_dist_10pct-Numpy_',
+      sample_pct: 1,
+      serialized_path: '/usr/local/data/MNIST_Dist/mnist_dist_1pct-Numpy_',
     },
   ],
 
   # Google Brain model specification
-  model: !obj:mylearn.models.gb_dist.GB_Dist {
+  model: !obj:mylearn.models.gb_dist.GBDist {
     backend: *be,
     num_epochs: 0,
     num_pretrain_epochs: 1,
@@ -40,7 +40,7 @@
     pretrain_cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:mylearn.models.layer_dist.LocalFilteringLayer_dist {
+      !obj:mylearn.models.layer_dist.LocalFilteringLayerDist {
         name: layer0,
         pretraining: *pt,
         sparsity: *sp,
