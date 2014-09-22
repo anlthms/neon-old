@@ -11,391 +11,6 @@ from mylearn.backends.backend import Backend, Tensor
 logger = logging.getLogger(__name__)
 
 
-class Numpy(Backend):
-    """
-    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
-    32-bit element data types for any arrays constructed.
-
-    Attributes:
-        epsilon (float): the unit roundoff for the elements underlying this
-                         tensor.
-    See also:
-        Numpy64, NumpyTensor
-    """
-    epsilon = np.finfo(np.float32).eps
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        self.err_init()
-        self.rng_init()
-
-    @staticmethod
-    def zeros(shape, dtype=np.float32):
-        return NumpyTensor(np.zeros(shape, dtype), dtype)
-
-    @staticmethod
-    def ones(shape, dtype=np.float32):
-        return NumpyTensor(np.ones(shape, dtype), dtype)
-
-    @staticmethod
-    def array(obj, dtype=np.float32):
-        return NumpyTensor(np.array(obj, dtype), dtype)
-
-    @staticmethod
-    def wrap(obj):
-        return NumpyTensor(obj)
-
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
-        if out is None:
-            out = NumpyTensor(np.empty_like(a._tensor))
-        np.clip(a._tensor, a_min, a_max, out._tensor)
-        return out
-
-    def err_init(self):
-        # support numpy.seterr settings:
-        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
-        if 'seterr_handling' in self.__dict__:
-            logger.info("Updating numpy.seterr settings: %s" %
-                        str(self.seterr_handling))
-            np.seterr(**self.seterr_handling)
-
-    def rng_init(self):
-        seed = None
-        if 'rng_seed' in self.__dict__:
-            seed = self.rng_seed
-            logger.info("Seeding random number generator with: %s" % str(seed))
-        np.random.seed(seed)
-
-    def uniform(self, low=0.0, high=1.0, size=1):
-        """
-        Uniform random number sample generation.
-
-        Arguments:
-            low (float, optional): Minimal sample value that can be returned.
-                                   Defaults to 0.0
-            high (float, optional): Maximal sample value.  Open ended range so
-                                    maximal value slightly less.  Defaults to
-                                    1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
-        """
-        return NumpyTensor(np.random.uniform(low, high, size))
-
-    def normal(self, loc=0.0, scale=1.0, size=1):
-        """
-        Gaussian/Normal random number sample generation
-
-        Arguments:
-            loc (float, optional): Where to center distribution.  Defaults
-                                   to 0.0
-            scale (float, optional): Standard deviaion.  Defaults to 1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
-        """
-        return NumpyTensor(np.random.normal(loc, scale, size))
-
-    @staticmethod
-    def append_bias(x, dtype=np.float32):
-        """
-        Adds a bias column of ones to NumpyTensor x,
-        returning a new NumpyTensor.
-        """
-        return NumpyTensor(np.concatenate((x._tensor,
-                                          np.ones((x.shape[0], 1), dtype)),
-                                          axis=1), dtype)
-
-    @staticmethod
-    def copy(a):
-        return NumpyTensor(np.copy(a))
-
-    @staticmethod
-    def argmax(x, axis=None):
-        return NumpyTensor(np.argmax(x._tensor, axis))
-
-    @staticmethod
-    def dot(a, b, out):
-        np.dot(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def add(a, b, out):
-        np.add(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def subtract(a, b, out):
-        np.subtract(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def multiply(a, b, out):
-        np.multiply(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def divide(a, b, out):
-        np.divide(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def reciprocal(a, out):
-        np.divide(1.0, a._tensor, out._tensor)
-
-    @staticmethod
-    def greater(a, b, out):
-        np.greater(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def exp(x, out):
-        np.exp(x._tensor, out=out._tensor)
-
-    @staticmethod
-    def log(x, out):
-        np.log(x._tensor, out=out._tensor)
-
-    @staticmethod
-    def logistic(x, out):
-        Numpy.multiply(x, Numpy.wrap(-1.0), out=out)
-        Numpy.exp(out, out=out)
-        Numpy.add(out, Numpy.wrap(1.0), out=out)
-        Numpy.reciprocal(out, out=out)
-
-    @staticmethod
-    def clear(x):
-        x._tensor[:] = 0
-
-    @staticmethod
-    def sum(obj):
-        return obj._tensor.sum()
-
-    @staticmethod
-    def mean(x, axis=None, dtype=np.float32, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.mean(x._tensor, axis, dtype, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return NumpyTensor(res)
-
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.min(x._tensor, axis, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return NumpyTensor(res)
-
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.max(x._tensor, axis, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return NumpyTensor(res)
-
-    @staticmethod
-    def fabs(x, out=None):
-        if out is not None:
-            res = np.fabs(x._tensor, out._tensor)
-        else:
-            res = np.fabs(x._tensor)
-        return NumpyTensor(res)
-
-    @staticmethod
-    def sqrt(x, out):
-        res = np.sqrt(x._tensor, out._tensor)
-        return NumpyTensor(res)
-
-    @staticmethod
-    def squish(obj, n):
-        """ reshape a tensor by increasing the first dimensions by factor n, and
-        shrinking the the second dimension by factor n."""
-        assert obj.shape[1] % n == 0
-        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
-
-    @staticmethod
-    def not_equal(x, y):
-        return NumpyTensor(np.not_equal(x._tensor, y._tensor))
-
-    @staticmethod
-    def nonzero(x):
-        return NumpyTensor(np.nonzero(x._tensor)[1])
-
-    def gen_weights(self, size, weight_params, dtype=np.float32):
-        weights = None
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
-            weights = self.uniform(low, high, size)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
-            weights = self.normal(loc, scale, size)
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size)
-        else:
-            raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
-        if weights._tensor.dtype != dtype:
-            # unfortunately we typically can't avoid a copy here, or initialize
-            # to appropriate size up front.  For instance see:
-            # http://stackoverflow.com/q/19523166
-            weights._tensor = weights._tensor.astype(dtype)
-        return weights
-
-    def get_momentum_coef(self, epoch, momentum_params):
-        coef = 0.0
-        if 'coef' in momentum_params:
-            coef = momentum_params['coef']
-        if 'initial_coef' in momentum_params:
-            init_coef = momentum_params['initial_coef']
-        else:
-            init_coef = coef
-        if 'saturated_coef' in momentum_params:
-            saturated_coef = momentum_params['saturated_coef']
-        else:
-            saturated_coef = coef
-        if 'start_epoch' in momentum_params:
-            start_epoch = momentum_params['start_epoch']
-        else:
-            start_epoch = None
-        if 'saturate_epoch' in momentum_params:
-            saturate_epoch = momentum_params['saturate_epoch']
-        else:
-            saturate_epoch = None
-
-        if momentum_params['type'] == 'constant':
-            pass
-        elif momentum_params['type'] == 'linear_monotone':
-            coef = init_coef
-            if start_epoch is not None and epoch >= start_epoch:
-                if saturate_epoch is not None and epoch <= saturate_epoch:
-                    if start_epoch == saturate_epoch:
-                        coef = saturated_coef
-                    else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
-                                           (saturate_epoch - start_epoch))
-                        coef = (init_proportion * init_coef +
-                                (1.0 - init_proportion) * saturated_coef)
-                elif saturate_epoch is not None and epoch > saturate_epoch:
-                    coef = saturated_coef
-            else:
-                coef = saturated_coef
-        elif momentum_params['type'] == 'nesterov':
-            raise NotImplementedError("TODO!")
-        else:
-            raise AttributeError("invalid momentum_params specified")
-        return coef
-
-
-class Numpy64(Numpy):
-    """
-    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
-    64-bit element data types for any arrays constructed.
-
-    See also:
-        Numpy, Numpy64Tensor
-    """
-    epsilon = np.finfo(np.float64).eps
-
-    @staticmethod
-    def zeros(shape, dtype=np.float64):
-        return Numpy64Tensor(np.zeros(shape, dtype), dtype)
-
-    @staticmethod
-    def ones(shape, dtype=np.float64):
-        return Numpy64Tensor(np.ones(shape, dtype), dtype)
-
-    @staticmethod
-    def array(obj, dtype=np.float64):
-        return Numpy64Tensor(np.array(obj, dtype), dtype)
-
-    @staticmethod
-    def wrap(obj):
-        return Numpy64Tensor(obj)
-
-    def uniform(self, low=0.0, high=1.0, size=1):
-        """
-        Uniform random number sample generation.
-
-        Arguments:
-            low (float, optional): Minimal sample value that can be returned.
-                                   Defaults to 0.0
-            high (float, optional): Maximal sample value.  Open ended range so
-                                    maximal value slightly less.  Defaults to
-                                    1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            Numpy64Tensor: Of specified size filled with these random
-                           numbers.
-        """
-        return Numpy64Tensor(np.random.uniform(low, high, size))
-
-    def normal(self, loc=0.0, scale=1.0, size=1):
-        """
-        Gaussian/Normal random number sample generation
-
-        Arguments:
-            loc (float, optional): Where to center distribution.  Defaults
-                                   to 0.0
-            scale (float, optional): Standard deviaion.  Defaults to 1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            Numpy64Tensor: Of specified size filled with these random
-                         numbers.
-        """
-        return Numpy64Tensor(np.random.normal(loc, scale, size))
-
-    def gen_weights(self, size, weight_params, dtype=np.float64):
-        return super(Numpy64, self).gen_weights(size, weight_params, dtype)
-
-    @staticmethod
-    def append_bias(x, dtype=np.float64):
-        return Numpy64Tensor(np.concatenate((x._tensor,
-                                            np.ones((x.shape[0], 1), dtype)),
-                                            axis=1), dtype)
-
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
-        if out is None:
-            out = Numpy64Tensor(np.empty_like(a._tensor))
-        np.clip(a._tensor, a_min, a_max, out._tensor)
-        return out
-
-
 class NumpyTensor(Tensor):
     """
     Simple wrapped `numpy.ndarray` tensor
@@ -421,6 +36,7 @@ class NumpyTensor(Tensor):
         else:
             self._tensor = obj
         self.shape = self._tensor.shape
+        self.dtype = dtype
 
     def __str__(self):
         """
@@ -430,6 +46,10 @@ class NumpyTensor(Tensor):
             str: the representation.
         """
         return str(self._tensor)
+
+    def __repr__(self):
+        return ("%s(%s)" %
+                (self.__class__.__name__, str(self)))
 
     def _clean(self, val):
         """
@@ -732,3 +352,400 @@ class Numpy64Tensor(NumpyTensor):
             if self._tensor.dtype != np.float64:
                 self._tensor = self._tensor.astype(np.float64)
         self.shape = self._tensor.shape
+        self.dtype = dtype
+
+
+class Numpy(Backend):
+    """
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    32-bit element data types for any arrays constructed.
+
+    Attributes:
+        default_dtype (dtype): default element data type.  We assume 32-bit
+                               float
+        epsilon (float): the unit roundoff for the elements underlying this
+                         tensor.
+    See also:
+        Numpy64, NumpyTensor
+    """
+    default_dtype = np.float32
+    epsilon = np.finfo(np.float32).eps
+    tensor_cls = NumpyTensor
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.err_init()
+        self.rng_init()
+
+    @classmethod
+    def default_dtype_if_missing(cls, in_dtype):
+        if in_dtype is None:
+            in_dtype = cls.default_dtype
+        return in_dtype
+
+    @classmethod
+    def zeros(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.zeros(shape, dtype), dtype)
+
+    @classmethod
+    def ones(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.ones(shape, dtype), dtype)
+
+    @classmethod
+    def array(cls, obj, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.array(obj, dtype), dtype)
+
+    @staticmethod
+    def wrap(obj):
+        return NumpyTensor(obj)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = NumpyTensor(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
+
+    def err_init(self):
+        # support numpy.seterr settings:
+        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
+        if 'seterr_handling' in self.__dict__:
+            logger.info("Updating numpy.seterr settings: %s" %
+                        str(self.seterr_handling))
+            np.seterr(**self.seterr_handling)
+
+    def rng_init(self):
+        seed = None
+        if 'rng_seed' in self.__dict__:
+            seed = self.rng_seed
+            logger.info("Seeding random number generator with: %s" % str(seed))
+        np.random.seed(seed)
+
+    def uniform(self, low=0.0, high=1.0, size=1):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            low (float, optional): Minimal sample value that can be returned.
+                                   Defaults to 0.0
+            high (float, optional): Maximal sample value.  Open ended range so
+                                    maximal value slightly less.  Defaults to
+                                    1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            NumpyTensor: Of specified size filled with these random
+                         numbers.
+        """
+        return NumpyTensor(np.random.uniform(low, high, size))
+
+    def normal(self, loc=0.0, scale=1.0, size=1):
+        """
+        Gaussian/Normal random number sample generation
+
+        Arguments:
+            loc (float, optional): Where to center distribution.  Defaults
+                                   to 0.0
+            scale (float, optional): Standard deviaion.  Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            NumpyTensor: Of specified size filled with these random
+                         numbers.
+        """
+        return NumpyTensor(np.random.normal(loc, scale, size))
+
+    @staticmethod
+    def append_bias(x, dtype=np.float32):
+        """
+        Adds a bias column of ones to NumpyTensor x,
+        returning a new NumpyTensor.
+        """
+        return NumpyTensor(np.concatenate((x._tensor,
+                                          np.ones((x.shape[0], 1), dtype)),
+                                          axis=1), dtype)
+
+    @staticmethod
+    def copy(a):
+        return NumpyTensor(np.copy(a))
+
+    @staticmethod
+    def argmax(x, axis=None):
+        return NumpyTensor(np.argmax(x._tensor, axis))
+
+    @staticmethod
+    def dot(a, b, out):
+        np.dot(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def add(a, b, out):
+        np.add(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def subtract(a, b, out):
+        np.subtract(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def multiply(a, b, out):
+        np.multiply(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def divide(a, b, out):
+        np.divide(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def reciprocal(a, out):
+        np.divide(1.0, a._tensor, out._tensor)
+
+    @staticmethod
+    def greater(a, b, out):
+        np.greater(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def exp(x, out):
+        np.exp(x._tensor, out=out._tensor)
+
+    @staticmethod
+    def log(x, out):
+        np.log(x._tensor, out=out._tensor)
+
+    @staticmethod
+    def logistic(x, out):
+        Numpy.multiply(x, Numpy.wrap(-1.0), out=out)
+        Numpy.exp(out, out=out)
+        Numpy.add(out, Numpy.wrap(1.0), out=out)
+        Numpy.reciprocal(out, out=out)
+
+    @staticmethod
+    def clear(x):
+        x._tensor[:] = 0
+
+    @staticmethod
+    def sum(obj):
+        return obj._tensor.sum()
+
+    @staticmethod
+    def mean(x, axis=None, dtype=np.float32, out=None, keepdims=False):
+        if x is None:
+            return float('NaN')
+        res = np.mean(x._tensor, axis, dtype, out, keepdims)
+        if axis is None and not keepdims:
+            return res
+        else:
+            return NumpyTensor(res)
+
+    @staticmethod
+    def min(x, axis=None, out=None, keepdims=False):
+        if x is None:
+            return float('NaN')
+        res = np.min(x._tensor, axis, out, keepdims)
+        if axis is None and not keepdims:
+            return res
+        else:
+            return NumpyTensor(res)
+
+    @staticmethod
+    def max(x, axis=None, out=None, keepdims=False):
+        if x is None:
+            return float('NaN')
+        res = np.max(x._tensor, axis, out, keepdims)
+        if axis is None and not keepdims:
+            return res
+        else:
+            return NumpyTensor(res)
+
+    @staticmethod
+    def fabs(x, out=None):
+        if out is not None:
+            res = np.fabs(x._tensor, out._tensor)
+        else:
+            res = np.fabs(x._tensor)
+        return NumpyTensor(res)
+
+    @staticmethod
+    def sqrt(x, out):
+        res = np.sqrt(x._tensor, out._tensor)
+        return NumpyTensor(res)
+
+    @staticmethod
+    def squish(obj, n):
+        """ reshape a tensor by increasing the first dimensions by factor n, and
+        shrinking the the second dimension by factor n."""
+        assert obj.shape[1] % n == 0
+        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+
+    @staticmethod
+    def not_equal(x, y):
+        return NumpyTensor(np.not_equal(x._tensor, y._tensor))
+
+    @staticmethod
+    def nonzero(x):
+        return NumpyTensor(np.nonzero(x._tensor)[1])
+
+    def gen_weights(self, size, weight_params, dtype=None):
+        if dtype is None:
+            dtype=np.float32
+        weights = None
+        if 'dtype' in weight_params:
+            dtype = weight_params['dtype']
+        if weight_params['type'] == 'uniform':
+            low = 0.0
+            high = 1.0
+            if 'low' in weight_params:
+                low = weight_params['low']
+            if 'high' in weight_params:
+                high = weight_params['high']
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
+                        (str(size), low, high))
+            weights = self.uniform(low, high, size)
+        elif (weight_params['type'] == 'gaussian' or
+              weight_params['type'] == 'normal'):
+            loc = 0.0
+            scale = 1.0
+            if 'loc' in weight_params:
+                loc = weight_params['loc']
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
+                        (str(size), loc, scale))
+            weights = self.normal(loc, scale, size)
+        elif weight_params['type'] == 'node_normalized':
+            # initialization is as discussed in Glorot2010
+            scale = 1.0
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
+            logger.info('generating %s node_normalized(%0.2f) weights.' %
+                        (str(size), scale))
+            node_norm = scale * math.sqrt(6.0 / sum(size))
+            weights = self.uniform(-node_norm, node_norm, size)
+        else:
+            raise AttributeError("invalid weight_params specified")
+        if 'bias_init' in weight_params:
+            # per append_bias() bias weights are in the last column
+            logger.info('separately initializing bias weights to %0.2f' %
+                        weight_params['bias_init'])
+            weights[:, -1] = weight_params['bias_init']
+        if weights._tensor.dtype != dtype:
+            # unfortunately we typically can't avoid a copy here, or initialize
+            # to appropriate size up front.  For instance see:
+            # http://stackoverflow.com/q/19523166
+            weights._tensor = weights._tensor.astype(dtype)
+        return weights
+
+    def get_momentum_coef(self, epoch, momentum_params):
+        coef = 0.0
+        if 'coef' in momentum_params:
+            coef = momentum_params['coef']
+        if 'initial_coef' in momentum_params:
+            init_coef = momentum_params['initial_coef']
+        else:
+            init_coef = coef
+        if 'saturated_coef' in momentum_params:
+            saturated_coef = momentum_params['saturated_coef']
+        else:
+            saturated_coef = coef
+        if 'start_epoch' in momentum_params:
+            start_epoch = momentum_params['start_epoch']
+        else:
+            start_epoch = None
+        if 'saturate_epoch' in momentum_params:
+            saturate_epoch = momentum_params['saturate_epoch']
+        else:
+            saturate_epoch = None
+
+        if momentum_params['type'] == 'constant':
+            pass
+        elif momentum_params['type'] == 'linear_monotone':
+            coef = init_coef
+            if start_epoch is not None and epoch >= start_epoch:
+                if saturate_epoch is not None and epoch <= saturate_epoch:
+                    if start_epoch == saturate_epoch:
+                        coef = saturated_coef
+                    else:
+                        init_proportion = ((epoch - start_epoch + 0.0) /
+                                           (saturate_epoch - start_epoch))
+                        coef = (init_proportion * init_coef +
+                                (1.0 - init_proportion) * saturated_coef)
+                elif saturate_epoch is not None and epoch > saturate_epoch:
+                    coef = saturated_coef
+            else:
+                coef = saturated_coef
+        elif momentum_params['type'] == 'nesterov':
+            raise NotImplementedError("TODO!")
+        else:
+            raise AttributeError("invalid momentum_params specified")
+        return coef
+
+
+class Numpy64(Numpy):
+    """
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    64-bit element data types for any arrays constructed.
+
+    See also:
+        Numpy, Numpy64Tensor
+    """
+    default_dtype = np.float64
+    epsilon = np.finfo(np.float64).eps
+    tensor_cls = Numpy64Tensor
+
+    @staticmethod
+    def wrap(obj):
+        return Numpy64Tensor(obj)
+
+    def uniform(self, low=0.0, high=1.0, size=1):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            low (float, optional): Minimal sample value that can be returned.
+                                   Defaults to 0.0
+            high (float, optional): Maximal sample value.  Open ended range so
+                                    maximal value slightly less.  Defaults to
+                                    1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            Numpy64Tensor: Of specified size filled with these random
+                           numbers.
+        """
+        return Numpy64Tensor(np.random.uniform(low, high, size))
+
+    def normal(self, loc=0.0, scale=1.0, size=1):
+        """
+        Gaussian/Normal random number sample generation
+
+        Arguments:
+            loc (float, optional): Where to center distribution.  Defaults
+                                   to 0.0
+            scale (float, optional): Standard deviaion.  Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
+
+        Returns:
+            Numpy64Tensor: Of specified size filled with these random
+                         numbers.
+        """
+        return Numpy64Tensor(np.random.normal(loc, scale, size))
+
+    def gen_weights(self, size, weight_params, dtype=None):
+        if dtype is None:
+            dtype=np.float64
+        return super(Numpy64, self).gen_weights(size, weight_params, dtype)
+
+    @staticmethod
+    def append_bias(x, dtype=np.float64):
+        return Numpy64Tensor(np.concatenate((x._tensor,
+                                            np.ones((x.shape[0], 1), dtype)),
+                                            axis=1), dtype)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = Numpy64Tensor(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
+
+

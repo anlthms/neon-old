@@ -38,35 +38,44 @@ class Layer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init):
+                 nout, activation, weight_init, weight_dtype=None,
+                 velocity_dtype=None, delta_dtype=None, updates_dtype=None,
+                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
         self.activation = activation
         self.nin = nin
         self.nout = nout
-        self.weights = self.backend.gen_weights((nout, nin), weight_init)
-        self.velocity = self.backend.zeros(self.weights.shape)
-        self.delta = backend.zeros((batch_size, nout))
-        self.updates = backend.zeros((nout, nin))
-        self.pre_act = backend.zeros((batch_size, self.nout))
-        self.output = backend.zeros((batch_size, self.nout))
+        self.weights = self.backend.gen_weights((nout, nin), weight_init,
+                                                weight_dtype)
+        self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
+        self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
+        self.updates = self.backend.zeros((nout, nin), updates_dtype)
+        self.pre_act = self.backend.zeros((batch_size, self.nout),
+                                          pre_act_dtype)
+        self.output = self.backend.zeros((batch_size, self.nout), output_dtype)
         self.pos = pos
         self.learning_rate = learning_rate
         if pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = backend.zeros((batch_size, nin - 1))
+            self.berror = self.backend.zeros((batch_size, nin - 1),
+                                             berror_dtype)
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
                 "utilizing {be_nm} backend\n\t"
                 "y: mean={y_avg:g}, min={y_min:g}, abs_min={y_absmin:g}, "
                 "max={y_max:g},\n\t"
+                "   dtype={y_dtype}\n\t"
                 "z: mean={z_avg:g}, min={z_min:g}, abs_min={z_absmin:g}, "
                 "max={z_max:g},\n\t"
+                "   dtype={z_dtype}\n\t"
                 "weights: mean={w_avg:g}, min={w_min:g}, abs_min={w_absmin:g},"
                 " max={w_max:g},\n\t"
+                "         dtype={w_dtype}\n\t"
                 "velocity: mean={v_avg:g}, min={v_min:g}, "
-                "abs_min={v_absmin:g}, max={w_max:g},\n\t".format
+                "abs_min={v_absmin:g}, max={w_max:g},\n\t"
+                "          dtype={v_dtype}\n".format
                 (lyr_nm=self.name, nin=self.nin, nout=self.nout,
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__,
@@ -74,18 +83,22 @@ class Layer(YAMLable):
                  y_min=self.backend.min(self.output),
                  y_absmin=self.backend.min(self.backend.fabs(self.output)),
                  y_max=self.backend.max(self.output),
+                 y_dtype=self.output.dtype,
                  z_avg=self.backend.mean(self.pre_act),
                  z_min=self.backend.min(self.pre_act),
                  z_absmin=self.backend.min(self.backend.fabs(self.pre_act)),
                  z_max=self.backend.max(self.pre_act),
+                 z_dtype=self.pre_act.dtype,
                  w_avg=self.backend.mean(self.weights),
                  w_min=self.backend.min(self.weights),
                  w_absmin=self.backend.min(self.backend.fabs(self.weights)),
                  w_max=self.backend.max(self.weights),
+                 w_dtype=self.weights.dtype,
                  v_avg=self.backend.mean(self.velocity),
                  v_min=self.backend.min(self.velocity),
                  v_absmin=self.backend.min(self.backend.fabs(self.velocity)),
-                 v_max=self.backend.max(self.velocity)))
+                 v_max=self.backend.max(self.velocity),
+                 v_dtype=self.velocity.dtype))
 
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
