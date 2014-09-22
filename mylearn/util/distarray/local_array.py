@@ -64,6 +64,7 @@ class LocalArray(object):
         self.top_left_row = top_left_row  # in px relative to global matrix(2d)
         self.local2d_size = height * width
         self.local_array_size = self.local2d_size * act_channels
+        self.local_image_indices = []  # local_image relative to chunk
 
         self.halo_size_col = halo_size_col
         self.halo_size_row = halo_size_row
@@ -81,14 +82,14 @@ class LocalArray(object):
                 (batch_size, self.local_array_size), dtype='float32')
             # todo: can skip this if no defiltering layer (i.e., if not
             # pretraining)
-            self.local_image_defiltering = np.empty_like(self.local_image)
+            self.defiltering_local_image = np.empty_like(self.local_image)
         else:
             self.backend = backend
             self.local_image = backend.zeros(
                 (batch_size, self.local_array_size), dtype='float32')
             # todo: can skip this if no defiltering layer (i.e., if not
             # pretraining)
-            self.local_image_defiltering = backend.zeros(
+            self.defiltering_local_image = backend.zeros(
                 self.local_image.shape,  dtype='float32')
 
         self.batch_size = batch_size  # mini-batch size
@@ -113,42 +114,40 @@ class LocalArray(object):
                 self.chunk = np.empty(
                     (batch_size, self.local_array_size_with_halo),
                     dtype='float32')
+                self.defiltering_chunk = np.empty_like(self.chunk)
             else:
                 self.chunk = backend.zeros(
                     (batch_size, self.local_array_size_with_halo),
                     dtype='float32')
+                self.defiltering_chunk = backend.zeros(
+                    self.chunk.shape,
+                    dtype='float32')
 
-    def send_recv_halos(self):
+    def send_recv_halos(self, dbg=False):
         comm = MPI.COMM_WORLD
         comm.barrier()
-        req = [None, None]
+
+        req = []
         # exchange and store neighbor dims
         for k in self.halo_ids:
+            req.extend([None])
             neighbor_array_index = [
                 gc.pos_offsets[k][0] + self.global_row_index,
                 gc.pos_offsets[k][1] + self.global_col_index]
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
 
-            req[0] = comm.Isend(self.local_image.take(
+            comm.Sendrecv(sendbuf=self.local_image.take(
                 self.send_halos[k].halo_indices, axis=1).raw(),
-                neighbor_comm_index)
-            req[1] = comm.Irecv(
-                self.recv_halos[k].halo_data.raw(), neighbor_comm_index)
-            # print comm.rank, ' dir:', k, 's: ',
-            # self.local_image[self.send_halos[k].halo_indices],
-            # self.send_halos[k].halo_indices
-
+                dest=neighbor_comm_index, sendtag=0,
+                recvbuf=self.recv_halos[k].halo_data.raw(),
+                source=neighbor_comm_index,
+                recvtag=0)
         comm.barrier()
-        # print comm.rank, ' done with sendrecv_halos.'
-
-        # for k in self.halo_ids:
-        #     print comm.rank, ' dir:', k, 'r: ', self.recv_halos[k].halo_data
 
     def send_recv_defiltering_layer_halos(self):
         comm = MPI.COMM_WORLD
         comm.barrier()
-        req = [None, None]
         # exchange and store neighbor dims
         for k in self.halo_ids:
             # k_reverse_dir = gc.send_dict[k]
@@ -159,12 +158,14 @@ class LocalArray(object):
                 0] * self.comm_per_dim + neighbor_array_index[1]
             # todo: make sure size is not zero before sending
             # /receiving (e.g. 2x2 filters)
-            req[0] = comm.Isend(self.local_image_defiltering.take(
+            comm.Sendrecv(sendbuf=self.defiltering_chunk.take(
                 self.recv_halos[k].halo_insert_indices,
-                axis=1).raw().astype('float32'), neighbor_comm_index)
-            req[1] = comm.Irecv(
-                self.send_halos[k].halo_data_defiltering.raw(),
-                neighbor_comm_index)
+                axis=1).raw().astype('float32'),
+                dest=neighbor_comm_index,
+                sendtag=0,
+                recvbuf=self.send_halos[k].halo_data_defiltering.raw(),
+                source=neighbor_comm_index,
+                recvtag=0)
 
         comm.barrier()
         # print comm.rank, ' done with sendrecv_halos.'
@@ -203,6 +204,8 @@ class LocalArray(object):
             for r in range(self.height):
                 for halo in neighbor_traverse_order2:
                     if halo == 8:
+                        self.local_image_indices.extend(
+                            range(c_ptr, c_ptr + self.width))
                         c_ptr += self.width
                         d_ptrs[halo] += self.width
                     elif halo in self.halo_ids:
@@ -240,6 +243,7 @@ class LocalArray(object):
         for n_id in range(9):
             d_ptrs[n_id] = 0
 
+        MPI.COMM_WORLD.barrier()
         for c in range(self.act_channels):
             # top halos
             for r in range(self.halo_size_row):
@@ -308,18 +312,16 @@ class LocalArray(object):
 
     # this could be useful if we need to sum products in the output feature map
     def make_defiltering_layer_consistent(self):
-        # for divergent layers
-        # MPI.COMM_WORLD.barrier()
         d_ptrs = dict()
 
         for n_id in range(9):
             d_ptrs[n_id] = 0
 
-        # self.local_image_defiltering = local_image_defiltering
+        self.defiltering_local_image = self.defiltering_chunk.take(
+            self.local_image_indices, axis=1)
+
         for halo in self.halo_ids:
-            # print 'make_defiltering_layer_consistent', MPI.COMM_WORLD.rank,
-            # halo
-            self.local_image_defiltering[
+            self.defiltering_local_image[
                 :, self.send_halos[halo].halo_indices] += (
                 self.send_halos[halo].halo_data_defiltering)
         MPI.COMM_WORLD.barrier()

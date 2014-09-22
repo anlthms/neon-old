@@ -43,7 +43,7 @@ class Numpy(Backend):
             logger.info("Seeding random number generator with: %s" % str(seed))
         np.random.seed(seed)
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype='float'):
         """
         Uniform random number sample generation.
 
@@ -59,9 +59,9 @@ class Numpy(Backend):
             NumpyTensor: Of specified size filled with these random
                          numbers.
         """
-        return NumpyTensor(np.random.uniform(low, high, size))
+        return NumpyTensor(np.random.uniform(low, high, size).astype(dtype))
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype='float'):
         """
         Gaussian/Normal random number sample generation
 
@@ -75,7 +75,7 @@ class Numpy(Backend):
             NumpyTensor: Of specified size filled with these random
                          numbers.
         """
-        return NumpyTensor(np.random.normal(loc, scale, size))
+        return NumpyTensor(np.random.normal(loc, scale, size).astype(dtype))
 
     @staticmethod
     def append_bias(x):
@@ -196,7 +196,7 @@ class Numpy(Backend):
     def nonzero(x):
         return NumpyTensor(np.nonzero(x._tensor)[1])
 
-    def gen_weights(self, size, weight_params):
+    def gen_weights(self, size, weight_params, dtype='float'):
         weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0
@@ -207,7 +207,7 @@ class Numpy(Backend):
                 high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
-            weights = self.uniform(low, high, size)
+            weights = self.uniform(low, high, size, dtype)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
             loc = 0.0
@@ -218,7 +218,7 @@ class Numpy(Backend):
                 scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
-            weights = self.normal(loc, scale, size)
+            weights = self.normal(loc, scale, size, dtype)
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
@@ -227,7 +227,7 @@ class Numpy(Backend):
             logger.info('generating %s node_normalized(%0.2f) weights.' %
                         (str(size), scale))
             node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size)
+            weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:

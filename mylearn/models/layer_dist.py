@@ -71,7 +71,7 @@ class LocalLayerDist(YAMLable):
         self.rlinks = self.links.raw()
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 nofm, ifmshape, fshape, stride):
+                 nofm, ifmshape, fshape, stride, dtype='float32'):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
@@ -88,7 +88,7 @@ class LocalLayerDist(YAMLable):
         # self.ofmsize = self.ofmheight * self.ofmwidth
         # self.nin = nifm * self.ifmsize
         if pos > 0:
-            self.berror = backend.zeros((batch_size, self.nin))
+            self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
 
         self.nifm = nifm
         self.nofm = nofm
@@ -97,6 +97,10 @@ class LocalLayerDist(YAMLable):
 
     def normalize_weights(self, weights):
         norms = weights.norm(axis=1)
+        # if np.any(np.isnan(norms.raw())):
+        #    print "encountered nan"
+        # if np.any(norms.raw()==0):
+        #    print "encountered zeros in norms"
         self.backend.divide(weights,
                             norms.reshape((norms.shape[0], 1)),
                             out=weights)
@@ -112,18 +116,26 @@ class LocalFilteringLayerDist(LocalLayerDist):
     are not shared.
     """
 
-    def adjust_for_halos(self, ifmshape):
+    def adjust_for_halos(self, ifmshape, dtype='float32'):
         super(LocalFilteringLayerDist, self).adjust_for_halos(ifmshape)
         self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nout = self.ofmsize * self.nofm
-        self.output = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.zeros(
+            (self.batch_size, self.nout), dtype=dtype)
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
-                                                self.weight_init)
+                                                self.weight_init, dtype=dtype)
+        # print 'self.weights pre', np.mean(self.weights.raw()),
+        # np.amax(self.weights.raw()), np.amin(self.weights.raw())
         self.normalize_weights(self.weights)
-        self.updates = self.backend.zeros(self.weights.shape)
-        self.prodbuf = self.backend.zeros((self.batch_size, self.nofm))
-        self.bpropbuf = self.backend.zeros((self.batch_size, self.fsize))
-        self.updatebuf = self.backend.zeros((self.nofm, self.fsize))
+        # print 'self.weights post', np.mean(self.weights.raw()),
+        # np.amax(self.weights.raw()), np.amin(self.weights.raw())
+        self.updates = self.backend.zeros(self.weights.shape, dtype=dtype)
+        self.prodbuf = self.backend.zeros(
+            (self.batch_size, self.nofm), dtype=dtype)
+        self.bpropbuf = self.backend.zeros(
+            (self.batch_size, self.fsize), dtype=dtype)
+        self.updatebuf = self.backend.zeros(
+            (self.nofm, self.fsize), dtype=dtype)
 
     def __init__(self, name, backend, batch_size, pos, learning_rate,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
@@ -164,35 +176,43 @@ class LocalFilteringLayerDist(LocalLayerDist):
         inputs = inputs_dist.local_array.chunk
         self.fprop(inputs)
 
-        # todo: next 3 lines can be pre-initialized
+        # todo: next 4 lines can be pre-initialized
         # for defiltering layer
         autoencoder = LocalArray(
             batch_size=self.batch_size,
             global_row_index=inputs_dist.local_array.global_row_index,
             global_col_index=inputs_dist.local_array.global_col_index,
-            height=self.ofmheight, width=self.ofmwidth, act_channels=self.nofm,
+            height=inputs_dist.local_array.height,
+            width=inputs_dist.local_array.width,
+            act_channels=inputs_dist.local_array.act_channels,
             top_left_row=inputs_dist.local_array.top_left_row,
             top_left_col=inputs_dist.local_array.top_left_col,
             border_id=inputs_dist.local_array.border_id,
-            halo_size_row=-1, halo_size_col=-1,
+            halo_size_row=inputs_dist.local_array.halo_size_row,
+            halo_size_col=inputs_dist.local_array.halo_size_col,
             comm_per_dim=inputs_dist.local_array.comm_per_dim,
             backend=self.backend)
         # reuse halo info from filtering layer
         autoencoder.send_halos = inputs_dist.local_array.send_halos
         autoencoder.recv_halos = inputs_dist.local_array.recv_halos
+        autoencoder.local_image_indices = (
+            inputs_dist.local_array.local_image_indices)
 
         self.defilter.fprop(self.output)
-        autoencoder.local_image = self.output  # unused?
-        # halo aggregation across chunks for defiltering layer
 
-        # todo: depending on how bprop uses local_image_defiltering
-        # it may not need to belong to Y
-        autoencoder.local_image_defiltering = self.defilter.output
+        # halo aggregation across chunks for defiltering layer
+        # todo: depending on how bprop uses defiltering_chunk
+        # it may not need to belong to autoencoder
+        # accumulate the reconstructed local_image patches
+        autoencoder.defiltering_chunk = self.defilter.output
         autoencoder.send_recv_defiltering_layer_halos()
         autoencoder.make_defiltering_layer_consistent()
 
-        # use autoencoder.local_image_defiltering for bprop
-        self.defilter.output = autoencoder.local_image_defiltering
+        # communicate the halos for the reconstructed image patches
+        autoencoder.local_image = autoencoder.defiltering_local_image
+        # autoencoder.chunk = autoencoder.defiltering_chunk #initialize
+        autoencoder.send_recv_halos(dbg=True)
+        autoencoder.make_local_chunk_consistent()
 
         # Forward propagate the output of this layer through a
         # pooling layer. The output of the pooling layer is used
@@ -201,25 +221,28 @@ class LocalFilteringLayerDist(LocalLayerDist):
 
         # Backward propagate the gradient of the reconstruction error
         # through the defiltering layer.
-        error = cost.apply_derivative(self.backend, self.defilter.output,
-                                      inputs, self.defilter.temp)
+        error = cost.apply_derivative(self.backend,
+                                      autoencoder.chunk,
+                                      inputs,
+                                      self.defilter.temp)
         self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
                             out=error)
+
         self.defilter.bprop(error, self.output, epoch, momentum)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[0]) *
                  (self.backend.ones(self.pooling.output.shape)))
         self.pooling.bprop(error, self.output, epoch, momentum)
-
         # Aggregate the errors from both layers before back propagating
         # through the current layer.
         berror = self.defilter.berror + self.pooling.berror
-
         self.bprop(berror, inputs, epoch, momentum)
 
-        rcost = cost.apply_function(self.backend, self.defilter.output,
-                                    inputs, self.defilter.temp)
+        rcost = cost.apply_function(self.backend,
+                                    autoencoder.defiltering_local_image,
+                                    inputs_dist.local_array.local_image,
+                                    self.defilter.temp1)
         spcost = self.sparsity * self.pooling.output.sum()
         return rcost, spcost
 
@@ -288,19 +311,26 @@ class LocalDeFilteringLayerDist(object):
     of a local filtering layer.
     """
 
-    def __init__(self, prev, tied_weights):
-        self.output = prev.backend.zeros((prev.batch_size, prev.nin))
+    def __init__(self, prev, tied_weights, dtype='float32'):
+        self.output = prev.backend.zeros(
+            (prev.batch_size, prev.nin), dtype=dtype)
         if tied_weights is True:
             # Share the weights with the previous layer.
             self.weights = prev.weights
         else:
             self.weights = prev.weights.copy()
-        self.updates = prev.backend.zeros(self.weights.shape)
-        self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
-        self.bpropbuf = prev.backend.zeros((prev.batch_size, prev.nofm))
-        self.updatebuf = prev.backend.zeros((prev.nofm, prev.fsize))
-        self.berror = prev.backend.zeros((prev.batch_size, prev.nout))
-        self.temp = [prev.backend.zeros(self.output.shape)]
+        self.output = prev.backend.zeros(
+            (prev.batch_size, prev.nin), dtype=dtype)
+        self.updates = prev.backend.zeros(self.weights.shape, dtype=dtype)
+        self.prodbuf = prev.backend.zeros(
+            (prev.batch_size, prev.fsize), dtype=dtype)
+        self.bpropbuf = prev.backend.zeros(
+            (prev.batch_size, prev.nofm), dtype=dtype)
+        self.updatebuf = prev.backend.zeros(
+            (prev.nofm, prev.fsize), dtype=dtype)
+        self.berror = prev.backend.zeros(
+            (prev.batch_size, prev.nout), dtype=dtype)
+        self.temp = [prev.backend.zeros(self.output.shape, dtype=dtype)]
         self.learning_rate = prev.pretrain_learning_rate
         self.backend = prev.backend
         self.rlinks = prev.rlinks
@@ -308,12 +338,13 @@ class LocalDeFilteringLayerDist(object):
 
     def fprop(self, inputs):
         self.backend.clear(self.output)
+        # print MPI.COMM_WORLD.rank, self.prev.ofmsize
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
-
             # size guide:
             # inputs[:, self.prev.rofmlocs[dst]]: mbs x nout -> mbs x nofm
             # self.weights.take: nofm x ifmsize
+
             self.backend.dot(inputs[:, self.prev.rofmlocs[dst]],
                              self.weights.take(self.prev.rofmlocs[dst],
                                                axis=0),
@@ -339,4 +370,5 @@ class LocalDeFilteringLayerDist(object):
         self.backend.subtract(self.weights, self.updates, out=self.weights)
         self.prev.normalize_weights(self.weights)
 
-#todo: add the L2 pooling layer code?
+# todo: add the L2 pooling layer code? for now in layer.py file under
+# adjust_for_dist

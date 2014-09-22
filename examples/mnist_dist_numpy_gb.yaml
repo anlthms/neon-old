@@ -11,8 +11,8 @@
     !obj:mylearn.datasets.mnist_dist.MNISTDist {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
-      serialized_path: '/usr/local/data/MNIST_Dist/mnist_dist_1pct-Numpy_',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/MNISTDist/mnist_dist_10pct-Numpy_',
     },
   ],
 

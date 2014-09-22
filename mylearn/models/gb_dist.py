@@ -72,17 +72,26 @@ class GBDist(MLP):
                 [layer.ifmshape[0] - layer.fheight + 1,
                     layer.ifmshape[1] - layer.fwidth + 1])
             layer.pretrain_mode(pooling)
+            # temp1 stores a temp buffer without the chunk
+            layer.defilter.temp1 = [self.backend.zeros(
+                (self.batch_size,
+                    inputs_dist.local_array.local_array_size))]
             for epoch in xrange(self.num_pretrain_epochs):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
+                trcost_sum = 0.0
+                tspcost_sum = 0.0
                 for batch in xrange(num_batches):
+                    if MPI.COMM_WORLD.rank == 0:
+                        print 'batch =', batch
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                    # todo: fix for MPI the fprop to current layer
+                    # todo: stacks: fix for MPI the fprop to current layer
                     output = inputs[start_idx:end_idx]
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
+
                     for i in xrange(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
@@ -90,11 +99,11 @@ class GBDist(MLP):
                     inputs_dist.local_array.local_image = output
                     # perform halo exchanges
                     inputs_dist.local_array.send_recv_halos()
+
                     # make consistent chunk
                     inputs_dist.local_array.make_local_chunk_consistent()
 
-                    print MPI.COMM_WORLD.rank, 'batch #', batch
-                    # todo: MPI: fix for backprop
+                    # todo: MPI: fix for backprop for stacks
                     rcost, spcost = layer.pretrain(inputs_dist,
                                                    self.pretrain_cost,
                                                    epoch,
@@ -102,10 +111,18 @@ class GBDist(MLP):
 
                     trcost += rcost
                     tspcost += spcost
-                tcost = trcost + tspcost
-                logger.info('epoch: %d, cost: %0.2f + %0.2f = %0.2f' %
-                            (epoch, trcost / num_batches,
-                             tspcost / num_batches, tcost / num_batches))
+
+                # accumulate trcost and tspcost cost across all nodes
+                trcost_sum = MPI.COMM_WORLD.reduce(trcost,
+                                                   op=MPI.SUM, root=0)
+                tspcost_sum = MPI.COMM_WORLD.reduce(tspcost,
+                                                    op=MPI.SUM, root=0)
+                if MPI.COMM_WORLD.rank == 0:
+                    tcost = trcost_sum + tspcost_sum
+                    logger.info('epoch: %d, cost: %0.2f + %0.2f = %0.2f' %
+                                (epoch, trcost_sum / num_batches,
+                                 tspcost_sum / num_batches,
+                                 tcost / num_batches))
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],

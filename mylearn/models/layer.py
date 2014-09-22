@@ -560,7 +560,7 @@ class PoolingLayer(YAMLable):
     Base class for pooling layers.
     """
 
-    def adjust_for_dist(self, ifmshape):
+    def adjust_for_dist(self, ifmshape, dtype='float32'):
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
 
@@ -569,7 +569,8 @@ class PoolingLayer(YAMLable):
         self.ofmsize = ofmheight * ofmwidth
         self.nin = self.nfm * self.ifmsize
         if self.pos > 0:
-            self.berror = self.backend.zeros((self.batch_size, self.nin))
+            self.berror = self.backend.zeros((self.batch_size, self.nin),
+                                             dtype)
 
         # Figure out the possible connections with the previous layer.
         # Each unit in this layer could be connected to any one of
@@ -597,8 +598,8 @@ class PoolingLayer(YAMLable):
             self.links[dst, :] = self.backend.array(colinds)
 
         self.nout = self.nfm * self.ofmsize
-        self.output = self.backend.zeros((self.batch_size, self.nout))
-        self.delta = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.zeros((self.batch_size, self.nout), dtype)
+        self.delta = self.backend.zeros((self.batch_size, self.nout), dtype)
 
         # setup reshaped view variables
         self._init_reshaped_views()
@@ -762,10 +763,10 @@ class L2PoolingLayer(PoolingLayer):
                                              nfm, ifmshape, pshape, stride)
         self.prodbuf = self.backend.zeros((batch_size * nfm, self.psize))
 
-    def adjust_for_dist(self, ifmshape):
+    def adjust_for_dist(self, ifmshape, dtype='float32'):
         super(L2PoolingLayer, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nfm, self.psize))
+            (self.batch_size * self.nfm, self.psize), dtype)
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
