@@ -13,322 +13,6 @@ from mylearn.util.error import TooSlowToImplementError
 logger = logging.getLogger(__name__)
 
 
-class Cudamat(Backend):
-
-    """
-    A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
-    operations.
-
-    Attributes:
-        epsilon (float): the unit roundoff for the elements underlying this
-                         tensor.
-    """
-    # we need to cast epsilon to float to ensure it works with some of the type
-    # checking in cudamat functions like less_than() and so forth
-    epsilon = float(numpy.finfo(numpy.float32).eps)
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        cudamat.cublas_init()
-        self.rng_init()
-
-    def __del__(self):
-        pass
-        # cudamat.cublas_shutdown()
-        # the above is what we ought to do, but generates Exceptions due to
-        # a known cudamat issue as described here:
-        # https://github.com/cudamat/cudamat/issues/19
-
-    def zeros(self, shape, dtype=numpy.float32):
-        return CudamatTensor(cudamat.CUDAMatrix(
-            numpy.zeros(shape, dtype=dtype)))
-
-    def ones(self, shape, dtype=numpy.float32):
-        return CudamatTensor(cudamat.CUDAMatrix(
-            numpy.ones(shape, dtype=dtype)))
-
-    @staticmethod
-    def array(obj):
-        ndarray = numpy.array(obj, dtype=numpy.float32)
-        if ndarray.ndim == 1:
-            ndarray = ndarray.reshape((1, ndarray.shape[0]))
-        return CudamatTensor(ndarray)
-
-    @staticmethod
-    def wrap(obj):
-        return CudamatTensor(obj)
-
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
-        if out is None:
-            out = CudamatTensor(cudamat.empty((a.shape[0], a.shape[1])))
-        # storage needed here is pretty atrocious.  Any way we could speed this
-        # up?  Would iterating element wise be faster?
-        clip_mask = cudamat.empty((a.shape[0], a.shape[1]))
-        clip_vals = cudamat.empty((a.shape[0], a.shape[1]))
-        # clip values < a_min to a_min in out
-        a._tensor.less_than(a_min, clip_mask)
-        clip_vals.assign(a_min)
-        cudamat.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # clip values > a_max to a_max in out
-        out._tensor.greater_than(a_max, clip_mask)
-        clip_vals.assign(a_max)
-        cudamat.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        return out
-
-    def rng_init(self):
-        seed = None
-        if 'rng_seed' in self.__dict__:
-            seed = self.rng_seed
-        numpy.random.seed(seed)
-        try:
-            cudamat.CUDAMatrix.init_random(seed)
-        except TypeError:
-            if seed is not None:
-                logger.warn("Must seed random number generator with an "
-                            "integer.  You specified: %s" % str(seed))
-            cudamat.CUDAMatrix.init_random(0)
-
-    def uniform(self, low=0.0, high=1.0, size=1):
-        seq = numpy.random.uniform(low, high, size)
-        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
-
-    def normal(self, loc=0.0, scale=1.0, size=1):
-        seq = numpy.random.normal(loc, scale, size)
-        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
-
-    def append_bias(self, x):
-        """
-        Adds a bias column to CudamatTensor x, returning a new CudamatTensor.
-        """
-        result = cudamat.empty((x.shape[0], x.shape[1] + 1))
-        result.set_col_slice(0, x.shape[1], x._tensor)
-        result.set_col_slice(x.shape[1], (x.shape[1] + 1),
-                             cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
-        return CudamatTensor(result)
-
-    @staticmethod
-    def copy(a):
-        assert type(a) == CudamatTensor
-        return a.copy()
-
-    @staticmethod
-    def argmax(x, axis=None):
-        return CudamatTensor(x._tensor.argmax(axis))
-
-    @staticmethod
-    def dot(a, b, out):
-        cudamat.dot(a._tensor, b._tensor, out._tensor)
-
-    @staticmethod
-    def add(a, b, out):
-        a._tensor.add(b._tensor, out._tensor)
-
-    @staticmethod
-    def subtract(a, b, out):
-        if type(a._tensor) != cudamat.CUDAMatrix:
-            b._tensor.subtract(a._tensor, out._tensor)
-            out._tensor.mult(-1.0, out._tensor)
-        else:
-            a._tensor.subtract(b._tensor, out._tensor)
-
-    @staticmethod
-    def multiply(a, b, out):
-        a._tensor.mult(b._tensor, target=out._tensor)
-
-    @staticmethod
-    def divide(a, b, out):
-        a._tensor.divide(b._tensor, out._tensor)
-
-    @staticmethod
-    def reciprocal(a, out):
-        a._tensor.reciprocal(out._tensor)
-
-    @staticmethod
-    def greater(a, b, out):
-        a._tensor.greater_than(b._tensor, out._tensor)
-
-    @staticmethod
-    def exp(x, out):
-        cudamat.exp(x._tensor, out._tensor)
-
-    @staticmethod
-    def log(x, out):
-        cudamat.log(x._tensor, out._tensor)
-
-    @staticmethod
-    def logistic(x, out):
-        cudamat.sigmoid(x._tensor, out._tensor)
-
-    @staticmethod
-    def sum(x):
-        if x is None:
-            return float('NaN')
-        return x.sum()
-
-    @staticmethod
-    def mean(x):
-        if x is None:
-            return float('NaN')
-        return x.mean()
-
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.min(axis=0).min(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-
-        if out is None:
-            res = cudamat.min(x._tensor, axis)
-        else:
-            res = cudamat.min(x._tensor, axis, out)
-
-        return CudamatTensor(res)
-
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.max(axis=0).max(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-
-        if out is None:
-            res = cudamat.max(x._tensor, axis)
-        else:
-            res = cudamat.max(x._tensor, axis, out)
-
-        return CudamatTensor(res)
-
-    @staticmethod
-    def fabs(x, out=None):
-        if out is not None:
-            res = cudamat.abs(x._tensor, out._tensor)
-        else:
-            res = cudamat.abs(x._tensor)
-        return CudamatTensor(res)
-
-    @staticmethod
-    def sqrt(x, out):
-        res = cudamat.sqrt(x._tensor, out._tensor)
-        return CudamatTensor(res)
-
-    @staticmethod
-    def squish(obj, n):
-        assert obj.shape[1] % n == 0
-        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
-
-    @staticmethod
-    def not_equal(x, y):
-        res = x._tensor.copy()
-        res.equals(y._tensor)
-        res.equals(0)
-        return CudamatTensor(res)
-
-    @staticmethod
-    def nonzero(x):
-        res = x._tensor.copy()
-        res.equals(0)
-        res.equals(0)
-        return CudamatTensor(res)
-
-    def gen_weights(self, size, weight_params):
-        # FIXME: Get rid of duplication.
-        weights = None
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
-            weights = numpy.random.uniform(low, high, size)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
-            weights = numpy.random.normal(loc, scale, size)
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = numpy.random.uniform(-node_norm, node_norm, size)
-        else:
-            raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
-
-        return CudamatTensor(numpy.array(weights, numpy.float32))
-
-    def get_momentum_coef(self, epoch, momentum_params):
-        # FIXME: Get rid of duplication.
-        coef = 0.0
-        if 'coef' in momentum_params:
-            coef = momentum_params['coef']
-        if 'initial_coef' in momentum_params:
-            init_coef = momentum_params['initial_coef']
-        else:
-            init_coef = coef
-        if 'saturated_coef' in momentum_params:
-            saturated_coef = momentum_params['saturated_coef']
-        else:
-            saturated_coef = coef
-        if 'start_epoch' in momentum_params:
-            start_epoch = momentum_params['start_epoch']
-        else:
-            start_epoch = None
-        if 'saturate_epoch' in momentum_params:
-            saturate_epoch = momentum_params['saturate_epoch']
-        else:
-            saturate_epoch = None
-
-        if momentum_params['type'] == 'constant':
-            pass
-        elif momentum_params['type'] == 'linear_monotone':
-            coef = init_coef
-            if start_epoch is not None and epoch >= start_epoch:
-                if saturate_epoch is not None and epoch <= saturate_epoch:
-                    if start_epoch == saturate_epoch:
-                        coef = saturated_coef
-                    else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
-                                           (saturate_epoch - start_epoch))
-                        coef = (init_proportion * init_coef +
-                                (1.0 - init_proportion) * saturated_coef)
-                elif saturate_epoch is not None and epoch > saturate_epoch:
-                    coef = saturated_coef
-            else:
-                coef = saturated_coef
-        elif momentum_params['type'] == 'nesterov':
-            raise NotImplementedError("TODO!")
-        else:
-            raise AttributeError("invalid momentum_params specified")
-        return coef
-
-
 class CudamatTensor(Tensor):
 
     """
@@ -872,7 +556,6 @@ class CudamatTensor(Tensor):
 
 
 class TransposedCudamatTensor(CudamatTensor):
-
     """
     Transposed CUDAMatrix tensor
     """
@@ -881,3 +564,320 @@ class TransposedCudamatTensor(CudamatTensor):
         assert type(obj) == cudamat.CUDAMatrix
         self._tensor = transposed
         self.shape = (obj.shape[1], obj.shape[0])
+
+
+class Cudamat(Backend):
+    """
+    A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
+    operations.
+
+    Attributes:
+        epsilon (float): the unit roundoff for the elements underlying this
+                         tensor.
+    """
+    # we need to cast epsilon to float to ensure it works with some of the type
+    # checking in cudamat functions like less_than() and so forth
+    epsilon = float(numpy.finfo(numpy.float32).eps)
+    default_dtype = numpy.float32
+    tensor_cls = CudamatTensor
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        cudamat.cublas_init()
+        self.rng_init()
+
+    def __del__(self):
+        pass
+        # cudamat.cublas_shutdown()
+        # the above is what we ought to do, but generates Exceptions due to
+        # a known cudamat issue as described here:
+        # https://github.com/cudamat/cudamat/issues/19
+
+    def zeros(self, shape, dtype=numpy.float32):
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.zeros(shape, dtype=dtype)))
+
+    def ones(self, shape, dtype=numpy.float32):
+        return CudamatTensor(cudamat.CUDAMatrix(
+            numpy.ones(shape, dtype=dtype)))
+
+    @staticmethod
+    def array(obj):
+        ndarray = numpy.array(obj, dtype=numpy.float32)
+        if ndarray.ndim == 1:
+            ndarray = ndarray.reshape((1, ndarray.shape[0]))
+        return CudamatTensor(ndarray)
+
+    @staticmethod
+    def wrap(obj):
+        return CudamatTensor(obj)
+
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = CudamatTensor(cudamat.empty((a.shape[0], a.shape[1])))
+        # storage needed here is pretty atrocious.  Any way we could speed this
+        # up?  Would iterating element wise be faster?
+        clip_mask = cudamat.empty((a.shape[0], a.shape[1]))
+        clip_vals = cudamat.empty((a.shape[0], a.shape[1]))
+        # clip values < a_min to a_min in out
+        a._tensor.less_than(a_min, clip_mask)
+        clip_vals.assign(a_min)
+        cudamat.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        # clip values > a_max to a_max in out
+        out._tensor.greater_than(a_max, clip_mask)
+        clip_vals.assign(a_max)
+        cudamat.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        return out
+
+    def rng_init(self):
+        seed = None
+        if 'rng_seed' in self.__dict__:
+            seed = self.rng_seed
+        numpy.random.seed(seed)
+        try:
+            cudamat.CUDAMatrix.init_random(seed)
+        except TypeError:
+            if seed is not None:
+                logger.warn("Must seed random number generator with an "
+                            "integer.  You specified: %s" % str(seed))
+            cudamat.CUDAMatrix.init_random(0)
+
+    def uniform(self, low=0.0, high=1.0, size=1):
+        seq = numpy.random.uniform(low, high, size)
+        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
+
+    def normal(self, loc=0.0, scale=1.0, size=1):
+        seq = numpy.random.normal(loc, scale, size)
+        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
+
+    def append_bias(self, x):
+        """
+        Adds a bias column to CudamatTensor x, returning a new CudamatTensor.
+        """
+        result = cudamat.empty((x.shape[0], x.shape[1] + 1))
+        result.set_col_slice(0, x.shape[1], x._tensor)
+        result.set_col_slice(x.shape[1], (x.shape[1] + 1),
+                             cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
+        return CudamatTensor(result)
+
+    @staticmethod
+    def copy(a):
+        assert type(a) == CudamatTensor
+        return a.copy()
+
+    @staticmethod
+    def argmax(x, axis=None):
+        return CudamatTensor(x._tensor.argmax(axis))
+
+    @staticmethod
+    def dot(a, b, out):
+        cudamat.dot(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def add(a, b, out):
+        a._tensor.add(b._tensor, out._tensor)
+
+    @staticmethod
+    def subtract(a, b, out):
+        if type(a._tensor) != cudamat.CUDAMatrix:
+            b._tensor.subtract(a._tensor, out._tensor)
+            out._tensor.mult(-1.0, out._tensor)
+        else:
+            a._tensor.subtract(b._tensor, out._tensor)
+
+    @staticmethod
+    def multiply(a, b, out):
+        a._tensor.mult(b._tensor, target=out._tensor)
+
+    @staticmethod
+    def divide(a, b, out):
+        a._tensor.divide(b._tensor, out._tensor)
+
+    @staticmethod
+    def reciprocal(a, out):
+        a._tensor.reciprocal(out._tensor)
+
+    @staticmethod
+    def greater(a, b, out):
+        a._tensor.greater_than(b._tensor, out._tensor)
+
+    @staticmethod
+    def exp(x, out):
+        cudamat.exp(x._tensor, out._tensor)
+
+    @staticmethod
+    def log(x, out):
+        cudamat.log(x._tensor, out._tensor)
+
+    @staticmethod
+    def logistic(x, out):
+        cudamat.sigmoid(x._tensor, out._tensor)
+
+    @staticmethod
+    def sum(x):
+        if x is None:
+            return float('NaN')
+        return x.sum()
+
+    @staticmethod
+    def mean(x):
+        if x is None:
+            return float('NaN')
+        return x.mean()
+
+    @staticmethod
+    def min(x, axis=None, out=None, keepdims=False):
+        if x is None:
+            return float('NaN')
+        if axis is None and not keepdims:
+            assert out is None
+            res = x._tensor.min(axis=0).min(axis=1)
+            logger.debug('Copying to host')
+            res.copy_to_host()
+            return res.numpy_array[0][0]
+
+        if out is None:
+            res = cudamat.min(x._tensor, axis)
+        else:
+            res = cudamat.min(x._tensor, axis, out)
+
+        return CudamatTensor(res)
+
+    @staticmethod
+    def max(x, axis=None, out=None, keepdims=False):
+        if x is None:
+            return float('NaN')
+        if axis is None and not keepdims:
+            assert out is None
+            res = x._tensor.max(axis=0).max(axis=1)
+            logger.debug('Copying to host')
+            res.copy_to_host()
+            return res.numpy_array[0][0]
+
+        if out is None:
+            res = cudamat.max(x._tensor, axis)
+        else:
+            res = cudamat.max(x._tensor, axis, out)
+
+        return CudamatTensor(res)
+
+    @staticmethod
+    def fabs(x, out=None):
+        if out is not None:
+            res = cudamat.abs(x._tensor, out._tensor)
+        else:
+            res = cudamat.abs(x._tensor)
+        return CudamatTensor(res)
+
+    @staticmethod
+    def sqrt(x, out):
+        res = cudamat.sqrt(x._tensor, out._tensor)
+        return CudamatTensor(res)
+
+    @staticmethod
+    def squish(obj, n):
+        assert obj.shape[1] % n == 0
+        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+
+    @staticmethod
+    def not_equal(x, y):
+        res = x._tensor.copy()
+        res.equals(y._tensor)
+        res.equals(0)
+        return CudamatTensor(res)
+
+    @staticmethod
+    def nonzero(x):
+        res = x._tensor.copy()
+        res.equals(0)
+        res.equals(0)
+        return CudamatTensor(res)
+
+    def gen_weights(self, size, weight_params, dtype=None):
+        # FIXME: Get rid of duplication.
+        weights = None
+        if weight_params['type'] == 'uniform':
+            low = 0.0
+            high = 1.0
+            if 'low' in weight_params:
+                low = weight_params['low']
+            if 'high' in weight_params:
+                high = weight_params['high']
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
+                        (str(size), low, high))
+            weights = numpy.random.uniform(low, high, size)
+        elif (weight_params['type'] == 'gaussian' or
+              weight_params['type'] == 'normal'):
+            loc = 0.0
+            scale = 1.0
+            if 'loc' in weight_params:
+                loc = weight_params['loc']
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
+                        (str(size), loc, scale))
+            weights = numpy.random.normal(loc, scale, size)
+        elif weight_params['type'] == 'node_normalized':
+            # initialization is as discussed in Glorot2010
+            scale = 1.0
+            if 'scale' in weight_params:
+                scale = weight_params['scale']
+            logger.info('generating %s node_normalized(%0.2f) weights.' %
+                        (str(size), scale))
+            node_norm = scale * math.sqrt(6.0 / sum(size))
+            weights = numpy.random.uniform(-node_norm, node_norm, size)
+        else:
+            raise AttributeError("invalid weight_params specified")
+        if 'bias_init' in weight_params:
+            # per append_bias() bias weights are in the last column
+            logger.info('separately initializing bias weights to %0.2f' %
+                        weight_params['bias_init'])
+            weights[:, -1] = weight_params['bias_init']
+
+        return CudamatTensor(numpy.array(weights, numpy.float32))
+
+    def get_momentum_coef(self, epoch, momentum_params):
+        # FIXME: Get rid of duplication.
+        coef = 0.0
+        if 'coef' in momentum_params:
+            coef = momentum_params['coef']
+        if 'initial_coef' in momentum_params:
+            init_coef = momentum_params['initial_coef']
+        else:
+            init_coef = coef
+        if 'saturated_coef' in momentum_params:
+            saturated_coef = momentum_params['saturated_coef']
+        else:
+            saturated_coef = coef
+        if 'start_epoch' in momentum_params:
+            start_epoch = momentum_params['start_epoch']
+        else:
+            start_epoch = None
+        if 'saturate_epoch' in momentum_params:
+            saturate_epoch = momentum_params['saturate_epoch']
+        else:
+            saturate_epoch = None
+
+        if momentum_params['type'] == 'constant':
+            pass
+        elif momentum_params['type'] == 'linear_monotone':
+            coef = init_coef
+            if start_epoch is not None and epoch >= start_epoch:
+                if saturate_epoch is not None and epoch <= saturate_epoch:
+                    if start_epoch == saturate_epoch:
+                        coef = saturated_coef
+                    else:
+                        init_proportion = ((epoch - start_epoch + 0.0) /
+                                           (saturate_epoch - start_epoch))
+                        coef = (init_proportion * init_coef +
+                                (1.0 - init_proportion) * saturated_coef)
+                elif saturate_epoch is not None and epoch > saturate_epoch:
+                    coef = saturated_coef
+            else:
+                coef = saturated_coef
+        elif momentum_params['type'] == 'nesterov':
+            raise NotImplementedError("TODO!")
+        else:
+            raise AttributeError("invalid momentum_params specified")
+        return coef

@@ -398,14 +398,15 @@ class Numpy(Backend):
         dtype = cls.default_dtype_if_missing(dtype)
         return cls.tensor_cls(np.array(obj, dtype), dtype)
 
-    @staticmethod
-    def wrap(obj):
-        return NumpyTensor(obj)
+    @classmethod
+    def wrap(cls, obj, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(obj, dtype)
 
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
+    @classmethod
+    def clip(cls, a, a_min, a_max, out=None):
         if out is None:
-            out = NumpyTensor(np.empty_like(a._tensor))
+            out = cls._tensor_cls(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
         return out
 
@@ -458,23 +459,24 @@ class Numpy(Backend):
         """
         return NumpyTensor(np.random.normal(loc, scale, size))
 
-    @staticmethod
-    def append_bias(x, dtype=np.float32):
+    @classmethod
+    def append_bias(cls, x, dtype=np.float32):
         """
         Adds a bias column of ones to NumpyTensor x,
         returning a new NumpyTensor.
         """
-        return NumpyTensor(np.concatenate((x._tensor,
-                                          np.ones((x.shape[0], 1), dtype)),
-                                          axis=1), dtype)
+        return cls.tensor_cls(np.concatenate((x._tensor,
+                                               np.ones((x.shape[0], 1),
+                                                        dtype)),
+                                              axis=1), dtype)
 
-    @staticmethod
-    def copy(a):
-        return NumpyTensor(np.copy(a))
+    @classmethod
+    def copy(cls, a):
+        return cls.tensor_cls(np.copy(a))
 
-    @staticmethod
-    def argmax(x, axis=None):
-        return NumpyTensor(np.argmax(x._tensor, axis))
+    @classmethod
+    def argmax(cls, x, axis=None):
+        return cls.tensor_cls(np.argmax(x._tensor, axis))
 
     @staticmethod
     def dot(a, b, out):
@@ -527,48 +529,48 @@ class Numpy(Backend):
     def sum(obj):
         return obj._tensor.sum()
 
-    @staticmethod
-    def mean(x, axis=None, dtype=np.float32, out=None, keepdims=False):
+    @classmethod
+    def mean(cls, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
+    @classmethod
+    def min(cls, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.min(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
+    @classmethod
+    def max(cls, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.max(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def fabs(x, out=None):
+    @classmethod
+    def fabs(cls, x, out=None):
         if out is not None:
             res = np.fabs(x._tensor, out._tensor)
         else:
             res = np.fabs(x._tensor)
-        return NumpyTensor(res)
+        return cls.tensor_cls(res)
 
-    @staticmethod
-    def sqrt(x, out):
+    @classmethod
+    def sqrt(cls, x, out):
         res = np.sqrt(x._tensor, out._tensor)
-        return NumpyTensor(res)
+        return cls.tensor_cls(res)
 
     @staticmethod
     def squish(obj, n):
@@ -577,13 +579,13 @@ class Numpy(Backend):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    @staticmethod
-    def not_equal(x, y):
-        return NumpyTensor(np.not_equal(x._tensor, y._tensor))
+    @classmethod
+    def not_equal(cls, x, y):
+        return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
 
-    @staticmethod
-    def nonzero(x):
-        return NumpyTensor(np.nonzero(x._tensor)[1])
+    @classmethod
+    def nonzero(cls, x):
+        return cls.tensor_cls(np.nonzero(x._tensor)[1])
 
     def gen_weights(self, size, weight_params, dtype=None):
         if dtype is None:
@@ -692,10 +694,6 @@ class Numpy64(Numpy):
     epsilon = np.finfo(np.float64).eps
     tensor_cls = Numpy64Tensor
 
-    @staticmethod
-    def wrap(obj):
-        return Numpy64Tensor(obj)
-
     def uniform(self, low=0.0, high=1.0, size=1):
         """
         Uniform random number sample generation.
@@ -747,5 +745,3 @@ class Numpy64(Numpy):
             out = Numpy64Tensor(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
         return out
-
-

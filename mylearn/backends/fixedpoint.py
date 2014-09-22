@@ -238,15 +238,71 @@ class FixedPoint(Numpy):
                   out.dtype)
 
     @classmethod
+    def scale_to_largest(cls, a, b):
+        """
+        Helper that ensures operands are on the same scale by (potentially)
+        copying and upcasting one of the operands.
+
+        Arguments:
+            a (FixedPointTensor): left operand
+            b (FixedPointTensor): right operand
+
+        Returns:
+            list: 3-tuple containing common dtype, then a and b tensors
+        """
+        out_a = a._tensor
+        out_b = b._tensor
+        out_dtype = a.dtype
+        if a.dtype['int_bits'] > b.dtype['int_bits']:
+            # scale b to a
+            out_b = np.empty_like(b._tensor)
+            fp_rescale_array(out_b, b.dtype, a.dtype)
+        elif a.dtype['int_bits'] < b.dtype['int_bits']:
+            # scale a to b
+            out_a = np.empty_like(a._tensor)
+            fp_rescale_array(out_a, a.dtype, b.dtype)
+            out_dtype = b.dtype
+        elif a.dtype['frac_bits'] > b.dtype['frac_bits']:
+            # same int_bits, but scale b to a to increase precision
+            out_b = np.empty_like(b._tensor)
+            fp_rescale_array(out_b, b.dtype, a.dtype)
+        elif a.dtype['frac_bits'] < b.dtype['frac_bits']:
+            # same int_bits, but scale a to b to increase precision
+            out_a = np.empty_like(a._tensor)
+            fp_rescale_array(out_a, a.dtype, b.dtype)
+            out_dtype = b.dtype
+        return (out_dtype, out_a, out_b)
+
+    @classmethod
+    def add(cls, a, b, out):
+        in_dtype, a_tensor, b_tensor = cls.scale_to_largest(a, b)
+        np.add(a_tensor, b_tensor, out._tensor)
+        fp_rescale_array(out._tensor, in_dtype, out.dtype)
+
+    @classmethod
+    def subtract(cls, a, b, out):
+        in_dtype, a_tensor, b_tensor = cls.scale_to_largest(a, b)
+        np.subtract(a_tensor, b_tensor, out._tensor)
+        fp_rescale_array(out._tensor, in_dtype, out.dtype)
+
+    @classmethod
     def multiply(cls, a, b, out):
+        # for multiplication we don't need matching scales to start
         np.multiply(a._tensor, b._tensor, out._tensor)
         tmp_dtype = fixpt_dtype(a.dtype['sign_bit'],
                                 a.dtype['int_bits'] + b.dtype['int_bits'],
                                 a.dtype['frac_bits'] + b.dtype['frac_bits'],
                                 a.dtype['overflow'], a.dtype['rounding'])
-        if (tmp_dtype['int_bits'] != out.dtype['int_bits'] or
-                tmp_dtype['frac_bits'] != out.dtype['frac_bits']):
-            fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
+        fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
+
+    @classmethod
+    def divide(cls, a, b, out):
+        # for division, shift the numerator to output scale first
+        # then do integer division
+        # TODO: test this!
+        a_tensor = np.copy(a._tensor)
+        fp_rescale_array(a_tensor, a.dtype, out.dtype)
+        np.divide(a._tensor, b._tensor, out._tensor)
 
     @classmethod
     def logistic(cls, x, out):

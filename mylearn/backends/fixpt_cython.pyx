@@ -152,6 +152,11 @@ def fp_rescale_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
     Perform an inplace rescale of the fixed point array passed.
     """
     cdef Py_ssize_t x, y
+    if (in_dtype.int_bits == out_dtype.int_bits and 
+        in_dtype.frac_bits == out_dtype.frac_bits and
+        in_dtype.sign_bit == out_dtype.sign_bit):
+        # already in the correct scale, short-circuit operation
+        return A
     for x in xrange(A.shape[0]):
         for y in xrange(A.shape[1]):
             A[x, y] = fp_rescale(A[x, y], in_dtype, out_dtype)
