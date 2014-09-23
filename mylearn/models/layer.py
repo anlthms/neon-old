@@ -873,15 +873,14 @@ class LCNLayer(YAMLable):
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
         self.fheight, self.fwidth = fshape
+        self.fsize = nfm * self.fheight * self.fwidth
         self.batch_size = batch_size
         self.pos = pos
         self.nfm = nfm
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.nin = nfm * self.ifmsize
         self.nout = self.nin
-        self.filters, self.fpeak = self.normalized_gaussian_filters(nfm,
-                                                                    fshape)
-        self.fpeakdiff = 1.0 - self.fpeak
+        self.filters = self.normalized_gaussian_filters(nfm, fshape)
 
         self.exifmheight = (self.ifmheight - 1) * stride + self.fheight
         self.exifmwidth = (self.ifmwidth - 1) * stride + self.fwidth
@@ -913,13 +912,27 @@ class LCNLayer(YAMLable):
         self.routput = self.output.reshape((batch_size, nfm,
                                             self.ifmheight,
                                             self.ifmwidth))
-        self.temp1 = backend.zeros(self.output.shape)
-        self.rtemp1 = self.temp1.reshape(self.routput.shape)
-        self.temp2 = backend.zeros(self.output.shape)
-        self.rtemp2 = self.temp2.reshape(self.routput.shape)
+        self.subout = backend.zeros(self.output.shape)
+        self.rsubout = self.subout.reshape(self.routput.shape)
+        self.subtemp = backend.zeros(self.output.shape)
+        self.rsubtemp = self.subtemp.reshape(self.routput.shape)
         if pos > 0:
-            self.berror = backend.zeros((batch_size, self.nin))
-            self.berror2 = backend.zeros((batch_size, self.nin))
+            self.diverror = backend.zeros((batch_size, self.nin))
+            self.exerror = self.backend.zeros((batch_size,
+                                               nfm * self.exifmsize))
+            self.rexerror = self.exerror.reshape((batch_size, nfm,
+                                                  self.exifmheight,
+                                                  self.exifmwidth))
+            self.prodbuf = self.backend.zeros((batch_size, self.fsize))
+            self.bprop_filters = self.backend.zeros((nfm,
+                                                    self.filters.shape[0],
+                                                    self.filters.shape[1]))
+            self.sqtemp = backend.zeros(self.output.shape)
+            for fm in xrange(nfm):
+                self.bprop_filters[fm] = self.filters.copy()
+                rfilter = self.bprop_filters[fm].reshape(
+                    (nfm, self.fheight, self.fwidth))
+                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -937,94 +950,104 @@ class LCNLayer(YAMLable):
         single /= (count * single.sum())
         assert shape[0] % 2 == 1
         assert shape[1] % 2 == 1
-        center = single[shape[0] / 2, shape[1] / 2]
         filters = self.backend.zeros((count, shape[0], shape[1]))
         filters[:] = single
 
         filters = filters.reshape((1, count * shape[0] * shape[1]))
-        return filters, center
+        return filters
 
-    def copy_inset(self, canvas, inset, start_row, start_col):
+    def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, :,
                start_row:(canvas.shape[2] - start_row),
                start_col:(canvas.shape[3] - start_col)] = inset
 
-    def sub_normalize(self, inputs):
+    def copy_from_inset(self, canvas, start_row, start_col):
+        return canvas[:, :,
+                      self.start_row:(canvas.shape[2] - start_row),
+                      self.start_col:(canvas.shape[3] - start_col)]
+
+    def fprop_sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.batch_size, self.nfm,
                                   self.ifmheight, self.ifmwidth))
-        self.copy_inset(self.rexinputs, rinputs,
-                        self.start_row, self.start_col)
+        self.copy_to_inset(self.rexinputs, rinputs,
+                           self.start_row, self.start_col)
         # Convolve with gaussian filters to obtain a "mean" feature map.
         self.conv.fprop(self.exinputs)
-        self.backend.subtract(rinputs, self.rmeanfm, out=self.rtemp1)
+        self.backend.subtract(rinputs, self.rmeanfm, out=self.rsubout)
 
-    def div_normalize(self):
-        self.backend.multiply(self.temp1, self.temp1, out=self.temp2)
-        self.copy_inset(self.rexinputs, self.rtemp2,
-                        self.start_row, self.start_col)
+    def fprop_div_normalize(self):
+        self.backend.multiply(self.subout, self.subout, out=self.subtemp)
+        self.copy_to_inset(self.rexinputs, self.rsubtemp,
+                           self.start_row, self.start_col)
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        mean = self.meanfm.mean()
-        self.meanfm[self.meanfm < mean] = mean
-        self.backend.divide(self.rtemp1, self.rmeanfm, out=self.routput)
+        assert self.subout[self.meanfm == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm == 0.0] = 1.0
+        self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs):
-        self.sub_normalize(inputs)
-        self.div_normalize()
+        self.backend.clear(self.exinputs)
+        self.fprop_sub_normalize(inputs)
+        self.fprop_div_normalize()
+
+    def reshape_error(self):
+        self.berror = self.copy_from_inset(self.rexerror, self.start_row,
+                                           self.start_col)
+        self.berror = self.berror.reshape((self.batch_size, self.nin))
+
+    def bprop_sub_normalize(self, error, inputs, epoch, momentum):
+        self.backend.clear(self.exerror)
+        for fm in range(self.nfm):
+            for dst in xrange(self.conv.ofmsize):
+                rflinks = self.conv.rlinks[dst]
+                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                filt = self.bprop_filters[fm]
+                self.backend.multiply(error[:, loc], filt, out=self.prodbuf)
+                self.exerror[:, rflinks] -= self.prodbuf
+        self.reshape_error()
+
+    def bprop_div_normalize(self, error, inputs, epoch, momentum):
+        self.backend.clear(self.exerror)
+        self.backend.cube(self.output, out=self.diverror)
+        self.subtemp[:] = self.subout
+        assert self.diverror[self.subout == 0].sum() == 0.0
+        self.subout[self.subout == 0] = 1.0
+        self.backend.square(self.subout, out=self.sqtemp)
+        self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
+        for fm in range(self.nfm):
+            for dst in xrange(self.conv.ofmsize):
+                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                divout = self.output.take(loc, axis=1)
+                subout = self.subout.take(loc, axis=1)
+                assert divout[subout == 0].sum() == 0
+                subout[subout == 0.0] = 1.0
+                self.backend.divide(divout, subout, out=divout)
+
+                rflinks = self.conv.rlinks[dst]
+                self.copy_to_inset(self.rexinputs, self.rsubtemp,
+                                   self.start_row, self.start_col)
+                rrexinputs = self.rexinputs.reshape(
+                    (self.batch_size, self.nfm * self.exifmsize))
+                frame = rrexinputs.take(rflinks, axis=1)
+                self.backend.multiply(frame, self.filters, out=frame)
+                self.backend.multiply(frame, self.diverror[:, loc], out=frame)
+                rframe = frame.reshape((self.batch_size, self.nfm,
+                                        self.fheight, self.fwidth))
+                rframe[:, fm:(fm + 1),
+                       self.fheight / 2, self.fwidth / 2] -= divout
+                self.backend.multiply(error[:, loc].repeat(self.fsize, axis=1),
+                                      frame, out=frame)
+                self.exerror[:, rflinks] -= frame
+        self.reshape_error()
 
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
-            self.berror[:] = error
+            self.bprop_div_normalize(error, inputs, epoch, momentum)
+            self.bprop_sub_normalize(self.berror, inputs, epoch, momentum)
 
-    def bprop1(self, error, inputs, epoch, momentum):
-        # TODO: simplify this and replace bprop() above.
+    def bprop_fast(self, error, inputs, epoch, momentum):
+        """
+        An incorrect, but much faster version of backprop.
+        """
         if self.pos > 0:
-            # Back propagate through divisive normalization.
-            self.backend.multiply(self.output, self.output, out=self.berror2)
-            self.backend.multiply(self.berror2, self.backend.wrap(self.fpeak),
-                                  out=self.berror2)
-            self.backend.subtract(self.backend.wrap(1.0), self.berror2,
-                                  out=self.berror2)
-            self.backend.multiply(self.output, self.berror2, out=self.berror2)
-            self.temp3 = self.temp1.copy()
-            self.berror2[self.temp1 == 0] = 0.0
-            self.temp1[self.temp1 == 0] = 1.0
-            self.backend.divide(self.berror2, self.temp1, out=self.berror2)
-
-            for dst in xrange(self.conv.ofmsize):
-                divout = self.output.take(self.conv.rofmlocs[dst], axis=1)
-                assert divout.shape[1] == self.nfm
-                self.backend.multiply(divout, divout, out=divout)
-                self.backend.multiply(divout, divout, out=divout)
-                subout = self.temp3.take(self.conv.rofmlocs[dst], axis=1)
-                self.backend.divide(divout, subout, out=divout)
-                self.backend.divide(divout, subout, out=divout)
-
-                rflinks = self.conv.rlinks[dst]
-                assert rflinks.shape[0] % self.nfm == 0
-                sublen = rflinks.shape[0] / self.nfm
-                assert sublen * self.nfm == self.filters.shape[1]
-                for fm in xrange(self.nfm):
-                    framelinks = rflinks[(fm * sublen):(fm + 1) * sublen]
-                    frame = self.temp3.take(framelinks, axis=1)
-                    assert frame.shape[1] % 2 == 0
-                    frame[:, frame.shape[1] / 2] = 0
-                    self.backend.dot(frame, self.filters[0, 0:sublen],
-                                     out=frame)
-                    self.backend.multiply(frame, divout[:, self.nfm], frame)
-                    self.backend.subtract(self.berror2, frame, self.berror2)
-            self.backend.multiply(error, self.berror2, self.berror2)
-
-            # Back propagate through subtractive normalization.
-            self.berror[:] = self.backend.wrap(self.fpeakdiff)
-            for dst in xrange(self.conv.ofmsize):
-                rflinks = self.conv.rlinks[dst]
-                assert rflinks.shape[0] % self.nfm == 0
-                sublen = rflinks.shape[0] / self.nfm
-                assert sublen * self.nfm == self.filters.shape[1]
-                for fm in xrange(self.nfm):
-                    self.backend.subtract(self.berror,
-                                          self.filters[0, 0:sublen],
-                                          self.berror)
-            self.backend.multiply(self.berror2, self.berror,
-                                  self.berror)
+            self.berror[:] = error
