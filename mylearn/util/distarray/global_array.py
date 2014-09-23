@@ -63,10 +63,12 @@ class GlobalArray(object):
 
         self.local_array.compute_halo_insert_indices()
 
-    def __init__(self, batch_size=1, act_size=8, act_channels=1,
-                 filter_size=2, backend=None):
+    def __init__(self, batch_size=1, act_size_height=8, act_size_width=8,
+                 act_channels=1, filter_size=2, backend=None, create_comm=False,
+                 ccomm=None, h=-1, w=-1):
         comm_size = MPI.COMM_WORLD.size
-        self.act_size = act_size
+        self.act_size_width = act_size_width
+        self.act_size_height = act_size_height
         self.act_channels = act_channels
         self.comm_size = comm_size
         self.filter_size = filter_size
@@ -79,21 +81,23 @@ class GlobalArray(object):
 
         comm = MPI.COMM_WORLD
 
-        # todo comm cart needs to only be created the first time (first layer)
-        # if layer_id ==0:
-        pprint("Creating a %d x %d processor grid..." %
-               (comm_per_dim, comm_per_dim))
-        self.ccomm = comm.Create_cart((comm_per_dim, comm_per_dim))
-
+        # comm cart needs to only be created the first time (first layer)
+        if create_comm:
+            pprint("Creating a %d x %d processor grid..." %
+                   (comm_per_dim, comm_per_dim))
+            self.ccomm = comm.Create_cart((comm_per_dim, comm_per_dim))
+            i, j = self.ccomm.Get_coords(self.ccomm.rank)
+            h = act_size_height // comm_per_dim + (act_size_height % comm_per_dim > i)
+            w = act_size_width // comm_per_dim + (act_size_width % comm_per_dim > j)
+        else:
+            self.ccomm = ccomm
         i, j = self.ccomm.Get_coords(self.ccomm.rank)
         # i = comm.rank // comm_per_dim
         # j = comm.rank % comm_per_dim
 
         # initialize halo dimensions
-        h = act_size // comm_per_dim + (act_size % comm_per_dim > i)
         halo_size_row = (filter_size - 1) // 2 + (
             (filter_size - 1) % 2 > i)  # dimensions along up/down axis
-        w = act_size // comm_per_dim + (act_size % comm_per_dim > j)
         halo_size_col = (filter_size - 1) // 2 + (
             (filter_size - 1) % 2 > j)  # dimensions along left/right axis
         border_id = self.compute_border(i, j, comm_per_dim)

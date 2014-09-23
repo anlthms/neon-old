@@ -845,14 +845,14 @@ class Convolver(LocalLayer):
     """
 
     def __init__(self, backend, batch_size, nifm,
-                 nofm, ifmshape, fshape, stride, weights):
+                 nofm, ifmshape, fshape, stride, weights, dtype='float'):
         super(Convolver, self).__init__('conv', backend, batch_size, 0,
                                         0.0, nifm, nofm,
                                         ifmshape, fshape, stride)
         self.nout = self.ofmsize * nofm
         self.weights = weights
-        self.output = backend.zeros((batch_size, self.nout))
-        self.prodbuf = backend.zeros((batch_size, nofm))
+        self.output = backend.zeros((batch_size, self.nout), dtype)
+        self.prodbuf = backend.zeros((batch_size, nofm), dtype)
 
     def fprop(self, inputs):
         for dst in xrange(self.ofmsize):
@@ -868,6 +868,53 @@ class LCNLayer(YAMLable):
     Local contrast normalization.
     """
 
+    def adjust_for_dist(self, ifmshape, dtype='float32'):
+        self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.nin = self.nfm * self.ifmsize
+        self.nout = self.nin
+        self.filters, self.fpeak = self.normalized_gaussian_filters(self.nfm,
+                                                                    self.fshape, dtype='float32')
+        self.fpeakdiff = 1.0 - self.fpeak
+        self.exifmheight = (self.ifmheight - 1) * self.stride + self.fheight
+        self.exifmwidth = (self.ifmwidth - 1) * self.stride + self.fwidth
+        self.exifmsize = self.exifmheight * self.exifmwidth
+        self.exifmshape = (self.exifmheight, self.exifmwidth)
+
+        self.exinputs = self.backend.zeros((self.batch_size, 
+                                            self.nfm * self.exifmsize), dtype)
+        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nfm,
+                                                self.exifmheight,
+                                                self.exifmwidth))
+        self.conv = Convolver(self.backend, self.batch_size, self.nfm, 1,
+                              self.exifmshape, self.fshape, self.stride,
+                              self.filters, dtype)
+        assert self.conv.ofmsize == self.ifmsize
+
+        self.hdiff = self.exifmheight - self.ifmheight
+        self.wdiff = self.exifmwidth - self.ifmwidth
+        assert self.hdiff % 2 == 0
+        assert self.wdiff % 2 == 0
+        self.start_row = self.hdiff / 2
+        self.start_col = self.wdiff / 2
+
+        self.meanfm = self.conv.output
+        self.rmeanfm = self.meanfm.reshape((self.batch_size, 1,
+                                            self.ifmheight,
+                                            self.ifmwidth))
+
+        self.output = self.backend.zeros((self.batch_size, self.nout), dtype)
+        self.routput = self.output.reshape((self.batch_size, self.nfm,
+                                            self.ifmheight,
+                                            self.ifmwidth))
+        self.temp1 = self.backend.zeros(self.output.shape, dtype)
+        self.rtemp1 = self.temp1.reshape(self.routput.shape)
+        self.temp2 = self.backend.zeros(self.output.shape, dtype)
+        self.rtemp2 = self.temp2.reshape(self.routput.shape)
+        if self.pos > 0:
+            self.berror = self.backend.zeros((self.batch_size, self.nin), dtype)
+            self.berror2 = self.backend.zeros((self.batch_size, self.nin), dtype)
+
     def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, fshape,
                  stride):
         self.name = name
@@ -880,9 +927,13 @@ class LCNLayer(YAMLable):
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.nin = nfm * self.ifmsize
         self.nout = self.nin
+        self.fshape = fshape
         self.filters, self.fpeak = self.normalized_gaussian_filters(nfm,
                                                                     fshape)
         self.fpeakdiff = 1.0 - self.fpeak
+        self.stride = stride
+        self.fshape = fshape
+        self.pos = pos
 
         self.exifmheight = (self.ifmheight - 1) * stride + self.fheight
         self.exifmwidth = (self.ifmwidth - 1) * stride + self.fwidth
@@ -928,7 +979,7 @@ class LCNLayer(YAMLable):
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__))
 
-    def normalized_gaussian_filters(self, count, shape):
+    def normalized_gaussian_filters(self, count, shape, dtype='float'):
         """
         Return multiple copies of gaussian filters with values adding up to
         one.
@@ -939,7 +990,7 @@ class LCNLayer(YAMLable):
         assert shape[0] % 2 == 1
         assert shape[1] % 2 == 1
         center = single[shape[0] / 2, shape[1] / 2]
-        filters = self.backend.zeros((count, shape[0], shape[1]))
+        filters = self.backend.zeros((count, shape[0], shape[1]), dtype)
         filters[:] = single
 
         filters = filters.reshape((1, count * shape[0] * shape[1]))

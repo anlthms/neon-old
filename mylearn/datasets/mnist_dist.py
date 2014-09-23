@@ -152,4 +152,3 @@ class MNISTDist(Dataset):
             self.serialized_path += str(
                 comm.rank) + '.pkl'  # append comm to serialzed_path
 
-            # TODO: try and download and read in directly?

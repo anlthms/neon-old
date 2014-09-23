@@ -86,8 +86,9 @@ class MNIST(Dataset):
                     os.makedirs(save_dir)
                 train_idcs = range(60000)
                 if 'sample_pct' in self.__dict__:
-                    if self.sample_pct > 1.0:
+                    if self.sample_pct >= 1.0:
                         self.sample_pct /= 100.0
+                        print 'sampling pct', self.sample_pct
                     if self.sample_pct < 1.0:
                         numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]

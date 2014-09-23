@@ -30,6 +30,7 @@ class GB(MLP):
                 trcost = 0.0
                 tspcost = 0.0
                 for batch in xrange(num_batches):
+                    print 'batch =', batch
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                     output = inputs[start_idx:end_idx]
@@ -174,7 +175,8 @@ class GB(MLP):
             test_inputs = datasets[0].get_inputs(test=True)['test']
             test_targets = datasets[0].get_targets(test=True)['test']
             self.check_predictions(inputs, targets, test_inputs, test_targets)
-        self.train(inputs, targets)
+        if self.num_epochs > 0:
+            self.train(inputs, targets)
 
     def normalize(self, data):
         norms = data.norm(axis=1)

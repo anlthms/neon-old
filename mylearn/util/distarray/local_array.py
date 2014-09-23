@@ -137,6 +137,8 @@ class LocalArray(object):
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
 
+            if dbg:
+                print comm.rank, k, self.local_image.raw().shape, self.send_halos[k].halo_indices
             comm.Sendrecv(sendbuf=self.local_image.take(
                 self.send_halos[k].halo_indices, axis=1).raw(),
                 dest=neighbor_comm_index, sendtag=0,
@@ -173,9 +175,9 @@ class LocalArray(object):
     def compute_halo_insert_indices(self):
         # for defiltering layers, store the indices of halos in chunk
 
-        neighbor_traverse_order1 = [7, 0, 4]
-        neighbor_traverse_order2 = [3, 8, 1]
-        neighbor_traverse_order3 = [6, 2, 5]
+        neighbor_traverse_order1 = [gc.NORTHWEST, gc.NORTH, gc.NORTHEAST]
+        neighbor_traverse_order2 = [gc.WEST, gc.CENTER, gc.EAST]
+        neighbor_traverse_order3 = [gc.SOUTHWEST, gc.SOUTH, gc.SOUTHEAST]
         c_ptr = 0
         d_ptrs = dict()
 
@@ -189,7 +191,7 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
 
-                    if halo == 0:
+                    if halo == gc.NORTH:
                         self.recv_halos[halo].halo_insert_indices.extend(
                             range(c_ptr, c_ptr + self.width))
                         c_ptr += self.width
@@ -203,7 +205,7 @@ class LocalArray(object):
             # W/E halos and local image
             for r in range(self.height):
                 for halo in neighbor_traverse_order2:
-                    if halo == 8:
+                    if halo == gc.CENTER:
                         self.local_image_indices.extend(
                             range(c_ptr, c_ptr + self.width))
                         c_ptr += self.width
@@ -220,7 +222,7 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
 
-                    if halo == 2:
+                    if halo == gc.SOUTH:
                         self.recv_halos[halo].halo_insert_indices.extend(
                             range(c_ptr, c_ptr + self.width))
                         c_ptr += self.width
@@ -234,9 +236,9 @@ class LocalArray(object):
     def make_local_chunk_consistent(self):
         # for convergent layers
 
-        neighbor_traverse_order1 = [7, 0, 4]
-        neighbor_traverse_order2 = [3, 8, 1]
-        neighbor_traverse_order3 = [6, 2, 5]
+        neighbor_traverse_order1 = [gc.NORTHWEST, gc.NORTH, gc.NORTHEAST]
+        neighbor_traverse_order2 = [gc.WEST, gc.CENTER, gc.EAST]
+        neighbor_traverse_order3 = [gc.SOUTHWEST, gc.SOUTH, gc.SOUTHEAST]
         c_ptr = 0
         d_ptrs = dict()
 
@@ -251,7 +253,7 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
 
-                    if halo == 0:
+                    if halo == gc.NORTH:
                         self.chunk[:, c_ptr:c_ptr + self.width] = (
                             self.recv_halos[halo].halo_data[
                                 :, d_ptrs[halo]:d_ptrs[halo] + self.width])
@@ -273,7 +275,7 @@ class LocalArray(object):
             # W/E halos and local image
             for r in range(self.height):
                 for halo in neighbor_traverse_order2:
-                    if halo == 8:
+                    if halo == gc.CENTER:
                         # print 'cptr', c_ptr, self.width
                         self.chunk[:, c_ptr:c_ptr + self.width] = (
                             self.local_image[
@@ -294,7 +296,7 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
 
-                    if halo == 2:
+                    if halo == gc.SOUTH:
                         self.chunk[:, c_ptr:c_ptr + self.width] = (
                             self.recv_halos[halo].halo_data[
                                 :, d_ptrs[halo]:d_ptrs[halo] + self.width])
@@ -347,7 +349,7 @@ class LocalArray(object):
             print nc, ' ', sc
 
         for c in range(nc):
-            if neighbor_direction == 0:
+            if neighbor_direction == gc.NORTH:
                 # neighbor sends their southern border rows
                 recvhalo_indices.extend(
                     range((c + 1) * nlocal2d_size - halo_size_row * nw,
@@ -357,7 +359,7 @@ class LocalArray(object):
                 sendhalo_indices.extend(
                     range(c * slocal2d_size, c * slocal2d_size + n_hsr * sw))
 
-            elif neighbor_direction == 1:
+            elif neighbor_direction == gc.EAST:
                 # neighbor sends their western edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(nh):
@@ -372,7 +374,7 @@ class LocalArray(object):
                     sendhalo_indices.extend(
                         range(col_offset - n_hsc, col_offset))
 
-            elif neighbor_direction == 2:
+            elif neighbor_direction == gc.SOUTH:
                 # neighbor sends their northern edge
                 recvhalo_indices.extend(
                     range(c * nlocal2d_size,
@@ -382,7 +384,7 @@ class LocalArray(object):
                     range((c + 1) * slocal2d_size - n_hsr * sw,
                           (c + 1) * slocal2d_size))
 
-            elif neighbor_direction == 3:
+            elif neighbor_direction == gc.WEST:
                 # neighbor sends their eastern edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(nh):
@@ -397,7 +399,7 @@ class LocalArray(object):
                     sendhalo_indices.extend(
                         range(col_offset, col_offset + n_hsc))
 
-            elif neighbor_direction == 4:
+            elif neighbor_direction == gc.NORTHEAST:
                 # neighbor sends their SW edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(nh - halo_size_row, nh):
@@ -412,7 +414,7 @@ class LocalArray(object):
                     sendhalo_indices.extend(range(col_offset - n_hsc,
                                                   col_offset))
 
-            elif neighbor_direction == 5:
+            elif neighbor_direction == gc.SOUTHEAST:
                 # neighbor sends their NW edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(halo_size_row):
@@ -427,7 +429,7 @@ class LocalArray(object):
                     sendhalo_indices.extend(range(col_offset - n_hsc,
                                                   col_offset))
 
-            elif neighbor_direction == 6:
+            elif neighbor_direction == gc.SOUTHWEST:
                 # neighbor sends their NE edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(halo_size_row):
@@ -443,7 +445,7 @@ class LocalArray(object):
                     sendhalo_indices.extend(range(col_offset,
                                                   col_offset + n_hsc))
 
-            elif neighbor_direction == 7:
+            elif neighbor_direction == gc.NORTHWEST:
                 # neighbor sends their SE edge
                 offset_in_channel = c * nlocal2d_size
                 for r in range(nh - halo_size_row, nh):

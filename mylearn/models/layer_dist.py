@@ -32,6 +32,10 @@ class LocalLayerDist(YAMLable):
         self.ofmsize = self.ofmheight * self.ofmwidth
         self.nin = self.nifm * self.ifmsize
 
+        if self.pos > 0:
+            self.berror = self.backend.zeros((self.batch_size, self.nin), 
+                                             dtype=self.dtype)
+
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                              self.ofmsize))
 
@@ -80,15 +84,16 @@ class LocalLayerDist(YAMLable):
         self.batch_size = batch_size
         self.pos = pos
         self.learning_rate = learning_rate
-
+        self.pos = pos
+        self.dtype = dtype
         # self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
         # self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
         # self.ofmshape = (self.ofmheight, self.ofmwidth)
         # self.ifmsize = self.ifmheight * self.ifmwidth
         # self.ofmsize = self.ofmheight * self.ofmwidth
         # self.nin = nifm * self.ifmsize
-        if pos > 0:
-            self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
+        #if pos > 0:
+        #    self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
 
         self.nifm = nifm
         self.nofm = nofm
@@ -211,7 +216,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
         # communicate the halos for the reconstructed image patches
         autoencoder.local_image = autoencoder.defiltering_local_image
         # autoencoder.chunk = autoencoder.defiltering_chunk #initialize
-        autoencoder.send_recv_halos(dbg=True)
+        autoencoder.send_recv_halos()
         autoencoder.make_local_chunk_consistent()
 
         # Forward propagate the output of this layer through a
@@ -277,7 +282,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
                                      self.rofmlocs[dst], axis=0),
                                  self.bpropbuf)
                 # todo: the delta activations in halo terms have to be summed
-                # when stacking the layers
+                # when stacking the layers (for bprop)
 
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,  # mbs x fsize
