@@ -5,7 +5,7 @@ import numpy as np
 from mylearn.backends.fixpt_cython import (fixed_from_float, fixed_to_float,
                                            fixed_from_float_array, elemfloat,
                                            fixed_to_float_array, fp_rescale,
-                                           naive_dot, fixpt_dtype)
+                                           naive_dot, fixpt_dtype, elemtype)
 from mylearn.util.testing import assert_tensor_equal
 
 
@@ -114,6 +114,24 @@ def test_rounding_nearest_addition():
     assert y == 80
     # 197_10 --> 11000.101_2 -> 24.625_10 Q5.3 (.125 * 5 for frac)
     assert fixed_to_float(fp_rescale(x + y, dtype, dtype), dtype) == 24.625
+
+
+def test_mixed_dtype_addition():
+    x_dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=3, overflow=0,
+                          rounding=1)
+    y_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=5, overflow=0,
+                          rounding=1)
+    out_dtype = fixpt_dtype(sign_bit=True, int_bits=10, frac_bits=5,
+                            overflow=0, rounding=1)
+    x = fixed_from_float(14.567, x_dtype)  # --> 116.536 --> 117 after round
+    assert x == 117
+    y = fixed_from_float(10, y_dtype)  # --> 320 (after round nearest)
+    assert y == 320
+    scale_y = fp_rescale(y, y_dtype, x_dtype)  # --> 80 (after match scale)
+    # 197_10 --> 788_10 (after output scaling)
+    #        --> 11000.10100_2 -> 24.625_10 Q10.5 (.03125 * 20 for frac)
+    assert fixed_to_float(fp_rescale(x + scale_y, x_dtype, out_dtype),
+                          out_dtype) == 24.625
 
 
 def test_subtraction():
@@ -227,11 +245,12 @@ def test_division():
                         rounding=0)
     x = fixed_from_float(17, dtype)
     y = fixed_from_float(4, dtype)
-    div_num_dtype = fixpt_dtype(sign_bit=True, int_bits=10, frac_bits=20,
-                                overflow=0, rounding=0)
     # for division we need to shift the numerator to output scale before
-    # we do the integer divide
-    num = fp_rescale(x, dtype, div_num_dtype)
+    # we do the integer divide.  If x has m fractional bits, and y has n
+    # fractional bits, and we want the output to have f fractional bits,
+    # we have to left shift the numerator by f - (m - n) total bits
+    # in this example f=m=n == 10, so we need to first left shift by 10
+    num = x << 10
     assert fixed_to_float(num / y, dtype) == 4.25
 
 
@@ -246,7 +265,7 @@ def test_rounding_truncated_division():
     # 672 / 25 --> 26.88_10 (division)
     #          --> 26_10 (truncated)
     #          --> 011.010_2
-    #          --> 3.25_10 Q5.2 (.125 * 2 for frac)
+    #          --> 3.25_10 Q5.3 (.125 * 2 for frac)
     div_num_dtype = fixpt_dtype(sign_bit=True, int_bits=10, frac_bits=6,
                                 overflow=0, rounding=0)
     num = fp_rescale(x, dtype, div_num_dtype)
@@ -273,13 +292,53 @@ def test_rounding_nearest_division():
     assert fixed_to_float(num / y, dtype) == 3.25
 
 
+def test_mixed_dtype_division():
+    x_dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=3, overflow=0,
+                          rounding=1)
+    y_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=5, overflow=0,
+                          rounding=1)
+    out_dtype = fixpt_dtype(sign_bit=True, int_bits=10, frac_bits=5,
+                            overflow=0, rounding=0)
+    x = fixed_from_float(14.567, x_dtype)  # --> 116.536 --> 117 after round
+    assert x == 117
+    y = fixed_from_float(10, y_dtype)  # --> 320 (after round nearest)
+    assert y == 320
+    num = x << (out_dtype['frac_bits'] - (x_dtype['frac_bits'] -
+                                          y_dtype['frac_bits']))
+    # 117_10 --> 14976_10 (after pre-scaling numerator 5 - (3 - 5) == 7 bits
+    assert num == 14976
+    # 14976 / 320 --> 46.8_10 (division)
+    #             --> 46_10 (truncation)
+    #             --> 1.01110_2
+    #             --> 1.4375_10 Q10.5 (.03125 * 14 for frac)
+    assert fixed_to_float(num / y, out_dtype) == 1.4375
+
+
 def test_basic_matmatmul():
     dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=3, overflow=0,
                         rounding=0)
     a = fixed_from_float_array(np.array([[1.0, 2.0], [3.0, 4.0]], elemfloat),
                                dtype)
     b = np.copy(a, order="F")
-    out = np.empty([2, 2], dtype=np.int64)
+    out = np.empty([2, 2], dtype=elemtype)
     naive_dot(a, b, out, dtype, dtype, dtype)
     exp_res = np.array([[7.0, 10.0], [15.0, 22.0]], elemfloat)
     assert_tensor_equal(fixed_to_float_array(out, dtype), exp_res)
+
+
+def test_mixed_dtype_matmatmul():
+    a_dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=3, overflow=0,
+                          rounding=0)
+    b_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=5, overflow=0,
+                          rounding=0)
+    a = fixed_from_float_array(np.array([[1.0, 2.0], [3.0, 4.0]], elemfloat),
+                               a_dtype)
+    b = fixed_from_float_array(np.array([[1.0, 2.0], [3.0, 4.0]], elemfloat),
+                               b_dtype)
+    b = np.asfortranarray(b)
+    out_dtype = fixpt_dtype(sign_bit=True, int_bits=10, frac_bits=5,
+                            overflow=0, rounding=0)
+    out = np.empty([2, 2], dtype=elemtype)
+    naive_dot(a, b, out, a_dtype, b_dtype, out_dtype)
+    exp_res = np.array([[7.0, 10.0], [15.0, 22.0]], elemfloat)
+    assert_tensor_equal(fixed_to_float_array(out, out_dtype), exp_res)

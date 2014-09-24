@@ -425,7 +425,7 @@ class Numpy(Backend):
             logger.info("Seeding random number generator with: %s" % str(seed))
         np.random.seed(seed)
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
         Uniform random number sample generation.
 
@@ -438,12 +438,11 @@ class Numpy(Backend):
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
+            Tensor: Of specified size filled with these random numbers.
         """
-        return NumpyTensor(np.random.uniform(low, high, size))
+        return self.tensor_cls(np.random.uniform(low, high, size), dtype)
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation
 
@@ -454,10 +453,9 @@ class Numpy(Backend):
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
+            Tensor: Of specified size filled with these random numbers.
         """
-        return NumpyTensor(np.random.normal(loc, scale, size))
+        return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
 
     @classmethod
     def append_bias(cls, x, dtype=np.float32):
@@ -588,8 +586,6 @@ class Numpy(Backend):
         return cls.tensor_cls(np.nonzero(x._tensor)[1])
 
     def gen_weights(self, size, weight_params, dtype=None):
-        if dtype is None:
-            dtype=np.float32
         weights = None
         if 'dtype' in weight_params:
             dtype = weight_params['dtype']
@@ -602,7 +598,7 @@ class Numpy(Backend):
                 high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
-            weights = self.uniform(low, high, size)
+            weights = self.uniform(low, high, size, dtype)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
             loc = 0.0
@@ -613,7 +609,7 @@ class Numpy(Backend):
                 scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
-            weights = self.normal(loc, scale, size)
+            weights = self.normal(loc, scale, size, dtype)
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
@@ -622,7 +618,7 @@ class Numpy(Backend):
             logger.info('generating %s node_normalized(%0.2f) weights.' %
                         (str(size), scale))
             node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size)
+            weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:
@@ -630,11 +626,6 @@ class Numpy(Backend):
             logger.info('separately initializing bias weights to %0.2f' %
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
-        if weights._tensor.dtype != dtype:
-            # unfortunately we typically can't avoid a copy here, or initialize
-            # to appropriate size up front.  For instance see:
-            # http://stackoverflow.com/q/19523166
-            weights._tensor = weights._tensor.astype(dtype)
         return weights
 
     def get_momentum_coef(self, epoch, momentum_params):

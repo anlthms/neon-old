@@ -70,15 +70,17 @@ def test_int32_np():
 
 def test_fixpt_cython():
     setup = ("import numpy as np\n"
-             "from mylearn.backends.fixpt_cython import naive_dot\n"
+             "from mylearn.backends.fixpt_cython import (naive_dot,"
+             "                                           fixpt_dtype)\n"
+             "dtype = fixpt_dtype(1, 5, 10, 0, 0)\n"
              "A = np.random.randint(10, size=[%d, %d])\n"
              "B = np.random.randint(10, size=[%d, %d])\n"
              "A = A.astype(np.int64)\n"
              "B = B.astype(np.int64)\n"
              "out = np.empty([%d, %d], np.int64)" %
              (SIZE, SIZE, SIZE, SIZE, SIZE, SIZE))
-    res = timeit.repeat("naive_dot(A, B.T, out, 1, 5, 10, 0, 0)", setup=setup,
-                        number=NUMBER, repeat=REPEAT)
+    res = timeit.repeat("naive_dot(A, B.T, out, dtype, dtype, dtype)",
+                        setup=setup, number=NUMBER, repeat=REPEAT)
     return min(res)
 
 if __name__ == '__main__':

@@ -61,7 +61,7 @@ cpdef inline elemtype_t fp_rescale(elemtype_t inval, fixpt in_type,
         else:
             print("unsupported rounding format")
     # handle overflow
-    max_int = 1 << (out_type.int_bits + out_type.frac_bits +
+    max_int = <elemtype_t> 1 << (out_type.int_bits + out_type.frac_bits +
                     (1 - out_type.sign_bit))
     if outval >= max_int:
         outval = max_int - 1
@@ -78,7 +78,7 @@ cpdef inline elemtype_t fixed_from_float(elemfloat_t floatval, fixpt dtype):
         # assume RND_NEAREST 
         fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits + 0.5)
     # perform overflow handling
-    max_int = 1 << (dtype.int_bits + dtype.frac_bits)
+    max_int = <elemtype_t> 1 << (dtype.int_bits + dtype.frac_bits)
     if fixedval < max_int:
         if fixedval < -max_int:
             # negative overflow
@@ -197,4 +197,7 @@ def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
             # each individual addition but this speeds things up and shouldn't
             # matter if we're doing saturation.  It's also closer to what our
             # hardware does, only scaling after accumulating a block
-            out[x, y] = fp_rescale(out[x, y], a_dtype, out_dtype)
+
+            # we already scale multiplications to out_dtype so the following
+            # does nothing:
+            # out[x, y] = fp_rescale(out[x, y], out_dtype, out_dtype)

@@ -12,7 +12,8 @@ from mylearn.backends.fixpt_cython import (fixed_from_float,
                                            fixed_to_float,
                                            fixed_to_float_array,
                                            naive_dot, elemtype, elemfloat,
-                                           fixpt_dtype, fp_rescale_array)
+                                           fixpt_dtype, fp_rescale_array,
+                                           fp_rescale)
 from mylearn.backends._numpy import Numpy, NumpyTensor
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ class FixedPointTensor(NumpyTensor):
         self.dtype = dtype
 
     def __str__(self):
-        return str(fixed_to_float_array(self._tensor, self.dtype))
+        return str(fixed_to_float_array(np.ascontiguousarray(self._tensor),
+                                        self.dtype))
 
     def __repr__(self):
         return ("%s(%s, dtype=%s)" %
@@ -93,6 +95,7 @@ class FixedPoint(Numpy):
     """
     default_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=11,
                             overflow=0, rounding=0)
+    tensor_cls = FixedPointTensor
     epsilon = 2**-10
 
     @classmethod
@@ -119,7 +122,35 @@ class FixedPoint(Numpy):
 
     @classmethod
     def wrap(cls, obj, dtype=None):
+        if dtype is None:
+            dtype = cls.suggest_dtype(obj)
         return FixedPointTensor(obj, dtype)
+
+    @classmethod
+    def suggest_dtype(cls, obj, max_word_bits=16):
+        """
+        Attempts to infer a reasonable dtype that balances handling the entire
+        data input range without losing too much precision.
+        """
+        sign_bit = False
+        int_bits = 0
+        frac_bits = max_word_bits
+        overflow = 0
+        rounding = 0
+        min_val = obj
+        max_val = obj
+        if isinstance(obj, (list, tuple, np.ndarray)):
+            min_val = min(obj)
+            max_val = max(obj)
+        if min_val < 0:
+            sign_bit = True
+            frac_bits -= 1
+            max_val = abs(max_val)
+        while ((sign_bit + int_bits) < max_word_bits and
+                max_val >= (1 << int_bits)):
+            int_bits += 1
+            frac_bits -= 1
+        return fixpt_dtype(sign_bit, int_bits, frac_bits, overflow, rounding)
 
     @staticmethod
     def display(value, sign_bit=True, int_bits=5, frac_bits=10,
@@ -193,28 +224,6 @@ class FixedPoint(Numpy):
         """
         return FixedPointTensor(np.random.uniform(low, high, size), dtype)
 
-    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
-        """
-        Gaussian/Normal random number sample generation
-
-        Arguments:
-            loc (float, optional): Where to center distribution.  Defaults
-                                   to 0.0
-            scale (float, optional): Standard deviaion.  Defaults to 1.0
-            size (array_like or int, optional): Shape of generated samples
-            dtype (fixpt_dtype, optional): Specification of fixedpoint
-                                           parameters, passed through to the
-                                           FixedPointTensor constructor.
-                                           If None, we use the values
-                                           specified in the default_dtype
-                                           attribute.
-
-        Returns:
-            FixedPointTensor: Of specified size filled with these random
-                         numbers.
-        """
-        return FixedPointTensor(np.random.normal(loc, scale, size), dtype)
-
     @staticmethod
     def append_bias(x):
         """
@@ -255,20 +264,20 @@ class FixedPoint(Numpy):
         out_dtype = a.dtype
         if a.dtype['int_bits'] > b.dtype['int_bits']:
             # scale b to a
-            out_b = np.empty_like(b._tensor)
+            out_b = np.copy(b._tensor)
             fp_rescale_array(out_b, b.dtype, a.dtype)
         elif a.dtype['int_bits'] < b.dtype['int_bits']:
             # scale a to b
-            out_a = np.empty_like(a._tensor)
+            out_a = np.copy(a._tensor)
             fp_rescale_array(out_a, a.dtype, b.dtype)
             out_dtype = b.dtype
         elif a.dtype['frac_bits'] > b.dtype['frac_bits']:
             # same int_bits, but scale b to a to increase precision
-            out_b = np.empty_like(b._tensor)
+            out_b = np.copy(b._tensor)
             fp_rescale_array(out_b, b.dtype, a.dtype)
         elif a.dtype['frac_bits'] < b.dtype['frac_bits']:
             # same int_bits, but scale a to b to increase precision
-            out_a = np.empty_like(a._tensor)
+            out_a = np.copy(a._tensor)
             fp_rescale_array(out_a, a.dtype, b.dtype)
             out_dtype = b.dtype
         return (out_dtype, out_a, out_b)
@@ -297,12 +306,46 @@ class FixedPoint(Numpy):
 
     @classmethod
     def divide(cls, a, b, out):
-        # for division, shift the numerator to output scale first
-        # then do integer division
-        # TODO: test this!
+        # for division, shift the numerator to required scale first
+        # then do integer division.
+        # required scale assuming out has f frac bits, a has m frac bits, and
+        # b has n frac bits is f - (m - n)
         a_tensor = np.copy(a._tensor)
-        fp_rescale_array(a_tensor, a.dtype, out.dtype)
-        np.divide(a._tensor, b._tensor, out._tensor)
+        tmp_dt = a.dtype.copy()
+        tmp_dt['frac_bits'] += out.dtype['frac_bits'] - (a.dtype['frac_bits'] -
+                                                         b.dtype['frac_bits'])
+        fp_rescale_array(a_tensor, a.dtype, tmp_dt)
+        np.divide(a_tensor, b._tensor, out._tensor)
+
+    @classmethod
+    def reciprocal(cls, a, out):
+        cls.divide(cls.wrap(1.0, out.dtype), a, out)
+
+    @classmethod
+    def greater(cls, a, b, out):
+        np.greater(a._tensor, b._tensor, out._tensor)
+        # greater result stored as int64 with 0 or 1 values.  Just need to
+        # shift accordingly
+        tmp_dtype = fixpt_dtype(True, 5, 0, 0, 0)
+        fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
+
+    @classmethod
+    def log(cls, x, out):
+        # for the moment we punt on a fixed point exponent, just do an
+        # expensive conversion to/from floating point.
+        # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
+        tmp = fixed_to_float_array(x._tensor, x.dtype)
+        np.log(tmp, tmp)
+        out._tensor = fixed_from_float_array(tmp, out.dtype)
+
+    @classmethod
+    def exp(cls, x, out):
+        # for the moment we punt on a fixed point exponent, just do an
+        # expensive conversion to/from floating point.
+        # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
+        tmp = fixed_to_float_array(x._tensor, x.dtype)
+        np.exp(tmp, tmp)
+        out._tensor = fixed_from_float_array(tmp, out.dtype)
 
     @classmethod
     def logistic(cls, x, out):
@@ -314,55 +357,13 @@ class FixedPoint(Numpy):
         Numpy.logistic(tmp, tmp)
         out._tensor = fixed_from_float_array(tmp._tensor, out.dtype)
 
-    def gen_weights(self, size, weight_params, dtype=None):
-        weights = None
-        if 'dtype' in weight_params:
-            dtype = weight_params['dtype']
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
-            weights = self.uniform(low, high, size, dtype)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
-            weights = self.normal(loc, scale, size, dtype)
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size, dtype)
-        else:
-            raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
-        return weights
-
     @staticmethod
     def clip(a, a_min, a_max, out=None):
         if out is None:
             out = FixedPointTensor(np.empty_like(a._tensor), a.dtype)
         np.clip(a._tensor, fixed_from_float(a_min, a.dtype),
                 fixed_from_float(a_max, a.dtype), out._tensor)
+        fp_rescale_array(out._tensor, a.dtype, out.dtype)
         return out
 
     @staticmethod
@@ -403,5 +404,7 @@ class FixedPoint(Numpy):
         if out is not None:
             res = np.fabs(x._tensor, out._tensor)
         else:
-            res = np.fabs(x._tensor)
+            # np.fabs changes dtype to float64 by default, so cast this back
+            # to our internal representation
+            res = elemtype(np.fabs(x._tensor))
         return FixedPointTensor(res, x.dtype)
