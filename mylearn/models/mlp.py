@@ -57,6 +57,8 @@ class MLP(Model):
                                                   self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
+            for layer in self.layers:
+                logger.debug("%s", layer)
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]

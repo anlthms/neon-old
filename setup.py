@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
+import numpy as np
 import os
-from setuptools import setup
+from setuptools import setup, Extension
 import subprocess
 
 
@@ -29,6 +30,22 @@ if write_version:
     finally:
         a.close()
 
+use_cython = True
+suffix = "pyx"
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    use_cython = False
+    suffix = "c"
+extensions = [Extension('mylearn.backends.fixpt_dtype',
+                        sources=['mylearn/backends/fixpt_dtype.c'],
+                        include_dirs=[np.get_include()]),
+              Extension('mylearn.backends.fixpt_cython',
+                        ['mylearn/backends/fixpt_cython.' + suffix],
+                        include_dirs=[np.get_include()])]
+if use_cython:
+    extensions = cythonize(extensions)
+
 setup(name='mylearn',
       version=VERSION,
       description='Deep learning library with configurable backends',
@@ -51,4 +68,5 @@ setup(name='mylearn',
                 'mylearn.models.tests',
                 'mylearn.transforms.tests',
                 'mylearn.util.tests', ],
-      scripts=['bin/mylearn'], )
+      scripts=['bin/mylearn'],
+      ext_modules=extensions)

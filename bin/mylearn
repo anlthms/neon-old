@@ -21,6 +21,11 @@ def parse_args():
                         help='configuration file settings')
     parser.add_argument('-v', '--version', action='version',
                         version=mylearn.__version__)
+    parser.add_argument('-p', '--profile', action='store',
+                        help=('Collect and write profiling stats to the file '
+                              'specified.  Or stdout if empty string.'))
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='call ipython debugger on uncaught exception')
     return(parser.parse_args())
 
 
@@ -30,15 +35,32 @@ def main():
     """
     # read in yaml configuration and initialize objects
     args = parse_args()
-    experiment = deserialize(args.yaml_file)
-
-    if hasattr(experiment, 'logging'):
-        logging.basicConfig(**experiment.logging)
-
-    # carry out the experiment
-    result = experiment.run()
-    return experiment, result
-
+    if args.profile is not None:
+        import cProfile
+        p = cProfile.Profile()
+        p.enable()
+    try:
+        experiment = deserialize(args.yaml_file)
+        if hasattr(experiment, 'logging'):
+            logging.basicConfig(**experiment.logging)
+            if args.profile is not None:
+                logging.info("Profiling code to: %s" % (
+                             args.profile if args.profile != "" else "stdout"))
+        # carry out the experiment
+        result = experiment.run()
+        if args.profile is not None:
+            if args.profile == "":
+                p.print_stats("tottime")
+            else:
+                p.dump_stats(args.profile)
+        return experiment, result
+    except Exception as e:
+        if args.debug:
+            import ipdb, traceback
+            traceback.print_exc()
+            ipdb.post_mortem(sys.exc_info()[2])
+        else:
+            raise
 
 if __name__ == '__main__':
     experiment, result = main()

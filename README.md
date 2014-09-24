@@ -27,12 +27,12 @@ We want to strive to have as few of these as possible
 * [flake8](https://flake8.readthedocs.org/) for style checking
   * pep8-naming for variable name checking
 * [cudamat](https://github.com/cudamat/cudamat) for GPU based backend
+* [Cython](http://cython.org/) for fixedpoint backend compilation
 * [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
   calculations
 * [matplotlib](http://matplotlib.org) for Google Brain feature visualization
 * [openmpi](http://www.open-mpi.org), [mpi4py](http://mpi4py.scipy.org) for
   distributed tensors.
-  
 
 
 ## Usage ##

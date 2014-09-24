@@ -11,30 +11,412 @@ from mylearn.backends.backend import Backend, Tensor
 logger = logging.getLogger(__name__)
 
 
+class NumpyTensor(Tensor):
+    """
+    Simple wrapped `numpy.ndarray` tensor
+
+    Arguments:
+        obj (numpy.ndarray): the actual data values.  Python built-in
+                             types like lists and tuples are also supported.
+        dtype (numpy.ndtype, optional): underlying data type of the elements.
+                                        If None will use float32.
+
+    See also:
+        Numpy, NumpyTensor64
+    """
+    _tensor = None
+
+    def __init__(self, obj, dtype=None):
+        if dtype is None:
+            dtype = np.float32
+        if type(obj) != np.ndarray:
+            self._tensor = np.array(obj, dtype)
+        elif obj.dtype != dtype:
+            self._tensor = obj.astype(dtype)
+        else:
+            self._tensor = obj
+        self.shape = self._tensor.shape
+        self.dtype = dtype
+
+    def __str__(self):
+        """
+        Display a suitable representation of this Tensor.
+
+        Returns:
+            str: the representation.
+        """
+        return str(self._tensor)
+
+    def __repr__(self):
+        return ("%s(%s)" %
+                (self.__class__.__name__, str(self)))
+
+    def _clean(self, val):
+        """
+        Replaces any NumpyTensor indices with `numpy` arrays.
+
+        Arguments:
+            val (int, array_like, NumpyTensor): the items to index by.
+
+        Returns:
+            int, array_like, NumpyTensor: Transformed val
+        """
+        if isinstance(val, tuple):
+            val = tuple(x._tensor if isinstance(x, self.__class__) else x
+                        for x in val)
+        if isinstance(val, self.__class__):
+            val = val._tensor
+        return val
+
+    def __getitem__(self, key):
+        return self.__class__(self._tensor[self._clean(key)],
+                              dtype=self._tensor.dtype)
+
+    def __setitem__(self, key, value):
+        self._tensor[self._clean(key)] = self._clean(value)
+
+    def __delitem__(self, key):
+        raise ValueError("cannot delete array elements")
+
+    def __float__(self):
+        return float(self._tensor)
+
+    def __neg__(self):
+        return self.__class__(- self._tensor,
+                              dtype=self._tensor.dtype)
+
+    def __lt__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor < other._tensor)
+        else:
+            return self.__class__(self._tensor < other)
+
+    def __le__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor <= other._tensor)
+        else:
+            return self.__class__(self._tensor <= other)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor == other._tensor)
+        else:
+            return self.__class__(self._tensor == other)
+
+    def __ne__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor != other._tensor)
+        else:
+            return self.__class__(self._tensor != other)
+
+    def __gt__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor > other._tensor)
+        else:
+            return self.__class__(self._tensor > other)
+
+    def __ge__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor >= other._tensor)
+        else:
+            return self.__class__(self._tensor >= other)
+
+    def __add__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            self.__class__: containing the element-wise sum values.
+        """
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor + other._tensor)
+        else:
+            return self.__class__(self._tensor + other)
+
+    def __radd__(self, other):
+        """
+        Perform element-wise addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            self.__class__: containing the element-wise sum values.
+        """
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor + self._tensor)
+        else:
+            return self.__class__(other + self._tensor)
+
+    def __iadd__(self, other):
+        """
+        Perform element-wise in-place addition with the items in other.
+
+        Arguments:
+            other (Tensor): The Tensor to add.  Must have the same dimensions
+                            as this Tensor, or be broadcastable as such.
+
+        Returns:
+            self.__class__: containing the element-wise sum values.
+        """
+        if isinstance(other, self.__class__):
+            self._tensor += other._tensor
+        else:
+            self._tensor += other
+        return self
+
+    def __sub__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor - other._tensor)
+        else:
+            return self.__class__(self._tensor - other)
+
+    def __rsub__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor - self._tensor)
+        else:
+            return self.__class__(other - self._tensor)
+
+    def __isub__(self, other):
+        if isinstance(other, self.__class__):
+            self._tensor -= other._tensor
+        else:
+            self._tensor -= other
+        return self
+
+    def __mul__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor * other._tensor)
+        else:
+            return self.__class__(self._tensor * other)
+
+    def __rmul__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor * self._tensor)
+        else:
+            return self.__class__(other * self._tensor)
+
+    def __imul__(self, other):
+        if isinstance(other, self.__class__):
+            self._tensor *= other._tensor
+        else:
+            self._tensor *= other
+        return self
+
+    def __div__(self, other):
+        # python2 floor rounded division
+        return self.__truediv__(other)
+
+    def __truediv__(self, other):
+        # python3 fractional division
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor / other._tensor)
+        else:
+            return self.__class__(self._tensor / other)
+
+    def __rdiv__(self, other):
+        return self.__rtruediv__(other)
+
+    def __rtruediv__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor / self._tensor)
+        else:
+            return self.__class__(other / self._tensor)
+
+    def __idiv__(self, other):
+        if isinstance(other, self.__class__):
+            self._tensor /= other._tensor
+        else:
+            self._tensor /= other
+        return self
+
+    def __itruediv__(self, other):
+        if isinstance(other, self.__class__):
+            self._tensor /= other._tensor
+        else:
+            self._tensor /= other
+        return self
+
+    def __pow__(self, other, modulo=None):
+        # TODO: determine how ternary modulo needs to be handled
+        if isinstance(other, self.__class__):
+            return self.__class__(self._tensor ** other._tensor)
+        else:
+            return self.__class__(self._tensor ** other)
+
+    def __rpow__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__class__(other._tensor ** self._tensor)
+        else:
+            return self.__class__(other ** self._tensor)
+
+    def __ipow__(self, other):
+        if isinstance(other, self.__class__):
+            self._tensor **= other._tensor
+        else:
+            self._tensor **= other
+        return self
+
+    def copy(self):
+        return self.__class__(np.copy(self._tensor),
+                              dtype=self._tensor.dtype)
+
+    def raw(self):
+        return self._tensor
+
+    def T(self):  # flake8: noqa
+        return self.__class__(self._tensor.T,
+                              dtype=self._tensor.dtype)
+
+    def transpose(self):
+        return self.__class__(self._tensor.T,
+                              dtype=self._tensor.dtype)
+
+    def reshape(self, shape):
+        # TODO: Some layer code (ex. PoolingLayer) currently depends
+        # on squish/reshape always returning a view of the existing
+        # data, but numpy.reshape does not guarantee this.  We should remove
+        # reliance on this dependency.
+        return self.__class__(self._tensor.reshape(shape),
+                              dtype=self._tensor.dtype)
+
+    def argmax(self, axis):
+        return self.__class__(self._tensor.argmax(axis))
+
+    def take(self, indices, axis=None):
+        if type(indices) == self.__class__:
+            indices = indices._tensor
+        return self.__class__(self._tensor.take(indices, axis),
+                              self._tensor.dtype)
+
+    def add(self, obj):
+        self._tensor += obj._tensor
+
+    def sub(self, obj):
+        self._tensor -= obj._tensor
+
+    def norm(self, axis):
+        return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
+
+    def repeat(self, repeats, axis):
+        return self.__class__(self._tensor.repeat(repeats, axis))
+
+    def log(self):
+        return self.__class__(np.log(self._tensor))
+
+    def exp(self):
+        return self.__class__(np.exp(self._tensor))
+
+    def mean(self, axis=None, dtype=np.float32, out=None):
+        res = np.mean(self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return self.__class__(res)
+
+    def sum(self, axis=None, dtype=np.float32, out=None):
+        res = np.sum(self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return self.__class__(res)
+
+
+class Numpy64Tensor(NumpyTensor):
+    """
+    Simple wrapped `numpy.ndarray` tensor, defaults to 64-bit elements.
+
+    Arguments:
+        obj (numpy.ndarray): the actual data values.  Python built-in
+                             types like lists and tuples are also supported.
+        dtype (numpy.ndtype, optional): underlying data type of the elements.
+                                        If None will use `numpy.float64`.
+
+    See also:
+        Numpy64, NumpyTensor
+    """
+    _tensor = None
+
+    def __init__(self, obj, dtype=None):
+        if dtype is None:
+            dtype = np.float64
+        if type(obj) != np.ndarray:
+            self._tensor = np.array(obj, dtype)
+        else:
+            self._tensor = obj
+            if self._tensor.dtype != np.float64:
+                self._tensor = self._tensor.astype(np.float64)
+        self.shape = self._tensor.shape
+        self.dtype = dtype
+
+
 class Numpy(Backend):
     """
-    Sets up a :mod:`numpy` based backend for matrix ops.
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    32-bit element data types for any arrays constructed.
+
+    Attributes:
+        default_dtype (dtype): default element data type.  We assume 32-bit
+                               float
+        epsilon (float): the unit roundoff for the elements underlying this
+                         tensor.
+    See also:
+        Numpy64, NumpyTensor
     """
+    default_dtype = np.float32
+    epsilon = np.finfo(np.float32).eps
+    tensor_cls = NumpyTensor
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.err_init()
         self.rng_init()
 
-    @staticmethod
-    def zeros(shape, dtype=float):
-        return NumpyTensor(np.zeros(shape, dtype))
+    @classmethod
+    def default_dtype_if_missing(cls, in_dtype):
+        if in_dtype is None:
+            in_dtype = cls.default_dtype
+        return in_dtype
 
-    @staticmethod
-    def ones(shape, dtype=float):
-        return NumpyTensor(np.ones(shape, dtype))
+    @classmethod
+    def zeros(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.zeros(shape, dtype), dtype)
 
-    @staticmethod
-    def array(obj):
-        return NumpyTensor(np.array(obj))
+    @classmethod
+    def ones(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.ones(shape, dtype), dtype)
 
-    @staticmethod
-    def wrap(obj):
-        return NumpyTensor(obj)
+    @classmethod
+    def array(cls, obj, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.array(obj, dtype), dtype)
+
+    @classmethod
+    def wrap(cls, obj, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(obj, dtype)
+
+    @classmethod
+    def clip(cls, a, a_min, a_max, out=None):
+        if out is None:
+            out = cls._tensor_cls(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
+
+    def err_init(self):
+        # support numpy.seterr settings:
+        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
+        if 'seterr_handling' in self.__dict__:
+            logger.info("Updating numpy.seterr settings: %s" %
+                        str(self.seterr_handling))
+            np.seterr(**self.seterr_handling)
 
     def rng_init(self):
         seed = None
@@ -43,7 +425,7 @@ class Numpy(Backend):
             logger.info("Seeding random number generator with: %s" % str(seed))
         np.random.seed(seed)
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
         Uniform random number sample generation.
 
@@ -56,12 +438,11 @@ class Numpy(Backend):
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
+            Tensor: Of specified size filled with these random numbers.
         """
-        return NumpyTensor(np.random.uniform(low, high, size))
+        return self.tensor_cls(np.random.uniform(low, high, size), dtype)
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation
 
@@ -72,28 +453,28 @@ class Numpy(Backend):
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            NumpyTensor: Of specified size filled with these random
-                         numbers.
+            Tensor: Of specified size filled with these random numbers.
         """
-        return NumpyTensor(np.random.normal(loc, scale, size))
+        return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
 
-    @staticmethod
-    def append_bias(x):
+    @classmethod
+    def append_bias(cls, x, dtype=np.float32):
         """
         Adds a bias column of ones to NumpyTensor x,
         returning a new NumpyTensor.
         """
-        return NumpyTensor(np.concatenate((x._tensor,
-                                          np.ones((x.shape[0], 1))),
-                                          axis=1))
+        return cls.tensor_cls(np.concatenate((x._tensor,
+                                               np.ones((x.shape[0], 1),
+                                                        dtype)),
+                                              axis=1), dtype)
 
-    @staticmethod
-    def copy(a):
-        return NumpyTensor(np.copy(a))
+    @classmethod
+    def copy(cls, a):
+        return cls.tensor_cls(np.copy(a))
 
-    @staticmethod
-    def argmax(x, axis=None):
-        return NumpyTensor(np.argmax(x._tensor, axis))
+    @classmethod
+    def argmax(cls, x, axis=None):
+        return cls.tensor_cls(np.argmax(x._tensor, axis))
 
     @staticmethod
     def dot(a, b, out):
@@ -146,40 +527,48 @@ class Numpy(Backend):
     def sum(obj):
         return obj._tensor.sum()
 
-    @staticmethod
-    def mean(x, axis=None, dtype=None, out=None, keepdims=False):
+    @classmethod
+    def mean(cls, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
+    @classmethod
+    def min(cls, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.min(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
+    @classmethod
+    def max(cls, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.max(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return NumpyTensor(res)
+            return cls.tensor_cls(res)
 
-    @staticmethod
-    def sqrt(x, out):
+    @classmethod
+    def fabs(cls, x, out=None):
+        if out is not None:
+            res = np.fabs(x._tensor, out._tensor)
+        else:
+            res = np.fabs(x._tensor)
+        return cls.tensor_cls(res)
+
+    @classmethod
+    def sqrt(cls, x, out):
         res = np.sqrt(x._tensor, out._tensor)
-        return NumpyTensor(res)
+        return cls.tensor_cls(res)
 
     @staticmethod
     def square(x, out):
@@ -197,16 +586,18 @@ class Numpy(Backend):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    @staticmethod
-    def not_equal(x, y):
-        return NumpyTensor(np.not_equal(x._tensor, y._tensor))
+    @classmethod
+    def not_equal(cls, x, y):
+        return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
 
-    @staticmethod
-    def nonzero(x):
-        return NumpyTensor(np.nonzero(x._tensor)[1])
+    @classmethod
+    def nonzero(cls, x):
+        return cls.tensor_cls(np.nonzero(x._tensor)[1])
 
-    def gen_weights(self, size, weight_params):
+    def gen_weights(self, size, weight_params, dtype=None):
         weights = None
+        if 'dtype' in weight_params:
+            dtype = weight_params['dtype']
         if weight_params['type'] == 'uniform':
             low = 0.0
             high = 1.0
@@ -216,7 +607,7 @@ class Numpy(Backend):
                 high = weight_params['high']
             logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
                         (str(size), low, high))
-            weights = self.uniform(low, high, size)
+            weights = self.uniform(low, high, size, dtype)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
             loc = 0.0
@@ -227,7 +618,7 @@ class Numpy(Backend):
                 scale = weight_params['scale']
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
-            weights = self.normal(loc, scale, size)
+            weights = self.normal(loc, scale, size, dtype)
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
@@ -236,7 +627,7 @@ class Numpy(Backend):
             logger.info('generating %s node_normalized(%0.2f) weights.' %
                         (str(size), scale))
             node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size)
+            weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:
@@ -244,7 +635,6 @@ class Numpy(Backend):
             logger.info('separately initializing bias weights to %0.2f' %
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
-
         return weights
 
     def get_momentum_coef(self, epoch, momentum_params):
@@ -292,298 +682,66 @@ class Numpy(Backend):
         return coef
 
 
-class NumpyTensor(Tensor):
+class Numpy64(Numpy):
     """
-    Simple wrapped `numpy.ndarray` tensor
+    Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
+    64-bit element data types for any arrays constructed.
 
-    Arguments:
-        obj (numpy.ndarray): the actual data values.  Python built-in
-                             types like lists and tuples are also supported.
-        dtype (numpy.ndtype, optional): underlying data type of the elements.
-                                        If None will attempt to use float.
+    See also:
+        Numpy, Numpy64Tensor
     """
-    _tensor = None
+    default_dtype = np.float64
+    epsilon = np.finfo(np.float64).eps
+    tensor_cls = Numpy64Tensor
 
-    def __init__(self, obj, dtype=None):
-        if type(obj) != np.ndarray:
-            self._tensor = np.array(obj, dtype)
-        else:
-            self._tensor = obj
-        self.shape = self._tensor.shape
-
-    def __str__(self):
+    def uniform(self, low=0.0, high=1.0, size=1):
         """
-        Display a suitable representation of this Tensor.
-
-        Returns:
-            str: the representation.
-        """
-        return str(self._tensor)
-
-    def _clean(self, val):
-        """
-        Replaces any NumpyTensor indices with `numpy` arrays.
+        Uniform random number sample generation.
 
         Arguments:
-            val (int, array_like, NumpyTensor): the items to index by.
+            low (float, optional): Minimal sample value that can be returned.
+                                   Defaults to 0.0
+            high (float, optional): Maximal sample value.  Open ended range so
+                                    maximal value slightly less.  Defaults to
+                                    1.0
+            size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            int, array_like, NumpyTensor: Transformed val
+            Numpy64Tensor: Of specified size filled with these random
+                           numbers.
         """
-        if isinstance(val, tuple):
-            val = tuple(x._tensor if isinstance(x, NumpyTensor) else x
-                        for x in val)
-        if isinstance(val, NumpyTensor):
-            val = val._tensor
-        return val
+        return Numpy64Tensor(np.random.uniform(low, high, size))
 
-    def __getitem__(self, key):
-        return NumpyTensor(self._tensor[self._clean(key)])
-
-    def __setitem__(self, key, value):
-        self._tensor[self._clean(key)] = self._clean(value)
-
-    def __delitem__(self, key):
-        raise ValueError("cannot delete array elements")
-
-    def __float__(self):
-        return float(self._tensor)
-
-    def __neg__(self):
-        return NumpyTensor(- self._tensor)
-
-    def __lt__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor < other._tensor)
-        else:
-            return NumpyTensor(self._tensor < other)
-
-    def __le__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor <= other._tensor)
-        else:
-            return NumpyTensor(self._tensor <= other)
-
-    def __eq__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor == other._tensor)
-        else:
-            return NumpyTensor(self._tensor == other)
-
-    def __ne__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor != other._tensor)
-        else:
-            return NumpyTensor(self._tensor != other)
-
-    def __gt__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor > other._tensor)
-        else:
-            return NumpyTensor(self._tensor > other)
-
-    def __ge__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor >= other._tensor)
-        else:
-            return NumpyTensor(self._tensor >= other)
-
-    def __add__(self, other):
+    def normal(self, loc=0.0, scale=1.0, size=1):
         """
-        Perform element-wise addition with the items in other.
+        Gaussian/Normal random number sample generation
 
         Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
+            loc (float, optional): Where to center distribution.  Defaults
+                                   to 0.0
+            scale (float, optional): Standard deviaion.  Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
 
         Returns:
-            NumpyTensor: containing the element-wise sum values.
+            Numpy64Tensor: Of specified size filled with these random
+                         numbers.
         """
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor + other._tensor)
-        else:
-            return NumpyTensor(self._tensor + other)
+        return Numpy64Tensor(np.random.normal(loc, scale, size))
 
-    def __radd__(self, other):
-        """
-        Perform element-wise addition with the items in other.
+    def gen_weights(self, size, weight_params, dtype=None):
+        if dtype is None:
+            dtype=np.float64
+        return super(Numpy64, self).gen_weights(size, weight_params, dtype)
 
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
+    @staticmethod
+    def append_bias(x, dtype=np.float64):
+        return Numpy64Tensor(np.concatenate((x._tensor,
+                                            np.ones((x.shape[0], 1), dtype)),
+                                            axis=1), dtype)
 
-        Returns:
-            NumpyTensor: containing the element-wise sum values.
-        """
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor + self._tensor)
-        else:
-            return NumpyTensor(other + self._tensor)
-
-    def __iadd__(self, other):
-        """
-        Perform element-wise in-place addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
-
-        Returns:
-            NumpyTensor: containing the element-wise sum values.
-        """
-        if isinstance(other, NumpyTensor):
-            self._tensor += other._tensor
-        else:
-            self._tensor += other
-        return self
-
-    def __sub__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor - other._tensor)
-        else:
-            return NumpyTensor(self._tensor - other)
-
-    def __rsub__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor - self._tensor)
-        else:
-            return NumpyTensor(other - self._tensor)
-
-    def __isub__(self, other):
-        if isinstance(other, NumpyTensor):
-            self._tensor -= other._tensor
-        else:
-            self._tensor -= other
-        return self
-
-    def __mul__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor * other._tensor)
-        else:
-            return NumpyTensor(self._tensor * other)
-
-    def __rmul__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor * self._tensor)
-        else:
-            return NumpyTensor(other * self._tensor)
-
-    def __imul__(self, other):
-        if isinstance(other, NumpyTensor):
-            self._tensor *= other._tensor
-        else:
-            self._tensor *= other
-        return self
-
-    def __div__(self, other):
-        # python2 floor rounded division
-        return self.__truediv__(other)
-
-    def __truediv__(self, other):
-        # python3 fractional division
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor / other._tensor)
-        else:
-            return NumpyTensor(self._tensor / other)
-
-    def __rdiv__(self, other):
-        return self.__rtruediv__(other)
-
-    def __rtruediv__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor / self._tensor)
-        else:
-            return NumpyTensor(other / self._tensor)
-
-    def __idiv__(self, other):
-        if isinstance(other, NumpyTensor):
-            self._tensor /= other._tensor
-        else:
-            self._tensor /= other
-        return self
-
-    def __itruediv__(self, other):
-        if isinstance(other, NumpyTensor):
-            self._tensor /= other._tensor
-        else:
-            self._tensor /= other
-        return self
-
-    def __pow__(self, other, modulo=None):
-        # TODO: determine how ternary modulo needs to be handled
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(self._tensor ** other._tensor)
-        else:
-            return NumpyTensor(self._tensor ** other)
-
-    def __rpow__(self, other):
-        if isinstance(other, NumpyTensor):
-            return NumpyTensor(other._tensor ** self._tensor)
-        else:
-            return NumpyTensor(other ** self._tensor)
-
-    def __ipow__(self, other):
-        if isinstance(other, NumpyTensor):
-            self._tensor **= other._tensor
-        else:
-            self._tensor **= other
-        return self
-
-    def copy(self):
-        return NumpyTensor(np.copy(self._tensor))
-
-    def raw(self):
-        return self._tensor
-
-    def T(self):  # flake8: noqa
-        return NumpyTensor(self._tensor.T)
-
-    def transpose(self):
-        return NumpyTensor(self._tensor.T)
-
-    def reshape(self, shape):
-        # TODO: Some layer code (ex. PoolingLayer) currently depends
-        # on squish/reshape always returning a view of the existing
-        # data, but numpy.reshape does not guarantee this.  We should remove
-        # reliance on this dependency.
-        return NumpyTensor(self._tensor.reshape(shape))
-
-    def argmax(self, axis):
-        return NumpyTensor(self._tensor.argmax(axis))
-
-    def take(self, indices, axis=None):
-        if type(indices) == NumpyTensor:
-            indices = indices._tensor
-        return NumpyTensor(self._tensor.take(indices, axis))
-
-    def add(self, obj):
-        self._tensor += obj._tensor
-
-    def sub(self, obj):
-        self._tensor -= obj._tensor
-
-    def norm(self, axis):
-        return NumpyTensor(np.sqrt((self._tensor * self._tensor).sum(axis)))
-
-    def repeat(self, repeats, axis):
-        return NumpyTensor(self._tensor.repeat(repeats, axis))
-
-    def log(self):
-        return NumpyTensor(np.log(self._tensor))
-
-    def exp(self):
-        return NumpyTensor(np.exp(self._tensor))
-
-    def mean(self, axis=None, dtype=None, out=None):
-        res = np.mean(self._tensor, axis, dtype, out)
-        if axis is None:
-            return res
-        else:
-            return NumpyTensor(res)
-
-    def sum(self, axis=None, dtype=None, out=None):
-        res = np.sum(self._tensor, axis, dtype, out)
-        if axis is None:
-            return res
-        else:
-            return NumpyTensor(res)
+    @staticmethod
+    def clip(a, a_min, a_max, out=None):
+        if out is None:
+            out = Numpy64Tensor(np.empty_like(a._tensor))
+        np.clip(a._tensor, a_min, a_max, out._tensor)
+        return out
