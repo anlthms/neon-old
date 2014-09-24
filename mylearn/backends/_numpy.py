@@ -182,6 +182,15 @@ class Numpy(Backend):
         return NumpyTensor(res)
 
     @staticmethod
+    def square(x, out):
+        np.multiply(x._tensor, x._tensor, out._tensor)
+
+    @staticmethod
+    def cube(x, out):
+        np.multiply(x._tensor, x._tensor, out._tensor)
+        np.multiply(out._tensor, x._tensor, out._tensor)
+
+    @staticmethod
     def squish(obj, n):
         """ reshape a tensor by increasing the first dimensions by factor n, and
         shrinking the the second dimension by factor n."""
