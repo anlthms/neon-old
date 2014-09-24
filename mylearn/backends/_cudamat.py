@@ -34,7 +34,6 @@ class CudamatTensor(Tensor):
         else:
             if type(obj) == list:
                 obj = numpy.array(obj)
-
             if type(obj) == numpy.ndarray:
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
                 # (though the elements can be tuples/lists to create arbitrary
@@ -50,6 +49,7 @@ class CudamatTensor(Tensor):
                 self.shape = self._tensor.shape
             else:
                 self._tensor = obj
+        self.dtype = dtype
 
     def __str__(self):
         """
