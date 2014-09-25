@@ -1,5 +1,6 @@
 *.pyc
 *.pkl
+*.so
 .DS_Store
 .tox
 mylearn.egg-info

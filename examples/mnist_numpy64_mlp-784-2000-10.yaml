@@ -2,7 +2,7 @@
 # MNIST.  Parameters are optimized for performance.
 
 !obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends._numpy.Numpy {
+  backend: &be !obj:mylearn.backends._numpy.Numpy64 {
     rng_seed: 0,
     # set which numpy issues raise exceptions, warnings, etc.
     # see: numpy.seterr()
@@ -17,7 +17,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
+      serialized_path: '/usr/local/data/MNIST/mnist-Numpy64.pkl',
     },
   ],
   
@@ -35,7 +35,7 @@
       saturated_coef: 0.90,
     },
     cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-simple.pkl',
+    serialized_path: './mlp64-simple.pkl',
     layers: [
       !obj:mylearn.models.layer.Layer {
         name: h0,
@@ -79,7 +79,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

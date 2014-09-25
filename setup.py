@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
+import numpy as np
 import os
-from setuptools import setup
+from setuptools import setup, Extension
 import subprocess
 
 
 # Define version information
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 FULLVERSION = VERSION
 write_version = True
 
@@ -28,6 +29,22 @@ if write_version:
         a.write(txt % ("Project version information.", FULLVERSION, VERSION))
     finally:
         a.close()
+
+use_cython = True
+suffix = "pyx"
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    use_cython = False
+    suffix = "c"
+extensions = [Extension('mylearn.backends.fixpt_dtype',
+                        sources=['mylearn/backends/fixpt_dtype.c'],
+                        include_dirs=[np.get_include()]),
+              Extension('mylearn.backends.fixpt_cython',
+                        ['mylearn/backends/fixpt_cython.' + suffix],
+                        include_dirs=[np.get_include()])]
+if use_cython:
+    extensions = cythonize(extensions)
 
 setup(name='mylearn',
       version=VERSION,
@@ -51,4 +68,5 @@ setup(name='mylearn',
                 'mylearn.models.tests',
                 'mylearn.transforms.tests',
                 'mylearn.util.tests', ],
-      scripts=['bin/mylearn'], )
+      scripts=['bin/mylearn'],
+      ext_modules=extensions)

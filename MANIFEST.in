@@ -12,3 +12,7 @@ global-exclude .DS_Store
 global-exclude *.so
 global-exclude *.pyd
 global-exclude *.pyc
+
+# remove Arjun's in-progress distributed stuff for now
+global-exclude *dist*
+prune mylearn/util/distarray

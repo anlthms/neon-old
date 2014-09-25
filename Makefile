@@ -5,6 +5,8 @@ DOC_PUB_HOST=192.168.20.2
 DOC_PUB_USER=mylearn
 DOC_PUB_PATH=/home/mylearn/public/
 
+NOSE_FLAGS=""  # --pdb --pdb-failures
+
 # check if a cuda capable GPU is installed
 NO_CUDA_GPU=1
 # NO_CUDA_GPU set to 0 will enable GPU based backend tests, which we attempt to
@@ -37,10 +39,10 @@ uninstall:
 
 test: build
 ifeq ($(NO_CUDA_GPU),0)
-	nosetests -a '!slow' mylearn
+	nosetests -a '!slow' $(NOSE_FLAGS) mylearn
 else
-	echo "No CUDA compatible GPU found, disabling GPU tests"
-	nosetests -a '!slow','!cuda' mylearn
+	@echo "No CUDA compatible GPU found, disabling GPU tests"
+	nosetests -a '!slow','!cuda' $(NOSE_FLAGS) mylearn
 endif
 
 test_all: build
@@ -51,6 +53,8 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
+	-rm -f mylearn/backends/fixpt_dtype.so
+	-rm -f mylearn/backends/fixpt_cython.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

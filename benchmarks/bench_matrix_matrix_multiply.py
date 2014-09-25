@@ -48,6 +48,7 @@ if __name__ == '__main__':
     number = 100
     repeat = 3
     test_backends = [('mylearn.backends._numpy', 'Numpy'),
+                     ('mylearn.backends._numpy', 'Numpy64'),
                      #  ('mylearn.backends.fixedpoint', 'FixedPoint')]
                      ]
     if CUDA_GPU:
