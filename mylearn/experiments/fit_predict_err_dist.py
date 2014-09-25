@@ -34,9 +34,9 @@ class FitPredictErrorExperiment(FitExperiment):
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
 
-        #todo: only unsupervised pretraining is supported for now (1 stack)
+        # TODO: only unsupervised pretraining is supported for now (1 stack)
         # generate predictions
-        #predictions = self.model.predict(self.datasets)
+        # predictions = self.model.predict(self.datasets)
 
         # report errors
-        #self.model.error_metrics(self.datasets, predictions)
+        # self.model.error_metrics(self.datasets, predictions)

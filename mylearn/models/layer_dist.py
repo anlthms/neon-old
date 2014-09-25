@@ -244,7 +244,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
             error, inputs_dist[layer_id + 1].local_array.chunk,
             epoch, momentum)
 
-        #halo exchanges for the L2 pooling layer
+        # halo exchanges for the L2 pooling layer
         inputs_dist[
             layer_id + 1].local_array.defiltering_chunk = self.pooling.berror
         inputs_dist[

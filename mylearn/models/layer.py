@@ -1116,9 +1116,9 @@ class LCNLayer(YAMLable):
     def copy_from_inset(self, canvas, start_row, start_col):
         if self.dist_flag:
             return NotImplementedError
-            #return canvas[:, :,
-            #              self.start_row:(start_row + inset.shape[2]),
-            #              self.start_col:(start_col + inset.shape[3])]
+            # return canvas[:, :,
+            #               self.start_row:(start_row + inset.shape[2]),
+            #               self.start_col:(start_col + inset.shape[3])]
         else:
             return canvas[:, :,
                           self.start_row:(canvas.shape[2] - start_row),
