@@ -1,0 +1,327 @@
+# Changelog
+
+## (unreleased)
+
+
+## v0.3.0 (2014-09-25)
+
+### Modifications
+
+* v0.3.0 release bump. [Scott Leishman]
+
+* Added academic use license terms. [Scott Leishman]
+
+    Also removed distributed work in progress from being included in
+    release tarball.
+
+* Merge branch 'fixpt_backend' into 'master' [Anil Thomas]
+
+    Fixpt backend  Many changes implementing end-to-end fixed point
+    training (configurable on a per tensor basis). * Added Numpy64
+    backend, ensure Numpy backend remains 32-bit throughout. * Improved
+    numerical stability of cross entropy cost * Easier ability to profile,
+    and debug code from application (-p and -d switches)  Currently seeing
+    non-convergence in FixedPoint MLP (still investigating, but want to
+    get other changes in without further delay) and issues running RBM and
+    Google Brain example networks.  See merge request !30
+
+* Merge branch 'google_brain' into 'master' [Scott Leishman]
+
+    Google brain  Fix for LCN backprop.  See merge request !29
+
+* Merge branch 'google_brain' into 'master' [Scott Leishman]
+
+    Google brain  See merge request !28
+
+* Ensure OSX build environment has path to CUDA libs. [Scott Leishman]
+
+* Merge branch 'cuda_compatability' into 'master' [Scott Leishman]
+
+    Cuda compatability.  Fixes MYL-50  Added new CUDA_GPU variable that
+    can be used to safely test for presence of CUDA prior to importing
+    cuda specific stuff.  Fixed RBM testing, other minor style related
+    updates.  See merge request !27
+
+* Merge branch 'gb_minor_fix' into 'master' [Anil Thomas]
+
+    Gb minor updates  * Ensure we can save/generate plots if dirs don't
+    yet exist * use platform independent paths * fix minor bug with
+    undefined nrecs variable * style conformance, remove some un-needed
+    items, other refactoring.  See merge request !26
+
+* Merge branch 'google_brain' into 'master' [Scott Leishman]
+
+    Google brain  Merge from google_brain. Support for sparsity in the
+    objective function for unsupervised training. Also integrated CIFAR-10
+    dataset.  See merge request !25
+
+* Merge branch 'google_brain' into 'master' [Scott Leishman]
+
+    Google brain  Support for unsupervised pretraining. Also, update from
+    master...  See merge request !24
+
+* Cleanup unnecessary factory code. [Scott Leishman]
+
+* Converted Google Brain autoencoder to new YAML object format. [Scott Leishman]
+
+* Merge branch 'experiments_yaml_etc' [Scott Leishman]
+
+    Conflicts:         mylearn/models/dbn.py         mylearn/models/rbm.py
+    Resolved conflicts, ensure all tests pass, style is ok, re-ran all
+    experiments. * See significant cudamat performance degradation in dot
+    product (to investigate). * DBN doesn't fully complete training (to
+    investigate). * Google Brain model needs to be updated to conform to
+    new YAML python objects.
+
+* Merge branch 'google_brain' into 'master' [Scott Leishman]
+
+    Google brain  Submitting merge request so that the changes to SSE cost
+    function gets integrated into master...  See merge request !22
+
+* Merge branch 'google_brain' into 'master' [Anil Thomas]
+
+    Google brain  See merge request !21
+
+* Merge branch 'perf_enhancements' into 'master' [Anil Thomas]
+
+    Perf enhancements  See merge request !20
+
+* Merge branch 'perf_enhancements' into 'master' [Anil Thomas]
+
+    Perf enhancements  See merge request !19
+
+* Merge branch 'rbm_ready_to_master' into 'master' [Scott Leishman]
+
+    Rbm ready to master  merged rbm with master locally and fixed all the
+    conflicts, so this should now be ready to go into master. Also made
+    sure that Anil's autoencoder still works.  Somebody should check that
+    Anil's chances to the cudamat backend have been preserved, as this has
+    been automerged and I didn't know what exactly to check to make sure
+    it's ok.  See merge request !17
+
+* Merge branch 'fixpt_backend' into 'master' [Scott Leishman]
+
+    Miscellaneous doc and style updates  Added a brief developer guide,
+    restored style compliance, added more documentation, and so forth.
+    Ignore the branch name (this has nothing to do with fixpt).  Still
+    working on MYL-37 but it's a bigger change than anticipated.  See
+    merge request !16
+
+* Merge branch 'small_fixes' into 'master' [Scott Leishman]
+
+    Misc. small fixes. (MYL-32, MYL-33)  Correct a few minor issues.  See
+    merge request !15
+
+* Merge branch 'google_brain' into 'master' [Anil Thomas]
+
+    Google brain  Hi Scott,  This merge mainly involves support for
+    stride. There's also average pooling and LCN, but they are by and
+    large independent. I have already updated the branch with changes from
+    master, so the merge should be easy.  Thanks, Anil  See merge request
+    !14
+
+
+## v0.2.0 (2014-08-10)
+
+### Modifications
+
+* Version 0.2.0 bump. [Scott Leishman]
+
+* Merge branch 'serialization' [Scott Leishman]
+
+    Conflicts:         mylearn/backends/_numpy.py  Resolved merge
+    conflicts, ran all tests and examples.  Things appear to be ok!
+
+* Local filtering and l2 pooling. [Anil Thomas]
+
+*  Merge branch 'cudamat_ops' into 'master' [Scott Leishman]
+
+    in-place operators, missing functionality added  Implemented several
+    new in-place arithmetic operators for both backends as well as cleaned
+    up some missing implementations (particularly in cudamat backend).
+    Found and fixed a couple of issues in layer and model code too.  No
+    speed improvements in this release.
+
+*  Merge branch 'cudamat_ops' into 'master' [Scott Leishman]
+
+    Cudamat Ops  Completed removal of get and set related functions that
+    broke the numpy interface specification.  Updated all models to use
+    numpy standard indexing and slicing syntax.  Implemented small
+    benchmark test suite with a handful of benchmarks to examine timing
+    performance of indexing and matrix multiplication.
+
+*  Merge branch 'convolutional_neural_networks' into 'master' [Anil Thomas]
+
+    Convolutional Neural Networks  Added code for convolutional and max-
+    pooling layers (works only with numpy backend). The cudamat backend
+    can now support bias inputs, momentum, relu etc.
+
+*  Merge branch 'audit_existing_code' into 'master' [Scott Leishman]
+
+    Audit Existing Code  Documentation now auto-generated from source code
+    comments.  Added pylint checking too.
+
+*  Merge branch 'audit_existing_code' into 'master' [Scott Leishman]
+
+    Audit Existing Code  Integrated flake8 pre-commit hook, audited code
+    top-to-bottom to ensure style compliance.
+
+*  Merge branch 'remove_ref' into 'master' [Scott Leishman]
+
+    Remove Ref  remove old reference implementation code which has been
+    spun out into a separate project:
+    http://192.168.20.2/algorithms/reference_implementations
+
+
+## v0.1.0 (2014-07-21)
+
+### Modifications
+
+*  Merge branch 'reorg_dev' into 'master' [Scott Leishman]
+
+    create final 0.1.0 release  bump version to signal release.
+
+*  Merge branch 'reorg_dev' into 'master' [Scott Leishman]
+
+    Port backend and layer code from fp_v_fp.  See issue #12  Several
+    commits used to transfer code and get simple MLP and autoencoder
+    examples running.  Code still needs to be audited, documented, and
+    tested.
+
+*  Merge branch 'reorg_dev' into 'master' [Scott Leishman]
+
+    Gitlab continuous integration and test harness setup  Utilizing nose
+    for tests, and [tox](http://tox.readthedocs.org/en/latest/) to ensure
+    we can test against multiple python versions.  Currently building
+    against python2.7 and python3.4
+
+* Merge branch 'master' of 192.168.20.2:algorithms/mylearn. [Anil Thomas]
+
+* Fixed bug in how the column indices of the receptive fields were determined. [Anil Thomas]
+
+*  Merge branch 'reorg_dev' into 'master' [Scott Leishman]
+
+    Python package code layout  Moved files around to follow typical
+    python package structure.  Created basic setup.py, other cleanup.
+
+* Caffe configuration files to reproduce the results of CNN6. [Anil Thomas]
+
+* Fixed bug with maxpooling, where the indices corresponding to a pooling region were set incorrectly. [Anil Thomas]
+
+* Sum (instead of averaging) the weight updates on a convolutional layer to match with Caffe. [Anil Thomas]
+
+* Merge branch 'master' of 192.168.20.2:algorithms/mylearn. [Anil Thomas]
+
+* Changes to match with Caffe LeNet implementation. [Anil Thomas]
+
+* Added command line switch to sample/not sample. [Anil Thomas]
+
+* Added momentum to MLP. [Scott Leishman]
+
+    Made some other minor code cleanups.
+
+* Some cleanup. [Anil Thomas]
+
+* Added support for stackable conv layers. [Anil Thomas]
+
+* Maxpooling layer. [Anil Thomas]
+
+* Minibatch training. [Anil Thomas]
+
+* Bugfix. Update the second filter correctly. [Anil Thomas]
+
+* Minibatch training. [Anil Thomas]
+
+* Added softmax and pseudo logistic activations. [Anil Thomas]
+
+* Some cleanup. [Anil Thomas]
+
+* Initialize biases to zero. [Anil Thomas]
+
+* Updated mlp7. [Anil Thomas]
+
+* Added bias inputs. [Anil Thomas]
+
+* Refactored the code. [Anil Thomas]
+
+* Edited comments. [Anil Thomas]
+
+* Enhancements to make convolutions faster. [Anil Thomas]
+
+* Got rid of unnecessary transposes. [Anil Thomas]
+
+* RBM on Theano. [Anil Thomas]
+
+* Moved common code to separate file. [Anil Thomas]
+
+* Refactored the code. [Anil Thomas]
+
+* Replaced logistic with tanh. [Anil Thomas]
+
+* Updated autoencoder. [Anil Thomas]
+
+* Autoencoder. [Anil Thomas]
+
+* CNN version 1. [Anil Thomas]
+
+* Added hyperlink in readme. [Anil Thomas]
+
+* Added hyperlink in readme. [Anil Thomas]
+
+* Updated version 4. [Anil Thomas]
+
+* MLP version 4. [Anil Thomas]
+
+* Updated MLP version 3. [Anil Thomas]
+
+* MLP version 3. [Anil Thomas]
+
+* Updated MLP version 2. [Anil Thomas]
+
+* MLP version 2. The activation and cost functions can be configured now. [Anil Thomas]
+
+* Multilayer Perceptron with numpy - mlp1. [Anil Thomas]
+
+* some modifications to mimic Hinton, Science, 2006 results and Hinton 2012 (dropout) results. [Arjun Bansal]
+
+* got NReLu DBN rate to 3.09% [Arjun Bansal]
+
+* mnist 1.1% [Arjun Bansal]
+
+* updated readme. [Arjun Bansal]
+
+* Updated README with CNN info. [Arjun Bansal]
+
+* MNIST CNN perf around 1.1% [Arjun Bansal]
+
+* for mac want /usr/bin/python. [Arjun Bansal]
+
+* adding tmproj file for MNIST. [Arjun Bansal]
+
+* cleaning up pyc file. [Arjun Bansal]
+
+* MNIST on cuda-convnet. [Arjun Bansal]
+
+* adding cuda-convnet src files. [Arjun Bansal]
+
+* adding directories for CNN and DAE implementations. [Arjun Bansal]
+
+* 1.09% cross entropy reflected in README. [Arjun Bansal]
+
+* Merge branch 'master' of 192.168.20.2:algorithms/mylearn. [Arjun Bansal]
+
+* added cross entropy term to NN to improve MNIST to 1.09% error rate and fixed bugs in numpy/gnumpy version of code in negsampling. [Arjun Bansal]
+
+* added neural network class that can independently achieve 1.39% on MNIST, and can also initialize using pretrained RBM. [Arjun Bansal]
+
+* MNIST DBN code that can achieve around 2.5% error rate. [Arjun Bansal]
+
+* added rbm_cudamat class. [Arjun Bansal]
+
+* added rbm_cudamat class. [Arjun Bansal]
+
+* adding textmate project file. [Arjun Bansal]
+
+* DBN for MNIST, numpy and gnumpy based. [Arjun Bansal]
+
+

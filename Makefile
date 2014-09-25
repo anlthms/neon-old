@@ -21,7 +21,7 @@ endif
 
 
 .PHONY: default build develop install uninstall test test_all clean_pyc clean \
-	      doc html style lint bench dist publish_doc
+	      doc html style lint bench dist publish_doc release
 
 default: build
 
@@ -81,3 +81,6 @@ dist:
 publish_doc: doc
 	-cd $(DOC_DIR)/build/html && \
 		rsync -avz -essh . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)
+
+release: publish_doc
+	gitchangelog > ChangeLog
