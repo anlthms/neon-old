@@ -8,6 +8,7 @@ import logging
 from mylearn.util.distarray.local_array import LocalArray
 from mylearn.util.persist import YAMLable
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +34,7 @@ class LocalLayerDist(YAMLable):
         self.nin = self.nifm * self.ifmsize
 
         if self.pos > 0:
-            self.berror = self.backend.zeros((self.batch_size, self.nin), 
+            self.berror = self.backend.zeros((self.batch_size, self.nin),
                                              dtype=self.dtype)
 
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
@@ -92,7 +93,7 @@ class LocalLayerDist(YAMLable):
         # self.ifmsize = self.ifmheight * self.ifmwidth
         # self.ofmsize = self.ofmheight * self.ofmwidth
         # self.nin = nifm * self.ifmsize
-        #if pos > 0:
+        # if pos > 0:
         #    self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
 
         self.nifm = nifm
@@ -102,10 +103,6 @@ class LocalLayerDist(YAMLable):
 
     def normalize_weights(self, weights):
         norms = weights.norm(axis=1)
-        # if np.any(np.isnan(norms.raw())):
-        #    print "encountered nan"
-        # if np.any(norms.raw()==0):
-        #    print "encountered zeros in norms"
         self.backend.divide(weights,
                             norms.reshape((norms.shape[0], 1)),
                             out=weights)
@@ -129,11 +126,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
             (self.batch_size, self.nout), dtype=dtype)
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
                                                 self.weight_init, dtype=dtype)
-        # print 'self.weights pre', np.mean(self.weights.raw()),
-        # np.amax(self.weights.raw()), np.amin(self.weights.raw())
         self.normalize_weights(self.weights)
-        # print 'self.weights post', np.mean(self.weights.raw()),
-        # np.amax(self.weights.raw()), np.amin(self.weights.raw())
         self.updates = self.backend.zeros(self.weights.shape, dtype=dtype)
         self.prodbuf = self.backend.zeros(
             (self.batch_size, self.nofm), dtype=dtype)
@@ -175,33 +168,35 @@ class LocalFilteringLayerDist(LocalLayerDist):
     def train_mode(self):
         self.learning_rate = self.train_learning_rate
 
-    def pretrain(self, inputs_dist, cost, epoch, momentum):
+    def pretrain(self, inputs_dist, layer_id, cost, epoch, momentum):
         # Forward propagate the input through this layer and a
         # defiltering layer to reconstruct the input.
-        inputs = inputs_dist.local_array.chunk
+        inputs = inputs_dist[layer_id].local_array.chunk
         self.fprop(inputs)
 
         # todo: next 4 lines can be pre-initialized
         # for defiltering layer
         autoencoder = LocalArray(
             batch_size=self.batch_size,
-            global_row_index=inputs_dist.local_array.global_row_index,
-            global_col_index=inputs_dist.local_array.global_col_index,
-            height=inputs_dist.local_array.height,
-            width=inputs_dist.local_array.width,
-            act_channels=inputs_dist.local_array.act_channels,
-            top_left_row=inputs_dist.local_array.top_left_row,
-            top_left_col=inputs_dist.local_array.top_left_col,
-            border_id=inputs_dist.local_array.border_id,
-            halo_size_row=inputs_dist.local_array.halo_size_row,
-            halo_size_col=inputs_dist.local_array.halo_size_col,
-            comm_per_dim=inputs_dist.local_array.comm_per_dim,
+            global_row_index=inputs_dist[
+                layer_id].local_array.global_row_index,
+            global_col_index=inputs_dist[
+                layer_id].local_array.global_col_index,
+            height=inputs_dist[layer_id].local_array.height,
+            width=inputs_dist[layer_id].local_array.width,
+            act_channels=inputs_dist[layer_id].local_array.act_channels,
+            top_left_row=inputs_dist[layer_id].local_array.top_left_row,
+            top_left_col=inputs_dist[layer_id].local_array.top_left_col,
+            border_id=inputs_dist[layer_id].local_array.border_id,
+            halo_size_row=inputs_dist[layer_id].local_array.halo_size_row,
+            halo_size_col=inputs_dist[layer_id].local_array.halo_size_col,
+            comm_per_dim=inputs_dist[layer_id].local_array.comm_per_dim,
             backend=self.backend)
         # reuse halo info from filtering layer
-        autoencoder.send_halos = inputs_dist.local_array.send_halos
-        autoencoder.recv_halos = inputs_dist.local_array.recv_halos
+        autoencoder.send_halos = inputs_dist[layer_id].local_array.send_halos
+        autoencoder.recv_halos = inputs_dist[layer_id].local_array.recv_halos
         autoencoder.local_image_indices = (
-            inputs_dist.local_array.local_image_indices)
+            inputs_dist[layer_id].local_array.local_image_indices)
 
         self.defilter.fprop(self.output)
 
@@ -213,7 +208,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
         autoencoder.send_recv_defiltering_layer_halos()
         autoencoder.make_defiltering_layer_consistent()
 
-        # communicate the halos for the reconstructed image patches
+        # communicate the halos for the reconstructed image patches for bprop
         autoencoder.local_image = autoencoder.defiltering_local_image
         # autoencoder.chunk = autoencoder.defiltering_chunk #initialize
         autoencoder.send_recv_halos()
@@ -222,7 +217,13 @@ class LocalFilteringLayerDist(LocalLayerDist):
         # Forward propagate the output of this layer through a
         # pooling layer. The output of the pooling layer is used
         # to optimize sparsity.
-        self.pooling.fprop(self.output)
+        # MPI: set mini-batch to local_image
+        inputs_dist[layer_id + 1].local_array.local_image = self.output
+        # perform halo exchanges
+        inputs_dist[layer_id + 1].local_array.send_recv_halos()
+        # make consistent chunk
+        inputs_dist[layer_id + 1].local_array.make_local_chunk_consistent()
+        self.pooling.fprop(inputs_dist[layer_id + 1].local_array.chunk)
 
         # Backward propagate the gradient of the reconstruction error
         # through the defiltering layer.
@@ -234,19 +235,33 @@ class LocalFilteringLayerDist(LocalLayerDist):
                             out=error)
 
         self.defilter.bprop(error, self.output, epoch, momentum)
+
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[0]) *
                  (self.backend.ones(self.pooling.output.shape)))
-        self.pooling.bprop(error, self.output, epoch, momentum)
+        self.pooling.bprop(
+            error, inputs_dist[layer_id + 1].local_array.chunk,
+            epoch, momentum)
+
+        #halo exchanges for the L2 pooling layer
+        inputs_dist[
+            layer_id + 1].local_array.defiltering_chunk = self.pooling.berror
+        inputs_dist[
+            layer_id + 1].local_array.send_recv_defiltering_layer_halos()
+        inputs_dist[
+            layer_id + 1].local_array.make_defiltering_layer_consistent()
+
         # Aggregate the errors from both layers before back propagating
         # through the current layer.
-        berror = self.defilter.berror + self.pooling.berror
+        berror = self.defilter.berror + (
+            inputs_dist[layer_id + 1].local_array.defiltering_local_image)
         self.bprop(berror, inputs, epoch, momentum)
 
         rcost = cost.apply_function(self.backend,
                                     autoencoder.defiltering_local_image,
-                                    inputs_dist.local_array.local_image,
+                                    inputs_dist[
+                                        layer_id].local_array.local_image,
                                     self.defilter.temp1)
         spcost = self.sparsity * self.pooling.output.sum()
         return rcost, spcost
@@ -343,7 +358,6 @@ class LocalDeFilteringLayerDist(object):
 
     def fprop(self, inputs):
         self.backend.clear(self.output)
-        # print MPI.COMM_WORLD.rank, self.prev.ofmsize
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:

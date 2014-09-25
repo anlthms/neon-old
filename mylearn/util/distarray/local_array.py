@@ -137,8 +137,9 @@ class LocalArray(object):
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
 
-            if dbg:
-                print comm.rank, k, self.local_image.raw().shape, self.send_halos[k].halo_indices
+            # if dbg:
+            # print comm.rank, k, self.local_image.raw().shape,
+            # self.send_halos[k].halo_indices
             comm.Sendrecv(sendbuf=self.local_image.take(
                 self.send_halos[k].halo_indices, axis=1).raw(),
                 dest=neighbor_comm_index, sendtag=0,
@@ -455,11 +456,13 @@ class LocalArray(object):
                               col_offset))
 
                 # src sends their NW edge
-                offset_in_channel = c * nlocal2d_size
+                offset_in_channel = c * slocal2d_size
                 for r in range(n_hsr):
                     col_offset = offset_in_channel + r * sw
                     sendhalo_indices.extend(range(col_offset,
                                                   col_offset + n_hsc))
+                    # print MPI.COMM_WORLD.rank, 'NW halos:', slocal2d_size, r,
+                    # sw, n_hsc, col_offset,sendhalo_indices
 
         # neighbor_direction is the direction of the target w.r.t src
         self.recv_halos[neighbor_direction] = RecvHalo(neighbor_array_index,

@@ -11,6 +11,7 @@ from mylearn.models.mlp import MLP
 from mylearn.util.persist import ensure_dirs_exist
 from mylearn.util.distarray.global_array import GlobalArray
 from mpi4py import MPI
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -48,89 +49,106 @@ class GBDist(MLP):
             self.train(inputs, targets)
 
     def pretrain(self, inputs):
+        start_time = time.time()
         logger.info('commencing unsupervised pretraining')
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
-        ccomm = None #for supervised this will be a global or returned value
+        ccomm = None  # for supervised this will be a global or returned value
         inputs_dist = dict()
         for ind in range(len(self.trainable_layers)):
-            print 'ind =', ind, 'indmax=', range(len(self.trainable_layers)), \
-                'self.trainable_layers[ind]', self.trainable_layers[ind]
             layer = self.layers[self.trainable_layers[ind]]
             # MPI: initialize the distributed global array
             # this call assumes that filters are square
-            if ind==0:
+            if ind == 0:
                 create_comm = True
                 act_size_height = layer.ifmshape[0]
                 act_size_width = layer.ifmshape[1]
             else:
                 create_comm = False
-                #assuming LCN layer doesn't reduce size of image
-                act_size_height = self.layers[self.trainable_layers[ind]-1].ifmheight
-                act_size_width = self.layers[self.trainable_layers[ind]-1].ifmwidth
+                # assuming LCN layer doesn't reduce size of image
+                act_size_height = inputs_dist[
+                    self.trainable_layers[ind] - 1].local_array.height
+                act_size_width = inputs_dist[
+                    self.trainable_layers[ind] - 1].local_array.width
 
             inputs_dist[self.trainable_layers[ind]] = \
-                                       GlobalArray(batch_size=self.batch_size,
-                                       act_size_height=layer.ifmshape[0],
-                                       act_size_width=layer.ifmshape[1],
-                                       act_channels=layer.nifm,
-                                       filter_size=layer.fwidth,
-                                       backend=self.backend,
-                                       create_comm=create_comm,
-                                       ccomm=ccomm,
-                                       h=act_size_height,
-                                       w=act_size_width)
+                GlobalArray(batch_size=self.batch_size,
+                            act_size_height=layer.ifmshape[0],
+                            act_size_width=layer.ifmshape[1],
+                            act_channels=layer.nifm,
+                            filter_size=layer.fwidth,
+                            backend=self.backend,
+                            create_comm=create_comm,
+                            ccomm=ccomm,
+                            h=act_size_height,
+                            w=act_size_width)
             if create_comm:
-                ccomm = inputs_dist[ind].ccomm
+                ccomm = inputs_dist[self.trainable_layers[ind]].ccomm
                 create_comm = False
-            
+
             # update params to account for halos
-            layer.adjust_for_halos(
-                [inputs_dist[ind].local_array.height_with_halos,
-                    inputs_dist[ind].local_array.width_with_halos])
-            print 'Original', act_size_height, act_size_width, ': Adjusting for halos: layer ', ind, '; comm: ', \
-                MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
-        
+            layer.adjust_for_halos([inputs_dist[
+                self.trainable_layers[ind]].local_array.height_with_halos,
+                inputs_dist[self.trainable_layers[
+                    ind]].local_array.width_with_halos])
+            # print 'Original', act_size_height, act_size_width, \
+            # ': Adjusting for halos: layer ', ind, '; comm: ', \
+            # MPI.COMM_WORLD.rank, ' to be of size ', layer.ifmshape
+
             pooling = self.layers[self.trainable_layers[ind] + 1]
-            
-            #todo: will be a function of prev layer rather than input
+
+            # todo: will be a function of prev layer rather than input
             # assumes stride of 1 for pooling layer
-            pooling.adjust_for_dist(
-                [layer.ifmshape[0] - layer.fheight + 1,
-                    layer.ifmshape[1] - layer.fwidth + 1])
+            inputs_dist[self.trainable_layers[ind] + 1] = \
+                GlobalArray(batch_size=self.batch_size,
+                            act_size_height=pooling.ifmheight,
+                            act_size_width=pooling.ifmwidth,
+                            act_channels=pooling.nfm,
+                            filter_size=pooling.pwidth,
+                            backend=self.backend,
+                            create_comm=create_comm,
+                            ccomm=ccomm,
+                            h=layer.ifmshape[0] - layer.fheight + 1,
+                            w=layer.ifmshape[1] - layer.fwidth + 1)
+            pooling.adjust_for_dist([inputs_dist[
+                self.trainable_layers[ind] + 1].local_array.height_with_halos,
+                inputs_dist[self.trainable_layers[
+                    ind] + 1].local_array.width_with_halos])
             layer.pretrain_mode(pooling)
-            inputs_dist[self.trainable_layers[ind]+1] = \
-                                       GlobalArray(batch_size=self.batch_size,
-                                       act_size_height=pooling.ifmheight,
-                                       act_size_width=pooling.ifmwidth,
-                                       act_channels=pooling.nfm,
-                                       filter_size=pooling.pwidth,
-                                       backend=self.backend,
-                                       create_comm=create_comm,
-                                       ccomm=ccomm,
-                                       h=layer.ifmshape[0] - layer.fheight + 1,
-                                       w=layer.ifmshape[1] - layer.fwidth + 1)
-            print MPI.COMM_WORLD.rank, ind, "pooling layer dims: ", pooling.ifmheight, pooling.ifmwidth
+            # print 'original: ',layer.ifmshape[0] - layer.fheight + 1, \
+            # layer.ifmshape[1] - layer.fwidth + 1, \
+            #  MPI.COMM_WORLD.rank, ind, "pooling layer dims with halos: ", \
+            #  pooling.ifmheight, pooling.ifmwidth
+
             # temp1 stores a temp buffer without the chunk
             layer.defilter.temp1 = [self.backend.zeros(
-                (self.batch_size,
-                    inputs_dist[ind].local_array.local_array_size))]
+                (self.batch_size, inputs_dist[
+                    self.trainable_layers[ind]].local_array.local_array_size))]
 
             lcn = self.layers[self.trainable_layers[ind] + 2]
-            lcn.adjust_for_dist(
-                [pooling.ifmheight - pooling.pheight + 1,
-                    pooling.ifmwidth - pooling.pwidth + 1])
-            inputs_dist[self.trainable_layers[ind]+2] = \
-                                       GlobalArray(batch_size=self.batch_size,
-                                       act_size_height=lcn.ifmheight,
-                                       act_size_width=lcn.ifmwidth,
-                                       act_channels=lcn.nfm,
-                                       filter_size=lcn.fwidth,
-                                       backend=self.backend,
-                                       create_comm=create_comm,
-                                       ccomm=ccomm,
-                                       h=pooling.ifmheight - pooling.pheight + 1,
-                                       w=pooling.ifmwidth - pooling.pwidth + 1)
-            print MPI.COMM_WORLD.rank, ind, "lcn layer dims: ", lcn.ifmheight, lcn.ifmwidth
+            inputs_dist[self.trainable_layers[ind] + 2] = \
+                GlobalArray(batch_size=self.batch_size,
+                            act_size_height=lcn.ifmheight,
+                            act_size_width=lcn.ifmwidth,
+                            act_channels=lcn.nfm,
+                            filter_size=lcn.fwidth,
+                            backend=self.backend,
+                            create_comm=create_comm,
+                            ccomm=ccomm,
+                            h=pooling.ifmheight -
+                            pooling.pheight + 1,
+                            w=pooling.ifmwidth - pooling.pwidth + 1)
+            lcn.adjust_for_dist([inputs_dist[
+                self.trainable_layers[ind] + 2].local_array.height_with_halos,
+                inputs_dist[self.trainable_layers[
+                    ind] + 2].local_array.width_with_halos],
+                border_id=inputs_dist[self.trainable_layers[ind]].border_id,
+                output_height=pooling.ifmheight - pooling.pheight + 1,
+                output_width=pooling.ifmwidth - pooling.pwidth + 1,
+                inputs_dist=inputs_dist[self.trainable_layers[ind] + 2])
+            # print 'original', pooling.ifmheight - pooling.pheight + 1, \
+            # pooling.ifmwidth - pooling.pwidth + 1, \
+            # MPI.COMM_WORLD.rank, ind, "lcn layer dims with halos: ",
+            # lcn.ifmheight, lcn.ifmwidth
 
             for epoch in xrange(self.num_pretrain_epochs):
                 tcost = 0.0
@@ -143,40 +161,39 @@ class GBDist(MLP):
                         print 'batch =', batch
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                    # todo: stacks: fix for MPI the fprop to current layer
                     output = inputs[start_idx:end_idx]
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in xrange(self.trainable_layers[ind]):
-                        #print "ff pass", i
-                        #do MPI exchanges for LocalFilteringDist layers
-                        #if i in self.trainable_layers:
-                        #    j = self.trainable_layers.index(i)
+                        # do MPI exchanges for LocalFilteringDist layers
                         # MPI: set mini-batch to local_image
                         inputs_dist[i].local_array.local_image = output
                         # perform halo exchanges
                         inputs_dist[i].local_array.send_recv_halos()
                         # make consistent chunk
-                        inputs_dist[i].local_array.make_local_chunk_consistent()
+                        inputs_dist[
+                            i].local_array.make_local_chunk_consistent()
 
                         self.layers[i].fprop(inputs_dist[i].local_array.chunk)
-                        # else: #otherwise, just do regular fprop
-                        #     self.layers[i].fprop(output)
 
                         output = self.layers[i].output
-                    
-                    # MPI: set mini-batch to local_image
-                    inputs_dist[self.trainable_layers[ind]].local_array.local_image = output
-                    # perform halo exchanges
-                    if ind==1:
-                        inputs_dist[self.trainable_layers[ind]].local_array.send_recv_halos(True)
-                    else:
-                        inputs_dist[self.trainable_layers[ind]].local_array.send_recv_halos()
-                    # make consistent chunk
-                    inputs_dist[self.trainable_layers[ind]].local_array.make_local_chunk_consistent()
 
-                    # todo: MPI: fix for backprop for stacks
-                    rcost, spcost = layer.pretrain(inputs_dist[self.trainable_layers[ind]],
+                    # MPI: set mini-batch to local_image
+                    inputs_dist[self.trainable_layers[
+                        ind]].local_array.local_image = output
+                    # perform halo exchanges
+                    if ind == 1:
+                        inputs_dist[self.trainable_layers[
+                            ind]].local_array.send_recv_halos(True)
+                    else:
+                        inputs_dist[self.trainable_layers[
+                            ind]].local_array.send_recv_halos()
+                    # make consistent chunk
+                    inputs_dist[self.trainable_layers[
+                        ind]].local_array.make_local_chunk_consistent()
+
+                    rcost, spcost = layer.pretrain(inputs_dist,
+                                                   self.trainable_layers[ind],
                                                    self.pretrain_cost,
                                                    epoch,
                                                    self.momentum)
@@ -201,6 +218,8 @@ class GBDist(MLP):
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
         print "Done with pretraining"
+        end_time = time.time()
+        print MPI.COMM_WORLD.rank, 'time taken: ', end_time - start_time
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayerDist):

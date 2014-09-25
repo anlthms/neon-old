@@ -9,6 +9,7 @@ import os
 from mylearn.models.layer import LocalFilteringLayer
 from mylearn.models.mlp import MLP
 from mylearn.util.persist import ensure_dirs_exist
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class GB(MLP):
     """
 
     def pretrain(self, inputs):
+        start_time = time.time()
         logger.info('commencing unsupervised pretraining')
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
@@ -54,6 +56,9 @@ class GB(MLP):
                                    [output, layer.defilter.output],
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
+        end_time = time.time()
+        print 'time taken: ', end_time - start_time
+
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayer):

@@ -151,4 +151,3 @@ class MNISTDist(Dataset):
                 raise AttributeError('repo_path not specified in config')
             self.serialized_path += str(
                 comm.rank) + '.pkl'  # append comm to serialzed_path
-

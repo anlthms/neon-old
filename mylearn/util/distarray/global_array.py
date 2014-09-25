@@ -64,8 +64,8 @@ class GlobalArray(object):
         self.local_array.compute_halo_insert_indices()
 
     def __init__(self, batch_size=1, act_size_height=8, act_size_width=8,
-                 act_channels=1, filter_size=2, backend=None, create_comm=False,
-                 ccomm=None, h=-1, w=-1):
+                 act_channels=1, filter_size=2, backend=None,
+                 create_comm=False, ccomm=None, h=-1, w=-1):
         comm_size = MPI.COMM_WORLD.size
         self.act_size_width = act_size_width
         self.act_size_height = act_size_height
@@ -87,8 +87,10 @@ class GlobalArray(object):
                    (comm_per_dim, comm_per_dim))
             self.ccomm = comm.Create_cart((comm_per_dim, comm_per_dim))
             i, j = self.ccomm.Get_coords(self.ccomm.rank)
-            h = act_size_height // comm_per_dim + (act_size_height % comm_per_dim > i)
-            w = act_size_width // comm_per_dim + (act_size_width % comm_per_dim > j)
+            h = act_size_height // comm_per_dim + \
+                (act_size_height % comm_per_dim > i)
+            w = act_size_width // comm_per_dim + \
+                (act_size_width % comm_per_dim > j)
         else:
             self.ccomm = ccomm
         i, j = self.ccomm.Get_coords(self.ccomm.rank)
@@ -100,12 +102,13 @@ class GlobalArray(object):
             (filter_size - 1) % 2 > i)  # dimensions along up/down axis
         halo_size_col = (filter_size - 1) // 2 + (
             (filter_size - 1) % 2 > j)  # dimensions along left/right axis
-        border_id = self.compute_border(i, j, comm_per_dim)
+        self.border_id = self.compute_border(i, j, comm_per_dim)
         top_left_row = h * i
         top_left_col = w * j
         self.local_array = laa.LocalArray(
             batch_size, i, j, h, w, act_channels, top_left_row, top_left_col,
-            border_id, halo_size_row, halo_size_col, comm_per_dim, backend)
+            self.border_id, halo_size_row, halo_size_col, comm_per_dim,
+            backend)
 
         # synchronize everyone here
         comm.barrier()
