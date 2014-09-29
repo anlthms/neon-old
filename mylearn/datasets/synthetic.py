@@ -1,5 +1,5 @@
 """
-Dataset with fake data for testing purposes.
+Datasets with fake data for testing purposes.
 """
 
 import logging
@@ -11,9 +11,9 @@ from mylearn.datasets.dataset import Dataset
 logger = logging.getLogger(__name__)
 
 
-class SYNTH(Dataset):
+class URAND(Dataset):
     """
-    Sets up a synthetic dataset.
+    Sets up a synthetic uniformly random dataset.
 
     Attributes:
         inputs (dict): structure housing the loaded train/test/validation

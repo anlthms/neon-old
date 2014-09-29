@@ -6,7 +6,7 @@ import logging
 import numpy as np
 
 from mylearn.experiments.experiment import Experiment
-from mylearn.datasets.synth import SYNTH
+from mylearn.datasets.synthetic import URAND
 from mylearn.backends._numpy import Numpy
 
 
@@ -96,7 +96,7 @@ class GradientChecker(Experiment):
             self.trainable_layers.append(ind)
 
         if not hasattr(layer, 'datasets'):
-            self.datasets[0] = SYNTH(self.model.batch_size,
+            self.datasets[0] = URAND(self.model.batch_size,
                                      self.model.batch_size,
                                      self.model.layers[0].nin,
                                      self.model.layers[-1].nout)
