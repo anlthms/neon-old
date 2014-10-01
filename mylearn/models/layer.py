@@ -53,7 +53,7 @@ class Layer(YAMLable):
         self.velocity_dtype = velocity_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        
+
         self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
         self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
@@ -184,7 +184,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
                         top_left_row_output, top_left_col_output):
         self.nin = nin
         out_indices = []
-        #ifmsize = ifmshape[0] * ifmshape[1]
+        # ifmsize = ifmshape[0] * ifmshape[1]
         for cur_channel in range(nifm):
             current_index = cur_channel * global_size + \
                 top_left_row_output * global_width + top_left_col_output
