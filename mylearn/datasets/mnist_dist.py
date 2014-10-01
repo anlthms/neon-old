@@ -24,7 +24,7 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class MNIST_Dist(Dataset):
+class MNISTDist(Dataset):
 
     """
     Sets up an MNIST dataset.
@@ -62,25 +62,25 @@ class MNIST_Dist(Dataset):
             magic, num_images, rows, cols = struct.unpack('>iiii', f.read(16))
             if magic != 2051:
                 raise ValueError('invalid MNIST image file: ' + fname)
-            fullImage = numpy.fromfile(f, dtype='uint8').reshape((num_images,
+            full_image = numpy.fromfile(f, dtype='uint8').reshape((num_images,
                                                                   rows, cols))
 
         if dtype is not None:
             dtype = numpy.dtype(dtype)
-            fullImage = fullImage.astype(dtype)
-            fullImage /= 255.
+            full_image = full_image.astype(dtype)
+            full_image /= 255.
 
         # read corresponding quadrant of the image
-        commRank = MPI.COMM_WORLD.rank
+        comm_rank = MPI.COMM_WORLD.rank
         # todo: will change for different dimensions
-        rI = [0, 0, 14, 14]
-        cI = [0, 14, 0, 14]
+        r_i = [0, 0, 14, 14]
+        c_i = [0, 14, 0, 14]
         array = numpy.empty((num_images, 14, 14), dtype=dtype)
-        lPtr = 0
-        for r in range(rI[commRank], rI[commRank] + 14):
-            array[:, lPtr] = fullImage[
-                :, r, range(cI[commRank], cI[commRank] + 14)]
-            lPtr += 1
+        l_ptr = 0
+        for r in range(r_i[comm_rank], r_i[comm_rank] + 14):
+            array[:, l_ptr] = full_image[
+                :, r, range(c_i[comm_rank], c_i[comm_rank] + 14)]
+            l_ptr += 1
 
         return array
 
@@ -105,11 +105,12 @@ class MNIST_Dist(Dataset):
                     os.makedirs(save_dir)
                 train_idcs = range(60000)
                 if 'sample_pct' in self.__dict__:
-                    if self.sample_pct > 1.0:
+                    if self.sample_pct >= 1.0:
                         self.sample_pct /= 100.0
                     if self.sample_pct < 1.0:
                         numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
+                    print 'train_idcs', train_idcs[0], self.sample_pct
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
                     name = os.path.basename(url).rstrip('.gz')
@@ -138,18 +139,18 @@ class MNIST_Dist(Dataset):
                         tmp = numpy.zeros((len(train_idcs), 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
-                        self.targets['train'] = self.backend.array(tmp)
+                        self.targets['train'] = self.backend.array(
+                            tmp, dtype='float32')
                     elif 'labels' in repo_file and 't10k' in repo_file:
                         indat = self.read_label_file(repo_file)
                         tmp = numpy.zeros((10000, 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
-                        self.targets['test'] = self.backend.array(tmp)
+                        self.targets['test'] = self.backend.array(
+                            tmp, dtype='float32')
                     else:
                         logger.error('problems loading: %s' % name)
             else:
                 raise AttributeError('repo_path not specified in config')
             self.serialized_path += str(
                 comm.rank) + '.pkl'  # append comm to serialzed_path
-
-            # TODO: try and download and read in directly?

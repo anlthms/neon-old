@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class MNIST(Dataset):
+
     """
     Sets up an MNIST dataset.
 
@@ -86,11 +87,13 @@ class MNIST(Dataset):
                     os.makedirs(save_dir)
                 train_idcs = range(60000)
                 if 'sample_pct' in self.__dict__:
-                    if self.sample_pct > 1.0:
+                    if self.sample_pct >= 1.0:
                         self.sample_pct /= 100.0
+                        print 'sampling pct', self.sample_pct
                     if self.sample_pct < 1.0:
                         numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
+                    print 'train_idcs', train_idcs[0]
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
                     name = os.path.basename(url).rstrip('.gz')

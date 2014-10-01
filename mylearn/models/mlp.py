@@ -6,12 +6,13 @@ import logging
 import math
 
 from mylearn.models.model import Model
-
+from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
 
 class MLP(Model):
+
     """
     Fully connected, feed-forward, multi-layer perceptron model
     """
@@ -145,3 +146,57 @@ class MLP(Model):
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * err))
         # TODO: return values instead?
+
+
+class MLPDist(MLP):
+
+    """
+    MPI Distributed
+    Fully connected, feed-forward, multi-layer perceptron model
+    """
+
+    def fprop(self, inputs, inputs_dist):
+        y = inputs
+        for layer in self.layers:
+            if layer.pos < self.nlayers - 1:
+                inputs_dist[layer.pos].local_array.local_image = y
+                # perform halo exchanges
+                inputs_dist[layer.pos].local_array.send_recv_halos()
+                # make consistent chunk
+                inputs_dist[
+                    layer.pos].local_array.make_local_chunk_consistent()
+                layer.fprop(inputs_dist[layer.pos].local_array.chunk)
+                y = layer.output
+            else:
+                layer.fprop(y)
+
+        self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
+            self.layers[-1].pre_act.raw(), op=MPI.SUM, root=0)
+        if MPI.COMM_WORLD.rank == 0:
+            self.layers[-1].fprop2()
+
+        # todo fix: broadcast back the pre_act values for bprop:
+        # super-suboptimal for dist implementation,
+        # but a consequence of reusing the pre_act buffer for fprop and bprop
+        self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.bcast(
+            self.layers[-1].pre_act.raw())
+
+    def bprop(self, targets, inputs, epoch, momentum):
+        i = self.nlayers - 1
+        lastlayer = self.layers[i]
+
+        error = self.cost.apply_derivative(self.backend,
+                                           lastlayer.output, targets,
+                                           self.temp)
+        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+                            out=error)
+        # Update the output layer.
+        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        while i > 1:
+            i -= 1
+            self.layers[i].bprop(self.layers[i + 1].berror,
+                                 self.layers[i - 1].output,
+                                 epoch, momentum)
+        # Update the first hidden layer.
+        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch,
+                                 momentum)
