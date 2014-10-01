@@ -8,7 +8,6 @@ import logging
 from mylearn.util.distarray.local_array import LocalArray
 from mylearn.util.persist import YAMLable
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +25,12 @@ class LocalLayerDist(YAMLable):
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
 
+        # cache the global array sizes
+        self.global_ofmheight = self.ofmheight
+        self.global_ofmwidth = self.ofmwidth
+        self.global_ofmsize = self.ofmsize
+
+        # local array sizes
         self.ofmheight = (self.ifmheight - self.fheight) / self.stride + 1
         self.ofmwidth = (self.ifmwidth - self.fwidth) / self.stride + 1
         self.ofmshape = (self.ofmheight, self.ofmwidth)
@@ -87,11 +92,11 @@ class LocalLayerDist(YAMLable):
         self.learning_rate = learning_rate
         self.pos = pos
         self.dtype = dtype
-        # self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
-        # self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
-        # self.ofmshape = (self.ofmheight, self.ofmwidth)
-        # self.ifmsize = self.ifmheight * self.ifmwidth
-        # self.ofmsize = self.ofmheight * self.ofmwidth
+        self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
+        self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
+        self.ofmshape = (self.ofmheight, self.ofmwidth)
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.ofmsize = self.ofmheight * self.ofmwidth
         # self.nin = nifm * self.ifmsize
         # if pos > 0:
         #    self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
@@ -118,14 +123,31 @@ class LocalFilteringLayerDist(LocalLayerDist):
     are not shared.
     """
 
-    def adjust_for_halos(self, ifmshape, dtype='float32'):
+    def adjust_for_halos(self, ifmshape, top_left_row_output,
+                         top_left_col_output, dtype='float32'):
         super(LocalFilteringLayerDist, self).adjust_for_halos(ifmshape)
         self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nout = self.ofmsize * self.nofm
         self.output = self.backend.zeros(
             (self.batch_size, self.nout), dtype=dtype)
-        self.weights = self.backend.gen_weights((self.nout, self.fsize),
-                                                self.weight_init, dtype=dtype)
+
+        # if initializing the weights from scratch
+        # self.weights = self.backend.gen_weights((self.nout, self.fsize),
+        #                                        self.weight_init, dtype=dtype)
+
+        # if initializing using same seed as non-dist version
+        # adjust size of self.weights for halo dimensions
+        out_indices = []
+        for cur_channel in range(self.nofm):
+            current_index = cur_channel * self.global_ofmsize + \
+                top_left_row_output * self.global_ofmwidth + \
+                top_left_col_output
+            for cur_row in range(self.ofmheight):
+                out_indices.extend(
+                    range(current_index, current_index + self.ofmwidth))
+                current_index += self.global_ofmwidth
+        self.weights = self.weights.take(out_indices, axis=0)
+
         self.normalize_weights(self.weights)
         self.updates = self.backend.zeros(self.weights.shape, dtype=dtype)
         self.prodbuf = self.backend.zeros(
@@ -143,7 +165,11 @@ class LocalFilteringLayerDist(LocalLayerDist):
                                                     pos, learning_rate,
                                                     nifm, nofm, ifmshape,
                                                     fshape, stride)
+        self.nout = self.ofmsize * nofm
         self.weight_init = weight_init
+        self.weights = self.backend.gen_weights((self.nout, self.fsize),
+                                                self.weight_init,
+                                                dtype='float32')
         if pretraining is True:
             self.sparsity = sparsity
             self.pretrain_learning_rate = pretrain_learning_rate
@@ -244,7 +270,7 @@ class LocalFilteringLayerDist(LocalLayerDist):
             error, inputs_dist[layer_id + 1].local_array.chunk,
             epoch, momentum)
 
-        #halo exchanges for the L2 pooling layer
+        # halo exchanges for the L2 pooling layer
         inputs_dist[
             layer_id + 1].local_array.defiltering_chunk = self.pooling.berror
         inputs_dist[

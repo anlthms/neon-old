@@ -52,7 +52,7 @@ class LocalArray(object):
                  global_col_index=-1, height=0, width=0, act_channels=0,
                  top_left_row=-1, top_left_col=-1, border_id=-1,
                  halo_size_row=-1, halo_size_col=-1, comm_per_dim=1,
-                 backend=None):
+                 backend=None, top_left_row_output=-1, top_left_col_output=-1):
 
         self.global_row_index = global_row_index  # in comm_size (#CPUS/#GPUs)
         self.global_col_index = global_col_index
@@ -60,8 +60,12 @@ class LocalArray(object):
         self.height = height
         self.width = width
         self.act_channels = act_channels
+
         self.top_left_col = top_left_col  # in px relative to global matrix(2d)
         self.top_left_row = top_left_row  # in px relative to global matrix(2d)
+        self.top_left_col_output = top_left_col_output
+        self.top_left_row_output = top_left_row_output
+
         self.local2d_size = height * width
         self.local_array_size = self.local2d_size * act_channels
         self.local_image_indices = []  # local_image relative to chunk
@@ -261,11 +265,6 @@ class LocalArray(object):
                         c_ptr += self.width
                         d_ptrs[halo] += self.width
                     else:
-                        # print self.border_id, self.global_row_index,
-                        # self.global_col_index, r, halo, c_ptr,
-                        # self.halo_size_col,
-                        # d_ptrs[halo], self.chunk #,
-                        # self.recv_halos[halo].halo_data
                         self.chunk[:, c_ptr:c_ptr + self.halo_size_col] = (
                             self.recv_halos[halo].halo_data[
                                 :, d_ptrs[halo]:d_ptrs[

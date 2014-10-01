@@ -65,7 +65,8 @@ class GlobalArray(object):
 
     def __init__(self, batch_size=1, act_size_height=8, act_size_width=8,
                  act_channels=1, filter_size=2, backend=None,
-                 create_comm=False, ccomm=None, h=-1, w=-1):
+                 create_comm=False, ccomm=None, h=-1, w=-1,
+                 lcn_layer_flag=False):
         comm_size = MPI.COMM_WORLD.size
         self.act_size_width = act_size_width
         self.act_size_height = act_size_height
@@ -103,12 +104,38 @@ class GlobalArray(object):
         halo_size_col = (filter_size - 1) // 2 + (
             (filter_size - 1) % 2 > j)  # dimensions along left/right axis
         self.border_id = self.compute_border(i, j, comm_per_dim)
-        top_left_row = h * i
-        top_left_col = w * j
+
+        top_left_row = 0
+        top_left_col = 0
+        top_left_row_output = 0
+        top_left_col_output = 0
+
+        for i_iter in range(i):
+            h_iter = act_size_height // comm_per_dim + \
+                (act_size_height % comm_per_dim > i_iter)
+            hsr_iter = (filter_size - 1) // 2 + (
+                (filter_size - 1) % 2 > i_iter)  # dims along up/down axis
+            top_left_row += h_iter
+            if lcn_layer_flag:
+                top_left_row_output += h_iter
+            else:
+                top_left_row_output += h_iter + hsr_iter - filter_size + 1
+
+        for j_iter in range(j):
+            w_iter = act_size_width // comm_per_dim + \
+                (act_size_width % comm_per_dim > j_iter)
+            hsc_iter = (filter_size - 1) // 2 + (
+                (filter_size - 1) % 2 > j_iter)  # dims along left/right axis
+            top_left_col += w_iter
+            if lcn_layer_flag:
+                top_left_col_output += w_iter
+            else:
+                top_left_col_output += w_iter + hsc_iter - filter_size + 1
+
         self.local_array = laa.LocalArray(
             batch_size, i, j, h, w, act_channels, top_left_row, top_left_col,
             self.border_id, halo_size_row, halo_size_col, comm_per_dim,
-            backend)
+            backend, top_left_row_output, top_left_col_output)
 
         # synchronize everyone here
         comm.barrier()

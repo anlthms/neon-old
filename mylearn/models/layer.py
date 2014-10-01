@@ -10,7 +10,6 @@ from mylearn.util.persist import YAMLable
 
 import mylearn.util.distarray.gdist_consts as gc
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,20 +48,33 @@ class Layer(YAMLable):
         self.activation = activation
         self.nin = nin
         self.nout = nout
+        self.weight_init = weight_init
+        self.weight_dtype = weight_dtype
+        self.velocity_dtype = velocity_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
+        # i_dbg = 2
+        # j_dbg = 3
+        # print 'wt init debug FC initial:', self.weights[j_dbg, i_dbg], \
+        #         self.weights[j_dbg, i_dbg + 12], \
+        #         self.weights[j_dbg, 23*12 + i_dbg], \
+        #         self.weights[j_dbg, 23*12 + i_dbg + 12]
+
         self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
         self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
+        self.updates_dtype = updates_dtype
         self.pre_act = self.backend.zeros((batch_size, self.nout),
                                           pre_act_dtype)
         self.output = self.backend.zeros((batch_size, self.nout), output_dtype)
         self.pos = pos
         self.learning_rate = learning_rate
+        self.batch_size = batch_size
         if pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.zeros((batch_size, nin - 1),
                                              berror_dtype)
+            self.berror_dtype = berror_dtype
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
@@ -135,10 +147,16 @@ class LayerWithNoBias(Layer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init):
+                 nout, activation, weight_init, weight_dtype, velocity_dtype,
+                 delta_dtype, updates_dtype, pre_act_dtype, output_dtype,
+                 berror_dtype):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
                                               pos, learning_rate, nin, nout,
-                                              activation, weight_init)
+                                              activation, weight_init,
+                                              weight_dtype, velocity_dtype,
+                                              delta_dtype, updates_dtype,
+                                              pre_act_dtype, output_dtype,
+                                              berror_dtype)
         if pos > 0:
             self.berror = backend.zeros((batch_size, nin))
 
@@ -147,7 +165,61 @@ class LayerWithNoBias(Layer):
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
+        # comment if not using denominator term in cross_entropy
         self.backend.multiply(error, self.pre_act, out=self.delta)
+        # self.delta = error
+
+        if self.pos > 0:
+            self.backend.dot(self.delta, self.weights, out=self.berror)
+
+        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
+
+
+class LayerWithNoBiasDist(LayerWithNoBias):
+
+    """
+    MPI Distributed
+    Single NNet layer with no bias node
+    """
+
+    def adjust_for_dist(self, nin, ifmshape, nifm, global_size, global_width,
+                        top_left_row_output, top_left_col_output):
+        self.nin = nin
+        out_indices = []
+        #ifmsize = ifmshape[0] * ifmshape[1]
+        for cur_channel in range(nifm):
+            current_index = cur_channel * global_size + \
+                top_left_row_output * global_width + top_left_col_output
+            for cur_row in range(ifmshape[0]):
+                out_indices.extend(
+                    range(current_index, current_index + ifmshape[1]))
+                current_index += global_width
+        self.weights = self.weights.take(out_indices, axis=1)
+
+        self.velocity = self.backend.zeros(
+            self.weights.shape, self.velocity_dtype)
+        self.updates = self.backend.zeros((self.nout, nin), self.updates_dtype)
+        if self.pos > 0:
+            # This is storage for the backward propagated error.
+            self.berror = self.backend.zeros((self.batch_size, nin),
+                                             self.berror_dtype)
+
+    def fprop(self, inputs):
+        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+
+    def fprop2(self):
+        # this stores the derivatives in self.pre_act
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
+
+    def bprop(self, error, inputs, epoch, momentum):
+        # comment if not using denominator term
+        self.backend.multiply(error, self.pre_act, out=self.delta)
+        # self.delta = error
+
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
 
@@ -423,6 +495,7 @@ class LocalFilteringLayer(LocalLayer):
         self.output = backend.zeros((batch_size, self.nout))
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
                                                 weight_init)
+
         self.normalize_weights(self.weights)
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, nofm))
@@ -592,6 +665,7 @@ class PoolingLayer(YAMLable):
         ofmwidth = (self.ifmwidth - self.pwidth) / self.stride + 1
         self.ofmsize = ofmheight * ofmwidth
         self.nin = self.nfm * self.ifmsize
+        self.ofmshape = [ofmheight, ofmwidth]
         if self.pos > 0:
             self.berror = self.backend.zeros((self.batch_size, self.nin),
                                              dtype)
@@ -800,12 +874,8 @@ class L2PoolingLayer(PoolingLayer):
 
     def fprop(self, inputs):
         rinputs = self.backend.squish(inputs, self.nfm)
-        # print MPI.COMM_WORLD.rank, 'L2 pooling fprop: ', rinputs.shape,
-        # self.nfm, self.ofmsize
         for dst in xrange(self.ofmsize):
             inds = self.links[dst]
-            # print MPI.COMM_WORLD.rank, 'L2 pooling fprop: ', rinputs.shape,
-            # dst, '/', self.ofmsize, inds
             rf = rinputs.take(inds, axis=1)
             self.routput[:, dst] = rf.norm(axis=1)
 
@@ -821,7 +891,7 @@ class L2PoolingLayer(PoolingLayer):
                 # If the L2 norm is zero, the entire receptive field must be
                 # zeros. In that case, we set the L2 norm to 1 before using
                 # it to normalize the receptive field.
-                denom[denom == 0] = 1
+                denom[denom.raw() == 0] = 1
                 self.backend.divide(rf, denom, out=rf)
                 self.backend.multiply(
                     self.rdelta[:, dst:(dst + 1)].repeat(self.psize, axis=1),
@@ -900,6 +970,7 @@ class LCNLayer(YAMLable):
                         output_height=-1, output_width=-1,
                         inputs_dist=None, dtype='float32'):
         self.dist_flag = True
+        self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape  # with halos, but not padding
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.nin = self.nfm * self.ifmsize
@@ -922,7 +993,7 @@ class LCNLayer(YAMLable):
             right_padding = 0
             top_padding = 0
             bottom_padding = 0
-            self.start_row = 0
+            self.start_row = 0  # top left corner after padded area (excl halo)
             self.start_col = 0
 
             if border_id in [gc.NORTH, gc.NORTHWEST, gc.NORTHEAST]:
@@ -935,16 +1006,12 @@ class LCNLayer(YAMLable):
                 self.start_col = left_padding
             if border_id in [gc.EAST, gc.NORTHEAST, gc.SOUTHEAST]:
                 right_padding = pad_width_right
-            # print MPI.COMM_WORLD.rank, left_padding, right_padding,
-            # top_padding, bottom_padding
 
         # todo: only supports stride of 1 for now
         self.exifmheight = (self.ifmheight) * self.stride + (
             top_padding + bottom_padding)
         self.exifmwidth = (self.ifmwidth) * self.stride + (
             left_padding + right_padding)
-        # print 'eximheight/width', MPI.COMM_WORLD.rank, self.exifmheight,
-        # self.exifmwidth
         self.exifmsize = self.exifmheight * self.exifmwidth
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
@@ -960,15 +1027,12 @@ class LCNLayer(YAMLable):
 
         self.hdiff = self.exifmheight - output_height
         self.wdiff = self.exifmwidth - output_width
-        # print 'ifm2 shapes', self.exifmheight, self.ifmheight2
         assert self.hdiff % 2 == 0
         assert self.wdiff % 2 == 0
-        self.start_row2 = self.hdiff / 2
+        self.start_row2 = self.hdiff / 2  # top left corner for halo + padding
         self.start_col2 = self.wdiff / 2
 
         self.meanfm = self.conv.output
-        # print MPI.COMM_WORLD.rank, self.meanfm.shape, self.batch_size, \
-        #        self.ifmheight,self.ifmwidth, output_height, output_width
         self.rmeanfm = self.meanfm.reshape((self.batch_size, 1,
                                             output_height, output_width))
 
@@ -1012,8 +1076,8 @@ class LCNLayer(YAMLable):
                  stride, dist_flag=False):
         self.name = name
         self.backend = backend
+        self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape
-        # self.ifmheight2, self.ifmwidth2 = ifmshape
         self.fheight, self.fwidth = fshape
         self.fsize = nfm * self.fheight * self.fwidth
         self.batch_size = batch_size
@@ -1116,7 +1180,7 @@ class LCNLayer(YAMLable):
     def copy_from_inset(self, canvas, start_row, start_col):
         if self.dist_flag:
             return NotImplementedError
-            #return canvas[:, :,
+            # return canvas[:, :,
             #              self.start_row:(start_row + inset.shape[2]),
             #              self.start_col:(start_col + inset.shape[3])]
         else:
@@ -1129,16 +1193,18 @@ class LCNLayer(YAMLable):
                                   self.ifmheight, self.ifmwidth))
         self.copy_to_inset(self.rexinputs, rinputs,
                            self.start_row, self.start_col)
+
         # Convolve with gaussian filters to obtain a "mean" feature map.
         self.conv.fprop(self.exinputs)
 
         if self.dist_flag:
+            # rinputs includes halos but not padding
             self.backend.subtract(
-                rinputs[:, :,
-                        self.start_row2:(
-                            self.rexinputs.shape[2] - self.start_row2),
-                        self.start_col2:(
-                            self.rexinputs.shape[3] - self.start_col2)],
+                self.rexinputs[:, :,
+                               self.start_row2:(
+                                   self.rexinputs.shape[2] - self.start_row2),
+                               self.start_col2:(
+                                   self.rexinputs.shape[3] - self.start_col2)],
                 self.rmeanfm,
                 out=self.rsubout)
         else:
@@ -1158,8 +1224,8 @@ class LCNLayer(YAMLable):
 
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm == 0.0] = 1.0
+        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
         if self.dist_flag:
             self.backend.divide(
                 self.inputs_dist.local_array.local_image.reshape(
@@ -1169,6 +1235,7 @@ class LCNLayer(YAMLable):
 
     def fprop(self, inputs):
         self.backend.clear(self.exinputs)
+
         self.fprop_sub_normalize(inputs)
         if self.dist_flag:
             # distributed version

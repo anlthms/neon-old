@@ -52,6 +52,7 @@ def logistic_and_derivative(backend, inputs, outputs):
 
 
 class Logistic(Activation):
+
     """
     Embodiment of a logistic activation function.
     """

@@ -110,6 +110,7 @@ class MNISTDist(Dataset):
                     if self.sample_pct < 1.0:
                         numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
+                    print 'train_idcs', train_idcs[0], self.sample_pct
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
                     name = os.path.basename(url).rstrip('.gz')
@@ -138,13 +139,15 @@ class MNISTDist(Dataset):
                         tmp = numpy.zeros((len(train_idcs), 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
-                        self.targets['train'] = self.backend.array(tmp)
+                        self.targets['train'] = self.backend.array(
+                            tmp, dtype='float32')
                     elif 'labels' in repo_file and 't10k' in repo_file:
                         indat = self.read_label_file(repo_file)
                         tmp = numpy.zeros((10000, 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
-                        self.targets['test'] = self.backend.array(tmp)
+                        self.targets['test'] = self.backend.array(
+                            tmp, dtype='float32')
                     else:
                         logger.error('problems loading: %s' % name)
             else:

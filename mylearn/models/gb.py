@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class GB(MLP):
+
     """
     Google Brain class
     """
@@ -31,7 +32,7 @@ class GB(MLP):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in xrange(num_batches):
+                for batch in xrange(num_batches):  # num_batches
                     print 'batch =', batch
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
@@ -71,11 +72,12 @@ class GB(MLP):
         logger.info('commencing supervised training')
         tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
         self.temp = [tempbuf, tempbuf.copy()]
-
+        start_time = time.time()
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
+            for batch in xrange(num_batches):  # num_batches
+                print 'batch =', batch
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
@@ -93,6 +95,8 @@ class GB(MLP):
                                                   self.temp)
             logger.info('epoch: %d, training error: %0.5f' %
                         (epoch, error / num_batches))
+        end_time = time.time()
+        print 'time taken: ', end_time - start_time
 
     def check_node_predictions(self, inputs, targets, node, cls):
         """

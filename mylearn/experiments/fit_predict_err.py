@@ -35,7 +35,7 @@ class FitPredictErrorExperiment(FitExperiment):
         super(FitPredictErrorExperiment, self).run()
 
         # generate predictions
-        predictions = self.model.predict(self.datasets)
+        #predictions = self.model.predict(self.datasets)
 
         # report errors
-        self.model.error_metrics(self.datasets, predictions)
+        #self.model.error_metrics(self.datasets, predictions)

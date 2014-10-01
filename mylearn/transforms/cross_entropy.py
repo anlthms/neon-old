@@ -67,6 +67,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
 
 
 class CrossEntropy(Cost):
+
     """
     Embodiment of a cross entropy cost function.
     """
