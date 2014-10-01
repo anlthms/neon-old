@@ -694,40 +694,6 @@ class Numpy64(Numpy):
     epsilon = np.finfo(np.float64).eps
     tensor_cls = Numpy64Tensor
 
-    def uniform(self, low=0.0, high=1.0, size=1):
-        """
-        Uniform random number sample generation.
-
-        Arguments:
-            low (float, optional): Minimal sample value that can be returned.
-                                   Defaults to 0.0
-            high (float, optional): Maximal sample value.  Open ended range so
-                                    maximal value slightly less.  Defaults to
-                                    1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            Numpy64Tensor: Of specified size filled with these random
-                           numbers.
-        """
-        return Numpy64Tensor(np.random.uniform(low, high, size))
-
-    def normal(self, loc=0.0, scale=1.0, size=1):
-        """
-        Gaussian/Normal random number sample generation
-
-        Arguments:
-            loc (float, optional): Where to center distribution.  Defaults
-                                   to 0.0
-            scale (float, optional): Standard deviaion.  Defaults to 1.0
-            size (array_like or int, optional): Shape of generated samples
-
-        Returns:
-            Numpy64Tensor: Of specified size filled with these random
-                         numbers.
-        """
-        return Numpy64Tensor(np.random.normal(loc, scale, size))
-
     def gen_weights(self, size, weight_params, dtype=None):
         if dtype is None:
             dtype=np.float64
