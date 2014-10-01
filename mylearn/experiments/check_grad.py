@@ -6,7 +6,7 @@ import logging
 import numpy as np
 
 from mylearn.experiments.experiment import Experiment
-from mylearn.datasets.synth import SYNTH
+from mylearn.datasets.synthetic import UniformRandom
 from mylearn.backends._numpy import Numpy
 
 
@@ -96,10 +96,10 @@ class GradientChecker(Experiment):
             self.trainable_layers.append(ind)
 
         if not hasattr(layer, 'datasets'):
-            self.datasets[0] = SYNTH(self.model.batch_size,
-                                     self.model.batch_size,
-                                     self.model.layers[0].nin,
-                                     self.model.layers[-1].nout)
+            self.datasets[0] = UniformRandom(self.model.batch_size,
+                                             self.model.batch_size,
+                                             self.model.layers[0].nin,
+                                             self.model.layers[-1].nout)
             self.datasets[0].backend = self.model.backend
             self.datasets[0].load()
 

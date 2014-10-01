@@ -24,8 +24,6 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        tempbuf = self.backend.zeros((self.batch_size, self.layers[-1].nout))
-        self.temp = [tempbuf, tempbuf.copy()]
 
     def fit(self, datasets):
         """
@@ -38,6 +36,11 @@ class MLP(Model):
         nrecs = inputs.shape[0]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
+        if 'temp_dtype' not in self.__dict__:
+            self.temp_dtype = None
+        tempbuf = self.backend.zeros((self.batch_size, self.layers[-1].nout),
+                                     self.temp_dtype)
+        self.temp = [tempbuf, tempbuf.copy()]
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.

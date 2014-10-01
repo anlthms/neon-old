@@ -76,7 +76,10 @@ cpdef inline elemtype_t fixed_from_float(elemfloat_t floatval, fixpt dtype):
         fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits)
     else:
         # assume RND_NEAREST 
-        fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits + 0.5)
+        if floatval >= 0:
+            fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits + 0.5)
+        else:
+            fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits - 0.5)
     # perform overflow handling
     max_int = <elemtype_t> 1 << (dtype.int_bits + dtype.frac_bits)
     if fixedval < max_int:

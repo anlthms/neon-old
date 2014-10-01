@@ -1,0 +1,82 @@
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# Iris dataset.  Simple network meant more as a sanity check.
+
+!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:mylearn.backends._numpy.Numpy {
+    rng_seed: 0,
+    seterr_handling: {
+      all: 'warn',
+    },
+  },
+  
+  datasets: [
+    !obj:mylearn.datasets.iris.Iris {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+      serialized_path: '/usr/local/data/Iris/iris-Numpy.pkl',
+    },
+  ],
+  
+  # simple MLP model specification
+  model: !obj:mylearn.models.mlp.MLP {
+    backend: *be,
+    batch_size: 30,
+    num_epochs: 2500,
+    learning_rate: &lr 0.1,
+    momentum: {
+      type: constant, #constant, nesterov
+      initial_coef: 0,
+      start_epoch: 5,
+      saturate_epoch: 5,
+      saturated_coef: 0,
+    },
+    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './iris-mlp-simple.pkl',
+    layers: [
+      !obj:mylearn.models.layer.Layer {
+        name: h0,
+        backend: *be,
+        batch_size: 30,
+        pos: 0,
+        learning_rate: *lr,
+        nin: 5, # input layer + 1 for the bias
+        nout: 2,
+        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -1,
+          high: 1,
+        },
+      },
+      !obj:mylearn.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: 30,
+        pos: 1,
+        learning_rate: *lr,
+        nin: 3, # previous nout + 1 for the bias
+        nout: 3,
+        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -1,
+          high: 1,
+        },
+      },
+    ],
+  },
+  
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
