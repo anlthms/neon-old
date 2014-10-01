@@ -124,6 +124,7 @@ def serialize(obj, save_path):
         deserialize
     """
     logger.info("serializing %s to: %s" % (str(obj), save_path))
+    ensure_dirs_exist(save_path)
     cPickle.dump(obj, open(save_path, 'wb'), -1)
 
 

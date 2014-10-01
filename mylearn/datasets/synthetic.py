@@ -11,7 +11,7 @@ from mylearn.datasets.dataset import Dataset
 logger = logging.getLogger(__name__)
 
 
-class URAND(Dataset):
+class UniformRandom(Dataset):
     """
     Sets up a synthetic uniformly random dataset.
 
