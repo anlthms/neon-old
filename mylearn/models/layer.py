@@ -53,13 +53,7 @@ class Layer(YAMLable):
         self.velocity_dtype = velocity_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        # i_dbg = 2
-        # j_dbg = 3
-        # print 'wt init debug FC initial:', self.weights[j_dbg, i_dbg], \
-        #         self.weights[j_dbg, i_dbg + 12], \
-        #         self.weights[j_dbg, 23*12 + i_dbg], \
-        #         self.weights[j_dbg, 23*12 + i_dbg + 12]
-
+        
         self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
         self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
@@ -1181,8 +1175,8 @@ class LCNLayer(YAMLable):
         if self.dist_flag:
             return NotImplementedError
             # return canvas[:, :,
-            #              self.start_row:(start_row + inset.shape[2]),
-            #              self.start_col:(start_col + inset.shape[3])]
+            #               self.start_row:(start_row + inset.shape[2]),
+            #               self.start_col:(start_col + inset.shape[3])]
         else:
             return canvas[:, :,
                           self.start_row:(canvas.shape[2] - start_row),
