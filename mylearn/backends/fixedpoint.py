@@ -28,25 +28,42 @@ class FixedPointTensor(NumpyTensor):
                              types like lists and tuples are also supported.
         dtype (fixpt_dtype): Specification of the parameters like integer and
                              fraction bits, overflow, and rounding handling.
+        force_rescale (boolean, optional): if False (default) we may short
+                                           circuit scaling of the object to
+                                           our internal format if the input
+                                           array is already of the expected
+                                           type.  Set this to True to ignore
+                                           the input type and force conversion
     """
-    def __init__(self, obj, dtype):
+    def __init__(self, obj, dtype=None, force_rescale=False):
         dtype = FixedPoint.default_dtype_if_missing(dtype)
-        if type(obj) == np.ndarray and obj.dtype == elemtype:
-            self._tensor = obj
-            self.shape = obj.shape
+        if ((not force_rescale) and type(obj) == np.ndarray and
+            obj.dtype == elemtype):
+            # already in the correct format, just assign to the _tensor
+                self._tensor = obj
+                self.shape = obj.shape
+        elif (not force_rescale) and type(obj) == elemtype:
+            # single element case
+            self._tensor = np.array([[obj]], elemtype)
+            self.shape = self._tensor.shape
         else:
             super(FixedPointTensor, self).__init__(obj, dtype=elemfloat)
-            if self._tensor.ndim != 2:
-                # TODO: add support for vectors, 3D, 4D, etc.
-                # for now we just special case a 1x1 ndarray
-                if self._tensor.ndim == 0 or (self._tensor.ndim == 1 and
-                                              self._tensor.shape[0] == 1):
-                    self._tensor = self._tensor.reshape([1, 1])
-                    self.shape = [1, 1]
-                else:
-                    logger.error("Unsupported shape")
+            force_rescale=True
             if not self._tensor.flags['C_CONTIGUOUS']:
                 self._tensor = np.ascontiguousarray(self._tensor)
+        # ensure we can convert to a 2D representation
+        # TODO: add support for 3D, 4D, etc.
+        if self._tensor.ndim != 2:
+            # check for single element or nx1 vector, and convert to 2D
+            if self._tensor.ndim == 0 or self._tensor.ndim == 1:
+                vec_len = 1
+                if self._tensor.ndim == 1:
+                    vec_len = self._tensor.shape[0]
+                self._tensor = self._tensor.reshape([vec_len, 1])
+                self.shape = (vec_len, 1)
+            else:
+                logger.error("Unsupported shape")
+        if force_rescale:
             self._tensor = fixed_from_float_array(self._tensor, dtype)
         self.dtype = dtype
 
@@ -60,6 +77,12 @@ class FixedPointTensor(NumpyTensor):
 
     def __getitem__(self, key):
         return self.__class__(self._tensor[self._clean(key)], dtype=self.dtype)
+
+    def __setitem__(self, key, value):
+        clean_key = self._clean(key)
+        self._tensor[clean_key] = self._clean(value)
+        if isinstance(value, self.__class__):
+            fp_rescale_array(self._tensor[clean_key], value.dtype, self.dtype)
 
     def T(self):  # flake8: noqa
         return self.__class__(self._tensor.T, dtype=self.dtype)
@@ -94,7 +117,7 @@ class FixedPoint(Numpy):
                                   0: "truncate" (default), or 1: "nearest".
     """
     default_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=11,
-                            overflow=0, rounding=0)
+                                overflow=0, rounding=0)
     tensor_cls = FixedPointTensor
     epsilon = 2**-10
 
@@ -234,6 +257,12 @@ class FixedPoint(Numpy):
         bias = np.ones((x.shape[0], 1), dtype=elemfloat)
         return FixedPointTensor(np.concatenate((float_x, bias), axis=1),
                                 x.dtype)
+
+    @classmethod
+    def argmax(cls, x, axis=None):
+        # since np.argmax may return elements of our internal elemtype, we need
+        # to force rescaling it
+        return cls.tensor_cls(np.argmax(x._tensor, axis), force_rescale=True)
 
     @staticmethod
     def dot(a, b, out):
