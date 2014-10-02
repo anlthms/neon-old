@@ -3,8 +3,8 @@
 import sys
 import timeit
 
-from mylearn.util.compat import CUDA_GPU
-from mylearn.util.error import TooSlowToImplementError
+from neon.util.compat import CUDA_GPU
+from neon.util.error import TooSlowToImplementError
 
 
 def bench_mat_mat_multiply(backend, classname, a_dims, b_dims, number=10000,
@@ -47,12 +47,12 @@ def bench_mat_mat_multiply(backend, classname, a_dims, b_dims, number=10000,
 if __name__ == '__main__':
     number = 100
     repeat = 3
-    test_backends = [('mylearn.backends._numpy', 'Numpy'),
-                     ('mylearn.backends._numpy', 'Numpy64'),
-                     #  ('mylearn.backends.fixedpoint', 'FixedPoint')]
+    test_backends = [('neon.backends._numpy', 'Numpy'),
+                     ('neon.backends._numpy', 'Numpy64'),
+                     #  ('neon.backends.fixedpoint', 'FixedPoint')]
                      ]
     if CUDA_GPU:
-        test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
+        test_backends.insert(1, ('neon.backends._cudamat', 'Cudamat'))
     for a_dims, b_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:

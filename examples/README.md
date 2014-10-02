@@ -1,12 +1,12 @@
-This directory contains some sample mylearn experiment configuration files.
+This directory contains some sample neon experiment configuration files.
 
-The general process for running these is to first install mylearn into your
+The general process for running these is to first install neon into your
 system from the top-level directory via:
 
     make install
 
-Which should yield an executable in your system path named `mylearn`
+Which should yield an executable in your system path named `neon`
 
 Then just issue:
 
-    mylearn examples/whatever_example.yaml
+    neon examples/whatever_example.yaml

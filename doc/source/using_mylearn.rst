@@ -3,12 +3,12 @@ Using Mylearn
 
 Installation
 ------------
-See https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn
+See https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon
 
 Running
 -------
 
-    mylearn my_example_cfg.yaml
+    neon my_example_cfg.yaml
 
 Some example yaml files are available in the examples directory of the package.
 

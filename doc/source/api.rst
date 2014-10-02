@@ -1,4 +1,4 @@
-.. currentmodule:: mylearn
+.. currentmodule:: neon
 .. _api:
 
 *************
@@ -13,8 +13,8 @@ Backends
 .. autosummary::
    :toctree: generated/
 
-   mylearn.backends.backend.Backend
-..   mylearn.backends.backend.Backend.Tensor
+   neon.backends.backend.Backend
+..   neon.backends.backend.Backend.Tensor
 
 Numpy
 -----
@@ -22,8 +22,8 @@ Numpy
 .. autosummary::
    :toctree: generated/
 
-   mylearn.backends._numpy.Numpy
-..   mylearn.backends._numpy.Numpy.Tensor
+   neon.backends._numpy.Numpy
+..   neon.backends._numpy.Numpy.Tensor
 
 CUDAMat
 -------
@@ -31,8 +31,8 @@ CUDAMat
 .. autosummary::
    :toctree: generated/
 
-   mylearn.backends._cudamat.Cudamat
-..   mylearn.backends._cudamat.Cudamat.Tensor
+   neon.backends._cudamat.Cudamat
+..   neon.backends._cudamat.Cudamat.Tensor
 
 
 Models
@@ -41,8 +41,8 @@ Models
 .. autosummary::
    :toctree: generated/
 
-   mylearn.models.model.Model
-   mylearn.models.layer.Layer
+   neon.models.model.Model
+   neon.models.layer.Layer
 
 MLP
 ---
@@ -50,7 +50,7 @@ MLP
 .. autosummary::
    :toctree: generated/
 
-   mylearn.models.mlp.MLP
+   neon.models.mlp.MLP
 
 Autoencoder
 -----------
@@ -58,7 +58,7 @@ Autoencoder
 .. autosummary::
    :toctree: generated/
 
-   mylearn.models.autoencoder.Autoencoder
+   neon.models.autoencoder.Autoencoder
 
 
 Transforms
@@ -70,11 +70,11 @@ Activation Functions
 .. autosummary::
    :toctree: generated/
 
-   mylearn.transforms.linear.Identity
-   mylearn.transforms.rectified.RectLin
-   mylearn.transforms.logistic.Logistic
-   mylearn.transforms.logistic.PseudoLogistic
-   mylearn.transforms.tanh.Tanh
+   neon.transforms.linear.Identity
+   neon.transforms.rectified.RectLin
+   neon.transforms.logistic.Logistic
+   neon.transforms.logistic.PseudoLogistic
+   neon.transforms.tanh.Tanh
 
 Cost Functions
 --------------
@@ -82,8 +82,8 @@ Cost Functions
 .. autosummary::
    :toctree: generated/
 
-   mylearn.transforms.sum_squared.SumSquaredDiffs
-   mylearn.transforms.cross_entropy.CrossEntropy
+   neon.transforms.sum_squared.SumSquaredDiffs
+   neon.transforms.cross_entropy.CrossEntropy
 
 
 Datasets
@@ -92,7 +92,7 @@ Datasets
 .. autosummary::
    :toctree: generated/
 
-   mylearn.datasets.dataset.Dataset
+   neon.datasets.dataset.Dataset
 
 MNIST
 -----
@@ -100,7 +100,7 @@ MNIST
 .. autosummary::
    :toctree: generated/
 
-   mylearn.datasets.mnist.MNIST
+   neon.datasets.mnist.MNIST
 
 
 Experiments
@@ -109,7 +109,7 @@ Experiments
 .. autosummary::
    :toctree: generated/
 
-   mylearn.experiments.experiment.Experiment
+   neon.experiments.experiment.Experiment
 
 
 Miscellaneous
@@ -118,5 +118,5 @@ Miscellaneous
 .. autosummary::
    :toctree: generated/
 
-   mylearn.util.compat.PY3
-   mylearn.util.factory.Factory
+   neon.util.compat.PY3
+   neon.util.factory.Factory

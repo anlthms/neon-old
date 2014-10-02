@@ -1,13 +1,13 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # MNIST.  Parameters are optimized for performance.
 
-!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends.fixedpoint.FixedPoint {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.fixedpoint.FixedPoint {
     rng_seed: 0,
     seterr_handling: { 
       all: 'raise',
     },
-    default_dtype: &def_dtype !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+    default_dtype: &def_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
       sign_bit: True,
       int_bits: 0,
       frac_bits: 15,
@@ -18,7 +18,7 @@
   
   datasets: [
     # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
@@ -27,7 +27,7 @@
   ],
   
   # simple MLP model specification
-  model: !obj:mylearn.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
@@ -39,10 +39,10 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './mlp-fixpt_simple.pkl',
     layers: [
-      !obj:mylearn.models.layer.Layer {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -50,7 +50,7 @@
         learning_rate: *lr,
         nin: 785, # input layer + 1 for the bias
         nout: 2000,
-        activation: !obj:mylearn.transforms.rectified.RectLin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
@@ -60,14 +60,14 @@
         velocity_dtype: *def_dtype,
         delta_dtype: *def_dtype,
         updates_dtype: *def_dtype,
-        pre_act_dtype: !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+        pre_act_dtype: !obj:neon.backends.fixedpoint.fixpt_dtype {
           sign_bit: False,
           int_bits: 2,
           frac_bits: 14,
           overflow: 0,
           rounding: 0
         },
-        output_dtype: !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+        output_dtype: !obj:neon.backends.fixedpoint.fixpt_dtype {
           sign_bit: False,
           int_bits: 0,
           frac_bits: 16,
@@ -75,7 +75,7 @@
           rounding: 0
         },
       },
-      !obj:mylearn.models.layer.Layer {
+      !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -83,7 +83,7 @@
         learning_rate: *lr,
         nin: 2001, # previous nout + 1 for the bias
         nout: 10,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: node_normalized,
           scale: 4.0,
@@ -93,14 +93,14 @@
         velocity_dtype: *def_dtype,
         delta_dtype: *def_dtype,
         updates_dtype: *def_dtype,
-        pre_act_dtype: !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+        pre_act_dtype: !obj:neon.backends.fixedpoint.fixpt_dtype {
           sign_bit: False,
           int_bits: 2,
           frac_bits: 14,
           overflow: 0,
           rounding: 0
         },
-        output_dtype: !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+        output_dtype: !obj:neon.backends.fixedpoint.fixpt_dtype {
           sign_bit: False,
           int_bits: 0,
           frac_bits: 16,

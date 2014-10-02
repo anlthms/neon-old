@@ -1,12 +1,12 @@
-.. mylearn documentation master file
+.. neon documentation master file
 
-mylearn: A highly configurable ML library
+neon: A highly configurable ML library
 *****************************************
 
 :Release: |version|
 :Date: |today|
 
-.. automodule:: mylearn
+.. automodule:: neon
    :members:
 
 
@@ -16,8 +16,8 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   using_mylearn
-   developing_mylearn
+   using_neon
+   developing_neon
    backends
    models
    transforms

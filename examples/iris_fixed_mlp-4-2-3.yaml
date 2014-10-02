@@ -1,13 +1,13 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset.  Simple network meant more as a sanity check.
 
-!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends.fixedpoint.FixedPoint {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.fixedpoint.FixedPoint {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
     },
-    default_dtype: &def_dtype !obj:mylearn.backends.fixedpoint.fixpt_dtype {
+    default_dtype: &def_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
       sign_bit: True,
       int_bits: 4,
       frac_bits: 24,
@@ -17,7 +17,7 @@
   },
   
   datasets: [
-    !obj:mylearn.datasets.iris.Iris {
+    !obj:neon.datasets.iris.Iris {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
@@ -26,7 +26,7 @@
   ],
   
   # simple MLP model specification
-  model: !obj:mylearn.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
     batch_size: 30,
     num_epochs: 2500,
@@ -39,10 +39,10 @@
       saturated_coef: 0,
     },
     temp_dtype: *def_dtype,
-    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './iris-fixpt-mlp-simple.pkl',
     layers: [
-      !obj:mylearn.models.layer.Layer {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: 30,
@@ -50,7 +50,7 @@
         learning_rate: *lr,
         nin: 5, # input layer + 1 for the bias
         nout: 2,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
@@ -63,7 +63,7 @@
         pre_act_dtype: *def_dtype,
         output_dtype: *def_dtype,
       },
-      !obj:mylearn.models.layer.Layer {
+      !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: 30,
@@ -71,7 +71,7 @@
         learning_rate: *lr,
         nin: 3, # previous nout + 1 for the bias
         nout: 3,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,

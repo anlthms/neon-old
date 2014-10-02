@@ -60,7 +60,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'mylearn'
+project = u'neon'
 copyright = u'2014, Nervana Systems'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -68,8 +68,8 @@ copyright = u'2014, Nervana Systems'
 # built documents.
 #
 # The short X.Y version.
-import mylearn
-version = '%s' % (mylearn.__version__)
+import neon
+version = '%s' % (neon.__version__)
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -194,7 +194,7 @@ html_static_path = ['_static']
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'mylearndoc'
+htmlhelp_basename = 'neondoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -213,7 +213,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [('index', 'mylearn.tex', u'mylearn Documentation',
+latex_documents = [('index', 'neon.tex', u'neon Documentation',
                     u'Nervana Systems', 'manual'), ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -242,7 +242,7 @@ latex_documents = [('index', 'mylearn.tex', u'mylearn Documentation',
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'mylearn', u'mylearn Documentation',
+    ('index', 'neon', u'neon Documentation',
      [u'Nervana Systems'], 1)
 ]
 
@@ -255,8 +255,8 @@ man_pages = [
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
-texinfo_documents = [('index', 'mylearn', u'mylearn Documentation',
-                      u'Nervana Systems', 'mylearn',
+texinfo_documents = [('index', 'neon', u'neon Documentation',
+                      u'Nervana Systems', 'neon',
                       'One line description of project.', 'Miscellaneous'), ]
 
 # Documents to append as an appendix to all manuals.

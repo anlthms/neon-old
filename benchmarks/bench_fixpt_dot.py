@@ -9,7 +9,7 @@ REPEAT = 3
 
 def test_fixedpt_dtype():
     setup = ("import numpy as np\n"
-             "from mylearn.backends.fixedpoint "
+             "from neon.backends.fixedpoint "
              "import FixedPoint, FixedPointTensor\n"
              "A = FixedPointTensor(np.random.randn(%d, %d))\n"
              "B = FixedPointTensor(np.random.randn(%d, %d))\n"
@@ -70,7 +70,7 @@ def test_int32_np():
 
 def test_fixpt_cython():
     setup = ("import numpy as np\n"
-             "from mylearn.backends.fixpt_cython import (naive_dot,"
+             "from neon.backends.fixpt_cython import (naive_dot,"
              "                                           fixpt_dtype)\n"
              "dtype = fixpt_dtype(1, 5, 10, 0, 0)\n"
              "A = np.random.randint(10, size=[%d, %d])\n"

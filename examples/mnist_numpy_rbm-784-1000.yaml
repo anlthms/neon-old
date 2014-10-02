@@ -1,14 +1,14 @@
 # Experiment settings to train/test a RBM on MNIST.
 # template for DBM layers
 
-!obj:mylearn.experiments.fit.FitExperiment {
-  backend: &be !obj:mylearn.backends._numpy.Numpy {
+!obj:neon.experiments.fit.FitExperiment {
+  backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
   
   datasets: [
     # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
@@ -17,7 +17,7 @@
   ],
   
   # RBM model specification
-  model: !obj:mylearn.models.rbm.RBM {
+  model: !obj:neon.models.rbm.RBM {
     backend: *be,
     num_epochs: 20,
     batch_size: &bs 100,
@@ -29,10 +29,10 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:mylearn.transforms.sum_squared.SumSquaredDiffs {},
+    cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './rbm-numpy20.pkl',
     layers: [
-      !obj:mylearn.models.layer.RBMLayer {
+      !obj:neon.models.layer.RBMLayer {
         name: vis2hid,
         backend: *be,
         batch_size: *bs,
@@ -40,7 +40,7 @@
         learning_rate: *lr,
         nin: 785, # num inputs + 1 for bias
         nout: 1001, # num outputs + 1 for bias
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,
           loc: 0.0,

@@ -3,15 +3,15 @@ Our in-house developed python machine learning library.
 ## Installation ##
 
     # get the latest source
-    git clone git@192.168.20.2:algorithms/mylearn.git mylearn
-    cd mylearn
+    git clone git@192.168.20.2:algorithms/neon.git neon
+    cd neon
     
     # build the package, install in your python package path via either:
     make install
     # or:
     pip install .
     
-    # import mylearn into your app, and you are good to go
+    # import neon into your app, and you are good to go
 
 
 ### Required Dependencies ###
@@ -37,9 +37,9 @@ We want to strive to have as few of these as possible
 
 ## Usage ##
 
-    # mylearn <path_to.yaml>
+    # neon <path_to.yaml>
     # see the examples directory for sample .yaml files
-    mylearn examples/mnist_numpy_mlp-784-2000-10.yaml
+    neon examples/mnist_numpy_mlp-784-2000-10.yaml
 
 
 ## Features ##
@@ -60,9 +60,9 @@ We want to strive to have as few of these as possible
 
 ## Documentation ##
 * [Main Source](http://192.168.20.2:5700)
-* [Developer Guide](http://192.168.20.2:5700/developing_mylearn.html)
+* [Developer Guide](http://192.168.20.2:5700/developing_neon.html)
 * [API](http://192.168.20.2:5700)
-* [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model)
-* [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture)
+* [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
+* [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
