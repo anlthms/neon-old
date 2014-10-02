@@ -238,6 +238,7 @@ class GBDist(MLPDist):
             top_lcn_layer_index].local_array.top_left_row_output
         lcn_tl_col_output = self.inputs_dist[
             top_lcn_layer_index].local_array.top_left_col_output
+        #fully connected layer
         self.layers[-1].adjust_for_dist(self.layers[-2].nout,
                                         self.layers[
                                             -3].ofmshape, self.layers[-2].nfm,
@@ -260,10 +261,12 @@ class GBDist(MLPDist):
                 self.fprop(inputs[start_idx:end_idx], self.inputs_dist)
 
                 if epoch < self.num_initial_epochs:
+                    #only bprop on FC layers
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
                                     epoch, self.momentum)
                 else:
+                    #bprop through full stack
                     self.bprop(targets[start_idx:end_idx],
                                inputs[start_idx:end_idx],
                                epoch, self.momentum)

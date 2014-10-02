@@ -189,6 +189,10 @@ class MLPDist(MLP):
                             out=error)
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+
+        #aggregate the berror terms at halo locations
+        
+        
         while i > 1:
             i -= 1
             self.layers[i].bprop(self.layers[i + 1].berror,
