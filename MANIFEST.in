@@ -3,7 +3,7 @@ include setup.py
 include Makefile
 include LICENSE
 
-graft mylearn
+graft neon
 graft doc
 prune doc/build
 

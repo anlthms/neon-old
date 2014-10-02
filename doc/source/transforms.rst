@@ -12,11 +12,11 @@ Available Transforms
 .. autosummary::
    :toctree: generated/
 
-   mylearn.transforms.linear.Identity
-   mylearn.transforms.rectified.RectLin
-   mylearn.transforms.logistic.Logistic
-   mylearn.transforms.logistic.PseudoLogistic
-   mylearn.transforms.tanh.Tanh
+   neon.transforms.linear.Identity
+   neon.transforms.rectified.RectLin
+   neon.transforms.logistic.Logistic
+   neon.transforms.logistic.PseudoLogistic
+   neon.transforms.tanh.Tanh
 
-   mylearn.transforms.sum_squared.SumSquaredDiffs
-   mylearn.transforms.cross_entropy.CrossEntropy
+   neon.transforms.sum_squared.SumSquaredDiffs
+   neon.transforms.cross_entropy.CrossEntropy

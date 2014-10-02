@@ -7,14 +7,14 @@ Current Implementations
 .. autosummary::
    :toctree: generated/
 
-   mylearn.backends._numpy.Numpy
-   mylearn.backends._cudamat.Cudamat
+   neon.backends._numpy.Numpy
+   neon.backends._cudamat.Cudamat
 
 Adding a new Backend
 --------------------
 
-1. Generate a subclass of :class:`mylearn.backends.backend.Backend` including an
-   associated tensor class :class:`mylearn.backends.backend.Backend.Tensor`.
+1. Generate a subclass of :class:`neon.backends.backend.Backend` including an
+   associated tensor class :class:`neon.backends.backend.Backend.Tensor`.
 
 2. Implement overloaded operators to manipulate these tensor objects, as well
    other operations.
