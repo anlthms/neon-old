@@ -6,8 +6,8 @@ Times various indexing approaches (fancy vs. take)
 import sys
 import timeit
 
-from mylearn.util.compat import CUDA_GPU
-from mylearn.util.error import TooSlowToImplementError
+from neon.util.compat import CUDA_GPU
+from neon.util.error import TooSlowToImplementError
 
 
 def bench_mat_indexing(backend, classname, a_dims, indices, lop, rop,
@@ -91,9 +91,9 @@ def bench_mat_slicing(backend, classname, a_dims, slices, axes, number=10000,
 if __name__ == '__main__':
     number = 10000
     repeat = 3
-    test_backends = [('mylearn.backends._numpy', 'Numpy'), ]
+    test_backends = [('neon.backends._numpy', 'Numpy'), ]
     if CUDA_GPU:
-        test_backends.insert(1, ('mylearn.backends._cudamat', 'Cudamat'))
+        test_backends.insert(1, ('neon.backends._cudamat', 'Cudamat'))
     # contiguous slice testing
     for a_dims, slices, axes in [((5, 5), slice(0, 2), 0),
                                  ((5, 5), slice(0, 2), 1),

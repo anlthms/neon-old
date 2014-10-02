@@ -3,9 +3,9 @@
 *.so
 .DS_Store
 .tox
-mylearn.egg-info
+neon.egg-info
 build
-mylearn/version.py
+neon/version.py
 MANIFEST
 dist
 doc/source/generated

@@ -7,9 +7,9 @@ Current Implementations
 .. autosummary::
    :toctree: generated/
 
-   mylearn.experiments.experiment.Experiment
+   neon.experiments.experiment.Experiment
 
 Adding a new type of experiment
 --------------------------------
 
-* Subclass :class:`mylearn.experiments.experiment.Experiment`
+* Subclass :class:`neon.experiments.experiment.Experiment`

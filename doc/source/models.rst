@@ -8,17 +8,17 @@ Available Models
 .. autosummary::
    :toctree: generated/
 
-   mylearn.models.mlp.MLP
-   mylearn.models.autoencoder.Autoencoder
+   neon.models.mlp.MLP
+   neon.models.autoencoder.Autoencoder
 
 Adding a new Model type
 -----------------------
 
-* Create a new subclass of :class:`mylearn.models.model.Model`
+* Create a new subclass of :class:`neon.models.model.Model`
 
-  * At a minimum implements :func:`mylearn.models.model.Model.fit` to learn
+  * At a minimum implements :func:`neon.models.model.Model.fit` to learn
     parameters from a training dataset
-  * :func:`mylearn.models.model.Model.predict` to apply learned parameters
+  * :func:`neon.models.model.Model.predict` to apply learned parameters
     to make predictions about another dataset.
 
 Adding a new Layer type
@@ -26,5 +26,5 @@ Adding a new Layer type
 
 Neural network models are typically composed of several of these objects.
 
-* Create a new subclass of :class:`mylearn.models.layer.Layer` to suit your
+* Create a new subclass of :class:`neon.models.layer.Layer` to suit your
   needs.

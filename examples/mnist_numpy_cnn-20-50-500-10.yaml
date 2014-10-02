@@ -1,13 +1,13 @@
 # Experiment settings to train/test a CNN on MNIST.
 
-!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends._numpy.Numpy {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
 
   datasets: [
     # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
@@ -17,7 +17,7 @@
   
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:mylearn.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 2,
     batch_size: &bs 100,
@@ -29,10 +29,10 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './cnn-small.pkl',
     layers: [
-      !obj:mylearn.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayer {
         name: layer1,
         backend: *be,
         batch_size: *bs,
@@ -49,7 +49,7 @@
           high: 0.1,
         },
       },
-      !obj:mylearn.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer.MaxPoolingLayer {
         name: layer2,
         backend: *be,
         batch_size: *bs,
@@ -59,7 +59,7 @@
         pshape: [2, 2],
         stride: 2,
       },
-      !obj:mylearn.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayer {
         name: layer3,
         backend: *be,
         batch_size: *bs,
@@ -76,7 +76,7 @@
           high: 0.1,
         },
       },
-      !obj:mylearn.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer.MaxPoolingLayer {
         name: layer4,
         backend: *be,
         batch_size: *bs,
@@ -86,7 +86,7 @@
         pshape: [2, 2],
         stride: 2,
       },
-      !obj:mylearn.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -94,14 +94,14 @@
         learning_rate: *lr,
         nin: 800, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
-        activation: !obj:mylearn.transforms.rectified.RectLin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.1,
           high: 0.1,
         },
       },
-      !obj:mylearn.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -109,7 +109,7 @@
         learning_rate: *lr,
         nin: 500,
         nout: 10,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -0.1,

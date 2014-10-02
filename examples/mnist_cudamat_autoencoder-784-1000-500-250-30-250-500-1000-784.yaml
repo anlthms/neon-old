@@ -1,13 +1,13 @@
 # Experiment settings to train/test a stacked autoencoder on MNIST.
 
-!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends._cudamat.Cudamat {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends._cudamat.Cudamat {
     rng_seed: 0,
   },
 
   datasets: [
     # MNIST data
-    !obj:mylearn.datasets.mnist.MNIST {
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
@@ -16,7 +16,7 @@
   ],
   
   # Autoencoder model specification
-  model: !obj:mylearn.models.autoencoder.Autoencoder {
+  model: !obj:neon.models.autoencoder.Autoencoder {
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
@@ -28,10 +28,10 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './sae.pkl',
     layers: [
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: enc1,
         backend: *be,
         batch_size: *bs,
@@ -39,13 +39,13 @@
         learning_rate: *lr,
         nin: 784,  # input layer.  No bias used
         nout: 1000,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: enc2,
         backend: *be,
         batch_size: *bs,
@@ -53,13 +53,13 @@
         learning_rate: *lr,
         nin: 1000,
         nout: 500,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: enc3,
         backend: *be,
         batch_size: *bs,
@@ -67,13 +67,13 @@
         learning_rate: *lr,
         nin: 500,
         nout: 250,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: enc4,
         backend: *be,
         batch_size: *bs,
@@ -81,13 +81,13 @@
         learning_rate: *lr,
         nin: 250,
         nout: 30,
-        activation: !obj:mylearn.transforms.linear.Identity {},
+        activation: !obj:neon.transforms.linear.Identity {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: dec1,
         backend: *be,
         batch_size: *bs,
@@ -95,13 +95,13 @@
         learning_rate: *lr,
         nin: 30,
         nout: 250,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: dec2,
         backend: *be,
         batch_size: *bs,
@@ -109,13 +109,13 @@
         learning_rate: *lr,
         nin: 250,
         nout: 500,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: dec3,
         backend: *be,
         batch_size: *bs,
@@ -123,13 +123,13 @@
         learning_rate: *lr,
         nin: 500,
         nout: 1000,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:mylearn.models.layer.AELayer {
+      !obj:neon.models.layer.AELayer {
         name: dec4,
         backend: *be,
         batch_size: *bs,
@@ -137,7 +137,7 @@
         learning_rate: *lr,
         nin: 1000,
         nout: 784,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,

@@ -7,11 +7,11 @@ Basic Process
 1. Create a story in JIRA to track your work:
    https://nervanasys.atlassian.net/browse/MYL
 
-2. Clone and/or update your checked out copy of mylearn to ensure you have the
+2. Clone and/or update your checked out copy of neon to ensure you have the
    most recent commits from the master branch::
 
-    git clone git@192.168.20.2:algorithms/mylearn.git
-    cd mylearn
+    git clone git@192.168.20.2:algorithms/neon.git
+    cd neon
     git checkout master
     git pull origin master
 
@@ -55,7 +55,7 @@ Basic Process
    code review.  You should also ensure all your tests pass when run on the 
    continuous integration server::
 
-    http://192.168.20.2/algorithms/mylearn/merge_requests # "New Merge Request"
+    http://192.168.20.2/algorithms/neon/merge_requests # "New Merge Request"
     http://192.168.20.2:82/  # Our CI server web GUI.
 
 8. Once your change has been successfully merged, you can remove the source
@@ -72,14 +72,14 @@ Basic Process
 Architecture
 ------------
 
-* https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/architecture
+* https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture
 
 Roadmap
 -------
 
-* https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/roadmap
+* https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/roadmap
 
 How to Add a new model type
 ---------------------------
 
-* https://sites.google.com/a/nervanasys.com/wiki/algorithms/mylearn/how-to-write-a-mylearn-model
+* https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-neon-model

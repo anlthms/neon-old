@@ -23,7 +23,7 @@ except:
 
 if write_version:
     txt = "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
-    fname = os.path.join(os.path.dirname(__file__), 'mylearn', 'version.py')
+    fname = os.path.join(os.path.dirname(__file__), 'neon', 'version.py')
     a = open(fname, 'w')
     try:
         a.write(txt % ("Project version information.", FULLVERSION, VERSION))
@@ -37,36 +37,36 @@ try:
 except ImportError:
     use_cython = False
     suffix = "c"
-extensions = [Extension('mylearn.backends.fixpt_dtype',
-                        sources=['mylearn/backends/fixpt_dtype.c'],
+extensions = [Extension('neon.backends.fixpt_dtype',
+                        sources=['neon/backends/fixpt_dtype.c'],
                         include_dirs=[np.get_include()]),
-              Extension('mylearn.backends.fixpt_cython',
-                        ['mylearn/backends/fixpt_cython.' + suffix],
+              Extension('neon.backends.fixpt_cython',
+                        ['neon/backends/fixpt_cython.' + suffix],
                         include_dirs=[np.get_include()])]
 if use_cython:
     extensions = cythonize(extensions)
 
-setup(name='mylearn',
+setup(name='neon',
       version=VERSION,
       description='Deep learning library with configurable backends',
       long_description=open('README.md').read(),
       author='Nervana Systems',
       author_email='software@nervanasys.com',
       url='http://www.nervanasys.com',
-      packages=['mylearn',
-                'mylearn.backends',
-                'mylearn.datasets',
-                'mylearn.experiments',
-                'mylearn.models',
-                'mylearn.transforms',
-                'mylearn.util',
-                'mylearn.util.distarray',
-                'mylearn.tests',
-                'mylearn.backends.tests',
-                'mylearn.datasets.tests',
-                'mylearn.experiments.tests',
-                'mylearn.models.tests',
-                'mylearn.transforms.tests',
-                'mylearn.util.tests', ],
-      scripts=['bin/mylearn'],
+      packages=['neon',
+                'neon.backends',
+                'neon.datasets',
+                'neon.experiments',
+                'neon.models',
+                'neon.transforms',
+                'neon.util',
+                'neon.util.distarray',
+                'neon.tests',
+                'neon.backends.tests',
+                'neon.datasets.tests',
+                'neon.experiments.tests',
+                'neon.models.tests',
+                'neon.transforms.tests',
+                'neon.util.tests', ],
+      scripts=['bin/neon'],
       ext_modules=extensions)

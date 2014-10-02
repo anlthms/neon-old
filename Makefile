@@ -2,8 +2,8 @@
 
 DOC_DIR=doc
 DOC_PUB_HOST=192.168.20.2
-DOC_PUB_USER=mylearn
-DOC_PUB_PATH=/home/mylearn/public/
+DOC_PUB_USER=neon
+DOC_PUB_PATH=/home/neon/public/
 
 NOSE_FLAGS=""  # --pdb --pdb-failures
 
@@ -35,14 +35,14 @@ install: build
 	pip install .
 
 uninstall:
-	pip uninstall -y mylearn
+	pip uninstall -y neon
 
 test: build
 ifeq ($(NO_CUDA_GPU),0)
-	nosetests -a '!slow' $(NOSE_FLAGS) mylearn
+	nosetests -a '!slow' $(NOSE_FLAGS) neon
 else
 	@echo "No CUDA compatible GPU found, disabling GPU tests"
-	nosetests -a '!slow','!cuda' $(NOSE_FLAGS) mylearn
+	nosetests -a '!slow','!cuda' $(NOSE_FLAGS) neon
 endif
 
 test_all: build
@@ -53,8 +53,8 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
-	-rm -f mylearn/backends/fixpt_dtype.so
-	-rm -f mylearn/backends/fixpt_cython.so
+	-rm -f neon/backends/fixpt_dtype.so
+	-rm -f neon/backends/fixpt_cython.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean
@@ -70,7 +70,7 @@ style:
 	-touch .git/hooks/pre-commit
 
 lint:
-	-pylint --output-format=colorized mylearn
+	-pylint --output-format=colorized neon
 
 bench: build
 	PYTHONPATH="." benchmarks/run_benchmarks.py

@@ -1,12 +1,12 @@
 # MLP on CIFAR-10
 
-!obj:mylearn.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:mylearn.backends._numpy.Numpy {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
 
   datasets: [
-    !obj:mylearn.datasets.cifar10.CIFAR10 {
+    !obj:neon.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
@@ -15,7 +15,7 @@
   ],
 
   # simple MLP model specification
-  model: !obj:mylearn.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
@@ -27,9 +27,9 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:mylearn.transforms.cross_entropy.CrossEntropy {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:mylearn.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -37,14 +37,14 @@
         learning_rate: *lr,
         nin: 3072,
         nout: 200,
-        activation: !obj:mylearn.transforms.rectified.RectLin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.1,
           high: 0.1,
         },
       },
-      !obj:mylearn.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -52,7 +52,7 @@
         learning_rate: *lr,
         nin: 200,
         nout: 10,
-        activation: !obj:mylearn.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -0.1,
