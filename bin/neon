@@ -33,19 +33,34 @@ def main():
     """
     Point of code entry.
     """
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=30)  # WARN or higher
     # read in yaml configuration and initialize objects
     args = parse_args()
     if args.profile is not None:
         import cProfile
         p = cProfile.Profile()
         p.enable()
+        logging.info("Profiling code to: %s" % (
+                     args.profile if args.profile != "" else "stdout"))
     try:
         experiment = deserialize(args.yaml_file)
         if hasattr(experiment, 'logging'):
-            logging.basicConfig(**experiment.logging)
-            if args.profile is not None:
-                logging.info("Profiling code to: %s" % (
-                             args.profile if args.profile != "" else "stdout"))
+            logger = logging.getLogger()
+            handler = logger.handlers[0]
+            if "filename" in experiment.logging:
+                logging.info("replacing console logging with file logging: %s"
+                             % experiment.logging["filename"])
+                logger.removeHandler(handler)
+                handler = logging.FileHandler(experiment.logging["filename"])
+                logger.addHandler(handler)
+            if "format" in experiment.logging:
+                formatter = logging.Formatter(experiment.logging["format"])
+                handler.setFormatter(formatter)
+            if "level" in experiment.logging:
+                logging.info("setting log level to: %d" %
+                             experiment.logging["level"])
+                logger.setLevel(experiment.logging["level"])
         # carry out the experiment
         result = experiment.run()
         if args.profile is not None:
