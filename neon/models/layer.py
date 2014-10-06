@@ -141,9 +141,9 @@ class LayerWithNoBias(Layer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype, velocity_dtype,
-                 delta_dtype, updates_dtype, pre_act_dtype, output_dtype,
-                 berror_dtype):
+                 nout, activation, weight_init, weight_dtype=None, velocity_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None, output_dtype=None,
+                 berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
                                               pos, learning_rate, nin, nout,
                                               activation, weight_init,
