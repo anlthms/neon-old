@@ -6,11 +6,13 @@ is evaluated on the predictions made.
 import logging
 
 from neon.experiments.fit_dist import FitExperiment
+from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
 
 class FitPredictErrorExperiment(FitExperiment):
+
     """
     In this `Experiment`, a model is first trained on a training dataset to
     learn a set of parameters, then these parameters are used to generate
@@ -26,6 +28,7 @@ class FitPredictErrorExperiment(FitExperiment):
                                             datasets to use in this experiment
         TODO: add other params
     """
+
     def run(self):
         """
         Actually carry out each of the experiment steps.
@@ -34,9 +37,9 @@ class FitPredictErrorExperiment(FitExperiment):
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
 
-        # TODO: only unsupervised pretraining is supported for now (1 stack)
         # generate predictions
-        # predictions = self.model.predict(self.datasets)
+        predictions = self.model.predict(self.datasets)
 
         # report errors
-        # self.model.error_metrics(self.datasets, predictions)
+        if MPI.COMM_WORLD.rank == 0:
+            self.model.error_metrics(self.datasets, predictions)
