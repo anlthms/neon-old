@@ -245,3 +245,46 @@ class MLPDist(MLP):
             self.inputs_dist[i].local_array.defiltering_local_image,
             self.inputs_dist[i - 1].local_array.chunk,
             epoch, momentum)
+
+    def predict_set(self, inputs):
+        nrecs = inputs.shape[0]
+        if MPI.COMM_WORLD.rank == 0:
+            self.outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
+        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        for batch in xrange(num_batches):
+            start_idx = batch * self.batch_size
+            end_idx = min((batch + 1) * self.batch_size, nrecs)
+            self.fprop(inputs[start_idx:end_idx])
+            if MPI.COMM_WORLD.rank == 0:
+                self.outputs[start_idx:end_idx, :] = self.layers[-1].output
+
+    def predict(self, datasets, train=True, test=True, validation=True):
+        """
+        Generate and return predictions on the given datasets.
+        """
+        res = []
+        for dataset in datasets:
+            inputs = dataset.get_inputs(train, test, validation)
+            preds = dict()
+            if train and 'train' in inputs:
+                self.predict_set(inputs['train'])
+                if MPI.COMM_WORLD.rank == 0:
+                    preds['train'] = dataset.backend.argmax(
+                        self.outputs, axis=1)
+            if test and 'test' in inputs:
+                self.predict_set(inputs['test'])
+                if MPI.COMM_WORLD.rank == 0:
+                    preds['test'] = dataset.backend.argmax(
+                        self.outputs, axis=1)
+            if validation and 'validation' in inputs:
+                self.predict_set(inputs['validation'])
+                if MPI.COMM_WORLD.rank == 0:
+                    preds['validation'] = dataset.backend.argmax(
+                        self.outputs, axis=1)
+            if MPI.COMM_WORLD.rank == 0:
+                if len(preds) is 0:
+                    logger.error(
+                        "must specify >=1 of: train, test, validation")
+                res.append(preds)
+
+        return res
