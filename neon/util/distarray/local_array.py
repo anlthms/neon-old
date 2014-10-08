@@ -158,6 +158,7 @@ class LocalArray(object):
         # exchange and store neighbor dims
         for k in self.halo_ids:
             # k_reverse_dir = gc.send_dict[k]
+            #print comm.rank, 'dir=', k
             neighbor_array_index = [
                 gc.pos_offsets[k][0] + self.global_row_index,
                 gc.pos_offsets[k][1] + self.global_col_index]

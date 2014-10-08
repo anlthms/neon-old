@@ -6,6 +6,8 @@ import logging
 import math
 
 from neon.models.model import Model
+from neon.models.layer import LCNLayer, L2PoolingLayer
+from neon.models.layer_dist import LocalFilteringLayerDist
 from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
@@ -155,17 +157,17 @@ class MLPDist(MLP):
     Fully connected, feed-forward, multi-layer perceptron model
     """
 
-    def fprop(self, inputs, inputs_dist):
+    def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
             if layer.pos < self.nlayers - 1:
-                inputs_dist[layer.pos].local_array.local_image = y
+                self.inputs_dist[layer.pos].local_array.local_image = y
                 # perform halo exchanges
-                inputs_dist[layer.pos].local_array.send_recv_halos()
+                self.inputs_dist[layer.pos].local_array.send_recv_halos()
                 # make consistent chunk
-                inputs_dist[
+                self.inputs_dist[
                     layer.pos].local_array.make_local_chunk_consistent()
-                layer.fprop(inputs_dist[layer.pos].local_array.chunk)
+                layer.fprop(self.inputs_dist[layer.pos].local_array.chunk)
                 y = layer.output
             else:
                 layer.fprop(y)
@@ -185,22 +187,61 @@ class MLPDist(MLP):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
-        error = self.cost.apply_derivative(self.backend,
-                                           lastlayer.output, targets,
-                                           self.temp)
-        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
-                            out=error)
+        error = self.backend.zeros((self.batch_size, self.layers[-1].nout))
+        if MPI.COMM_WORLD.rank == 0:
+            error = self.cost.apply_derivative(self.backend,
+                                               lastlayer.output, targets,
+                                               self.temp)
+            self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+                                out=error)
+        error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
 
-        #aggregate the berror terms at halo locations
-        
-        
         while i > 1:
             i -= 1
-            self.layers[i].bprop(self.layers[i + 1].berror,
-                                 self.layers[i - 1].output,
-                                 epoch, momentum)
-        # Update the first hidden layer.
-        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch,
-                                 momentum)
+            # aggregate the berror terms at halo locations
+            if isinstance(self.layers[i], LCNLayer):
+                # note: LCN will handle halos internally because it
+                # uses padding in addition to halos
+                # Top LCN connection layer is treated differently compared to
+                # middle LCN connections
+                # note: that input into LCN is ignored (self.layers[i -
+                # 1].output)
+                if i == self.nlayers - 2:
+                    self.layers[i].bprop(self.layers[i + 1].berror,
+                                         self.layers[i - 1].output,
+                                         epoch, momentum)
+                else:
+                    self.layers[i].bprop(
+                        self.inputs_dist[
+                            i + 1].local_array.defiltering_local_image,
+                        self.layers[i - 1].output,
+                        epoch, momentum)
+            elif isinstance(self.layers[i], L2PoolingLayer):
+                self.layers[i].bprop(self.layers[i + 1].berror,
+                                     self.inputs_dist[i].local_array.chunk,
+                                     epoch, momentum)
+                self.inputs_dist[
+                    i].local_array.defiltering_chunk = self.layers[i].berror
+                self.inputs_dist[
+                    i].local_array.send_recv_defiltering_layer_halos()
+                self.inputs_dist[
+                    i].local_array.make_defiltering_layer_consistent()
+            elif isinstance(self.layers[i], LocalFilteringLayerDist):
+                self.layers[i].bprop(
+                    self.inputs_dist[
+                        i + 1].local_array.defiltering_local_image,
+                    self.inputs_dist[i].local_array.chunk,
+                    epoch, momentum)
+                self.inputs_dist[
+                    i].local_array.defiltering_chunk = self.layers[i].berror
+                self.inputs_dist[
+                    i].local_array.send_recv_defiltering_layer_halos()
+                self.inputs_dist[
+                    i].local_array.make_defiltering_layer_consistent()
+
+        self.layers[i - 1].bprop(
+            self.inputs_dist[i].local_array.defiltering_local_image,
+            self.inputs_dist[i - 1].local_array.chunk,
+            epoch, momentum)
