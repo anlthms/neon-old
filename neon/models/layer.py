@@ -208,21 +208,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         # this stores the derivatives in self.pre_act
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    # def bprop(self, error, inputs, epoch, momentum):
-    # comment if not using denominator term
-    #     self.backend.multiply(error, self.pre_act, out=self.delta)
-    # self.delta = error
-
-    #     if self.pos > 0:
-    #         self.backend.dot(self.delta, self.weights, out=self.berror)
-
-    #     self.backend.dot(self.delta.T(), inputs, out=self.updates)
-    #     self.backend.multiply(self.updates,
-    #                           self.backend.wrap(self.learning_rate),
-    #                           out=self.updates)
-    #     self.backend.subtract(self.weights, self.updates, out=self.weights)
-
-
 class LayerWithNoActivation(LayerWithNoBias):
 
     def fprop(self, inputs):

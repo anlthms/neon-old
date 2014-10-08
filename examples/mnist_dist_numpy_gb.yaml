@@ -11,7 +11,7 @@
     !obj:neon.datasets.mnist_dist.MNISTDist {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
+      sample_pct: 10,
       serialized_path: '/usr/local/data/MNISTDist/mnist_dist_1pct-Numpy_',
     },
   ],
@@ -19,8 +19,8 @@
   # Google Brain model specification
   model: !obj:neon.models.gb_dist.GBDist {
     backend: *be,
-    num_epochs: 2,
-    num_pretrain_epochs: 1,
+    num_epochs: 4,
+    num_pretrain_epochs: 8,
     num_initial_epochs: 1,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
