@@ -208,6 +208,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         # this stores the derivatives in self.pre_act
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
+
 class LayerWithNoActivation(LayerWithNoBias):
 
     def fprop(self, inputs):
