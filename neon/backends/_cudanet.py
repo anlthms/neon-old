@@ -593,16 +593,22 @@ class Cudanet(Backend):
         # a known cudanet issue as described here:
         # https://github.com/cudanet/cudanet/issues/19
 
+    @staticmethod
+    def empty(self, shape, dtype=None):
+        return CudanetTensor(cudanet.empty(shape))
+
+    @staticmethod
     def zeros(self, shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
+    @staticmethod
     def ones(self, shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
     @staticmethod
-    def array(obj):
+    def array(obj, dtype=None):
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
@@ -715,6 +721,10 @@ class Cudanet(Backend):
         cudanet.sigmoid(x._tensor, out._tensor)
 
     @staticmethod
+    def fill(x, val):
+        x._tensor[:] = val
+
+    @staticmethod
     def sum(x):
         if x is None:
             return float('NaN')
@@ -793,6 +803,24 @@ class Cudanet(Backend):
         res.equals(0)
         res.equals(0)
         return CudanetTensor(res)
+
+    @staticmethod
+    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape, ofmlocs,
+                   padding, stride, nifm, ngroups, prodbuf):
+        assert ifmshape[0] == ifmshape[1]
+        cudanet.convolution(weights._tensor, inputs._tensor, outputs._tensor,
+                            ifmshape[0], ofmshape[0], ofmshape[1], padding,
+                            stride, nifm, ngroups)
+
+    @staticmethod
+    def bprop_conv(weights, error, berror, links,  ofmshape,
+                   ofmlocs, bpropbuf):
+        raise NotImplementedError("TODO")
+
+    @staticmethod
+    def update_conv(weights, inputs, error, updates, links,  ofmshape,
+                    ofmlocs, updatebuf):
+        raise NotImplementedError("TODO")
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.

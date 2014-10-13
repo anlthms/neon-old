@@ -141,9 +141,9 @@ class LayerWithNoBias(Layer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype=None, velocity_dtype=None,
-                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None, output_dtype=None,
-                 berror_dtype=None):
+                 nout, activation, weight_init, weight_dtype=None,
+                 velocity_dtype=None, delta_dtype=None, updates_dtype=None,
+                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
                                               pos, learning_rate, nin, nout,
                                               activation, weight_init,
@@ -338,12 +338,15 @@ class LocalLayer(YAMLable):
                  nofm, ifmshape, fshape, stride):
         self.name = name
         self.backend = backend
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmshape = ifmshape
-        self.fheight, self.fwidth = fshape
         self.batch_size = batch_size
         self.pos = pos
         self.learning_rate = learning_rate
+        self.nifm = nifm
+        self.nofm = nofm
+        self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmshape = ifmshape
+        self.fheight, self.fwidth = fshape
+        self.stride = stride
 
         self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
         self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
@@ -354,14 +357,12 @@ class LocalLayer(YAMLable):
         if pos > 0:
             self.berror = backend.zeros((batch_size, self.nin))
 
-        self.nifm = nifm
-        self.nofm = nofm
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
-                                        self.ofmsize))
+                                        self.ofmsize)).raw()
         ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = ofmstarts + dst
+            ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
         self.rofmlocs = ofmlocs.raw()
 
         # Figure out the connections with the previous layer.
@@ -431,43 +432,19 @@ class ConvLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def fprop(self, inputs):
-        for dst in xrange(self.ofmsize):
-            # Compute the weighted average of the receptive field
-            # and store the result within the destination feature map.
-            # Do this for all filters in one shot.
-            rflinks = self.rlinks[dst]
-            self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights.T(), out=self.prodbuf)
-            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+        self.backend.fprop_conv(self.weights, inputs, self.output,
+                                self.rlinks, self.ifmshape, self.ofmshape,
+                                self.rofmlocs, 0, self.stride, self.nifm, 1,
+                                self.prodbuf)
 
     def bprop(self, error, inputs, epoch, momentum):
-        self.delta = error
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
-                                 self.weights, self.bpropbuf)
-                rflinks = self.rlinks[dst]
-                self.backend.add(self.bpropbuf,
-                                 self.berror.take(rflinks, axis=1),
-                                 out=self.bpropbuf)
-                self.berror[:, rflinks] = self.bpropbuf
-
-        self.backend.clear(self.updates)
-        for dst in xrange(self.ofmsize):
-            # Accumulate the weight updates, going over all
-            # corresponding cells in the output feature maps.
-            rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
-
-            self.backend.dot(delta_slice.T(), inputs.take(rflinks, axis=1),
-                             out=self.updatebuf)
-            self.updates.add(self.updatebuf)
-        # Update the filters after summing the weight updates.
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+            self.backend.bprop_conv(self.weights, error, self.berror,
+                                    self.links, self.ofmshape, self.rofmlocs,
+                                    self.bpropbuf)
+        self.backend.update_conv(self.weights, inputs, error, self.updates,
+                                 self.links, self.ofmshape, self.rofmlocs,
+                                 self.learning_rate, self.updatebuf)
 
 
 class LocalFilteringLayer(LocalLayer):

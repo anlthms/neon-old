@@ -384,6 +384,11 @@ class Numpy(Backend):
         return in_dtype
 
     @classmethod
+    def empty(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.empty(shape, dtype), dtype)
+
+    @classmethod
     def zeros(cls, shape, dtype=None):
         dtype = cls.default_dtype_if_missing(dtype)
         return cls.tensor_cls(np.zeros(shape, dtype), dtype)
@@ -524,6 +529,10 @@ class Numpy(Backend):
         x._tensor[:] = 0
 
     @staticmethod
+    def fill(x, val):
+        x._tensor.fill(val)
+
+    @staticmethod
     def sum(obj):
         return obj._tensor.sum()
 
@@ -593,6 +602,43 @@ class Numpy(Backend):
     @classmethod
     def nonzero(cls, x):
         return cls.tensor_cls(np.nonzero(x._tensor)[1])
+
+    @staticmethod
+    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            # Compute the weighted average of the receptive field
+            # and store the result within the destination feature map.
+            # Do this for all filters in one shot.
+            rflinks = links[dst]
+            Numpy.dot(inputs.take(rflinks, axis=1), weights.T(), out=prodbuf)
+            outputs[:, ofmlocs[dst]] = prodbuf
+
+    @staticmethod
+    def bprop_conv(weights, error, berror, links,  ofmshape,
+                   ofmlocs, bpropbuf):
+        Numpy.fill(berror, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            Numpy.dot(error.take(ofmlocs[dst], axis=1), weights, bpropbuf)
+            rflinks = links[dst]
+            Numpy.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
+            berror[:, rflinks] = bpropbuf
+
+    @staticmethod
+    def update_conv(weights, inputs, error, updates, links,  ofmshape,
+                    ofmlocs, scale, updatebuf):
+        Numpy.fill(updates, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            # Accumulate the weight updates, going over all
+            # corresponding cells in the output feature maps.
+            rflinks = links[dst]
+            eslice = error.take(ofmlocs[dst], axis=1)
+            Numpy.dot(eslice.T(), inputs.take(rflinks, axis=1),
+                      out=updatebuf)
+            updates.add(updatebuf)
+        # Update the filters after summing the weight updates.
+        Numpy.multiply(updates, Numpy.wrap(scale), out=updates)
+        Numpy.subtract(weights, updates, out=weights)
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
