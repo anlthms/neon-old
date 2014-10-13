@@ -76,7 +76,7 @@ class GB(MLP):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):  # num_batches
+            for batch in xrange(num_batches):
                 print 'batch =', batch
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)

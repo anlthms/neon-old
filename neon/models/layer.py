@@ -7,7 +7,6 @@ import logging
 
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.persist import YAMLable
-
 import neon.util.distarray.gdist_consts as gc
 
 logger = logging.getLogger(__name__)
@@ -208,20 +207,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
     def fprop2(self):
         # this stores the derivatives in self.pre_act
         self.activation.apply_both(self.backend, self.pre_act, self.output)
-
-    def bprop(self, error, inputs, epoch, momentum):
-        # comment if not using denominator term
-        self.backend.multiply(error, self.pre_act, out=self.delta)
-        # self.delta = error
-
-        if self.pos > 0:
-            self.backend.dot(self.delta, self.weights, out=self.berror)
-
-        self.backend.dot(self.delta.T(), inputs, out=self.updates)
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
 class LayerWithNoActivation(LayerWithNoBias):
@@ -845,6 +830,8 @@ class L2PoolingLayer(PoolingLayer):
 
     def fprop(self, inputs):
         rinputs = self.backend.squish(inputs, self.nfm)
+        # print MPI.COMM_WORLD.rank, 'L2 pooling fprop rinputs.shape',
+        # rinputs.shape
         for dst in xrange(self.ofmsize):
             inds = self.links[dst]
             rf = rinputs.take(inds, axis=1)
@@ -853,6 +840,8 @@ class L2PoolingLayer(PoolingLayer):
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
         rinputs = self.backend.squish(inputs, self.nfm)
+        # print MPI.COMM_WORLD.rank, 'L2 pooling bprop rinputs.shape',
+        # rinputs.shape
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
@@ -1017,13 +1006,17 @@ class LCNLayer(YAMLable):
         self.rtemp2 = self.temp2.reshape(self.routput.shape)
         self.subout = self.backend.zeros(self.output.shape, dtype)
         self.rsubout = self.subout.reshape(self.routput.shape)
+        self.subtemp = self.backend.zeros(self.output.shape)
+        self.rsubtemp = self.subtemp.reshape(self.routput.shape)
         self.subtemp2 = self.backend.zeros((self.batch_size, self.nin), dtype)
         self.rsubtemp2 = self.subtemp2.reshape((self.batch_size, self.nfm,
                                                 self.ifmheight, self.ifmwidth))
 
         if self.pos > 0:
+            # changed to nout for bprop in dist version, compared to nin in
+            # non-dist version
             self.diverror = self.backend.zeros(
-                (self.batch_size, self.nin), dtype)
+                (self.batch_size, self.nout), dtype)
             self.exerror = self.backend.zeros((self.batch_size,
                                               self.nfm * self.exifmsize),
                                               dtype)
@@ -1150,10 +1143,9 @@ class LCNLayer(YAMLable):
 
     def copy_from_inset(self, canvas, start_row, start_col):
         if self.dist_flag:
-            return NotImplementedError
-            # return canvas[:, :,
-            #               self.start_row:(start_row + inset.shape[2]),
-            #               self.start_col:(start_col + inset.shape[3])]
+            return canvas[:, :,
+                          start_row:start_row + self.ifmheight,
+                          start_col:start_col + self.ifmwidth]
         else:
             return canvas[:, :,
                           self.start_row:(canvas.shape[2] - start_row),
@@ -1217,6 +1209,7 @@ class LCNLayer(YAMLable):
         self.fprop_div_normalize()
 
     def reshape_error(self):
+        # discards zero padding around the delta matrix
         self.berror = self.copy_from_inset(self.rexerror, self.start_row,
                                            self.start_col)
         self.berror = self.berror.reshape((self.batch_size, self.nin))
@@ -1235,31 +1228,43 @@ class LCNLayer(YAMLable):
     def bprop_div_normalize(self, error, inputs, epoch, momentum):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
+
+        if self.dist_flag:
+            self.subout = self.inputs_dist.local_array.local_image
+            self.subtemp2[:] = self.inputs_dist.local_array.chunk
+
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout == 0].sum() == 0.0
-        self.subout[self.subout == 0] = 1.0
+        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
+        self.subout[self.subout.raw() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
+        # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
+
         for fm in range(self.nfm):
             for dst in xrange(self.conv.ofmsize):
+                # self.conv.rofmlocs is over 1 fm only
                 loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
-                assert divout[subout == 0].sum() == 0
-                subout[subout == 0.0] = 1.0
+                assert divout[subout.raw() == 0].sum() == 0
+                subout[subout.raw() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 
                 rflinks = self.conv.rlinks[dst]
-                self.copy_to_inset(self.rexinputs, self.rsubtemp,
-                                   self.start_row, self.start_col)
+                if self.dist_flag:
+                    self.copy_to_inset(self.rexinputs, self.rsubtemp2,
+                                       self.start_row, self.start_col)
+                else:
+                    self.copy_to_inset(self.rexinputs, self.rsubtemp,
+                                       self.start_row, self.start_col)
                 rrexinputs = self.rexinputs.reshape(
                     (self.batch_size, self.nfm * self.exifmsize))
                 frame = rrexinputs.take(rflinks, axis=1)
                 self.backend.multiply(frame, self.filters, out=frame)
                 self.backend.multiply(frame, self.diverror[:, loc], out=frame)
-                # todo: during bprop this might cause an error
                 rframe = frame.reshape((self.batch_size, self.nfm,
                                         self.fheight, self.fwidth))
+                # this is working on the g2/y2 term
                 rframe[:, fm:(fm + 1),
                        self.fheight / 2, self.fwidth / 2] -= divout
                 self.backend.multiply(error[:, loc].repeat(self.fsize, axis=1),
@@ -1269,8 +1274,27 @@ class LCNLayer(YAMLable):
 
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
+            # note: have to account for halos + padding after each step
             self.bprop_div_normalize(error, inputs, epoch, momentum)
-            self.bprop_sub_normalize(self.berror, inputs, epoch, momentum)
+
+            if self.dist_flag:
+                self.inputs_dist.local_array.defiltering_chunk = self.berror
+                self.inputs_dist.local_array.send_recv_defiltering_layer_halos(
+                )
+                self.inputs_dist.local_array.make_defiltering_layer_consistent(
+                )
+                self.bprop_sub_normalize(
+                    self.inputs_dist.local_array.defiltering_local_image,
+                    inputs, epoch, momentum)
+                self.inputs_dist.local_array.defiltering_chunk = self.berror
+                self.inputs_dist.local_array.send_recv_defiltering_layer_halos(
+                )
+                self.inputs_dist.local_array.make_defiltering_layer_consistent(
+                )
+                self.berror = (
+                    self.inputs_dist.local_array.defiltering_local_image)
+            else:
+                self.bprop_sub_normalize(self.berror, inputs, epoch, momentum)
 
     def bprop_fast(self, error, inputs, epoch, momentum):
         """
