@@ -3,7 +3,7 @@ import numpy as np
 
 from neon.backends._numpy import Numpy, NumpyTensor
 from neon.transforms.cross_entropy import (cross_entropy,
-                                              cross_entropy_derivative)
+                                           cross_entropy_derivative)
 from neon.util.testing import assert_tensor_near_equal
 
 

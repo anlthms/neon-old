@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
-Driver script for running mylearn model experiments.
+Driver script for running neon model experiments.
 """
 
 import argparse
 import logging
 import sys
 
-import mylearn
-from mylearn.util.persist import deserialize
-from mylearn.experiments.check_grad import GradientChecker
+import neon
+from neon.util.persist import deserialize
+from neon.experiments.check_grad import GradientChecker
 
 
 def parse_args():

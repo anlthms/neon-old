@@ -110,7 +110,6 @@ class MNISTDist(Dataset):
                     if self.sample_pct < 1.0:
                         numpy.random.shuffle(train_idcs)
                     train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
-                    print 'train_idcs', train_idcs[0], self.sample_pct
                 for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                             self.raw_test_input_gz, self.raw_test_target_gz):
                     name = os.path.basename(url).rstrip('.gz')
