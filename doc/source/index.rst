@@ -1,7 +1,7 @@
 .. neon documentation master file
 
 neon: A highly configurable ML library
-*****************************************
+**************************************
 
 :Release: |version|
 :Date: |today|

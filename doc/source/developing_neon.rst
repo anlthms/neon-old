@@ -1,19 +1,22 @@
-Contributing to Mylearn
-=======================
+Contributing to Neon
+====================
 
 Basic Process
 -------------
 
 1. Create a story in JIRA to track your work:
    https://nervanasys.atlassian.net/browse/MYL
+   We tend to do 1 week code sprints starting each Tuesday after the Algorithms
+   meeting.  Talk to Scott to ensure your tickets get added to the next sprint.
 
 2. Clone and/or update your checked out copy of neon to ensure you have the
    most recent commits from the master branch::
 
     git clone git@192.168.20.2:algorithms/neon.git
     cd neon
+    git fetch origin
     git checkout master
-    git pull origin master
+    git pull
 
 3. Create a new feature branch for your work and switch to it.  Give it a
    meaningful name related to the task(s) at hand::
@@ -38,7 +41,7 @@ Basic Process
    This all exists under doc/source and is in 
    `Sphinx Restructed Text format <http://sphinx-doc.org/rest.html>`_::
 
-    make doc   # builds documentation locally
+    make doc         # builds documentation locally
     make publish_doc # builds documentation and publishes to:
                      # http://192.168.20.2:5700
 
@@ -56,13 +59,14 @@ Basic Process
    continuous integration server::
 
     http://192.168.20.2/algorithms/neon/merge_requests # "New Merge Request"
-    http://192.168.20.2:82/  # Our CI server web GUI.
+    http://192.168.20.2:82/                            # Our CI server web GUI.
 
 8. Once your change has been successfully merged, you can remove the source
    branch and ensure your local copy is up to date::
 
+    git fetch origin
     git checkout master
-    git pull origin
+    git pull
     git branch -d my_new_feature_branch
     git branch -d -r origin/my_new_feature_branch
 
@@ -72,7 +76,8 @@ Basic Process
 Architecture
 ------------
 
-* https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture
+.. figure:: _static/neon_architecture.png
+   :alt: neon architecture
 
 Roadmap
 -------
