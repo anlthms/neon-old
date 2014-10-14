@@ -8,6 +8,8 @@ neon: A highly configurable ML library
 
 .. automodule:: neon
    :members:
+   :inherited-members:
+   :show-inheritance:
 
 
 Contents
@@ -18,6 +20,7 @@ Contents
 
    using_neon
    developing_neon
+   ml_operational_layer
    backends
    models
    transforms
@@ -34,4 +37,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

@@ -1,8 +1,8 @@
 """
 neon - A highly configurable machine learning library
-========================================================
+=====================================================
 
-Full documentation is available at: http://192.168.20.2:5700
+Full documentation is available at: http://atlas.localdomain:5700
 """
 
 try:
