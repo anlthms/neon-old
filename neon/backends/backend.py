@@ -448,9 +448,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the average
-            axes (int, list, optional): the dimension(s) along which to average.
-                                        If set to None, we will average over all
-                                        dimensions.
+            axes (int, list, optional): the dimension(s) along which to
+                                        average.  If set to None, we will
+                                        average over all dimensions.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -551,7 +551,7 @@ class Backend(YAMLable):
 
     def nonzero(self, tsr):
         """
-        Calculates and returns the indices of the elements whose value is 
+        Calculates and returns the indices of the elements whose value is
         not equal to zero.
 
         Arguments:
@@ -636,7 +636,7 @@ class Tensor(object):
     def __getitem__(self, key):
         """
         Extract a subset view of the items via fancy indexing. e.g. A[5:10, :]
-        
+
         Notes:
             This approach tends to be slower in speed than
             :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
@@ -659,7 +659,7 @@ class Tensor(object):
         """
         Assign the specified value to a subset of elements found by fancy
         indexing.
-        
+
         Notes:
             This approach tends to be slower in speed than
             :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
