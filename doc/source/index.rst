@@ -8,7 +8,6 @@ neon: A highly configurable ML library
 
 .. automodule:: neon
    :members:
-   :inherited-members:
    :show-inheritance:
 
 

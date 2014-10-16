@@ -3,14 +3,14 @@
 .. |Tensor| replace:: :py:class:`~neon.backends.backend.Tensor`
 .. |Backend| replace:: :py:class:`~neon.backends.backend.Backend`
 
-************************
-ML Operational Layer API 
-************************
+******************************
+ML OPerational Layer (MOP) API 
+******************************
 
 In order to interact with our T101 compiler and driver, we expose the following
-API which we refer to as our ML operational layer. It currently consists of the
-functions defined in the following two classes, which we detail further on the
-rest of this page:
+API which we refer to as our ML operational layer (aka MOP layer). It currently
+consists of the functions defined in the following two interface classes, which
+we detail further on the rest of this page:
 
 .. autosummary::
    :toctree: generated/
@@ -37,15 +37,20 @@ access metadata.
    neon.backends.backend.Backend.zeros
    neon.backends.backend.Backend.ones
    neon.backends.backend.Backend.copy
+   neon.backends.backend.Backend.uniform
+   neon.backends.backend.Backend.normal
 
 |Tensor| Manipulation
 ---------------------
 
 .. autosummary::
 
-   neon.backends.backend.Tensor.reshape
-   neon.backends.backend.Tensor.transpose
    neon.backends.backend.Tensor.take
+   neon.backends.backend.Tensor.__getitem__
+   neon.backends.backend.Tensor.__setitem__
+   neon.backends.backend.Tensor.transpose
+   neon.backends.backend.Tensor.reshape
+   neon.backends.backend.Tensor.repeat
 
 |Tensor| Attributes
 -------------------
@@ -54,6 +59,7 @@ access metadata.
 
    neon.backends.backend.Tensor.shape
    neon.backends.backend.Tensor.dtype
+   neon.backends.backend.Tensor.raw
 
 Arithmetic Operation Support
 ============================
@@ -77,6 +83,7 @@ Element-wise Unary Transcendental Functions
 
    neon.backends.backend.Backend.log
    neon.backends.backend.Backend.exp
+   neon.backends.backend.Backend.power
 
 Matrix Algebra Operations
 -------------------------
@@ -87,9 +94,36 @@ Matrix Algebra Operations
 Logical Operation Support
 =========================
 
-TODO: format and add gt, le, ne, etc.
+.. autosummary::
+
+   neon.backends.backend.Backend.equal
+   neon.backends.backend.Backend.not_equal
+   neon.backends.backend.Backend.greater
+   neon.backends.backend.Backend.greater_equal
+   neon.backends.backend.Backend.less
+   neon.backends.backend.Backend.less_equal
 
 Summarization Operation Support
 ===============================
+.. autosummary::
 
-TODO: format and add sum, mean, min, max, argmax, etc.
+   neon.backends.backend.Backend.sum
+   neon.backends.backend.Backend.mean
+   neon.backends.backend.Backend.min
+   neon.backends.backend.Backend.max
+   neon.backends.backend.Backend.argmin
+   neon.backends.backend.Backend.argmax
+   neon.backends.backend.Backend.nonzero
+   neon.backends.backend.Backend.norm
+
+Initialization and Setup
+========================
+.. autosummary::
+
+   neon.backends.backend.Backend.rng_init
+   neon.backends.backend.Backend.err_init
+
+Higher Level Operation Support
+==============================
+
+TODO: determine what to include here

@@ -8,8 +8,8 @@ from neon.util.persist import YAMLable
 
 class Backend(YAMLable):
     """
-    Generic backend used to manipulate data.  This abstract
-    base class defines what operation each concrete backend must support.
+    backend interface used to manipulate Tensor data.  This abstract
+    base class defines what operations each concrete backend must support.
     Inherits configuration file handling via `yaml.YAMLObject
     <http://pyyaml.org/wiki/PyYAMLDocumentation#YAMLObject>`_
 
@@ -101,6 +101,51 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def uniform(self, low=0.0, high=1.0, size=1):
+        """
+        Uniform random number generation of samples in range [low, high).
+
+        Arguments:
+            low (float, optional): Minimal sample value.  Defaults to 0.0
+            high (float, optional): Maximal sample value (open-ended range).
+                                    Defaults to 1.0.
+            size (int, list, optional): The shape of the samples to return.
+                                        Defaults to 1
+
+        Returns:
+            Tensor: of shape size filled with these random numbers.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Backend.normal`,
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def normal(self, loc=0.0, scale=1.0, size=1):
+        """
+        Gaussian/Normal random number generation of samples centered around
+        mean loc, and with standard deviation scale.
+
+        Arguments:
+            loc (float, optional): Central value for Gaussian.  Defaults to 0.0
+            scale (float, optional): Standard deviation for samples.  Defaults
+                                     to 1.0
+            size (int, list, optional): The shape of the samples to return.
+                                        Defaults to 1
+
+        Returns:
+            Tensor: of shape size filled with these random numbers.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Backend.uniform`,
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
     @classmethod
     def add(cls, left, right, out):
         """
@@ -112,6 +157,9 @@ class Backend(YAMLable):
             left (Tensor): left-hand side operand.
             right (Tensor): right-hand side operand.
             out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -130,6 +178,9 @@ class Backend(YAMLable):
             right (Tensor): right-hand side operand.
             out (Tensor): where the result will be stored.
 
+        Returns:
+            Tensor: reference to out
+
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
@@ -146,6 +197,9 @@ class Backend(YAMLable):
             left (Tensor): left-hand side operand.
             right (Tensor): right-hand side operand.
             out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -164,6 +218,9 @@ class Backend(YAMLable):
             right (Tensor): right-hand side operand.
             out (Tensor): where the result will be stored.
 
+        Returns:
+            Tensor: reference to out
+
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
@@ -180,6 +237,9 @@ class Backend(YAMLable):
             tsr (Tensor): input to be transformed.
             out (Tensor): where the result will be stored.
 
+        Returns:
+            Tensor: reference to out
+
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
@@ -195,6 +255,29 @@ class Backend(YAMLable):
         Arguments:
             tsr (Tensor): input to be transformed.
             out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def power(self, tsr, power, out):
+        """
+        Perform element-wise raise of tsr values to specified power,
+        storing the result in Tensor out.  Both Tensor's should have identical
+        shape.
+
+        Arguments:
+            tsr (Tensor): input to be transformed.
+            power (numeric): exponentiated value to be applied to element.
+                             Examples include 2 (square), 0.5 (sqaure root).
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -215,6 +298,289 @@ class Backend(YAMLable):
             right (Tensor): right-hand side operand.
             out (Tensor): where the result will be stored.
 
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def not_equal(self, left, right, out):
+        """
+        Performs element-wise non-equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def greater(self, left, right, out):
+        """
+        Performs element-wise greater than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def greater_equal(self, left, right, out):
+        """
+        Performs element-wise greater than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def less(self, left, right, out):
+        """
+        Performs element-wise less than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def less_equal(self, left, right, out):
+        """
+        Performs element-wise less than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (Tensor): left-hand side operand.
+            right (Tensor): right-hand side operand.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def sum(cls, tsr, axes, out):
+        """
+        Calculates the summation of the elements along the specified axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to perform the sum
+            axes (int, list, optional): the dimension(s) along which to sum.
+                                        If set to None, we will sum over all
+                                        dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def mean(cls, tsr, axes, out):
+        """
+        Calculates the arithmetic mean of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the average
+            axes (int, list, optional): the dimension(s) along which to average.
+                                        If set to None, we will average over all
+                                        dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def min(cls, tsr, axis, out):
+        """
+        Calculates the minimal element value along the specified axis.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the minimum
+            axis (int, optional): the dimension along which to find the
+                                  minimum.  If set to None, we will
+                                  compute the overall minimal value
+                                  across all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def max(cls, tsr, axis, out):
+        """
+        Calculates the maximal element value along the specified axis.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the maximum
+            axis (int, optional): the dimension along which to find the
+                                  maximum.  If set to None, we will
+                                  compute the overall maximal value
+                                  across all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def argmin(cls, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the indices of
+        the first are returned.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to find the minimum indices
+            axis (int, optional): the dimension along which to find the
+                                  minimum.  If set to None, we will
+                                  return the index relative to the 1-D
+                                  flattened version of the tensor.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def argmax(cls, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the indices of
+        the first are returned.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to find the maximum index
+            axis (int, optional): the dimension along which to find the
+                                  maximum.  If set to None, we will
+                                  return the index the relative to the 1-D
+                                  flattened version of the tensor.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def nonzero(self, tsr):
+        """
+        Calculates and returns the indices of the elements whose value is 
+        not equal to zero.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to find the non-zero indices
+
+        Returns:
+            Tensor: indices of elements that are non-zero.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def norm(self, tsr, order=None, axis=None):
+        """
+        Calculates and returns the p-norm of the Tensor along the specified
+        axis.  The p-norm is defined on A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to find the non-zero indices
+            order (int, optional): The order or p upon which the norm is
+                                   calculated.  Valid values include:
+                                   None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int, optional): The axis along which to compute the norm.
+
+        Returns:
+            Tensor: p-norm of tsr along the specified axis.
+
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
@@ -229,44 +595,14 @@ class Backend(YAMLable):
         """
         raise NotImplementedError("Can't create direct instances of Backend")
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def err_init(self):
         """
-        Uniform random number generation of samples in range [low, high).
-
-        Arguments:
-            low (float, optional): Minimal sample value.  Defaults to 0.0
-            high (float, optional): Maximal sample value (open-ended range).
-                                    Defaults to 1.0.
-            size (int, optional): The number of samples to return.  Defaults
-                                  to 1
-
-        Returns:
-            Tensor: of size size filled with these random numbers.
+        Perform error handling initialization.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
-        raise NotImplementedError("Can't create direct instances of Backend")
-
-    def normal(self, loc=0.0, scale=1.0, size=1):
-        """
-        Gaussian/Normal random number generation of samples centered around
-        mean loc, and with standard deviation scale.
-
-        Arguments:
-            loc (float, optional): Central value for Gaussian.  Defaults to 0.0
-            scale (float, optional): Standard deviation for samples.  Defaults
-                                     to 1.0
-            size (int, optional): The number of samples to return.  Defaults
-                                  to 1
-
-        Returns:
-            Tensor: of size size filled with these random numbers.
-
-        Raises:
-            NotImplementedError: Can't be instantiated directly.
-        """
-        raise NotImplementedError("Can't create direct instances of Backend")
+        raise NotImplementedError()
 
 
 class Tensor(object):
@@ -283,15 +619,66 @@ class Tensor(object):
     Attributes:
         shape (list): array specifying the length of each dimension
         dtype (numpy.dtype): the underlying type given to each element.
+        raw (object): the underlying backend specific data structure.  Could be
+                      numpy.ndarray, cudamat.CUDAMatrix, etc. depending on the
+                      backend.
 
     Raises:
         NotImplmentedError: Can't be instantiated directly.
     """
     shape = None
     dtype = None
+    raw = None
 
     def __init__(self, object, dtype=None):
         raise NotImplementedError()
+
+    def __getitem__(self, key):
+        """
+        Extract a subset view of the items via fancy indexing. e.g. A[5:10, :]
+        
+        Notes:
+            This approach tends to be slower in speed than
+            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
+            recommended.
+
+        Arguments:
+            key (int, slice): indices of the slice to take
+
+        Returns:
+            Tensor: view of self corresponding to the subset items.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Tensor.take`,
+        """
+
+    def __setitem__(self, key, value):
+        """
+        Assign the specified value to a subset of elements found by fancy
+        indexing.
+        
+        Notes:
+            This approach tends to be slower in speed than
+            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
+            recommended.
+
+        Arguments:
+            key (int, slice): indices of the slice to be assigned
+            value (numeric array, Tensor): values to be assigned to the
+                                          extracted element subset.  If an
+                                          array it should be the same shape
+                                          as what key indexes (or be
+                                          broadcastable as such).
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Tensor.take`,
+        """
 
     def reshape(self, shape):
         """
@@ -305,6 +692,26 @@ class Tensor(object):
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
+
+    def repeat(self, repeats, axis=None):
+        """
+        Repeat elements of an array relative to the specified axis.
+
+        Arguments:
+            repeats (int, list): The number of repetitions of each element.  It
+                                 will be broadcast to fit the shape of the
+                                 given axis
+            axis (int, optional): The axis along which to repeat values.  If
+                                  set to None, we flatten input to 1-D.
+
+        Returns:
+            Tensor: new variant with the same dimensions as self except along
+                    the specified axis, where it will contain the repeated
+                    elements.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
 
     def transpose(self):
         """
@@ -336,6 +743,10 @@ class Tensor(object):
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Tensor.__getitem__`,
+            :py:func:`~neon.backends.backend.Tensor.__setitem__`,
         """
         raise NotImplementedError()
 
