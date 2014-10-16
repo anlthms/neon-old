@@ -247,25 +247,16 @@ class GBDist(GB):
             self.error, self.layers[-2].output, epoch, momentum)
 
     def fprop(self, inputs):
-        y = inputs
-        for layer in self.layers:
-            # if MPI.COMM_WORLD.rank==0:
-            #    print y[0,0:14]
-            layer.fprop(y)
-            y = layer.output
-
-        # print MPI.COMM_WORLD.rank, layer.pre_act[0,0:14]
-
+        #call MLP's fprop
+        super(GBDist, self).fprop(inputs)
         # accumulate the pre_act values before applying non-linearity
         self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.layers[-1].pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
         if MPI.COMM_WORLD.rank == 0:
-            # print self.layers[-1].pre_act[0]
             self.layers[-1].fprop2()
-
-        # todo fix: broadcast back the pre_act values for bprop:
-        # suboptimal for dist implementation,
+        # broadcast back the pre_act values for bprop.
+        # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.bcast(
             self.layers[-1].pre_act.raw())
@@ -286,15 +277,17 @@ class GBDist(GB):
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
 
-        # Top LCN connection layer is treated differently compared to
-        # middle LCN connections
+        # following code is difficult to refactor:
+        # 1) LCN berror has no halos for top layer, but does for middle layers
+        # 2) L2PoolingLayerDist handles berror halos in its bprop
+        # 3) LocalFilteringLayer needs halo handling for input and berror
+        
         # note: that input into LCN is ignored (self.layers[i -
         # 1].output)
         i -= 1
         self.layers[i].bprop(self.layers[i + 1].berror,
                              self.layers[i - 1].output,
                              epoch, momentum)
-
         while i > 0:
             i -= 1
             # aggregate the berror terms at halo locations

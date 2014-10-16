@@ -771,9 +771,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
             self.tied_weights = tied_weights
 
     def pretrain_mode(self, pooling):
-        self.learning_rate = self.pretrain_learning_rate
-        self.pooling = pooling
-        self.defilter = LocalDeFilteringLayer(self, self.tied_weights)
+        super(LocalFilteringLayerDist, self).pretrain_mode(pooling)
         # temp1 stores a temp buffer without the chunk
         self.defilter.temp1 = [self.backend.zeros(
             (self.batch_size, self.input.local_array.local_array_size))]
