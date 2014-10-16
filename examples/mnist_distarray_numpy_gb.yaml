@@ -1,7 +1,8 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
 # model on MNIST.
 
-!obj:neon.experiments.fit_predict_err_dist.FitPredictErrorExperiment {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  dist_flag: &df True,
   backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
@@ -9,10 +10,11 @@
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist_dist.MNISTDist {
+      dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 1,
-      serialized_path: '/usr/local/data/MNISTDist/mnist_dist_1pct-Numpy_',
+      serialized_path: '/usr/local/data/MNISTDist/mnist_dist_1pct-Numpy_{rank}.pkl',
     },
   ],
 

@@ -697,6 +697,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
     """
 
     def adjust_for_dist(self):
+        # shape with halos
         ifmshape = self.input.local_array.ifmshape
         top_left_row_output = self.input.local_array.top_left_row_output
         top_left_col_output = self.input.local_array.top_left_col_output
@@ -1129,6 +1130,7 @@ class L2PoolingLayerDist(L2PoolingLayer):
     """
 
     def adjust_for_dist(self):
+        # shape with halos
         ifmshape = self.input.local_array.ifmshape
         super(L2PoolingLayer, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.zeros(
@@ -1436,6 +1438,7 @@ class LCNLayerDist(LCNLayer):
         # output dims are same as input dims (w/o halo) for LCN layer
         output_height = self.input.local_array.height
         output_width = self.input.local_array.width
+        # shape with halos
         ifmshape = self.input.local_array.ifmshape
         border_id = self.input.border_id
 

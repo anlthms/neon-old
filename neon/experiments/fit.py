@@ -7,6 +7,7 @@ import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.persist import serialize, deserialize
+from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class FitExperiment(Experiment):
         TODO: add other params
     """
     def __init__(self, **kwargs):
+        # default dist_flag to False
+        self.dist_flag = False
         self.__dict__.update(kwargs)
         for req_param in ['backend', 'datasets', 'model']:
             if not hasattr(self, req_param):
@@ -43,6 +46,9 @@ class FitExperiment(Experiment):
             if not hasattr(ds, 'backend'):
                 ds.backend = self.backend
             if hasattr(ds, 'serialized_path'):
+                if self.dist_flag:
+                    ds.serialized_path = ds.serialized_path.format(
+                                            rank=str(MPI.COMM_WORLD.rank))
                 if os.path.exists(ds.serialized_path):
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
                 else:
