@@ -80,21 +80,23 @@ class LocalArray(object):
         self.recv_halos = dict()
         self.neighbor_dims = dict()
 
-        # print type(batch_size)
         if backend is None:
             self.local_image = np.empty(
                 (batch_size, self.local_array_size), dtype='float32')
-            # todo: can skip this if no defiltering layer (i.e., if not
-            # pretraining)
             self.defiltering_local_image = np.empty_like(self.local_image)
         else:
             self.backend = backend
             self.local_image = backend.zeros(
                 (batch_size, self.local_array_size), dtype='float32')
-            # todo: can skip this if no defiltering layer (i.e., if not
-            # pretraining)
+            # this is the local image with accumulated gradients
+            # (bprop or defiltering)
             self.defiltering_local_image = backend.zeros(
                 self.local_image.shape,  dtype='float32')
+
+        # if tensor_name == 'output':
+        #     tensor = self.local_image
+        # elif tensor_name == 'berror':
+        #     tensor = self.defiltering_local_image
 
         self.batch_size = batch_size  # mini-batch size
 
@@ -115,6 +117,7 @@ class LocalArray(object):
             self.local_array_size_with_halo = self.width_with_halos * \
                 self.height_with_halos * self.act_channels
             if backend is None:
+                # chunk is local_image with halo
                 self.chunk = np.empty(
                     (batch_size, self.local_array_size_with_halo),
                     dtype='float32')
@@ -126,8 +129,31 @@ class LocalArray(object):
                 self.defiltering_chunk = backend.zeros(
                     self.chunk.shape,
                     dtype='float32')
+        #post halo transfer shape
+        self.ifmshape = [self.height_with_halos, self.width_with_halos]
 
-    def send_recv_halos(self, dbg=False):
+    def make_fprop_view(self, input_data):
+        self.local_image = input_data
+        self.send_recv_halos()
+        self.make_local_chunk_consistent()
+
+    def get_fprop_view(self, input_data):
+        self.make_fprop_view(input_data)
+        return self.chunk
+
+    def make_bprop_view(self, input_data):
+        self.defiltering_chunk = input_data
+        self.send_recv_defiltering_layer_halos()
+        self.make_defiltering_layer_consistent()
+
+    def get_bprop_view(self, input_data):
+        self.make_bprop_view(input_data)
+        return self.defiltering_local_image
+
+    def get_local_acts(self):
+        return self.local_image
+
+    def send_recv_halos(self):
         comm = MPI.COMM_WORLD
         comm.barrier()
 
@@ -141,9 +167,6 @@ class LocalArray(object):
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
 
-            # if dbg:
-            # print comm.rank, k, self.local_image.raw().shape,
-            # self.send_halos[k].halo_indices
             comm.Sendrecv(sendbuf=self.local_image.take(
                 self.send_halos[k].halo_indices, axis=1).raw(),
                 dest=neighbor_comm_index, sendtag=0,

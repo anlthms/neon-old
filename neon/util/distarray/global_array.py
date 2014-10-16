@@ -6,6 +6,7 @@ Global View of the Data
 import numpy as np
 from mpi4py import MPI
 import local_array as laa
+# from neon.backends._numpy.Numpy import NumpyTensor
 
 import gdist_consts as gc
 
@@ -14,10 +15,26 @@ def pprint(string, comm=MPI.COMM_WORLD):
     if comm.rank == 0:
         print(string)
 
-# this defines the input layer for the DNN
 
+class GlobalArray():
 
-class GlobalArray(object):
+    create_comm = True
+    ccomm = None
+
+    def make_fprop_view(self, input_data):
+        self.local_array.make_fprop_view(input_data)
+
+    def get_fprop_view(self, input_data):
+        return self.local_array.get_fprop_view(input_data)
+
+    def make_bprop_view(self, input_data):
+        self.local_array.make_bprop_view(input_data)
+
+    def get_bprop_view(self, input_data):
+        return self.local_array.get_bprop_view(input_data)
+
+    def get_local_acts(self):
+        return self.local_array.get_local_acts()
 
     def compute_border(self, i, j, comm_per_dim):
         if comm_per_dim == 1:
@@ -45,7 +62,7 @@ class GlobalArray(object):
             return gc.CENTER
 
     def initialize_halos(self):
-        i, j = self.ccomm.Get_coords(self.ccomm.rank)
+        i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
         for k in self.local_array.halo_ids:
             if k == -1:
                 return
@@ -64,9 +81,8 @@ class GlobalArray(object):
         self.local_array.compute_halo_insert_indices()
 
     def __init__(self, batch_size=1, act_size_height=8, act_size_width=8,
-                 act_channels=1, filter_size=2, backend=None,
-                 create_comm=False, ccomm=None, h=-1, w=-1,
-                 lcn_layer_flag=False):
+                 act_channels=1, filter_size=2, backend=None, h=-1, w=-1,
+                 lcn_layer_flag=False, tensor_name='output'):
         comm_size = MPI.COMM_WORLD.size
         self.act_size_width = act_size_width
         self.act_size_height = act_size_height
@@ -83,18 +99,20 @@ class GlobalArray(object):
         comm = MPI.COMM_WORLD
 
         # comm cart needs to only be created the first time (first layer)
-        if create_comm:
+        if self.__class__.create_comm:
             pprint("Creating a %d x %d processor grid..." %
                    (comm_per_dim, comm_per_dim))
-            self.ccomm = comm.Create_cart((comm_per_dim, comm_per_dim))
-            i, j = self.ccomm.Get_coords(self.ccomm.rank)
+            self.__class__.ccomm = comm.Create_cart(
+                (comm_per_dim, comm_per_dim))
+            i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
             h = act_size_height // comm_per_dim + \
                 (act_size_height % comm_per_dim > i)
             w = act_size_width // comm_per_dim + \
                 (act_size_width % comm_per_dim > j)
-        else:
-            self.ccomm = ccomm
-        i, j = self.ccomm.Get_coords(self.ccomm.rank)
+            self.__class__.create_comm = False
+        # else:
+        #    self.ccomm = ccomm
+        i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
         # i = comm.rank // comm_per_dim
         # j = comm.rank % comm_per_dim
 
@@ -127,6 +145,7 @@ class GlobalArray(object):
             hsc_iter = (filter_size - 1) // 2 + (
                 (filter_size - 1) % 2 > j_iter)  # dims along left/right axis
             top_left_col += w_iter
+            # todo: replace this with an is_padded check rather than LCN check
             if lcn_layer_flag:
                 top_left_col_output += w_iter
             else:
