@@ -54,18 +54,18 @@ class Layer(YAMLable):
                                                 weight_dtype)
 
         self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
-        self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
+        self.delta = self.backend.alloc(batch_size, nout, delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
         self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.zeros((batch_size, self.nout),
+        self.pre_act = self.backend.alloc(batch_size, self.nout,
                                           pre_act_dtype)
-        self.output = self.backend.zeros((batch_size, self.nout), output_dtype)
+        self.output = self.backend.alloc(batch_size, self.nout, output_dtype)
         self.pos = pos
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         if pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.zeros((batch_size, nin - 1),
+            self.berror = self.backend.alloc(batch_size, nin - 1,
                                              berror_dtype)
             self.berror_dtype = berror_dtype
 
@@ -110,21 +110,21 @@ class Layer(YAMLable):
 
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
-            self.backend.dot(self.delta, self.weights[:, 0:endcol],
-                             out=self.berror)
+            self.backend.bprop_fc_dot(self.delta, self.weights[:, 0:endcol],
+                                      out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
-        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
 
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
@@ -151,10 +151,10 @@ class LayerWithNoBias(Layer):
                                               pre_act_dtype, output_dtype,
                                               berror_dtype)
         if pos > 0:
-            self.berror = backend.zeros((batch_size, nin))
+            self.berror = backend.alloc(batch_size, nin)
 
     def fprop(self, inputs):
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
@@ -163,9 +163,10 @@ class LayerWithNoBias(Layer):
         # self.delta = error
 
         if self.pos > 0:
-            self.backend.dot(self.delta, self.weights, out=self.berror)
+            self.backend.bprop_fc_dot(self.delta, self.weights,
+                                      out=self.berror)
 
-        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
