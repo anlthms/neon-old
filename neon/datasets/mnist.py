@@ -14,6 +14,8 @@ from neon.util.compat import PY3
 
 from neon.datasets.dataset import Dataset
 
+from mpi4py import MPI
+
 if PY3:
     from urllib.parse import urljoin as basejoin
 else:
@@ -49,7 +51,17 @@ class MNIST(Dataset):
     raw_test_target_gz = basejoin(raw_base_url, 't10k-labels-idx1-ubyte.gz')
 
     def __init__(self, **kwargs):
+        self.dist_flag = False
         self.__dict__.update(kwargs)
+        if self.dist_flag:
+            self.comm = MPI.COMM_WORLD
+            # todo: allow for arbitrary rectangular shaped grids
+            if self.comm.size not in [1, 4, 16]:
+                raise Exception('MPI.COMM_WORLD.size not compatible')
+            # if sqrt(self.comm.size) % 1 != 0:
+            #     raise Exception('MPI: MPI.COMM_WORLD.size is not a square')
+            # if 28 % sqrt(self.comm.size) != 0:
+            #     raise Exception('MPI: sqrt(MPI.COMM_WORLD.size) should divide 28')
 
     def read_image_file(self, fname, dtype=None):
         """
@@ -59,12 +71,29 @@ class MNIST(Dataset):
             magic, num_images, rows, cols = struct.unpack('>iiii', f.read(16))
             if magic != 2051:
                 raise ValueError('invalid MNIST image file: ' + fname)
-            array = numpy.fromfile(f, dtype='uint8').reshape((num_images,
+            full_image = numpy.fromfile(f, dtype='uint8').reshape((num_images,
                                                               rows, cols))
         if dtype is not None:
             dtype = numpy.dtype(dtype)
-            array = array.astype(dtype)
-            array /= 255.
+            full_image = full_image.astype(dtype)
+            full_image /= 255.
+
+        # todo: allow for sizes that are not 4
+        if self.dist_flag:
+            # read corresponding quadrant of the image
+            comm_rank = self.comm.rank
+            # todo: will change for different dimensions
+            r_i = [0, 0, 14, 14]
+            c_i = [0, 14, 0, 14]
+            array = numpy.empty((num_images, 14, 14), dtype=dtype)
+            l_ptr = 0
+            for r in range(r_i[comm_rank], r_i[comm_rank] + 14):
+                array[:, l_ptr] = full_image[
+                    :, r, range(c_i[comm_rank], c_i[comm_rank] + 14)]
+                l_ptr += 1
+        else:
+            array = full_image
+
         return array
 
     def read_label_file(self, fname):
@@ -109,11 +138,11 @@ class MNIST(Dataset):
                     if 'images' in repo_file and 'train' in repo_file:
                         indat = self.read_image_file(repo_file, 'float32')
                         # flatten to 1D images
-                        indat = indat.reshape((60000, 784))[train_idcs]
+                        indat = indat.reshape((60000, 784 / self.comm.size))[train_idcs]
                         self.inputs['train'] = self.backend.array(indat)
                     elif 'images' in repo_file and 't10k' in repo_file:
                         indat = self.read_image_file(repo_file, 'float32')
-                        indat = indat.reshape((10000, 784))
+                        indat = indat.reshape((10000, 784 / self.comm.size))
                         self.inputs['test'] = self.backend.array(indat)
                     elif 'labels' in repo_file and 'train' in repo_file:
                         indat = self.read_label_file(repo_file)[train_idcs]

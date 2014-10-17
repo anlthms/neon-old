@@ -110,12 +110,8 @@ class GlobalArray():
             w = act_size_width // comm_per_dim + \
                 (act_size_width % comm_per_dim > j)
             self.__class__.create_comm = False
-        # else:
-        #    self.ccomm = ccomm
         i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
-        # i = comm.rank // comm_per_dim
-        # j = comm.rank % comm_per_dim
-
+        
         # initialize halo dimensions
         halo_size_row = (filter_size - 1) // 2 + (
             (filter_size - 1) % 2 > i)  # dimensions along up/down axis

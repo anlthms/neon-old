@@ -9,7 +9,7 @@
 
   datasets: [
     # MNIST data
-    !obj:neon.datasets.mnist_dist.MNISTDist {
+    !obj:neon.datasets.mnist.MNIST {
       dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
