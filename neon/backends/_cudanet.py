@@ -594,16 +594,16 @@ class Cudanet(Backend):
         # https://github.com/cudanet/cudanet/issues/19
 
     @staticmethod
-    def empty(self, shape, dtype=None):
+    def empty(shape, dtype=None):
         return CudanetTensor(cudanet.empty(shape))
 
     @staticmethod
-    def zeros(self, shape, dtype=numpy.float32):
+    def zeros(shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
     @staticmethod
-    def ones(self, shape, dtype=numpy.float32):
+    def ones(shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
@@ -777,7 +777,8 @@ class Cudanet(Backend):
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
         else:
-            res = cudanet.abs(x._tensor)
+            # XXX: temporary fix.
+            res = cudanet.abs(x._tensor, cudanet.empty(x.shape))
         return CudanetTensor(res)
 
     @staticmethod
