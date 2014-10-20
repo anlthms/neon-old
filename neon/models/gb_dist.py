@@ -27,7 +27,6 @@ class GBDist(GB):
         # temporary fix for input data until we fix that
         layer = self.layers[0]
         layer.input = GlobalArray(cur_layer=layer,
-                                  # next_layer=self.layers[1],
                                   h=layer.ifmshape[0],
                                   w=layer.ifmshape[1],
                                   )
@@ -37,7 +36,6 @@ class GBDist(GB):
             if isinstance(layer, LocalFilteringLayerDist):
                 # for h,w assumes that prev layer is a LCNLayer
                 layer.input = GlobalArray(cur_layer=layer,
-                                          # next_layer=self.layers[i+1],
                                           h=self.layers[
                                               i - 1].input.local_array.height,
                                           w=self.layers[
@@ -45,7 +43,6 @@ class GBDist(GB):
                                           )
             elif isinstance(layer, L2PoolingLayerDist):
                 layer.input = GlobalArray(cur_layer=layer,
-                                          # next_layer=self.layers[i+1],
                                           h=self.layers[i - 1].ifmshape[0] -
                                           self.layers[i - 1].fheight + 1,
                                           w=self.layers[i - 1].ifmshape[1] -
@@ -53,13 +50,12 @@ class GBDist(GB):
                                           )
             elif isinstance(layer, LCNLayerDist):
                 layer.input = GlobalArray(cur_layer=layer,
-                                          # next_layer=self.layers[i+1],
                                           h=self.layers[i - 1].ifmheight -
                                           self.layers[i - 1].fheight + 1,
                                           w=self.layers[i - 1].ifmwidth -
                                           self.layers[i - 1].fwidth + 1,
-                                          lcn_layer_flag=True,
                                           # this is for padding
+                                          lcn_layer_flag=True,
                                           )
                 top_lcn_ifmheight = layer.ifmheight
                 top_lcn_ifmwidth = layer.ifmwidth

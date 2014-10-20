@@ -1276,10 +1276,10 @@ class LCNLayer(YAMLable):
         self.start_row = self.hdiff / 2
         self.start_col = self.wdiff / 2
 
-        self.meanifm = self.conv.output
-        self.rmeanifm = self.meanifm.reshape((batch_size, 1,
-                                              self.ifmheight,
-                                              self.ifmwidth))
+        self.meanfm = self.conv.output
+        self.rmeanfm = self.meanfm.reshape((batch_size, 1,
+                                            self.ifmheight,
+                                            self.ifmwidth))
 
         self.output = backend.zeros((batch_size, self.nout))
         self.routput = self.output.reshape((batch_size, nifm,
