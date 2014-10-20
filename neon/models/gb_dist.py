@@ -1,5 +1,5 @@
 """
-Contains code to train Google Brain models and run inference.
+Contains code to train distributed Google Brain models and run inference.
 """
 
 import logging
@@ -238,9 +238,10 @@ class GBDist(MLPDist):
             top_lcn_layer_index].local_array.top_left_row_output
         lcn_tl_col_output = self.inputs_dist[
             top_lcn_layer_index].local_array.top_left_col_output
+        # fully connected layer
         self.layers[-1].adjust_for_dist(self.layers[-2].nout,
-                                        self.layers[
-                                            -3].ofmshape, self.layers[-2].nfm,
+                                        self.layers[-3].ofmshape,
+                                        self.layers[-2].nfm,
                                         self.lcn_global_size,
                                         self.lcn_global_width,
                                         lcn_tl_row_output,
@@ -252,18 +253,20 @@ class GBDist(MLPDist):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):  # num_batches
+            for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
                     print 'batch =', batch
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                self.fprop(inputs[start_idx:end_idx], self.inputs_dist)
+                self.fprop(inputs[start_idx:end_idx])
 
                 if epoch < self.num_initial_epochs:
+                    # only bprop on FC layers
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
                                     epoch, self.momentum)
                 else:
+                    # bprop through full stack
                     self.bprop(targets[start_idx:end_idx],
                                inputs[start_idx:end_idx],
                                epoch, self.momentum)

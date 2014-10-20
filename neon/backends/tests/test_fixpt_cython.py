@@ -3,9 +3,9 @@
 import numpy as np
 
 from neon.backends.fixpt_cython import (fixed_from_float, fixed_to_float,
-                                           fixed_from_float_array, elemfloat,
-                                           fixed_to_float_array, fp_rescale,
-                                           naive_dot, fixpt_dtype, elemtype)
+                                        fixed_from_float_array, elemfloat,
+                                        fixed_to_float_array, fp_rescale,
+                                        naive_dot, fixpt_dtype, elemtype)
 from neon.util.testing import assert_tensor_equal
 
 

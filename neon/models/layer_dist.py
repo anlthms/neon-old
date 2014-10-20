@@ -322,9 +322,6 @@ class LocalFilteringLayerDist(LocalLayerDist):
                                  self.weights.take(
                                      self.rofmlocs[dst], axis=0),
                                  self.bpropbuf)
-                # todo: the delta activations in halo terms have to be summed
-                # when stacking the layers (for bprop)
-
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,  # mbs x fsize
                                  self.berror.take(
