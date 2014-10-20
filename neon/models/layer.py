@@ -9,8 +9,8 @@ from neon.transforms.gaussian import gaussian_filter
 from neon.util.persist import YAMLable
 from neon.util.distarray.local_array import LocalArray
 import neon.util.distarray.gdist_consts as gc
-#import time
-#from mpi4py import MPI
+# import time
+# from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -717,8 +717,10 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
             top_left_row=self.input.local_array.top_left_row,
             top_left_col=self.input.local_array.top_left_col,
             border_id=self.input.local_array.border_id,
-            halo_size_row=self.input.local_array.halo_size_row,
-            halo_size_col=self.input.local_array.halo_size_col,
+            hsr_north=self.input.local_array.hsr_north,
+            hsr_south=self.input.local_array.hsr_south,
+            hsc_west=self.input.local_array.hsc_west,
+            hsc_east=self.input.local_array.hsc_east,
             comm_per_dim=self.input.local_array.comm_per_dim,
             backend=self.backend)
         # reuse halo info from filtering layer
@@ -890,10 +892,10 @@ class PoolingLayer(YAMLable):
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
 
-        ofmheight = (self.ifmheight - self.pheight) / self.stride + 1
-        ofmwidth = (self.ifmwidth - self.pwidth) / self.stride + 1
+        ofmheight = (self.ifmheight - self.fheight) / self.stride + 1
+        ofmwidth = (self.ifmwidth - self.fwidth) / self.stride + 1
         self.ofmsize = ofmheight * ofmwidth
-        self.nin = self.nfm * self.ifmsize
+        self.nin = self.nifm * self.ifmsize
         self.ofmshape = [ofmheight, ofmwidth]
         if self.pos > 0:
             self.berror = self.backend.zeros((self.batch_size, self.nin))
@@ -909,10 +911,10 @@ class PoolingLayer(YAMLable):
             colinds = []
             # Collect the column indices for the
             # entire receptive field.
-            for row in xrange(self.pheight):
+            for row in xrange(self.fheight):
                 start = src + row * self.ifmwidth
-                colinds += range(start, start + self.pwidth)
-            if (src % self.ifmwidth + self.pwidth + self.stride) <= (
+                colinds += range(start, start + self.fwidth)
+            if (src % self.ifmwidth + self.fwidth + self.stride) <= (
                     self.ifmwidth):
                 # Slide the filter by the stride value.
                 src += self.stride
@@ -923,7 +925,7 @@ class PoolingLayer(YAMLable):
                 assert src % self.ifmwidth == 0
             self.links[dst, :] = self.backend.array(colinds)
 
-        self.nout = self.nfm * self.ofmsize
+        self.nout = self.nifm * self.ofmsize
         self.output = self.backend.zeros((self.batch_size, self.nout))
         self.delta = self.backend.zeros((self.batch_size, self.nout))
 
@@ -931,22 +933,23 @@ class PoolingLayer(YAMLable):
         self._init_reshaped_views()
 
     def __init__(self, name, backend, batch_size, pos,
-                 nfm, ifmshape, pshape, stride):
+                 nifm, ifmshape, fshape, stride):
         self.name = name
         self.backend = backend
-        self.nfm = nfm
+        self.nifm = nifm
+        self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
-        self.pheight, self.pwidth = pshape
-        self.psize = self.pheight * self.pwidth
+        self.fheight, self.fwidth = fshape
+        self.psize = self.fheight * self.fwidth
         self.pos = pos
         self.batch_size = batch_size
         self.stride = stride
 
-        ofmheight = (self.ifmheight - self.pheight) / stride + 1
-        ofmwidth = (self.ifmwidth - self.pwidth) / stride + 1
+        ofmheight = (self.ifmheight - self.fheight) / stride + 1
+        ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
         self.ofmsize = ofmheight * ofmwidth
-        self.nin = nfm * self.ifmsize
+        self.nin = nifm * self.ifmsize
         if pos > 0:
             self.berror = backend.zeros((batch_size, self.nin))
 
@@ -960,10 +963,10 @@ class PoolingLayer(YAMLable):
             colinds = []
             # Collect the column indices for the
             # entire receptive field.
-            for row in xrange(self.pheight):
+            for row in xrange(self.fheight):
                 start = src + row * self.ifmwidth
-                colinds += range(start, start + self.pwidth)
-            if (src % self.ifmwidth + self.pwidth + stride) <= self.ifmwidth:
+                colinds += range(start, start + self.fwidth)
+            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
                 # Slide the filter by the stride value.
                 src += stride
             else:
@@ -973,7 +976,7 @@ class PoolingLayer(YAMLable):
                 assert src % self.ifmwidth == 0
             self.links[dst, :] = backend.array(colinds, dtype='i32')
 
-        self.nout = nfm * self.ofmsize
+        self.nout = nifm * self.ofmsize
         self.output = backend.zeros((batch_size, self.nout))
         self.delta = backend.zeros((batch_size, self.nout))
 
@@ -985,10 +988,10 @@ class PoolingLayer(YAMLable):
         Initialize reshaped view references to the arrays such that there is a
         single row per feature map.
         """
-        self.rdelta = self.backend.squish(self.delta, self.nfm)
-        self.routput = self.backend.squish(self.output, self.nfm)
+        self.rdelta = self.backend.squish(self.delta, self.nifm)
+        self.routput = self.backend.squish(self.output, self.nifm)
         if self.pos > 0:
-            self.rberror = self.backend.squish(self.berror, self.nfm)
+            self.rberror = self.backend.squish(self.berror, self.nifm)
 
     def __getstate__(self):
         """
@@ -1028,11 +1031,11 @@ class MaxPoolingLayer(PoolingLayer):
     Max pooling layer.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
         super(MaxPoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                              nfm, ifmshape, pshape, stride)
-        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
+                                              nifm, ifmshape, fshape, stride)
+        self.maxinds = backend.zeros((batch_size * nifm, self.ofmsize),
                                      dtype='i32')
 
     def __str__(self):
@@ -1053,7 +1056,7 @@ class MaxPoolingLayer(PoolingLayer):
         # Reshape the input so that we have a separate row
         # for each input feature map (this is to avoid a loop over
         # each feature map).
-        inputs = self.backend.squish(inputs, self.nfm)
+        inputs = self.backend.squish(inputs, self.nifm)
         for dst in xrange(self.ofmsize):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
@@ -1083,11 +1086,11 @@ class L2PoolingLayer(PoolingLayer):
     as output.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
         super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                             nfm, ifmshape, pshape, stride)
-        self.prodbuf = self.backend.zeros((batch_size * nfm, self.psize))
+                                             nifm, ifmshape, fshape, stride)
+        self.prodbuf = self.backend.zeros((batch_size * nifm, self.psize))
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
@@ -1096,7 +1099,7 @@ class L2PoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nifm)
         for dst in xrange(self.ofmsize):
             inds = self.links[dst]
             rf = rinputs.take(inds, axis=1)
@@ -1104,7 +1107,7 @@ class L2PoolingLayer(PoolingLayer):
 
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
-        rinputs = self.backend.squish(inputs, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nifm)
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
@@ -1134,11 +1137,11 @@ class L2PoolingLayerDist(L2PoolingLayer):
         ifmshape = self.input.local_array.ifmshape
         super(L2PoolingLayer, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nfm, self.psize))
+            (self.batch_size * self.nifm, self.psize))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
-        rinputs = self.backend.squish(inputs, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nifm)
         for dst in xrange(self.ofmsize):
             inds = self.links[dst]
             rf = rinputs.take(inds, axis=1)
@@ -1147,7 +1150,7 @@ class L2PoolingLayerDist(L2PoolingLayer):
     def bprop(self, error, inputs_, epoch, momentum):
         inputs = self.input.get_fprop_view(inputs_)
         self.delta[:] = error
-        rinputs = self.backend.squish(inputs, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nifm)
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
@@ -1171,12 +1174,12 @@ class AveragePoolingLayer(PoolingLayer):
     Average pooling.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, pshape,
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
         super(AveragePoolingLayer, self).__init__(name, backend, batch_size,
-                                                  pos, nfm, ifmshape, pshape,
+                                                  pos, nifm, ifmshape, fshape,
                                                   stride)
-        self.nout = nfm * self.ofmsize
+        self.nout = nifm * self.ofmsize
 
     def __str__(self):
         return ("AveragePoolingLayer %s: %d nin, %d nout, "
@@ -1185,7 +1188,7 @@ class AveragePoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nfm)
+        rinputs = self.backend.squish(inputs, self.nifm)
         for dst in range(self.ofmsize):
             inds = self.links[dst]
             rf = rinputs.take(inds, axis=1)
@@ -1232,21 +1235,21 @@ class LCNLayer(YAMLable):
     Local contrast normalization.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nfm, ifmshape, fshape,
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
         self.name = name
         self.backend = backend
         self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape
         self.fheight, self.fwidth = fshape
-        self.fsize = nfm * self.fheight * self.fwidth
+        self.fsize = nifm * self.fheight * self.fwidth
         self.batch_size = batch_size
-        self.nfm = nfm
+        self.nifm = nifm
         self.ifmsize = self.ifmheight * self.ifmwidth
-        self.nin = nfm * self.ifmsize
+        self.nin = nifm * self.ifmsize
         self.nout = self.nin
 
-        self.filters = self.normalized_gaussian_filters(nfm, fshape)
+        self.filters = self.normalized_gaussian_filters(nifm, fshape)
         # self.fpeakdiff = 1.0 - self.fpeak
         self.stride = stride
         self.fshape = fshape
@@ -1257,11 +1260,11 @@ class LCNLayer(YAMLable):
         self.exifmsize = self.exifmheight * self.exifmwidth
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
-        self.exinputs = self.backend.zeros((batch_size, nfm * self.exifmsize))
-        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nfm,
+        self.exinputs = self.backend.zeros((batch_size, nifm * self.exifmsize))
+        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nifm,
                                                 self.exifmheight,
                                                 self.exifmwidth))
-        self.conv = Convolver(backend, batch_size, nfm, 1,
+        self.conv = Convolver(backend, batch_size, nifm, 1,
                               self.exifmshape, fshape, stride,
                               self.filters)
         assert self.conv.ofmsize == self.ifmsize
@@ -1273,13 +1276,13 @@ class LCNLayer(YAMLable):
         self.start_row = self.hdiff / 2
         self.start_col = self.wdiff / 2
 
-        self.meanfm = self.conv.output
-        self.rmeanfm = self.meanfm.reshape((batch_size, 1,
-                                            self.ifmheight,
-                                            self.ifmwidth))
+        self.meanifm = self.conv.output
+        self.rmeanifm = self.meanifm.reshape((batch_size, 1,
+                                              self.ifmheight,
+                                              self.ifmwidth))
 
         self.output = backend.zeros((batch_size, self.nout))
-        self.routput = self.output.reshape((batch_size, nfm,
+        self.routput = self.output.reshape((batch_size, nifm,
                                             self.ifmheight,
                                             self.ifmwidth))
         self.subout = backend.zeros(self.output.shape)
@@ -1289,19 +1292,19 @@ class LCNLayer(YAMLable):
         if pos > 0:
             self.diverror = backend.zeros((batch_size, self.nin))
             self.exerror = self.backend.zeros((batch_size,
-                                               nfm * self.exifmsize))
-            self.rexerror = self.exerror.reshape((batch_size, nfm,
+                                               nifm * self.exifmsize))
+            self.rexerror = self.exerror.reshape((batch_size, nifm,
                                                   self.exifmheight,
                                                   self.exifmwidth))
             self.prodbuf = self.backend.zeros((batch_size, self.fsize))
-            self.bprop_filters = self.backend.zeros((nfm,
+            self.bprop_filters = self.backend.zeros((nifm,
                                                     self.filters.shape[0],
                                                     self.filters.shape[1]))
             self.sqtemp = backend.zeros(self.output.shape)
-            for fm in xrange(nfm):
+            for fm in xrange(nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
-                    (nfm, self.fheight, self.fwidth))
+                    (nifm, self.fheight, self.fwidth))
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
 
     def __str__(self):
@@ -1335,7 +1338,7 @@ class LCNLayer(YAMLable):
                       self.start_col:(canvas.shape[3] - start_col)]
 
     def fprop_sub_normalize(self, inputs):
-        rinputs = inputs.reshape((self.batch_size, self.nfm,
+        rinputs = inputs.reshape((self.batch_size, self.nifm,
                                   self.ifmheight, self.ifmwidth))
         self.copy_to_inset(self.rexinputs, rinputs,
                            self.start_row, self.start_col)
@@ -1367,7 +1370,7 @@ class LCNLayer(YAMLable):
 
     def bprop_sub_normalize(self, error, inputs, epoch, momentum):
         self.backend.clear(self.exerror)
-        for fm in range(self.nfm):
+        for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
                 loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
@@ -1386,7 +1389,7 @@ class LCNLayer(YAMLable):
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
-        for fm in range(self.nfm):
+        for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 # self.conv.rofmlocs is over 1 fm only
                 loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
@@ -1400,11 +1403,11 @@ class LCNLayer(YAMLable):
                 self.copy_to_inset(self.rexinputs, self.rsubtemp,
                                    self.start_row, self.start_col)
                 rrexinputs = self.rexinputs.reshape(
-                    (self.batch_size, self.nfm * self.exifmsize))
+                    (self.batch_size, self.nifm * self.exifmsize))
                 frame = rrexinputs.take(rflinks, axis=1)
                 self.backend.multiply(frame, self.filters, out=frame)
                 self.backend.multiply(frame, self.diverror[:, loc], out=frame)
-                rframe = frame.reshape((self.batch_size, self.nfm,
+                rframe = frame.reshape((self.batch_size, self.nifm,
                                         self.fheight, self.fwidth))
                 # this is working on the g2/y2 term
                 rframe[:, fm:(fm + 1),
@@ -1445,38 +1448,45 @@ class LCNLayerDist(LCNLayer):
         self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape  # with halos, but not padding
         self.ifmsize = self.ifmheight * self.ifmwidth
-        self.nin = self.nfm * self.ifmsize
-        self.nout = output_height * output_width * self.nfm
+        self.nin = self.nifm * self.ifmsize
+        self.nout = output_height * output_width * self.nifm
         self.filters = self.normalized_gaussian_filters(
-            self.nfm, self.fshape)
+            self.nifm, self.fshape)
 
-        if border_id != gc.CENTER:
-            pad_height = self.fheight - 1
-            pad_width = self.fwidth - 1
+        # if border_id != gc.CENTER:
+        pad_height = self.fheight - 1
+        pad_width = self.fwidth - 1
 
-            # compute how much to pad
-            pad_width_left = pad_width // 2
-            pad_width_right = pad_width - pad_width_left
-            pad_height_top = pad_height // 2
-            pad_height_bottom = pad_height - pad_height_top
+        # compute how much to pad
+        pad_width_right = pad_width // 2
+        pad_width_left = pad_width - pad_width_right
+        pad_height_bottom = pad_height // 2
+        pad_height_top = pad_height - pad_height_bottom
 
-            left_padding = 0
-            right_padding = 0
-            top_padding = 0
-            bottom_padding = 0
-            self.start_row = 0  # top left corner after padded area (excl halo)
-            self.start_col = 0
+        left_padding = 0
+        right_padding = 0
+        top_padding = 0
+        bottom_padding = 0
+        self.start_row = 0  # top left corner after padded area (excl halo)
+        self.start_col = 0
 
-            if border_id in [gc.NORTH, gc.NORTHWEST, gc.NORTHEAST]:
-                top_padding = pad_height_top
-                self.start_row = top_padding
-            if border_id in [gc.SOUTH, gc.SOUTHWEST, gc.SOUTHEAST]:
-                bottom_padding = pad_height_bottom
-            if border_id in [gc.WEST, gc.NORTHWEST, gc.SOUTHWEST]:
-                left_padding = pad_width_left
-                self.start_col = left_padding
-            if border_id in [gc.EAST, gc.NORTHEAST, gc.SOUTHEAST]:
-                right_padding = pad_width_right
+        if border_id in [gc.NORTH, gc.NORTHWEST, gc.NORTHEAST]:
+            top_padding = pad_height_top
+            self.start_row = top_padding
+        if border_id in [gc.SOUTH, gc.SOUTHWEST, gc.SOUTHEAST]:
+            bottom_padding = pad_height_bottom
+        if border_id in [gc.WEST, gc.NORTHWEST, gc.SOUTHWEST]:
+            left_padding = pad_width_left
+            self.start_col = left_padding
+        if border_id in [gc.EAST, gc.NORTHEAST, gc.SOUTHEAST]:
+            right_padding = pad_width_right
+        if border_id in [gc.SINGLE]:
+            top_padding = pad_height_top
+            bottom_padding = pad_height_bottom
+            left_padding = pad_width_left
+            right_padding = pad_width_right
+            self.start_row = top_padding
+            self.start_col = left_padding
 
         # todo: only supports stride of 1 for now
         self.exifmheight = (self.ifmheight) * self.stride + (
@@ -1487,11 +1497,11 @@ class LCNLayerDist(LCNLayer):
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
         self.exinputs = self.backend.zeros((self.batch_size,
-                                            self.nfm * self.exifmsize))
-        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nfm,
+                                            self.nifm * self.exifmsize))
+        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nifm,
                                                 self.exifmheight,
                                                 self.exifmwidth))
-        self.conv = Convolver(self.backend, self.batch_size, self.nfm, 1,
+        self.conv = Convolver(self.backend, self.batch_size, self.nifm, 1,
                               self.exifmshape, self.fshape, self.stride,
                               self.filters)
         # assert self.conv.ofmsize == self.ifmsize
@@ -1508,7 +1518,7 @@ class LCNLayerDist(LCNLayer):
                                             output_height, output_width))
 
         self.output = self.backend.zeros((self.batch_size, self.nout))
-        self.routput = self.output.reshape((self.batch_size, self.nfm,
+        self.routput = self.output.reshape((self.batch_size, self.nifm,
                                             output_height, output_width))
 
         self.temp1 = self.backend.zeros(self.output.shape)
@@ -1520,7 +1530,7 @@ class LCNLayerDist(LCNLayer):
         self.subtemp = self.backend.zeros(self.output.shape)
         self.rsubtemp = self.subtemp.reshape(self.routput.shape)
         self.subtemp2 = self.backend.zeros((self.batch_size, self.nin))
-        self.rsubtemp2 = self.subtemp2.reshape((self.batch_size, self.nfm,
+        self.rsubtemp2 = self.subtemp2.reshape((self.batch_size, self.nifm,
                                                 self.ifmheight, self.ifmwidth))
 
         if self.pos > 0:
@@ -1529,20 +1539,20 @@ class LCNLayerDist(LCNLayer):
             self.diverror = self.backend.zeros(
                 (self.batch_size, self.nout))
             self.exerror = self.backend.zeros((self.batch_size,
-                                              self.nfm * self.exifmsize))
-            self.rexerror = self.exerror.reshape((self.batch_size, self.nfm,
+                                              self.nifm * self.exifmsize))
+            self.rexerror = self.exerror.reshape((self.batch_size, self.nifm,
                                                   self.exifmheight,
                                                   self.exifmwidth))
             self.prodbuf = self.backend.zeros(
                 (self.batch_size, self.fsize))
-            self.bprop_filters = self.backend.zeros((self.nfm,
+            self.bprop_filters = self.backend.zeros((self.nifm,
                                                     self.filters.shape[0],
                                                     self.filters.shape[1]))
             self.sqtemp = self.backend.zeros(self.output.shape)
-            for fm in xrange(self.nfm):
+            for fm in xrange(self.nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
-                    (self.nfm, self.fheight, self.fwidth))
+                    (self.nifm, self.fheight, self.fwidth))
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
@@ -1554,7 +1564,7 @@ class LCNLayerDist(LCNLayer):
                       start_col:start_col + self.ifmwidth]
 
     def fprop_sub_normalize(self, inputs):
-        rinputs = inputs.reshape((self.batch_size, self.nfm,
+        rinputs = inputs.reshape((self.batch_size, self.nifm,
                                   self.ifmheight, self.ifmwidth))
         self.copy_to_inset(self.rexinputs, rinputs,
                            self.start_row, self.start_col)
@@ -1606,7 +1616,7 @@ class LCNLayerDist(LCNLayer):
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
-        for fm in range(self.nfm):
+        for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 # self.conv.rofmlocs is over 1 fm only
                 loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
@@ -1620,11 +1630,11 @@ class LCNLayerDist(LCNLayer):
                 self.copy_to_inset(self.rexinputs, self.rsubtemp2,
                                    self.start_row, self.start_col)
                 rrexinputs = self.rexinputs.reshape(
-                    (self.batch_size, self.nfm * self.exifmsize))
+                    (self.batch_size, self.nifm * self.exifmsize))
                 frame = rrexinputs.take(rflinks, axis=1)
                 self.backend.multiply(frame, self.filters, out=frame)
                 self.backend.multiply(frame, self.diverror[:, loc], out=frame)
-                rframe = frame.reshape((self.batch_size, self.nfm,
+                rframe = frame.reshape((self.batch_size, self.nifm,
                                         self.fheight, self.fwidth))
                 # this is working on the g2/y2 term
                 rframe[:, fm:(fm + 1),

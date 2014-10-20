@@ -15,6 +15,7 @@ SOUTHWEST = 6
 NORTHWEST = 7
 
 CENTER = 8
+SINGLE = -1
 
 # to send in reverse directions
 send_dict = {0: 2,

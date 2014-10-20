@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class FitExperiment(Experiment):
+
     """
     In this `Experiment`, a model is trained on a training dataset to
     learn a set of parameters
@@ -26,6 +27,7 @@ class FitExperiment(Experiment):
                                             datasets to use in this experiment
         TODO: add other params
     """
+
     def __init__(self, **kwargs):
         # default dist_flag to False
         self.dist_flag = False
@@ -48,7 +50,7 @@ class FitExperiment(Experiment):
             if hasattr(ds, 'serialized_path'):
                 if self.dist_flag:
                     ds.serialized_path = ds.serialized_path.format(
-                                            rank=str(MPI.COMM_WORLD.rank))
+                        rank=str(MPI.COMM_WORLD.rank))
                 if os.path.exists(ds.serialized_path):
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
                 else:

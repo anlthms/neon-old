@@ -26,59 +26,41 @@ class GBDist(GB):
         # MPI: call adjust_for_dist for each layer
         # temporary fix for input data until we fix that
         layer = self.layers[0]
-        layer.input = GlobalArray(batch_size=layer.batch_size,
-                                  act_size_height=layer.ifmshape[0],
-                                  act_size_width=layer.ifmshape[1],
-                                  act_channels=layer.nifm,
-                                  filter_size=layer.fwidth,
-                                  backend=layer.backend,
+        layer.input = GlobalArray(cur_layer=layer,
+                                  # next_layer=self.layers[1],
                                   h=layer.ifmshape[0],
                                   w=layer.ifmshape[1],
-                                  tensor_name='output')
+                                  )
         layer.adjust_for_dist()
         for i in xrange(1, self.nlayers):
             layer = self.layers[i]
             if isinstance(layer, LocalFilteringLayerDist):
                 # for h,w assumes that prev layer is a LCNLayer
-                layer.input = GlobalArray(batch_size=layer.batch_size,
-                                          act_size_height=layer.ifmshape[0],
-                                          act_size_width=layer.ifmshape[1],
-                                          act_channels=layer.nifm,
-                                          filter_size=layer.fwidth,
-                                          backend=layer.backend,
+                layer.input = GlobalArray(cur_layer=layer,
+                                          # next_layer=self.layers[i+1],
                                           h=self.layers[
                                               i - 1].input.local_array.height,
                                           w=self.layers[
                                               i - 1].input.local_array.width,
-                                          tensor_name='output')
+                                          )
             elif isinstance(layer, L2PoolingLayerDist):
-                layer.input = GlobalArray(batch_size=layer.batch_size,
-                                          act_size_height=layer.ifmheight,
-                                          act_size_width=layer.ifmwidth,
-                                          act_channels=layer.nfm,
-                                          filter_size=layer.pwidth,
-                                          # consistent naming would allow
-                                          # consolidation
-                                          backend=layer.backend,
+                layer.input = GlobalArray(cur_layer=layer,
+                                          # next_layer=self.layers[i+1],
                                           h=self.layers[i - 1].ifmshape[0] -
                                           self.layers[i - 1].fheight + 1,
                                           w=self.layers[i - 1].ifmshape[1] -
                                           self.layers[i - 1].fwidth + 1,
-                                          tensor_name='output')
+                                          )
             elif isinstance(layer, LCNLayerDist):
-                layer.input = GlobalArray(batch_size=self.batch_size,
-                                          act_size_height=layer.ifmheight,
-                                          act_size_width=layer.ifmwidth,
-                                          act_channels=layer.nfm,
-                                          filter_size=layer.fwidth,
-                                          backend=layer.backend,
+                layer.input = GlobalArray(cur_layer=layer,
+                                          # next_layer=self.layers[i+1],
                                           h=self.layers[i - 1].ifmheight -
-                                          self.layers[i - 1].pheight + 1,
+                                          self.layers[i - 1].fheight + 1,
                                           w=self.layers[i - 1].ifmwidth -
-                                          self.layers[i - 1].pwidth + 1,
+                                          self.layers[i - 1].fwidth + 1,
                                           lcn_layer_flag=True,
                                           # this is for padding
-                                          tensor_name='output')
+                                          )
                 top_lcn_ifmheight = layer.ifmheight
                 top_lcn_ifmwidth = layer.ifmwidth
             elif isinstance(layer, LayerWithNoBiasDist):
@@ -92,7 +74,7 @@ class GBDist(GB):
                 layer.global_width = top_lcn_ifmwidth
                 layer.nin = lcn.nout
                 layer.ifmshape = self.layers[-3].ofmshape
-                layer.nifm = lcn.nfm
+                layer.nifm = lcn.nifm
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
@@ -247,7 +229,7 @@ class GBDist(GB):
             self.error, self.layers[-2].output, epoch, momentum)
 
     def fprop(self, inputs):
-        #call MLP's fprop
+        # call MLP's fprop
         super(GBDist, self).fprop(inputs)
         # accumulate the pre_act values before applying non-linearity
         self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
@@ -281,7 +263,7 @@ class GBDist(GB):
         # 1) LCN berror has no halos for top layer, but does for middle layers
         # 2) L2PoolingLayerDist handles berror halos in its bprop
         # 3) LocalFilteringLayer needs halo handling for input and berror
-        
+
         # note: that input into LCN is ignored (self.layers[i -
         # 1].output)
         i -= 1

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class FitPredictErrorExperiment(FitExperiment):
+
     """
     In this `Experiment`, a model is first trained on a training dataset to
     learn a set of parameters, then these parameters are used to generate
@@ -27,11 +28,12 @@ class FitPredictErrorExperiment(FitExperiment):
                                             datasets to use in this experiment
         TODO: add other params
     """
+
     def run(self):
         """
         Actually carry out each of the experiment steps.
         """
-        
+
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
 
@@ -39,5 +41,6 @@ class FitPredictErrorExperiment(FitExperiment):
         predictions = self.model.predict(self.datasets)
 
         # report errors
-        if (self.dist_flag and MPI.COMM_WORLD.rank == 0) or (not self.dist_flag):
+        if (self.dist_flag and MPI.COMM_WORLD.rank == 0) or \
+                (not self.dist_flag):
             self.model.error_metrics(self.datasets, predictions)
