@@ -74,7 +74,7 @@ class GBDist(GB):
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
-            # MPI related initializations
+            # MPI related initializations for supervised bprop
             self.agg_output = self.backend.zeros(
                 self.layers[-1].output.shape, 'float32')
             self.error = self.backend.zeros(
@@ -211,7 +211,6 @@ class GBDist(GB):
         if MPI.COMM_WORLD.rank == 0:
             # apply derivative on root node's FC layer output
             # potential todo: for large output layers might want to distribute?
-            # print 'output=',self.layers[-1].output[0]
             self.error = self.cost.apply_derivative(self.backend,
                                                     self.layers[
                                                         -1].output, targets,

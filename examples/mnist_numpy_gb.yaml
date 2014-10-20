@@ -193,3 +193,4 @@
     level: 10,  #logging.DEBUG == 10
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
+}

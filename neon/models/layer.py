@@ -42,35 +42,26 @@ class Layer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype=None,
-                 velocity_dtype=None, delta_dtype=None, updates_dtype=None,
-                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+                 nout, activation, weight_init):
         self.name = name
         self.backend = backend
         self.activation = activation
         self.nin = nin
         self.nout = nout
         self.weight_init = weight_init
-        self.weight_dtype = weight_dtype
-        self.velocity_dtype = velocity_dtype
-        self.weights = self.backend.gen_weights((nout, nin), weight_init,
-                                                weight_dtype)
+        self.weights = self.backend.gen_weights((nout, nin), weight_init)
 
-        self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
-        self.delta = self.backend.zeros((batch_size, nout), delta_dtype)
-        self.updates = self.backend.zeros((nout, nin), updates_dtype)
-        self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.zeros((batch_size, self.nout),
-                                          pre_act_dtype)
-        self.output = self.backend.zeros((batch_size, self.nout), output_dtype)
+        self.velocity = self.backend.zeros(self.weights.shape)
+        self.delta = self.backend.zeros((batch_size, nout))
+        self.updates = self.backend.zeros((nout, nin))
+        self.pre_act = self.backend.zeros((batch_size, self.nout))
+        self.output = self.backend.zeros((batch_size, self.nout))
         self.pos = pos
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         if pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.zeros((batch_size, nin - 1),
-                                             berror_dtype)
-            self.berror_dtype = berror_dtype
+            self.berror = self.backend.zeros((batch_size, nin - 1))
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
@@ -143,24 +134,15 @@ class LayerWithNoBias(Layer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype, velocity_dtype,
-                 delta_dtype, updates_dtype, pre_act_dtype, output_dtype,
-                 berror_dtype):
+                 nout, activation, weight_init):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
                                               pos, learning_rate, nin, nout,
-                                              activation, weight_init,
-                                              weight_dtype, velocity_dtype,
-                                              delta_dtype, updates_dtype,
-                                              pre_act_dtype, output_dtype,
-                                              berror_dtype)
+                                              activation, weight_init)
         if pos > 0:
             self.berror = backend.zeros((batch_size, nin))
 
     def fprop(self, inputs):
-        # print 'input=', inputs[0,0:14]
-        # print 'W=', self.weights[0,0:14]
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-        # print 'pre-act:', self.pre_act[0]
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch, momentum):
@@ -197,14 +179,11 @@ class LayerWithNoBiasDist(LayerWithNoBias):
                 current_index += self.global_width
         self.weights = self.weights.take(out_indices, axis=1)
 
-        self.velocity = self.backend.zeros(
-            self.weights.shape, self.velocity_dtype)
-        self.updates = self.backend.zeros((self.nout, self.nin),
-                                          self.updates_dtype)
+        self.velocity = self.backend.zeros(self.weights.shape)
+        self.updates = self.backend.zeros((self.nout, self.nin))
         if self.pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.zeros((self.batch_size, self.nin),
-                                             self.berror_dtype)
+            self.berror = self.backend.zeros((self.batch_size, self.nin))
 
     def fprop(self, inputs):
         # if MPI.COMM_WORLD.rank==0:

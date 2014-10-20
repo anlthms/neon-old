@@ -2,6 +2,7 @@
 # model on CIFAR10.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  dist_flag: &df True,
   backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
@@ -9,15 +10,16 @@
   datasets: [
     # CIFAR10 data
     !obj:neon.datasets.cifar10.CIFAR10 {
+      dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 1,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy.pkl',
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy_{rank}.pkl',
     },
   ],
 
   # Google Brain model specification
-  model: !obj:neon.models.gb.GB {
+  model: !obj:neon.models.gb_dist.GBDist {
     backend: *be,
     num_epochs: 2,
     num_pretrain_epochs: 1,
@@ -40,7 +42,7 @@
     pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.LocalFilteringLayer {
+      !obj:neon.models.layer.LocalFilteringLayerDist {
         name: layer0,
         pretraining: *pt,
         sparsity: *sp,
@@ -53,7 +55,7 @@
         nifm: 3,
         nofm: 8,
         ifmshape: [32, 32],
-        fshape: [6, 6],
+        fshape: [4, 4],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -61,27 +63,27 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.L2PoolingLayer {
+      !obj:neon.models.layer.L2PoolingLayerDist {
         name: layer1,
         backend: *be,
         batch_size: *bs,
         pos: 1,
         nifm: 8,
-        ifmshape: [27, 27],
-        fshape: [5, 5],
+        ifmshape: [29, 29],
+        fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LCNLayer {
+      !obj:neon.models.layer.LCNLayerDist {
         name: layer2,
         backend: *be,
         batch_size: *bs,
         pos: 2,
         nifm: 8,
-        ifmshape: [23, 23],
+        ifmshape: [27, 27],
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LocalFilteringLayer {
+      !obj:neon.models.layer.LocalFilteringLayerDist {
         name: layer3,
         pretraining: *pt,
         sparsity: *sp,
@@ -93,8 +95,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [23, 23],
-        fshape: [6, 6],
+        ifmshape: [27, 27],
+        fshape: [3, 3],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -102,27 +104,27 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.L2PoolingLayer {
+      !obj:neon.models.layer.L2PoolingLayerDist {
         name: layer4,
         backend: *be,
         batch_size: *bs,
         pos: 4,
         nifm: 8,
-        ifmshape: [18, 18],
-        fshape: [5, 5],
+        ifmshape: [25, 25],
+        fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LCNLayer {
+      !obj:neon.models.layer.LCNLayerDist {
         name: layer5,
         backend: *be,
         batch_size: *bs,
         pos: 5,
         nifm: 8,
-        ifmshape: [14, 14],
+        ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LocalFilteringLayer {
+      !obj:neon.models.layer.LocalFilteringLayerDist {
         name: layer6,
         pretraining: *pt,
         sparsity: *sp,
@@ -134,8 +136,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [14, 14],
-        fshape: [6, 6],
+        ifmshape: [23, 23],
+        fshape: [3, 3],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -143,33 +145,33 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.L2PoolingLayer {
+      !obj:neon.models.layer.L2PoolingLayerDist {
         name: layer7,
         backend: *be,
         batch_size: *bs,
         pos: 7,
         nifm: 8,
-        ifmshape: [9, 9],
-        fshape: [5, 5],
+        ifmshape: [21, 21],
+        fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LCNLayer {
+      !obj:neon.models.layer.LCNLayerDist {
         name: layer8,
         backend: *be,
         batch_size: *bs,
         pos: 8,
         nifm: 8,
-        ifmshape: [5, 5],
+        ifmshape: [19, 19],
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: output,
         backend: *be,
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 2888, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
