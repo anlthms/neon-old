@@ -795,7 +795,8 @@ class Cudanet(Backend):
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
         else:
-            res = cudanet.abs(x._tensor)
+            # XXX: temporary fix.
+            res = cudanet.abs(x._tensor, cudanet.empty(x.shape))
         return CudanetTensor(res)
 
     @staticmethod

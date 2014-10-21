@@ -1,0 +1,224 @@
+# neon configuration files are written in YAML (a human readable markup
+# language that supports key/value pairs).  We actually make use of pyyaml and
+# customize things slightly to support arbitrary python objects as values and
+# so forth.
+#
+# Basic parameters are written in the format:
+#     key: value
+# Where value can be either:
+# - a scalar string, boolean, or number ex: 'hello', False, 25.6
+# - a list of values ex: [1, 2, 3]
+# - a dictionary of key/value pairs ex: { a: 1, b: 2, c: 3 }
+# - a python object instantiation ex: !obj:neon.transforms.logistic.Logistic {}
+#   note that object constructor arguments are passed between the curly braces
+#   as key/value pairs
+#
+# Parameters can be split over multiple lines, and comments can be added by
+# prepending a # character.
+#
+# A common source of error is forgetting ',' between parameters belonging to
+# the same object
+#
+# To save on explicit repitition, you can reference parameters by assigning a
+# variable alias, then dereference them where needed later.  The syntax for
+# doing so is:
+#     key: &var_ref value  # creates a reference for key named var_ref
+#     new_key: *var_ref    # dereferences var_ref to assign its val to new_key
+
+
+# At the highest level, a neon YAML file consists of an experiment definition.
+# Experiments are sub-classes of the python class
+# neon.experiments.experiment.Experiment and carry out tasks like training a
+# model, generating predictions, and so forth.
+#
+# Experiment types:
+# -----------------
+# FitExperiment - train a model to learn a set of parameters
+# FitPredictErrorExperiment - as above, but also generate predictions and
+#                              evaluate performance
+# GradientChecker - Use finite differences to check the gradients of an
+#                   experiment.  Currently this can be carried out using
+#                   the separately provided ``test`` executable
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  # Fit*Experiment parameters:
+  # --------------------------
+  # backend - Controls how data will be constructed and operated on
+  #           during the experiment.  Key parameter allowing the following types:
+  #           Numpy - 32-bit float numpy wrapped CPU based data
+  #           Numpy64 - 64-bit float numpy wrapped CPU based data
+  #           FixedPoint - fixed decimal point wrapped CPU based data
+  #           Cudamat - 32-bit float cudamat wrapped GPU based data
+  # datasets - list containing the input data to train/test against.  types:
+  #            MNIST - handwritten digit image dataset
+  #            CIFAR10 - 10 class object image dataset
+  #            Iris - RA Fisher's 3 class flower dataset
+  #            UniformRandom - synthetic random data
+  # model - the type of machine learning algorithm to employ.  types:
+  #         MLP - feed-forward multi-layer perceptron neural network
+  #         RBM - restricted Boltzmann machine
+  #         Autoencoder - stacked autoencoder
+  #         DBN - deep belief network
+  #         GB - "google brain" style sparse autoencoder network
+  # logging - controls the amount and format of diagnositc information.  Based
+  #           off of python's logging module
+  backend: &be !obj:neon.backends._numpy.Numpy {
+    # Numpy backend parameters:
+    # -------------------------
+    # rng_seed - seed value for random number generator
+    # seterr_handling - controls how floating point errors are handled
+    rng_seed: 0,
+    seterr_handling: {
+      all: 'warn',
+    },
+  },
+  
+  datasets: [
+    !obj:neon.datasets.iris.Iris {
+      # Iris dataset parameters
+      # -----------------------
+      # backend - backend to use to store and operate on this dataset
+      # repo_path - on-disk repository location where this dataset resides
+      #             (specify repository root containing the Iris dir, and not
+      #             the Iris dir directly)
+      # sample_pct - if 100, full dataset will be used, otherwise we uniformly
+      #              downsample records to the specified percentage
+      # serialized_path - the full location and name to a python .pkl file that
+      #                   we will use to cache this dataset.  Speeds up
+      #                   subsequent use of this dataset.
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+      serialized_path: '/usr/local/data/Iris/iris-Numpy.pkl',
+    },
+  ],
+  
+  model: !obj:neon.models.mlp.MLP {
+    # MLP model parameters
+    # --------------------
+    # backend - backend to use to store data constructed for this model
+    # batch_size - number of training instances in each mini-batch.  Should
+    #              be no larger than the size of the training dataset.
+    # num_epochs - the number of iterations through the entire training set
+    #              to make in training the model
+    # learning_rate - fraction of backpropagated gradient values to add to the
+    #                 weights during each update (should be <= 1.0)
+    # momentum - dictionary containing several parameters that can be used to
+    #            adjust the learning rate over time based on the curvature of
+    #            gradient directions.  These parameters are:
+    #            type - should be one of: constant, linear_monotone, nesterov
+    #            initial_coef - initial momentum coefficient value.  0 disables
+    #                           momentum, but a positive value gives portion of
+    #                           previous iteration velocity to apply initially
+    #            saturated_coef - final momentum coefficient value to apply
+    #                             once we reach the saturation epoch and
+    #                             beyond.  Only applies to linear_monotone
+    #            start_epoch - specify a number indicating at which epoch we
+    #                          begin applying momentum based updates
+    #            saturate_epoch - specify a number (>= start_epoch) at which
+    #                             we will saturate momentum based updates.
+    #                             For linear_monotone momentum, we interpolate
+    #                             between initial and saturate momentum coef
+    #                             values until we reach the saturate_epoch.
+    # cost - the objective function transform.  Current types are:
+    #        CrossEntropy - typically used to measure the difference between two
+    #                       probability distributions
+    #        SumSquaredDiffs - computes the sum of squared differences.
+    # serialized_path - the full location and name to a python .pkl file that
+    #                   we will use to cache this model.  Speeds up
+    #                   subsequent use of this model for inference purposes.
+    # layers - list of one or more neural network layer objects.
+    backend: *be,
+    batch_size: 30,
+    num_epochs: 2500,
+    learning_rate: &lr 0.1,
+    momentum: {
+      type: constant, #constant, nesterov
+      initial_coef: 0,
+      start_epoch: 5,
+      saturate_epoch: 5,
+      saturated_coef: 0,
+    },
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './iris-mlp-simple.pkl',
+    layers: [
+      !obj:neon.models.layer.Layer {
+        # Layer parameters
+        # ----------------
+        # name - string used to identify this layer in the logs.
+        # backend - backend to use to store data constructed for this layer
+        # batch_size - number of training instances in each mini-batch.  Should
+        #              be no larger than the size of the training dataset.
+        # pos - 0-based index of this layer
+        # learning_rate - fraction of backpropagated gradient values to add to
+        #                 this layer's the weights during each update (should
+        #                 be <= 1.0)
+        # nin - number of connections input to this layer (from the layer
+        #       before). Should include bias if present
+        # nout - number of connections output by this layer
+        # activation - (non-linear) transformation function to apply to the
+        #              connections in this layer.  types are:
+        #              Identity - no transformation applied
+        #              Logistic - sigmoidal squashing transform
+        #              RectLin - ReLU (rectified linear unit) transform
+        #              Tanh - hyperbolic tangent squashing transform
+        # weight_init - dictionary of parameters controlling how weights get
+        #               initialized prior to training.  Parameters are:
+        #               type - one of uniform, gaussian, node_normalized
+        #               low - minimum of range for uniform type random number
+        #                     init
+        #               high - maximum of range for uniform type random number
+        #                      init
+        #               loc - center for gaussian random number init
+        #               scale - standard deviation for gaussian random number
+        #                       init, or multiplier in node_normalized random
+        #                       number init (see Glorot2010).
+        name: h0,
+        backend: *be,
+        batch_size: 30,
+        pos: 0,
+        learning_rate: *lr,
+        nin: 5, # input layer + 1 for the bias
+        nout: 2,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -1,
+          high: 1,
+        },
+      },
+      !obj:neon.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: 30,
+        pos: 1,
+        learning_rate: *lr,
+        nin: 3, # previous nout + 1 for the bias
+        nout: 3,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -1,
+          high: 1,
+        },
+      },
+    ],
+  },
+  logging: {
+    # logging parameters:
+    # -------------------
+    # level - numeric threshold that controls the types of messages that get
+    #         displayed.  All logging types higher than this value will appear.
+    #         types of logging are:
+    #         0 - NOTSET
+    #         10 - DEBUG
+    #         20 - INFO
+    #         30 - WARNING
+    #         40 - ERROR
+    #         50 - CRITICAL
+    # filename - write logging to the specified file (instead of stdout)
+    # format - string giving what fields to display in each log entry.  See
+    #          python's logging record attributes for full details.
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

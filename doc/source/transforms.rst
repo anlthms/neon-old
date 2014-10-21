@@ -15,7 +15,6 @@ Available Transforms
    neon.transforms.linear.Identity
    neon.transforms.rectified.RectLin
    neon.transforms.logistic.Logistic
-   neon.transforms.logistic.PseudoLogistic
    neon.transforms.tanh.Tanh
 
    neon.transforms.sum_squared.SumSquaredDiffs
