@@ -59,7 +59,8 @@ class MLP(Model):
                            epoch, self.momentum)
                 error += self.cost.apply_function(self.backend,
                                                   self.layers[-1].output,
-                                                  targets.get_batch(start_idx, end_idx),
+                                                  targets.get_batch(start_idx,
+                                                                    end_idx),
                                                   self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
@@ -87,16 +88,16 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(outputs,
-                                                        axis=outputs.get_other_axis())
+                preds['train'] = dataset.backend.argmax(
+                    outputs, axis=outputs.get_other_axis())
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(outputs,
-                                                       axis=outputs.get_other_axis())
+                preds['test'] = dataset.backend.argmax(
+                    outputs, axis=outputs.get_other_axis())
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(outputs,
-                                                             axis=outputs.get_other_axis())
+                preds['validation'] = dataset.backend.argmax(
+                    outputs, axis=outputs.get_other_axis())
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -114,9 +115,10 @@ class MLP(Model):
         error = self.cost.apply_derivative(self.backend,
                                            lastlayer.output, targets,
                                            self.temp)
-        self.backend.divide(error,
-                            self.backend.wrap(targets.shape[targets.get_main_axis()]),
-                            out=error)
+        self.backend.divide(
+            error,
+            self.backend.wrap(targets.shape[targets.get_main_axis()]),
+            out=error)
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
         while i > 1:
@@ -145,10 +147,11 @@ class MLP(Model):
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    misclass = ds.backend.not_equal(preds[item],
-                                                    ds.backend.argmax(
-                                                    targets[item],
-                                                    axis=targets[item].get_other_axis()))
+                    misclass = ds.backend.not_equal(
+                        preds[item],
+                        ds.backend.argmax(
+                            targets[item],
+                            axis=targets[item].get_other_axis()))
                     err = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * err))

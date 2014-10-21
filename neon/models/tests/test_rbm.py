@@ -1,7 +1,7 @@
 """
 Tests for restricted boltzmann machine (RBM)
 After discussing with Scott, we want:
-- create fake inputs (cudamat class with one small minibatch of 2D data)
+- create fake inputs (cudanet class with one small minibatch of 2D data)
 - create a fake instance of the RBM class with the model structure from
   yaml replaced by some small weight init / nodes parameters
 - precompute the output values we expect for a gradient update and
@@ -18,7 +18,7 @@ from neon.util.testing import assert_tensor_near_equal
 from neon.util.compat import CUDA_GPU
 
 if CUDA_GPU:
-    from neon.backends._cudamat import Cudamat, CudamatTensor
+    from neon.backends._cudanet import Cudanet, CudanetTensor
 
 
 class TestCudaRBM:
@@ -26,11 +26,11 @@ class TestCudaRBM:
     @attr('cuda')
     def setup(self):
         # reusable fake data
-        self.inputs = CudamatTensor(np.ones((100, 2)))
+        self.inputs = CudanetTensor(np.ones((100, 2)))
 
         # create simple backend instance
         kwargs = {'rng_seed': 0}
-        self.myBackend = Cudamat(**kwargs)  # gives a backend!
+        self.myBackend = Cudanet(**kwargs)  # gives a backend!
 
         # create fake layer
         nin = 2
@@ -46,20 +46,20 @@ class TestCudaRBM:
         self.cost = SumSquaredDiffs()
 
     @attr('cuda')
-    def test_cudamat_positive(self):
+    def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
         target = [0.50785673,  0.50782728,  0.50173879]
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[0], target)
 
     @attr('cuda')
-    def test_cudamat_negative(self):
+    def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
         target = [0.5039286,  0.50391388,  0.50086939]
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[0], target)
 
     @attr('cuda')
-    def test_cudamat_cost(self):
+    def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
         temp = [self.myBackend.zeros(self.inputs.shape)]
