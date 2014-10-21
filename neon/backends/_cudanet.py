@@ -554,6 +554,18 @@ class CudanetTensor(Tensor):
         cudanet.exp(self._tensor, target)
         return CudanetTensor(target)
 
+    def get_batch(self, start, end):
+        return self.__class__(self[:, start:end]._tensor)
+
+    def set_batch(self, start, end, data):
+        self[:, start:end] = data
+
+    def get_main_axis(self):
+        return 1
+
+    def get_other_axis(self):
+        return 0
+
 
 class TransposedCudanetTensor(CudanetTensor):
     """
@@ -601,6 +613,11 @@ class Cudanet(Backend):
     def zeros(shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
+
+    @staticmethod
+    def alloc(nrows, ncols, dtype=numpy.float32):
+        return CudanetTensor(cudanet.CUDAMatrix(
+            numpy.zeros((ncols, nrows), dtype=dtype)))
 
     @staticmethod
     def ones(shape, dtype=numpy.float32):
@@ -659,12 +676,13 @@ class Cudanet(Backend):
 
     def append_bias(self, x):
         """
-        Adds a bias column to CudanetTensor x, returning a new CudanetTensor.
+        Adds a bias row to CudanetTensor x, returning a new CudanetTensor.
         """
-        result = cudanet.empty((x.shape[0], x.shape[1] + 1))
-        result.set_col_slice(0, x.shape[1], x._tensor)
-        result.set_col_slice(x.shape[1], (x.shape[1] + 1),
-                             cudanet.CUDAMatrix.ones.slice(0, x.shape[0]))
+        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
+        result.set_row_slice(0, x.shape[0], x._tensor)
+        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
+                             cudanet.CUDAMatrix.ones.slice(
+                                0, x.shape[1]).reshape((1, x.shape[1])))
         return CudanetTensor(result)
 
     @staticmethod
@@ -822,6 +840,22 @@ class Cudanet(Backend):
     def update_conv(weights, inputs, error, updates, links,  ofmshape,
                     ofmlocs, updatebuf):
         raise NotImplementedError("TODO")
+
+    @staticmethod
+    def fprop_fc_dot(inputs, weights, out):
+        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
+
+    @staticmethod
+    def bprop_fc_dot(deltas, weights, out):
+        cudanet.dot(weights.T()._tensor, deltas._tensor, out._tensor)
+
+    @staticmethod
+    def update_fc_dot(deltas, inputs, out):
+        cudanet.dot(deltas._tensor, inputs.T()._tensor, out._tensor)
+
+    @staticmethod
+    def prep(raw):
+        return raw.T.copy()
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.

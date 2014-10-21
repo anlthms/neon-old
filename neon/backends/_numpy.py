@@ -326,6 +326,18 @@ class NumpyTensor(Tensor):
         else:
             return self.__class__(res)
 
+    def get_batch(self, start, end):
+        return self.__class__(self[start:end]._tensor)
+
+    def set_batch(self, start, end, data):
+        self[start:end] = data
+
+    def get_main_axis(self):
+        return 0
+
+    def get_other_axis(self):
+        return 1
+
 
 class Numpy64Tensor(NumpyTensor):
     """
@@ -392,6 +404,11 @@ class Numpy(Backend):
     def zeros(cls, shape, dtype=None):
         dtype = cls.default_dtype_if_missing(dtype)
         return cls.tensor_cls(np.zeros(shape, dtype), dtype)
+
+    @classmethod
+    def alloc(cls, nrows, ncols, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
 
     @classmethod
     def ones(cls, shape, dtype=None):
@@ -639,6 +656,26 @@ class Numpy(Backend):
         # Update the filters after summing the weight updates.
         Numpy.multiply(updates, Numpy.wrap(scale), out=updates)
         Numpy.subtract(weights, updates, out=weights)
+
+    @staticmethod
+    def fprop_fc_dot(inputs, weights, out):
+        np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
+
+    @staticmethod
+    def bprop_fc_dot(inputs, weights, out):
+        np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
+
+    @staticmethod
+    def bprop_fc_dot(deltas, weights, out):
+        np.dot(deltas._tensor, weights._tensor, out._tensor)
+
+    @staticmethod
+    def update_fc_dot(deltas, inputs, out):
+        np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
+
+    @staticmethod
+    def prep(raw):
+        return raw
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
