@@ -628,29 +628,29 @@ class Numpy(Backend):
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
-            Numpy.dot(inputs.take(rflinks, axis=1), weights.T(), out=prodbuf)
+            Numpy.dot(inputs.take(rflinks, axis=1), weights, out=prodbuf)
             outputs[:, ofmlocs[dst]] = prodbuf
 
     @staticmethod
-    def bprop_conv(weights, error, berror, links,  ofmshape,
-                   ofmlocs, bpropbuf):
+    def bprop_conv(weights, error, berror, links,  ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         Numpy.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            Numpy.dot(error.take(ofmlocs[dst], axis=1), weights, bpropbuf)
+            Numpy.dot(error.take(ofmlocs[dst], axis=1), weights.T(), bpropbuf)
             rflinks = links[dst]
             Numpy.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
             berror[:, rflinks] = bpropbuf
 
     @staticmethod
-    def update_conv(weights, inputs, error, updates, links,  ofmshape,
-                    ofmlocs, scale, updatebuf):
+    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, fwidth, scale, updatebuf):
         Numpy.fill(updates, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = error.take(ofmlocs[dst], axis=1)
-            Numpy.dot(eslice.T(), inputs.take(rflinks, axis=1),
+            Numpy.dot(inputs.take(rflinks, axis=1).T(), eslice,
                       out=updatebuf)
             updates.add(updatebuf)
         # Update the filters after summing the weight updates.

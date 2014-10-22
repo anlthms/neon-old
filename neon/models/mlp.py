@@ -31,8 +31,8 @@ class MLP(Model):
         """
         Learn model weights on the given datasets.
         """
-        #for layer in self.layers:
-        #    logger.info("%s" % str(layer))
+        for layer in self.layers:
+            logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
         nrecs = inputs.shape[inputs.get_main_axis()]

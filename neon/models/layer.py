@@ -341,7 +341,7 @@ class LocalLayer(YAMLable):
         self.ofmsize = self.ofmheight * self.ofmwidth
         self.nin = nifm * self.ifmsize
         if pos > 0:
-            self.berror = backend.zeros((batch_size, self.nin))
+            self.berror = backend.alloc(batch_size, self.nin)
 
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
@@ -399,13 +399,13 @@ class ConvLayer(LocalLayer):
                                         learning_rate, nifm, nofm,
                                         ifmshape, fshape, stride)
         self.nout = self.ofmsize * nofm
-        self.weights = backend.gen_weights((nofm, self.fsize),
+        self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
-        self.output = backend.zeros((batch_size, self.nout))
+        self.output = backend.alloc(batch_size, self.nout)
         self.updates = backend.zeros(self.weights.shape)
-        self.prodbuf = backend.zeros((batch_size, nofm))
-        self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.updatebuf = backend.zeros((nofm, self.fsize))
+        self.prodbuf = backend.alloc(batch_size, nofm)
+        self.bpropbuf = backend.alloc(batch_size, self.fsize)
+        self.updatebuf = backend.zeros(self.weights.shape)
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -426,11 +426,14 @@ class ConvLayer(LocalLayer):
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
-                                    self.links, self.ofmshape, self.rofmlocs,
-                                    self.bpropbuf)
+                                    self.links, self.ifmshape, self.ofmshape,
+                                    self.rofmlocs, 0, self.stride, self.nifm,
+                                    1, self.bpropbuf)
         self.backend.update_conv(self.weights, inputs, error, self.updates,
-                                 self.links, self.ofmshape, self.rofmlocs,
-                                 self.learning_rate, self.updatebuf)
+                                 self.links, self.ifmshape, self.ofmshape,
+                                 self.rofmlocs, 0, self.stride, self.nifm,
+                                 1, self.fwidth, self.learning_rate,
+                                 self.updatebuf)
 
 
 class LocalFilteringLayer(LocalLayer):
@@ -677,7 +680,7 @@ class PoolingLayer(YAMLable):
         self.ofmsize = ofmheight * ofmwidth
         self.nin = nfm * self.ifmsize
         if pos > 0:
-            self.berror = backend.zeros((batch_size, self.nin))
+            self.berror = backend.alloc(batch_size, self.nin)
 
         # Figure out the possible connections with the previous layer.
         # Each unit in this layer could be connected to any one of
@@ -703,8 +706,8 @@ class PoolingLayer(YAMLable):
             self.links[dst, :] = backend.array(colinds, dtype='i32')
 
         self.nout = nfm * self.ofmsize
-        self.output = backend.zeros((batch_size, self.nout))
-        self.delta = backend.zeros((batch_size, self.nout))
+        self.output = backend.alloc(batch_size, self.nout)
+        self.delta = backend.alloc(batch_size, self.nout)
 
         # setup reshaped view variables
         self._init_reshaped_views()
@@ -761,7 +764,7 @@ class MaxPoolingLayer(PoolingLayer):
                  stride):
         super(MaxPoolingLayer, self).__init__(name, backend, batch_size, pos,
                                               nfm, ifmshape, pshape, stride)
-        self.maxinds = backend.zeros((batch_size * nfm, self.ofmsize),
+        self.maxinds = backend.alloc(batch_size * nfm, self.ofmsize,
                                      dtype='i32')
 
     def __str__(self):

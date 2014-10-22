@@ -806,8 +806,8 @@ class Cudanet(Backend):
 
     @staticmethod
     def squish(obj, n):
-        assert obj.shape[1] % n == 0
-        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+        assert obj.shape[0] % n == 0
+        return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
 
     @staticmethod
     def not_equal(x, y):
@@ -824,22 +824,27 @@ class Cudanet(Backend):
         return CudanetTensor(res)
 
     @staticmethod
-    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape, ofmlocs,
-                   padding, stride, nifm, ngroups, prodbuf):
+    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(weights._tensor, inputs._tensor, outputs._tensor,
                             ifmshape[0], ofmshape[0], ofmshape[1], padding,
                             stride, nifm, ngroups)
 
     @staticmethod
-    def bprop_conv(weights, error, berror, links,  ofmshape,
-                   ofmlocs, bpropbuf):
-        raise NotImplementedError("TODO")
+    def bprop_conv(weights, error, berror, links,  ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
+        cudanet.deconvolve_errors(weights._tensor, error._tensor,
+            berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
+            padding, stride, nifm, ngroups)
 
     @staticmethod
-    def update_conv(weights, inputs, error, updates, links,  ofmshape,
-                    ofmlocs, updatebuf):
-        raise NotImplementedError("TODO")
+    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, fwidth, scale, updatebuf):
+        cudanet.deconvolve_wts(error._tensor, inputs._tensor, updates._tensor, 
+            ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
+            padding, stride, nifm, ngroups, ofmshape[0])
+        weights -= scale * updates
 
     @staticmethod
     def fprop_fc_dot(inputs, weights, out):
