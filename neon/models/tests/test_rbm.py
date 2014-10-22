@@ -1,6 +1,6 @@
 """
 Tests for restricted boltzmann machine (RBM)
-After discussing with Scott, we want:
+
 - create fake inputs (cudanet class with one small minibatch of 2D data)
 - create a fake instance of the RBM class with the model structure from
   yaml replaced by some small weight init / nodes parameters
@@ -26,7 +26,7 @@ class TestCudaRBM:
     @attr('cuda')
     def setup(self):
         # reusable fake data
-        self.inputs = CudanetTensor(np.ones((100, 2)))
+        self.inputs = CudanetTensor(np.ones((2, 100)))
 
         # create simple backend instance
         kwargs = {'rng_seed': 0}

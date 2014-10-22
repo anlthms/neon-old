@@ -238,14 +238,14 @@ class RBMLayer(Layer):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
                                        learning_rate, nin, nout,
                                        activation, weight_init)
-        self.p_hid_plus = backend.zeros((batch_size, self.nout))
-        self.s_hid_plus = backend.zeros((batch_size, self.nout))
-        self.p_hid_minus = backend.zeros((batch_size, self.nout))
+        self.p_hid_plus = backend.alloc(batch_size, self.nout)
+        self.s_hid_plus = backend.alloc(batch_size, self.nout)
+        self.p_hid_minus = backend.alloc(batch_size, self.nout)
         self.p_plus = backend.zeros((self.nout, nin))
         self.p_minus = backend.zeros((self.nout, nin))
         self.diff = backend.zeros((self.nout, nin))
-        self.neg_pre_act = backend.zeros((batch_size, self.nin))
-        self.x_minus = backend.zeros((batch_size, self.nin))
+        self.neg_pre_act = backend.alloc(batch_size, self.nin)
+        self.x_minus = backend.alloc(batch_size, self.nin)
 
     def positive(self, inputs):
         """
@@ -256,10 +256,10 @@ class RBMLayer(Layer):
                                                       to operate
         """
         inputs = self.backend.append_bias(inputs)
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_plus)
-        self.backend.dot(self.p_hid_plus.T(), inputs, out=self.p_plus)
+        self.backend.update_fc_dot(self.p_hid_plus, inputs, out=self.p_plus)
         self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
         self.backend.greater(self.p_hid_plus, self.random_numbers,
                              out=self.s_hid_plus)
@@ -272,14 +272,15 @@ class RBMLayer(Layer):
            inputs (neon.datasets.dataset.Dataset): dataset upon which
                                                       to operate
         """
-        self.backend.dot(self.s_hid_plus, self.weights, out=self.neg_pre_act)
+        self.backend.bprop_fc_dot(self.s_hid_plus, self.weights,
+                                  out=self.neg_pre_act)
         self.activation.apply_function(self.backend, self.neg_pre_act,
                                        self.x_minus)
-        self.backend.dot(self.x_minus, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(self.x_minus, self.weights, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_minus)
-        self.backend.dot(self.p_hid_minus.T(), self.x_minus,
-                         out=self.p_minus)
+        self.backend.update_fc_dot(self.p_hid_minus, self.x_minus,
+                                   out=self.p_minus)
 
     def update(self, epsilon, epoch, momentum):
         """

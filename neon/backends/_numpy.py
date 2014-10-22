@@ -326,16 +326,22 @@ class NumpyTensor(Tensor):
         else:
             return self.__class__(res)
 
-    def get_batch(self, start, end):
+    def get_minor_slice(self, start, end):
         return self.__class__(self[start:end]._tensor)
 
-    def set_batch(self, start, end, data):
+    def set_minor_slice(self, start, end, data):
         self[start:end] = data
 
-    def get_main_axis(self):
+    def get_major_slice(self, start, end):
+        return self.__class__(self[:, start:end]._tensor)
+
+    def set_major_slice(self, start, end, data):
+        self[:, start:end] = data
+
+    def major_axis(self):
         return 0
 
-    def get_other_axis(self):
+    def minor_axis(self):
         return 1
 
 
