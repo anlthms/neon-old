@@ -668,10 +668,6 @@ class Numpy(Backend):
         np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
 
     @staticmethod
-    def bprop_fc_dot(inputs, weights, out):
-        np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
-
-    @staticmethod
     def bprop_fc_dot(deltas, weights, out):
         np.dot(deltas._tensor, weights._tensor, out._tensor)
 
