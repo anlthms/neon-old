@@ -486,8 +486,6 @@ class CudanetTensor(Tensor):
                 axis = 1
                 # fix the axis if we are dealing with a vector. This is a hack
                 # and should be done differently.
-        if len(indices) == 0:
-            return self
         if (indices[-1] - indices[0] == len(indices) - 1):
             if axis == 0:
                 return CudanetTensor(self._tensor.get_row_slice(indices[0],

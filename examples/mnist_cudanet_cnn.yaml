@@ -49,6 +49,16 @@
           high: 0.1,
         },
       },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nfm: 16,
+        ifmshape: [24, 24],
+        pshape: [2, 2],
+        stride: 2,
+      },
       !obj:neon.models.layer.ConvLayer {
         name: layer3,
         backend: *be,
@@ -57,7 +67,7 @@
         learning_rate: *lr,
         nifm: 16,
         nofm: 32,
-        ifmshape: [24, 24],
+        ifmshape: [12, 12],
         fshape: [5, 5],
         stride: 1,
         weight_init: {
@@ -72,7 +82,7 @@
         batch_size: *bs,
         pos: 4,
         learning_rate: *lr,
-        nin: 12800, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 2048, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
