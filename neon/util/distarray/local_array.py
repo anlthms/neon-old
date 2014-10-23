@@ -3,10 +3,12 @@ Local View of the Data
 
 '''
 
-
+import logging
 import numpy as np
 from mpi4py import MPI
 import gdist_consts as gc
+
+logger = logging.getLogger(__name__)
 
 
 def pprint(string, comm=MPI.COMM_WORLD):
@@ -220,7 +222,7 @@ class LocalArray(object):
                 recvtag=0)
 
         comm.barrier()
-        # print comm.rank, ' done with sendrecv_halos.'
+        logger.debug('MPI proc:%d done with sendrecv_halos.', comm.rank)
 
     def compute_halo_insert_indices(self):
         # for defiltering layers, store the indices of halos in chunk
@@ -542,8 +544,6 @@ class LocalArray(object):
                     col_offset = offset_in_channel + r * sw
                     sendhalo_indices.extend(range(col_offset,
                                                   col_offset + n_hsc_east))
-                    # print MPI.COMM_WORLD.rank, 'NW halos:', slocal2d_size, r,
-                    # sw, n_hsc, col_offset,sendhalo_indices
 
         # neighbor_direction is the direction of the target w.r.t src
         self.recv_halos[neighbor_direction] = RecvHalo(neighbor_array_index,

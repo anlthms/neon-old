@@ -63,11 +63,3 @@ halo_dir_names = {0: 'N',
                   6: 'SW',
                   7: 'NW',
                   }
-
-# Dataset
-# SMALL_TEST=0
-# MNIST=1
-
-# LayerTypes
-# CONVERGENT=0
-# DIVERGENT=1

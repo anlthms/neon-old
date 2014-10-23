@@ -97,7 +97,6 @@ class GB(MLP):
                         (epoch, error / num_batches))
         end_time = time.time()
         logger.info('Time taken: %0.2f' % (end_time - start_time))
-        #raise SystemError
 
     def check_node_predictions(self, inputs, targets, node, cls):
         """

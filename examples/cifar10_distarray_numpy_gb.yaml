@@ -1,5 +1,5 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
-# model on CIFAR10.
+# model on CIFAR10 using MPI.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
@@ -185,7 +185,7 @@
 
   # logging options that are passed to logging.basicConfig
   logging: {
-    level: 10,  #logging.DEBUG == 10
+    level: 20,  #logging.DEBUG == 10
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

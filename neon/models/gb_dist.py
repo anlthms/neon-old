@@ -69,6 +69,7 @@ class GBDist(GB):
                 layer.global_size = top_lcn_ifmheight * top_lcn_ifmwidth
                 layer.global_width = top_lcn_ifmwidth
                 layer.nin = lcn.nout
+                # LCN layer doesn't have ofmshape
                 layer.ifmshape = self.layers[-3].ofmshape
                 layer.nifm = lcn.nifm
             layer.adjust_for_dist()
@@ -223,20 +224,20 @@ class GBDist(GB):
         self.layers[-1].bprop(
             self.error, self.layers[-2].output, epoch, momentum)
 
-    def fprop(self, inputs):
-        # call MLP's fprop
-        super(GBDist, self).fprop(inputs)
+    # def fprop(self, inputs):
+    # call MLP's fprop
+    #     super(GBDist, self).fprop(inputs)
         # accumulate the pre_act values before applying non-linearity
-        self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
-            self.layers[-1].pre_act.raw(), op=MPI.SUM, root=0)
+        # self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
+        #    self.layers[-1].pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0:
-            self.layers[-1].fprop2()
+        # if MPI.COMM_WORLD.rank == 0:
+        #    self.layers[-1].fprop2()
         # broadcast back the pre_act values for bprop.
         # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
-        self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.bcast(
-            self.layers[-1].pre_act.raw())
+        # self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.bcast(
+        #    self.layers[-1].pre_act.raw())
 
     def bprop(self, targets, inputs, epoch, momentum):
         i = self.nlayers - 1
@@ -256,7 +257,8 @@ class GBDist(GB):
 
         # following code is difficult to refactor:
         # 1) LCN berror has no halos for top layer, but does for middle layers
-        # 2) L2PoolingLayerDist handles berror halos in its bprop
+        # 2) L2PoolingLayerDist handles input (but not berror) halos in its
+        #    bprop
         # 3) LocalFilteringLayer needs halo handling for input and berror
 
         # note: that input into LCN is ignored (self.layers[i -
@@ -278,6 +280,7 @@ class GBDist(GB):
                     self.layers[i - 1].output,
                     epoch, momentum)
             elif isinstance(self.layers[i], L2PoolingLayerDist):
+                # LCN layer gives a bprop view for berror already
                 self.layers[i].bprop(self.layers[i + 1].berror,
                                      self.layers[i - 1].output,
                                      epoch, momentum)

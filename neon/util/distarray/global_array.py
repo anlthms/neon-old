@@ -184,14 +184,16 @@ class GlobalArray():
         else:  # no padding
             # West/East halos
             # total next layer input width
-            tnlw = self.act_size_width - self.filter_size + 1
+            tnlw = (self.act_size_width - self.filter_size) / \
+                cur_layer.stride + 1
             for j_iter in range(j + 1):
                 w_iter = act_size_width // comm_per_dim + (
                     act_size_width % comm_per_dim > j_iter)
                 # local next layer width
                 lnlw = tnlw // comm_per_dim + (tnlw % comm_per_dim > j_iter)
                 # local halo size width
-                lhsw = lnlw + self.filter_size - 1 - w_iter
+                lhsw = (lnlw - 1) * cur_layer.stride + \
+                    self.filter_size - w_iter
                 # if west border then entire halo is added to other side
                 if j_iter == 0:
                     east_halo = lhsw
@@ -202,23 +204,30 @@ class GlobalArray():
                 # compute relative location of local array
                 if j_iter < j:
                     top_left_col += w_iter
-                    top_left_col_output += w_iter + west_halo + \
-                        east_halo - filter_size + 1
-                carry = (self.filter_size - 1) - east_halo
+                    top_left_col_output += (w_iter + west_halo +
+                                            east_halo - filter_size) / (
+                        cur_layer.stride) + 1
+                if cur_layer.stride > 1:
+                    # assuming that stride is divisible by w_iter for now
+                    carry = 0
+                else:
+                    carry = (self.filter_size - 1) - east_halo
             hsc_west = west_halo
             hsc_east = east_halo
 
             # north/south halos
             carry = 0
             # total next layer input height
-            tnlh = self.act_size_height - self.filter_size + 1
+            tnlh = (self.act_size_height - self.filter_size) / \
+                cur_layer.stride + 1
             for i_iter in range(i + 1):
                 h_iter = act_size_height // comm_per_dim + (
                     act_size_height % comm_per_dim > i_iter)
                 # local next layer height
                 lnlh = tnlh // comm_per_dim + (tnlh % comm_per_dim > i_iter)
                 # local halo size height
-                lhsh = lnlh + self.filter_size - 1 - h_iter
+                lhsh = (lnlh - 1) * cur_layer.stride + \
+                    self.filter_size - h_iter
                 # if north border then entire halo is added to other side
                 if i_iter == 0:
                     south_halo = lhsh
@@ -229,9 +238,14 @@ class GlobalArray():
                 # compute relative location of local array
                 if i_iter < i:
                     top_left_row += h_iter
-                    top_left_row_output += h_iter + north_halo + \
-                        south_halo - filter_size + 1
-                carry = (self.filter_size - 1) - south_halo
+                    top_left_row_output += (h_iter + north_halo +
+                                            south_halo - filter_size) / (
+                        cur_layer.stride) + 1
+                if cur_layer.stride > 1:
+                    # assuming that stride is divisible by h_iter for now
+                    carry = 0
+                else:
+                    carry = (self.filter_size - 1) - south_halo
             hsr_north = north_halo
             hsr_south = south_halo
 
