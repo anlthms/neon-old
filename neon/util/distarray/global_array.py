@@ -127,6 +127,8 @@ class GlobalArray():
         top_left_col_output = 0
 
         if lcn_layer_flag:  # if padded, nout = nin
+            if cur_layer.stride > 1:
+                raise Exception('LCN layer stride > 1 not supported for dist')
             # West/East halos
             pad_width_right = (self.filter_size - 1) // 2
             pad_width_left = (self.filter_size - 1) - pad_width_right
@@ -209,6 +211,8 @@ class GlobalArray():
                         cur_layer.stride) + 1
                 if cur_layer.stride > 1:
                     # assuming that stride is divisible by w_iter for now
+                    if w_iter % cur_layer.stride != 0:
+                        raise Exception('w_iter has to divide stride')
                     carry = 0
                 else:
                     carry = (self.filter_size - 1) - east_halo
@@ -242,6 +246,8 @@ class GlobalArray():
                                             south_halo - filter_size) / (
                         cur_layer.stride) + 1
                 if cur_layer.stride > 1:
+                    if h_iter % cur_layer.stride != 0:
+                        raise Exception('h_iter has to divide stride')
                     # assuming that stride is divisible by h_iter for now
                     carry = 0
                 else:

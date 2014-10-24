@@ -24,7 +24,6 @@ class GBDist(GB):
 
     def adjust_for_dist(self):
         # MPI: call adjust_for_dist for each layer
-        # temporary fix for input data until we fix that
         layer = self.layers[0]
         layer.input = GlobalArray(cur_layer=layer,
                                   h=layer.ifmshape[0],

@@ -22,7 +22,6 @@ class ConvnetDist(MLP):
 
     def adjust_for_dist(self):
         # MPI: call adjust_for_dist for each layer
-        # temporary fix for input data until we fix that
         layer = self.layers[0]
         layer.input = GlobalArray(cur_layer=layer)
         layer.adjust_for_dist()
@@ -55,7 +54,6 @@ class ConvnetDist(MLP):
                                        i - 1].fheight) / (
                     self.layers[i - 1].stride) + 1
                 layer.global_size = layer.global_height * layer.global_width
-
                 logger.debug(
                     'global_size=%d, global_width=%d', layer.global_size,
                     layer.global_width)

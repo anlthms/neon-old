@@ -605,6 +605,8 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
             self.updates.add(self.updatebuf)
 
         # accumulate updates across tiles for all filters
+        # if want to keep weights unshared across nodes, could not do the
+        # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
             self.updates.raw(), op=MPI.SUM, root=0)
         self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
