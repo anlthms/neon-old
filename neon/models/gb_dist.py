@@ -7,8 +7,8 @@ import math
 import os
 
 from neon.models.gb import GB
-from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist, \
-    L2PoolingLayerDist, LayerWithNoBiasDist
+from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist
+from neon.models.layer import L2PoolingLayerDist, LayerWithNoBiasDist
 from neon.util.distarray.global_array import GlobalArray
 from mpi4py import MPI
 import time
@@ -71,6 +71,9 @@ class GBDist(GB):
                 # LCN layer doesn't have ofmshape
                 layer.ifmshape = self.layers[-3].ofmshape
                 layer.nifm = lcn.nifm
+                # params needed for compatability with convnetdist model
+                layer.prev_layer = 'LCNLayerDist'
+                layer.nout_ = layer.nout
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
@@ -220,23 +223,9 @@ class GBDist(GB):
                 out=self.error)
         # MPI: broadcast the error matrix
         self.error._tensor = MPI.COMM_WORLD.bcast(self.error.raw())
+        self.layers[-1].pre_act_ = self.layers[-1].pre_act
         self.layers[-1].bprop(
             self.error, self.layers[-2].output, epoch, momentum)
-
-    # def fprop(self, inputs):
-    # call MLP's fprop
-    #     super(GBDist, self).fprop(inputs)
-        # accumulate the pre_act values before applying non-linearity
-        # self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.reduce(
-        #    self.layers[-1].pre_act.raw(), op=MPI.SUM, root=0)
-        # apply non-linearity on the output node
-        # if MPI.COMM_WORLD.rank == 0:
-        #    self.layers[-1].fprop2()
-        # broadcast back the pre_act values for bprop.
-        # note: suboptimal for dist implementation,
-        # but a consequence of reusing the pre_act buffer for fprop and bprop
-        # self.layers[-1].pre_act._tensor = MPI.COMM_WORLD.bcast(
-        #    self.layers[-1].pre_act.raw())
 
     def bprop(self, targets, inputs, epoch, momentum):
         i = self.nlayers - 1
@@ -252,6 +241,7 @@ class GBDist(GB):
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
+        lastlayer.pre_act_ = lastlayer.pre_act
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
 
         # following code is difficult to refactor:

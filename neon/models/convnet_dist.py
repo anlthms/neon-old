@@ -6,8 +6,8 @@ import logging
 import math
 
 from neon.models.mlp import MLP
-from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist, \
-    LayerWithNoBiasDist
+from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
+from neon.models.layer import LayerWithNoBiasDist
 from neon.util.distarray.global_array import GlobalArray
 from mpi4py import MPI
 
@@ -41,25 +41,48 @@ class ConvnetDist(MLP):
                 top_mp_ifmwidth = layer.ifmwidth
             elif isinstance(layer, LayerWithNoBiasDist):
                 # fully connected layer: no halo transfers needed
-                mp_layer = self.layers[i - 1]
-                layer.top_left_row_output = (
-                    mp_layer.input.local_array.top_left_row_output)
-                layer.top_left_col_output = (
-                    mp_layer.input.local_array.top_left_col_output)
-                # global dims of the input to this layer
-                layer.global_width = (top_mp_ifmwidth - self.layers[
-                                      i - 1].fwidth) / (
-                    self.layers[i - 1].stride) + 1
-                layer.global_height = (top_mp_ifmheight - self.layers[
-                                       i - 1].fheight) / (
-                    self.layers[i - 1].stride) + 1
-                layer.global_size = layer.global_height * layer.global_width
-                logger.debug(
-                    'global_size=%d, global_width=%d', layer.global_size,
-                    layer.global_width)
-                layer.nin = mp_layer.nout
-                layer.ifmshape = mp_layer.ofmshape
-                layer.nifm = mp_layer.nifm
+                layer.nout_ = layer.nout
+                if i < self.nlayers - 1:
+                    if layer.nout % MPI.COMM_WORLD.size != 0:
+                        raise Exception('Unsupported '
+                                        'layer.nout % MPI.COMM_WORLD.size != '
+                                        '0')
+                    layer.nout = layer.nout / MPI.COMM_WORLD.size
+                if isinstance(self.layers[i - 1], MaxPoolingLayerDist):
+                    mp_layer = self.layers[i - 1]
+                    layer.top_left_row_output = (
+                        mp_layer.input.local_array.top_left_row_output)
+                    layer.top_left_col_output = (
+                        mp_layer.input.local_array.top_left_col_output)
+                    # global dims of the input to this layer
+                    layer.global_width = (top_mp_ifmwidth - self.layers[
+                                          i - 1].fwidth) / (
+                        self.layers[i - 1].stride) + 1
+                    layer.global_height = (top_mp_ifmheight - self.layers[
+                                           i - 1].fheight) / (
+                        self.layers[i - 1].stride) + 1
+                    layer.global_size = (layer.global_height *
+                                         layer.global_width)
+                    logger.debug(
+                        'global_size=%d, global_width=%d', layer.global_size,
+                        layer.global_width)
+                    layer.nin = mp_layer.nout
+                    layer.ifmshape = mp_layer.ofmshape
+                    layer.nifm = mp_layer.nifm
+                    layer.prev_layer = 'MaxPoolingLayerDist'
+                elif isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+                    # split the inputs nin across MPI.COMM_WORLD.size
+                    if layer.nin % MPI.COMM_WORLD.size != 0:
+                        raise Exception('Unsupported '
+                                        'layer.nin % MPI.COMM_WORLD.size != 0')
+                    layer.nin = layer.nin / MPI.COMM_WORLD.size
+                    layer.out_indices = range(MPI.COMM_WORLD.rank * layer.nin,
+                                              (MPI.COMM_WORLD.rank + 1) *
+                                              layer.nin)
+                    layer.prev_layer = 'LayerWithNoBiasDist'
+                else:
+                    raise Exception('Unsupported previous layer for '
+                                    'LayerWithNoBiasDist')
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
@@ -158,9 +181,17 @@ class ConvnetDist(MLP):
         return res
 
     def fprop(self, inputs):
-        # call MLP's fprop
-        super(ConvnetDist, self).fprop(inputs)
-        # todo: handle FC-> FC connections
+        # call MLP's fprop: doesn't work for FC->FC connections
+        # super(ConvnetDist, self).fprop(inputs)
+        # handle FC-> FC connections
+        y = inputs
+        for layer in self.layers:
+            if (isinstance(layer, LayerWithNoBiasDist) and
+                isinstance(self.layers[layer.pos - 1],
+                           LayerWithNoBiasDist)):
+                y = y.take(layer.out_indices, axis=1)
+            layer.fprop(y)
+            y = layer.output
 
     def bprop(self, targets, inputs, epoch, momentum):
         i = self.nlayers - 1
@@ -176,15 +207,35 @@ class ConvnetDist(MLP):
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        lastlayer.pre_act_ = lastlayer.pre_act
+        if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+            lastlayer.bprop(error, self.layers[
+                            i - 1].output.take(lastlayer.out_indices, axis=1),
+                            epoch, momentum)
+        else:
+            lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        i -= 1
+        while isinstance(self.layers[i], LayerWithNoBiasDist):
+            # extract self.layers[i].pre_act terms
+            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                self.layers[i + 1].out_indices, axis=1)
+            if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+                self.layers[i].bprop(self.layers[i + 1].berror,
+                                     self.layers[
+                                         i - 1].output.take(self.layers[
+                                         i].out_indices, axis=1),
+                                     epoch, momentum)
+            else:
+                self.layers[i].bprop(self.layers[i + 1].berror,
+                                     self.layers[i - 1].output,
+                                     epoch, momentum)
+            i -= 1
 
         # following code is difficult to refactor:
         # 1) MPL berror has no halos for top layer, but does for middle layers
-        # 2) ConvLayerDist needs halo handling for input and berror
-
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
-        i -= 1
+        # Following is for top MPL layer
         self.layers[i].bprop(self.layers[i + 1].berror,
                              self.layers[i - 1].output,
                              epoch, momentum)
@@ -192,6 +243,7 @@ class ConvnetDist(MLP):
             i -= 1
             # aggregate the berror terms at halo locations
             # note the MaxPoolingLayerDist ignores the input param
+            # ConvLayerDist needs halo handling for input and berror
             self.layers[i].bprop(
                 self.layers[
                     i + 1].input.local_array.get_bprop_view(

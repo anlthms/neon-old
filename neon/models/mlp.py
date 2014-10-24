@@ -50,8 +50,6 @@ class MLP(Model):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                # print -1, inputs[0,0:10], inputs[0, 14:24], inputs[0,
-                # 14*28:14*28+10], inputs[0, 14*28+14:14*28+14+10]
                 self.fprop(inputs[start_idx:end_idx])
                 self.bprop(targets[start_idx:end_idx],
                            inputs[start_idx:end_idx],
@@ -64,7 +62,6 @@ class MLP(Model):
                         (epoch, error / num_batches))
             for layer in self.layers:
                 logger.debug("%s", layer)
-        # raise SystemError
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]

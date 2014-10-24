@@ -3,17 +3,13 @@ Global View of the Data
 
 '''
 
+import logging
 import numpy as np
 from mpi4py import MPI
 import local_array as laa
-# from neon.backends._numpy.Numpy import NumpyTensor
-
 import gdist_consts as gc
 
-
-def pprint(string, comm=MPI.COMM_WORLD):
-    if comm.rank == 0:
-        print(string)
+logger = logging.getLogger(__name__)
 
 
 class GlobalArray():
@@ -74,9 +70,9 @@ class GlobalArray():
             # border_id order
 
             if self.print_debug:
-                print 'Setting up halos to send for block: ', i, ',', j, ' ', \
-                    gc.halo_dir_names[k], 'halo_indices: ', \
-                    self.local_array.send_halos[k].halo_indices
+                logger.debug('Setting up halos to send for block: %d,%d %s'
+                             'halo_indices: %s', i, j, gc.halo_dir_names[k],
+                             str(self.local_array.send_halos[k].halo_indices))
 
         self.local_array.compute_halo_insert_indices()
 
@@ -92,7 +88,7 @@ class GlobalArray():
         comm = MPI.COMM_WORLD
         comm_size = comm.size
         self.comm_size = comm_size
-        self.print_debug = False
+        self.print_debug = True
 
         comm_per_dim = np.int(np.sqrt(comm_size))
         self.comm_per_dim = comm_per_dim
@@ -102,15 +98,15 @@ class GlobalArray():
         filter_size = self.filter_size
         # comm cart needs to only be created the first time (first layer)
         if self.__class__.create_comm:
-            pprint("Creating a %d x %d processor grid..." %
-                   (comm_per_dim, comm_per_dim))
+            logger.info("MPI proc: %d: Creating a %d x %d processor grid..." %
+                        (comm.rank, comm_per_dim, comm_per_dim))
             self.__class__.ccomm = comm.Create_cart(
                 (comm_per_dim, comm_per_dim))
             i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
-            h = act_size_height // comm_per_dim + \
-                (act_size_height % comm_per_dim > i)
-            w = act_size_width // comm_per_dim + \
-                (act_size_width % comm_per_dim > j)
+            h = (act_size_height // comm_per_dim +
+                 (act_size_height % comm_per_dim > i))
+            w = (act_size_width // comm_per_dim +
+                 (act_size_width % comm_per_dim > j))
             self.__class__.create_comm = False
         i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)
         self.border_id = self.compute_border(i, j, comm_per_dim)
@@ -186,16 +182,16 @@ class GlobalArray():
         else:  # no padding
             # West/East halos
             # total next layer input width
-            tnlw = (self.act_size_width - self.filter_size) / \
-                cur_layer.stride + 1
+            tnlw = ((self.act_size_width - self.filter_size) /
+                    cur_layer.stride) + 1
             for j_iter in range(j + 1):
                 w_iter = act_size_width // comm_per_dim + (
                     act_size_width % comm_per_dim > j_iter)
                 # local next layer width
                 lnlw = tnlw // comm_per_dim + (tnlw % comm_per_dim > j_iter)
                 # local halo size width
-                lhsw = (lnlw - 1) * cur_layer.stride + \
-                    self.filter_size - w_iter
+                lhsw = ((lnlw - 1) * cur_layer.stride + self.filter_size -
+                        w_iter)
                 # if west border then entire halo is added to other side
                 if j_iter == 0:
                     east_halo = lhsw
@@ -222,16 +218,16 @@ class GlobalArray():
             # north/south halos
             carry = 0
             # total next layer input height
-            tnlh = (self.act_size_height - self.filter_size) / \
-                cur_layer.stride + 1
+            tnlh = ((self.act_size_height - self.filter_size) /
+                    cur_layer.stride) + 1
             for i_iter in range(i + 1):
                 h_iter = act_size_height // comm_per_dim + (
                     act_size_height % comm_per_dim > i_iter)
                 # local next layer height
                 lnlh = tnlh // comm_per_dim + (tnlh % comm_per_dim > i_iter)
                 # local halo size height
-                lhsh = (lnlh - 1) * cur_layer.stride + \
-                    self.filter_size - h_iter
+                lhsh = ((lnlh - 1) * cur_layer.stride + self.filter_size -
+                        h_iter)
                 # if north border then entire halo is added to other side
                 if i_iter == 0:
                     south_halo = lhsh

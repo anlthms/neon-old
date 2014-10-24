@@ -3,17 +3,12 @@ Local View of the Data
 
 '''
 
-import logging
 import numpy as np
 from mpi4py import MPI
 import gdist_consts as gc
+import logging
 
 logger = logging.getLogger(__name__)
-
-
-def pprint(string, comm=MPI.COMM_WORLD):
-    if comm.rank == 0:
-        print(string)
 
 
 class RecvHalo(object):
@@ -139,8 +134,9 @@ class LocalArray(object):
                 self.width_with_halos = self.width + self.halo_size_col
                 self.height_with_halos = self.height + self.halo_size_row
 
-            self.local_array_size_with_halo = self.width_with_halos * \
-                self.height_with_halos * self.act_channels
+            self.local_array_size_with_halo = (self.width_with_halos *
+                                               self.height_with_halos *
+                                               self.act_channels)
             if backend is None:
                 # chunk is local_image with halo
                 self.chunk = np.empty(
@@ -428,8 +424,7 @@ class LocalArray(object):
         slocal2d_size = sh * sw
 
         if nc != sc:
-            print "warning nc != sc"
-            print nc, ' ', sc
+            logger.warning("warning nc(%d) != sc(%d)", nc, sc)
 
         for c in range(nc):
             if neighbor_direction == gc.NORTH:

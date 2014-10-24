@@ -85,32 +85,32 @@
         pos: 3,
         nifm: 50,
         ifmshape: [8, 8],
-        fshape: [3, 3],
+        fshape: [2, 2],
         stride: 2,
       },
       # todo: support FC-> FC connections
-      # !obj:neon.models.layer.LayerWithNoBiasDist {
-      #   name: layer5,
-      #   backend: *be,
-      #   batch_size: *bs,
-      #   pos: 4,
-      #   learning_rate: *lr,
-      #   nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
-      #   nout: 500,
-      #   activation: !obj:neon.transforms.rectified.RectLin {},
-      #   weight_init: {
-      #     type: uniform,
-      #     low: -0.1,
-      #     high: 0.1,
-      #   },
-      # },
       !obj:neon.models.layer.LayerWithNoBiasDist {
-        name: output,
+        name: layer5,
         backend: *be,
         batch_size: *bs,
         pos: 4,
         learning_rate: *lr,
-        nin: 450,
+        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nout: 500,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.LayerWithNoBiasDist {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 5,
+        learning_rate: *lr,
+        nin: 500,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {

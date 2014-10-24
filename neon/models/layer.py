@@ -4,13 +4,13 @@ backend.
 """
 
 import logging
-
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.persist import YAMLable
 from neon.util.distarray.local_array import LocalArray
 import neon.util.distarray.gdist_consts as gc
 # import time
 from mpi4py import MPI
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -165,35 +165,44 @@ class LayerWithNoBiasDist(LayerWithNoBias):
     """
 
     def adjust_for_dist(self):
+        # indices of the input layer in weight matrix
         out_indices = []
-        logger.debug('ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, \
-                     global_size=%d, global_width=%d', self.ifmshape[0],
-                     self.ifmshape[1], self.nifm, self.global_size,
-                     self.global_width)
-        for cur_channel in range(self.nifm):
-            current_index = cur_channel * self.global_size + \
-                self.top_left_row_output * self.global_width + \
-                self.top_left_col_output
-            for cur_row in range(self.ifmshape[0]):
-                out_indices.extend(
-                    range(current_index, current_index + self.ifmshape[1]))
-                current_index += self.global_width
+        cond1 = self.prev_layer == 'MaxPoolingLayerDist'
+        cond2 = self.prev_layer == 'LCNLayerDist'
+        if cond1 or cond2:
+            logger.debug('ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, '
+                         'global_size=%d, global_width=%d', self.ifmshape[0],
+                         self.ifmshape[1], self.nifm, self.global_size,
+                         self.global_width)
+            for cur_channel in range(self.nifm):
+                current_index = (cur_channel * self.global_size +
+                                 self.top_left_row_output * self.global_width +
+                                 self.top_left_col_output)
+                for cur_row in range(self.ifmshape[0]):
+                    out_indices.extend(
+                        range(current_index, current_index + self.ifmshape[1]))
+                    current_index += self.global_width
+        elif self.prev_layer == 'LayerWithNoBiasDist':
+            out_indices = self.out_indices
+        else:
+            raise Exception('Unsupported previous layer for '
+                            'LayerWithNoBiasDist')
+
         self.weights = self.weights.take(out_indices, axis=1)
 
         self.velocity = self.backend.zeros(self.weights.shape)
-        self.updates = self.backend.zeros((self.nout, self.nin))
+        self.updates = self.backend.zeros((self.nout_, self.nin))
+        self.delta = self.backend.zeros((self.batch_size, self.nout))
+        self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
+        self.delta_gather = self.backend.zeros(
+            (self.batch_size * MPI.COMM_WORLD.size, self.nout))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.zeros((self.batch_size, self.nin))
 
     def fprop(self, inputs):
+        # dot product is distributed across nodes
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
-
-        # y=self.weights
-        # print MPI.COMM_WORLD.rank, 'weights = ', y[0,0:8]
-        # y = self.pre_act
-        # print MPI.COMM_WORLD.rank, 'preact', y.shape, y[0,0:10]
-
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
@@ -201,10 +210,33 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         if MPI.COMM_WORLD.rank == 0:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
+        # strictly, following line not needed for top-most layer
+        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.raw())
         # broadcast back the pre_act values for bprop.
         # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
+
+    def bprop(self, error, inputs, epoch, momentum):
+        # comment if not using denominator term in cross_entropy
+        self.backend.multiply(error, self.pre_act_, out=self.delta)
+        if self.nout_ != self.nout:
+            MPI.COMM_WORLD.Allgather(
+                self.delta.raw(), self.delta_gather._tensor)
+            # todo: only supported in numpy backend for now
+            self.delta_._tensor = np.hstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            if self.pos > 0:
+                self.backend.dot(self.delta_, self.weights, out=self.berror)
+            self.backend.dot(self.delta_.T(), inputs, out=self.updates)
+        else:
+            if self.pos > 0:
+                self.backend.dot(self.delta, self.weights, out=self.berror)
+            self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.multiply(self.updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=self.updates)
+        self.backend.subtract(self.weights, self.updates, out=self.weights)
 
 
 class LayerWithNoActivation(LayerWithNoBias):
@@ -795,9 +827,9 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         # adjust size of self.weights for halo dimensions
         out_indices = []
         for cur_channel in range(self.nofm):
-            current_index = cur_channel * self.global_ofmsize + \
-                top_left_row_output * self.global_ofmwidth + \
-                top_left_col_output
+            current_index = (cur_channel * self.global_ofmsize +
+                             top_left_row_output * self.global_ofmwidth +
+                             top_left_col_output)
             for cur_row in range(self.ofmheight):
                 out_indices.extend(
                     range(current_index, current_index + self.ofmwidth))
