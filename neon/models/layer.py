@@ -668,8 +668,10 @@ class PoolingLayer(YAMLable):
         self.name = name
         self.backend = backend
         self.nfm = nfm
+        self.ifmshape = ifmshape
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
+        self.pshape = pshape
         self.pheight, self.pwidth = pshape
         self.psize = self.pheight * self.pwidth
         self.pos = pos
@@ -678,6 +680,7 @@ class PoolingLayer(YAMLable):
 
         ofmheight = (self.ifmheight - self.pheight) / stride + 1
         ofmwidth = (self.ifmwidth - self.pwidth) / stride + 1
+        self.ofmshape = (ofmheight, ofmwidth)
         self.ofmsize = ofmheight * ofmwidth
         self.nin = nfm * self.ifmsize
         if pos > 0:
@@ -720,8 +723,6 @@ class PoolingLayer(YAMLable):
         """
         self.rdelta = self.backend.squish(self.delta, self.nfm)
         self.routput = self.backend.squish(self.output, self.nfm)
-        if self.pos > 0:
-            self.rberror = self.backend.squish(self.berror, self.nfm)
 
     def __getstate__(self):
         """
@@ -733,8 +734,6 @@ class PoolingLayer(YAMLable):
         res = self.__dict__.copy()
         res['rdelta'] = None
         res['routput'] = None
-        if self.pos > 0:
-            res['rberror'] = None
         return res
 
     def __setstate__(self, state):
@@ -783,30 +782,18 @@ class MaxPoolingLayer(PoolingLayer):
                  self.backend.max(self.output)))
 
     def fprop(self, inputs):
-        # Reshape the input so that we have a separate row
-        # for each input feature map (this is to avoid a loop over
-        # each feature map).
-        inputs = self.backend.squish(inputs, self.nfm)
-        for dst in xrange(self.ofmsize):
-            # For this output unit, get the corresponding receptive fields
-            # within all input feature maps.
-            rf = inputs.take(self.links[dst], axis=1)
-            # Save the index of the maximum value within the receptive fields.
-            self.maxinds[:, dst] = rf.argmax(axis=1)
-            # Set the pre-activations to the maximum value.
-            maxvals = rf[range(rf.shape[0]), self.maxinds[:, dst]]
-            self.routput[:, dst] = maxvals
+        self.inputs = inputs
+        self.backend.fprop_mpool(
+            inputs, self.routput, self.links,
+            self.ifmshape, self.ofmshape, self.pshape, 0,
+            self.stride, self.nfm, self.maxinds)
 
     def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                links = self.links[dst]
-                colinds = self.maxinds[:, dst]
-                inds = links.take(colinds, axis=0)
-                self.rberror[range(self.rberror.shape[0]), inds] += (
-                    self.rdelta[:, dst])
+            self.backend.bprop_mpool(
+                self.inputs, self.output,
+                error, self.berror, self.links, self.ifmshape, self.ofmshape,
+                self.pshape, 0, self.stride, self.nfm, self.maxinds)
 
 
 class L2PoolingLayer(PoolingLayer):
@@ -845,6 +832,7 @@ class L2PoolingLayer(PoolingLayer):
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
         rinputs = self.backend.squish(inputs, self.nfm)
+        rberror = self.backend.squish(self.berror, self.nfm)
         # print MPI.COMM_WORLD.rank, 'L2 pooling bprop rinputs.shape',
         # rinputs.shape
         if self.pos > 0:
@@ -861,7 +849,7 @@ class L2PoolingLayer(PoolingLayer):
                 self.backend.multiply(
                     self.rdelta[:, dst:(dst + 1)].repeat(self.psize, axis=1),
                     rf, out=self.prodbuf)
-                self.rberror[:, inds] += self.prodbuf
+                rberror[:, inds] += self.prodbuf
 
 
 class AveragePoolingLayer(PoolingLayer):
@@ -892,13 +880,14 @@ class AveragePoolingLayer(PoolingLayer):
 
     def bprop(self, error, inputs, epoch, momentum):
         self.delta[:] = error
+        rberror = self.backend.squish(self.berror, self.nfm)
         if self.pos > 0:
             self.backend.clear(self.berror)
             self.rdelta /= self.psize
             for dst in range(self.ofmsize):
                 inds = self.links[dst]
-                self.rberror[:, inds] += (self.rdelta.take(range(dst, dst + 1),
-                                          axis=1))
+                rberror[:, inds] += (self.rdelta.take(range(dst, dst + 1),
+                                     axis=1))
 
 
 class Convolver(LocalLayer):

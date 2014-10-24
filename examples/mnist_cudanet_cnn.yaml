@@ -76,13 +76,23 @@
           high: 0.1,
         },
       },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        nfm: 32,
+        ifmshape: [8, 8],
+        pshape: [2, 2],
+        stride: 2,
+      },
       !obj:neon.models.layer.LayerWithNoBias {
         name: layer5,
         backend: *be,
         batch_size: *bs,
         pos: 4,
         learning_rate: *lr,
-        nin: 2048, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 512, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
