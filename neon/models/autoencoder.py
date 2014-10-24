@@ -87,9 +87,7 @@ class Autoencoder(MLP):
                 if item in targets and item in preds:
                     major_axis = preds[item].major_axis()
                     minor_axis = preds[item].minor_axis()
-                    tempbuf = self.backend.zeros(
-                        (preds[item].shape[major_axis],
-                         preds[item].shape[minor_axis]))
+                    tempbuf = self.backend.zeros((preds[item].shape))
                     temp = [tempbuf, tempbuf.copy()]
                     err = self.cost.apply_function(self.backend,
                                                    preds[item],

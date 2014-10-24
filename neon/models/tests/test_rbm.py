@@ -20,6 +20,9 @@ from neon.util.compat import CUDA_GPU
 if CUDA_GPU:
     from neon.backends._cudanet import Cudanet, CudanetTensor
 
+kwargs = {'rng_seed': 0}
+myBackend = Cudanet(**kwargs)  # gives a backend!
+
 
 class TestCudaRBM:
 
@@ -29,15 +32,13 @@ class TestCudaRBM:
         self.inputs = CudanetTensor(np.ones((2, 100)))
 
         # create simple backend instance
-        kwargs = {'rng_seed': 0}
-        self.myBackend = Cudanet(**kwargs)  # gives a backend!
 
         # create fake layer
         nin = 2
         conf = {'name': 'testlayer', 'num_nodes': 2,
                 'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], self.myBackend, 100, 0, 0.01,
+        self.layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01,
                               nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
                               weight_init=conf['weight_init'])
@@ -49,23 +50,23 @@ class TestCudaRBM:
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
         target = [0.50785673,  0.50782728,  0.50173879]
-        assert_tensor_near_equal(self.layer.p_hid_plus.raw()[0], target)
+        assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
     @attr('cuda')
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
         target = [0.5039286,  0.50391388,  0.50086939]
-        assert_tensor_near_equal(self.layer.p_hid_minus.raw()[0], target)
+        assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 
     @attr('cuda')
     def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        temp = [self.myBackend.zeros(self.inputs.shape)]
-        thecost = self.cost.apply_function(self.myBackend, self.inputs,
+        temp = [myBackend.zeros(self.inputs.shape)]
+        thecost = self.cost.apply_function(myBackend, self.inputs,
                                            self.layer.x_minus.take(range(
-                                               self.layer.x_minus.shape[1] -
-                                               1), axis=1), temp)
+                                               self.layer.x_minus.shape[0] -
+                                               1), axis=0), temp)
         target = 24.5629310
         assert_tensor_near_equal(thecost, target)
