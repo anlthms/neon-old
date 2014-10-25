@@ -20,8 +20,8 @@ from neon.util.compat import CUDA_GPU
 if CUDA_GPU:
     from neon.backends._cudanet import Cudanet, CudanetTensor
 
-kwargs = {'rng_seed': 0}
-myBackend = Cudanet(**kwargs)  # gives a backend!
+    kwargs = {'rng_seed': 0}
+    myBackend = Cudanet(**kwargs)  # gives a backend!
 
 
 class TestCudaRBM:
@@ -49,14 +49,14 @@ class TestCudaRBM:
     @attr('cuda')
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
-        target = [0.50785673,  0.50782728,  0.50173879]
+        target = [0.50282145,  0.50257355,  0.5021565]
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
     @attr('cuda')
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        target = [0.5039286,  0.50391388,  0.50086939]
+        target = [0.5003587,  0.50139761,  0.49878648]
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 
     @attr('cuda')
@@ -68,5 +68,5 @@ class TestCudaRBM:
                                            self.layer.x_minus.take(range(
                                                self.layer.x_minus.shape[0] -
                                                1), axis=0), temp)
-        target = 24.5629310
+        target = 106.588943481
         assert_tensor_near_equal(thecost, target)
