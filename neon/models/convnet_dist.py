@@ -4,14 +4,17 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
-
 from neon.models.mlp import MLP
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
 from neon.models.layer import LayerWithNoBiasDist
 from neon.util.distarray.global_array import GlobalArray
-from mpi4py import MPI
-
+from neon.util.compat import MPI_INSTALLED
 logger = logging.getLogger(__name__)
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
+else:
+    logger.error('mpi4py not found')
 
 
 class ConvnetDist(MLP):

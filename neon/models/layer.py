@@ -9,7 +9,9 @@ from neon.util.persist import YAMLable
 from neon.util.distarray.local_array import LocalArray
 import neon.util.distarray.gdist_consts as gc
 # import time
-from mpi4py import MPI
+from neon.util.compat import MPI_INSTALLED
+if MPI_INSTALLED:
+    from mpi4py import MPI
 import numpy as np
 
 logger = logging.getLogger(__name__)

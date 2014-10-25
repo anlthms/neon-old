@@ -88,7 +88,7 @@ class GlobalArray():
         comm = MPI.COMM_WORLD
         comm_size = comm.size
         self.comm_size = comm_size
-        self.print_debug = True
+        self.print_debug = False
 
         comm_per_dim = np.int(np.sqrt(comm_size))
         self.comm_per_dim = comm_per_dim
