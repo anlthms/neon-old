@@ -2,7 +2,7 @@
 # template for DBM layers
 
 !obj:neon.experiments.fit.FitExperiment {
-  backend: &be !obj:neon.backends._cudamat.Cudamat {
+  backend: &be !obj:neon.backends._cudanet.Cudanet {
     rng_seed: 0,
   },
 
@@ -12,7 +12,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Cudamat.pkl',
+      serialized_path: '/usr/local/data/MNIST/mnist-Cudanet.pkl',
     },
   ],
   
@@ -30,7 +30,7 @@
       saturated_coef: 0.90,
     },
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    serialized_path: './rbm-cudamat60.pkl',
+    serialized_path: './rbm-cudanet60.pkl',
     layers: [
       !obj:neon.models.layer.RBMLayer {
         name: vis2hid,

@@ -110,10 +110,12 @@ class MNIST(Dataset):
                         indat = self.read_image_file(repo_file, 'float32')
                         # flatten to 1D images
                         indat = indat.reshape((60000, 784))[train_idcs]
+                        indat = self.backend.prep(indat)
                         self.inputs['train'] = self.backend.array(indat)
                     elif 'images' in repo_file and 't10k' in repo_file:
                         indat = self.read_image_file(repo_file, 'float32')
                         indat = indat.reshape((10000, 784))
+                        indat = self.backend.prep(indat)
                         self.inputs['test'] = self.backend.array(indat)
                     elif 'labels' in repo_file and 'train' in repo_file:
                         indat = self.read_label_file(repo_file)[train_idcs]
@@ -121,12 +123,14 @@ class MNIST(Dataset):
                         tmp = numpy.zeros((len(train_idcs), 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
+                        tmp = self.backend.prep(tmp)
                         self.targets['train'] = self.backend.array(tmp)
                     elif 'labels' in repo_file and 't10k' in repo_file:
                         indat = self.read_label_file(repo_file)
                         tmp = numpy.zeros((10000, 10))
                         for col in range(10):
                             tmp[:, col] = indat == col
+                        tmp = self.backend.prep(tmp)
                         self.targets['test'] = self.backend.array(tmp)
                     else:
                         logger.error('problems loading: %s' % name)
