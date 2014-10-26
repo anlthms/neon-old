@@ -224,9 +224,8 @@ class ConvnetDist(MLP):
                 self.layers[i + 1].out_indices, axis=1)
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
                 self.layers[i].bprop(self.layers[i + 1].berror,
-                                     self.layers[
-                                         i - 1].output.take(self.layers[
-                                         i].out_indices, axis=1),
+                                     self.layers[i - 1].output.
+                                     take(self.layers[i].out_indices, axis=1),
                                      epoch, momentum)
             else:
                 self.layers[i].bprop(self.layers[i + 1].berror,

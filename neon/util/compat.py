@@ -20,7 +20,7 @@ elif sys.platform.startswith("darwin"):
 
 MPI_INSTALLED = False
 try:
-    import mpi4py
+    import mpi4py  # flake8: noqa
     MPI_INSTALLED = True
-except:
+except ImportError:
     logger.warning('mpi4py not found')

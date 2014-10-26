@@ -60,6 +60,30 @@ Autoencoder
 
    neon.models.autoencoder.Autoencoder
 
+RBM
+---
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.rbm.RBM
+
+DBN
+---
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.dbn.DBN
+
+GB
+--
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.gb.GB
+
 
 Transforms
 ==========
@@ -73,7 +97,6 @@ Activation Functions
    neon.transforms.linear.Identity
    neon.transforms.rectified.RectLin
    neon.transforms.logistic.Logistic
-   neon.transforms.logistic.PseudoLogistic
    neon.transforms.tanh.Tanh
 
 Cost Functions
@@ -119,4 +142,3 @@ Miscellaneous
    :toctree: generated/
 
    neon.util.compat.PY3
-   neon.util.factory.Factory
