@@ -4,11 +4,17 @@ Local View of the Data
 '''
 
 import numpy as np
-from mpi4py import MPI
+
 import gdist_consts as gc
 import logging
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
+else:
+    logger.error("mpi4py not installed")
 
 
 class RecvHalo(object):

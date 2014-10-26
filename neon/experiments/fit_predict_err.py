@@ -6,7 +6,7 @@ is evaluated on the predictions made.
 import logging
 
 from neon.experiments.fit import FitExperiment
-from mpi4py import MPI
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,10 @@ class FitPredictErrorExperiment(FitExperiment):
         predictions = self.model.predict(self.datasets)
 
         # report errors
-        if (self.dist_flag and MPI.COMM_WORLD.rank == 0) or \
-                (not self.dist_flag):
+        if self.dist_flag:
+            if MPI_INSTALLED:
+                from mpi4py import MPI
+                if MPI.COMM_WORLD.rank == 0:
+                    self.model.error_metrics(self.datasets, predictions)
+        else:
             self.model.error_metrics(self.datasets, predictions)

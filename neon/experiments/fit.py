@@ -6,8 +6,8 @@ import logging
 import os
 
 from neon.experiments.experiment import Experiment
+from neon.util.compat import MPI_INSTALLED
 from neon.util.persist import serialize, deserialize
-from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,13 @@ class FitExperiment(Experiment):
                 ds.backend = self.backend
             if hasattr(ds, 'serialized_path'):
                 if self.dist_flag:
-                    ds.serialized_path = ds.serialized_path.format(
-                        rank=str(MPI.COMM_WORLD.rank))
+                    if MPI_INSTALLED:
+                        from mpi4py import MPI
+                        ds.serialized_path = ds.serialized_path.format(
+                            rank=str(MPI.COMM_WORLD.rank))
+                    else:
+                        raise AttributeError("dist_flag set but mpi4py not "
+                                             "installed")
                 if os.path.exists(ds.serialized_path):
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
                 else:

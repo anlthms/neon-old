@@ -5,12 +5,14 @@ Contains code to train distributed Google Brain models and run inference.
 import logging
 import math
 import os
+import time
+
 from neon.models.gb import GB
 from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist
 from neon.models.layer import L2PoolingLayerDist, LayerWithNoBiasDist
-from neon.util.distarray.global_array import GlobalArray
 from neon.util.compat import MPI_INSTALLED
-import time
+from neon.util.distarray.global_array import GlobalArray
+
 logger = logging.getLogger(__name__)
 
 if MPI_INSTALLED:

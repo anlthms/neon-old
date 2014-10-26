@@ -4,11 +4,13 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
+
 from neon.models.mlp import MLP
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
 from neon.models.layer import LayerWithNoBiasDist
-from neon.util.distarray.global_array import GlobalArray
 from neon.util.compat import MPI_INSTALLED
+from neon.util.distarray.global_array import GlobalArray
+
 logger = logging.getLogger(__name__)
 
 if MPI_INSTALLED:
@@ -47,9 +49,8 @@ class ConvnetDist(MLP):
                 layer.nout_ = layer.nout
                 if i < self.nlayers - 1:
                     if layer.nout % MPI.COMM_WORLD.size != 0:
-                        raise Exception('Unsupported '
-                                        'layer.nout % MPI.COMM_WORLD.size != '
-                                        '0')
+                        raise ValueError('Unsupported layer.nout % '
+                                         'MPI.COMM_WORLD.size != 0')
                     layer.nout = layer.nout / MPI.COMM_WORLD.size
                 if isinstance(self.layers[i - 1], MaxPoolingLayerDist):
                     mp_layer = self.layers[i - 1]
@@ -76,16 +77,16 @@ class ConvnetDist(MLP):
                 elif isinstance(self.layers[i - 1], LayerWithNoBiasDist):
                     # split the inputs nin across MPI.COMM_WORLD.size
                     if layer.nin % MPI.COMM_WORLD.size != 0:
-                        raise Exception('Unsupported '
-                                        'layer.nin % MPI.COMM_WORLD.size != 0')
+                        raise ValueError('Unsupported layer.nin % '
+                                         'MPI.COMM_WORLD.size != 0')
                     layer.nin = layer.nin / MPI.COMM_WORLD.size
                     layer.out_indices = range(MPI.COMM_WORLD.rank * layer.nin,
                                               (MPI.COMM_WORLD.rank + 1) *
                                               layer.nin)
                     layer.prev_layer = 'LayerWithNoBiasDist'
                 else:
-                    raise Exception('Unsupported previous layer for '
-                                    'LayerWithNoBiasDist')
+                    raise ValueError('Unsupported previous layer for '
+                                     'LayerWithNoBiasDist')
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:

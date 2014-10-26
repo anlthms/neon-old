@@ -5,11 +5,17 @@ Global View of the Data
 
 import logging
 import numpy as np
-from mpi4py import MPI
-import local_array as laa
+
 import gdist_consts as gc
+import local_array as laa
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
+else:
+    logger.error("mpi4py not installed")
 
 
 class GlobalArray():
@@ -124,7 +130,7 @@ class GlobalArray():
 
         if lcn_layer_flag:  # if padded, nout = nin
             if cur_layer.stride > 1:
-                raise Exception('LCN layer stride > 1 not supported for dist')
+                raise ValueError('LCN layer stride > 1 not supported for dist')
             # West/East halos
             pad_width_right = (self.filter_size - 1) // 2
             pad_width_left = (self.filter_size - 1) - pad_width_right
@@ -208,7 +214,7 @@ class GlobalArray():
                 if cur_layer.stride > 1:
                     # assuming that stride is divisible by w_iter for now
                     if w_iter % cur_layer.stride != 0:
-                        raise Exception('w_iter has to divide stride')
+                        raise ValueError('w_iter has to divide stride')
                     carry = 0
                 else:
                     carry = (self.filter_size - 1) - east_halo
@@ -243,7 +249,7 @@ class GlobalArray():
                         cur_layer.stride) + 1
                 if cur_layer.stride > 1:
                     if h_iter % cur_layer.stride != 0:
-                        raise Exception('h_iter has to divide stride')
+                        raise ValueError('h_iter has to divide stride')
                     # assuming that stride is divisible by h_iter for now
                     carry = 0
                 else:

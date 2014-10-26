@@ -199,8 +199,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         elif self.prev_layer == 'LayerWithNoBiasDist':
             out_indices = self.out_indices
         else:
-            raise Exception('Unsupported previous layer for '
-                            'LayerWithNoBiasDist')
+            raise ValueError('Unsupported previous layer for '
+                             'LayerWithNoBiasDist')
 
         self.weights = self.weights.take(out_indices, axis=1)
 

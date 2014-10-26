@@ -10,9 +10,8 @@ import os
 import struct
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import PY3
+from neon.util.compat import PY3, MPI_INSTALLED
 
-from mpi4py import MPI
 
 if PY3:
     from urllib.parse import urljoin as basejoin
@@ -52,10 +51,14 @@ class MNIST(Dataset):
         self.dist_flag = False
         self.__dict__.update(kwargs)
         if self.dist_flag:
-            self.comm = MPI.COMM_WORLD
-            # for now require that comm.size is a square and divides 28
-            if self.comm.size not in [1, 4, 16]:
-                raise Exception('MPI.COMM_WORLD.size not compatible')
+            if MPI_INSTALLED:
+                from mpi4py import MPI
+                self.comm = MPI.COMM_WORLD
+                # for now require that comm.size is a square and divides 28
+                if self.comm.size not in [1, 4, 16]:
+                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
+            else:
+                raise AttributeError("dist_flag set but mpi4py not installed")
 
     def read_image_file(self, fname, dtype=None):
         """

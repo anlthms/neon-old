@@ -3,14 +3,14 @@ CIFAR-10 contains color images of 10 classes.
 More info at: http://www.cs.toronto.edu/~kriz/cifar.html
 """
 
-import tarfile
-import logging
-import os
 import cPickle
+import logging
 import numpy as np
-from mpi4py import MPI
+import os
+import tarfile
 
 from neon.datasets.dataset import Dataset
+from neon.util.compat import MPI_INSTALLED
 
 
 logger = logging.getLogger(__name__)
@@ -38,10 +38,14 @@ class CIFAR10(Dataset):
         self.dist_flag = False
         self.__dict__.update(kwargs)
         if self.dist_flag:
-            self.comm = MPI.COMM_WORLD
-            # for now require that comm.size is a square and divides 28
-            if self.comm.size not in [1, 4, 16]:
-                raise Exception('MPI.COMM_WORLD.size not compatible')
+            if MPI_INSTALLED:
+                from mpi4py import MPI
+                self.comm = MPI.COMM_WORLD
+                # for now require that comm.size is a square and divides 28
+                if self.comm.size not in [1, 4, 16]:
+                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
+            else:
+                raise AttributeError("dist_flag set but mpi4py not installed")
 
     def fetch_dataset(self, save_dir):
         if not os.path.exists(save_dir):
