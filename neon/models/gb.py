@@ -32,8 +32,8 @@ class GB(MLP):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in xrange(num_batches):  # num_batches
-                    print 'batch =', batch
+                for batch in xrange(num_batches):
+                    logger.info('batch = %d' % (batch))
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                     output = inputs[start_idx:end_idx]
@@ -58,7 +58,7 @@ class GB(MLP):
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
         end_time = time.time()
-        print 'time taken: ', end_time - start_time
+        logger.info('Time taken: %0.2f' % (end_time - start_time))
 
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
@@ -77,7 +77,7 @@ class GB(MLP):
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
-                print 'batch =', batch
+                logger.info('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
@@ -96,7 +96,7 @@ class GB(MLP):
             logger.info('epoch: %d, training error: %0.5f' %
                         (epoch, error / num_batches))
         end_time = time.time()
-        print 'time taken: ', end_time - start_time
+        logger.info('Time taken: %0.2f' % (end_time - start_time))
 
     def check_node_predictions(self, inputs, targets, node, cls):
         """
