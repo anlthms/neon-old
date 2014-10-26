@@ -1,7 +1,7 @@
 # Experiment settings to train/test a CNN on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends._cudanet.Cudanet {
     rng_seed: 0,
   },
 
@@ -11,7 +11,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
+      #serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
     },
   ],
   
@@ -30,7 +30,7 @@
       saturated_coef: 0.90,
     },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './cnn-small.pkl',
+    #serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
@@ -39,7 +39,7 @@
         pos: 0,
         learning_rate: *lr,
         nifm: 1,
-        nofm: 20,
+        nofm: 16,
         ifmshape: [28, 28],
         fshape: [5, 5],
         stride: 1,
@@ -54,9 +54,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nifm: 20,
+        nfm: 16,
         ifmshape: [24, 24],
-        fshape: [2, 2],
+        pshape: [2, 2],
         stride: 2,
       },
       !obj:neon.models.layer.ConvLayer {
@@ -65,8 +65,8 @@
         batch_size: *bs,
         pos: 2,
         learning_rate: *lr,
-        nifm: 20,
-        nofm: 50,
+        nifm: 16,
+        nofm: 32,
         ifmshape: [12, 12],
         fshape: [5, 5],
         stride: 1,
@@ -81,9 +81,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        nifm: 50,
+        nfm: 32,
         ifmshape: [8, 8],
-        fshape: [2, 2],
+        pshape: [2, 2],
         stride: 2,
       },
       !obj:neon.models.layer.LayerWithNoBias {
@@ -92,7 +92,7 @@
         batch_size: *bs,
         pos: 4,
         learning_rate: *lr,
-        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 512, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {

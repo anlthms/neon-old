@@ -6,12 +6,14 @@ import logging
 import os
 
 from neon.experiments.experiment import Experiment
+from neon.util.compat import MPI_INSTALLED
 from neon.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
 
 
 class FitExperiment(Experiment):
+
     """
     In this `Experiment`, a model is trained on a training dataset to
     learn a set of parameters
@@ -25,7 +27,10 @@ class FitExperiment(Experiment):
                                             datasets to use in this experiment
         TODO: add other params
     """
+
     def __init__(self, **kwargs):
+        # default dist_flag to False
+        self.dist_flag = False
         self.__dict__.update(kwargs)
         for req_param in ['backend', 'datasets', 'model']:
             if not hasattr(self, req_param):
@@ -43,6 +48,14 @@ class FitExperiment(Experiment):
             if not hasattr(ds, 'backend'):
                 ds.backend = self.backend
             if hasattr(ds, 'serialized_path'):
+                if self.dist_flag:
+                    if MPI_INSTALLED:
+                        from mpi4py import MPI
+                        ds.serialized_path = ds.serialized_path.format(
+                            rank=str(MPI.COMM_WORLD.rank))
+                    else:
+                        raise AttributeError("dist_flag set but mpi4py not "
+                                             "installed")
                 if os.path.exists(ds.serialized_path):
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
                 else:

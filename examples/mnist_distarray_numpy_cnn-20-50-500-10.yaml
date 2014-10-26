@@ -1,6 +1,7 @@
-# Experiment settings to train/test a CNN on MNIST.
+# Experiment settings to train/test a CNN on MNIST using MPI.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  dist_flag: &df True,
   backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
   },
@@ -8,16 +9,17 @@
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
+      dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
+      sample_pct: 1,
+      serialized_path: '/usr/local/data/MNIST/mnist_1pct-Numpy_{rank}.pkl',
     },
   ],
-  
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.convnet_dist.ConvnetDist {
     backend: *be,
     num_epochs: 2,
     batch_size: &bs 100,
@@ -30,9 +32,9 @@
       saturated_coef: 0.90,
     },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './cnn-small.pkl',
+    #serialized_path: './cnn-small.pkl',
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayerDist {
         name: layer1,
         backend: *be,
         batch_size: *bs,
@@ -49,7 +51,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer.MaxPoolingLayerDist {
         name: layer2,
         backend: *be,
         batch_size: *bs,
@@ -59,7 +61,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayerDist {
         name: layer3,
         backend: *be,
         batch_size: *bs,
@@ -76,7 +78,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer.MaxPoolingLayerDist {
         name: layer4,
         backend: *be,
         batch_size: *bs,
@@ -86,7 +88,8 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      # todo: support FC-> FC connections
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -101,7 +104,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -118,7 +121,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

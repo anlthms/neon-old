@@ -11,15 +11,15 @@
     !obj:neon.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
+      sample_pct: 1,
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy.pkl',
     },
   ],
 
   # Google Brain model specification
   model: !obj:neon.models.gb.GB {
     backend: *be,
-    num_epochs: 4,
+    num_epochs: 2,
     num_pretrain_epochs: 1,
     num_initial_epochs: 1,
     batch_size: &bs 100,
@@ -66,9 +66,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [27, 27],
-        pshape: [5, 5],
+        fshape: [5, 5],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -76,7 +76,7 @@
         backend: *be,
         batch_size: *bs,
         pos: 2,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
@@ -107,9 +107,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 4,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [18, 18],
-        pshape: [5, 5],
+        fshape: [5, 5],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -117,7 +117,7 @@
         backend: *be,
         batch_size: *bs,
         pos: 5,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [14, 14],
         fshape: [3, 3],
         stride: 1,
@@ -148,9 +148,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 7,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [9, 9],
-        pshape: [5, 5],
+        fshape: [5, 5],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -158,7 +158,7 @@
         backend: *be,
         batch_size: *bs,
         pos: 8,
-        nfm: 8,
+        nifm: 8,
         ifmshape: [5, 5],
         fshape: [3, 3],
         stride: 1,
@@ -169,7 +169,7 @@
         batch_size: *bs,
         pos: 9,
         learning_rate: *lr,
-        nin: 200, # previous nout (nfm * ifmshape[0] * ifmshape[1])
+        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
@@ -183,7 +183,7 @@
 
   # logging options that are passed to logging.basicConfig
   logging: {
-    level: 10,  #logging.DEBUG == 10
+    level: 20,  #logging.DEBUG == 10
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

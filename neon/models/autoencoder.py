@@ -22,17 +22,13 @@ class Autoencoder(MLP):
         logger.info('commencing model fitting')
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_inputs(train=True)['train']
-        nrecs = inputs.shape[0]
+        nrecs = inputs.shape[inputs.major_axis()]
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
-        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
+        tempbuf = self.backend.alloc(self.batch_size,
+                                     targets.shape[targets.minor_axis()])
         self.temp = [tempbuf, tempbuf.copy()]
-        assert self.nlayers % 2 == 0
-        for i in xrange(self.nlayers):
-            if i >= self.nlayers / 2:
-                self.layers[i].weights = self.layers[self.nlayers - i - 1
-                                                     ].weights.transpose()
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -42,14 +38,14 @@ class Autoencoder(MLP):
             for batch in xrange(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[start_idx:end_idx])
-                self.bprop(targets[start_idx:end_idx],
-                           inputs[start_idx:end_idx],
+                self.fprop(inputs.get_minor_slice(start_idx, end_idx))
+                self.bprop(targets.get_minor_slice(start_idx, end_idx),
+                           inputs.get_minor_slice(start_idx, end_idx),
                            epoch, self.momentum)
-                error += self.cost.apply_function(self.backend,
-                                                  self.layers[-1].output,
-                                                  targets[start_idx:end_idx],
-                                                  self.temp)
+                error += self.cost.apply_function(
+                    self.backend, self.layers[-1].output,
+                    targets.get_minor_slice(start_idx, end_idx),
+                    self.temp)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
 
@@ -89,8 +85,7 @@ class Autoencoder(MLP):
             targets = ds.get_inputs(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    tempbuf = self.backend.zeros((preds[item].shape[0],
-                                                  preds[item].shape[1]))
+                    tempbuf = self.backend.zeros((preds[item].shape))
                     temp = [tempbuf, tempbuf.copy()]
                     err = self.cost.apply_function(self.backend,
                                                    preds[item],

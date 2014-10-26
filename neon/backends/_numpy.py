@@ -326,6 +326,24 @@ class NumpyTensor(Tensor):
         else:
             return self.__class__(res)
 
+    def get_minor_slice(self, start, end):
+        return self.__class__(self[start:end]._tensor)
+
+    def set_minor_slice(self, start, end, data):
+        self[start:end] = data
+
+    def get_major_slice(self, start, end):
+        return self.__class__(self[:, start:end]._tensor)
+
+    def set_major_slice(self, start, end, data):
+        self[:, start:end] = data
+
+    def major_axis(self):
+        return 0
+
+    def minor_axis(self):
+        return 1
+
 
 class Numpy64Tensor(NumpyTensor):
     """
@@ -384,9 +402,19 @@ class Numpy(Backend):
         return in_dtype
 
     @classmethod
+    def empty(cls, shape, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.empty(shape, dtype), dtype)
+
+    @classmethod
     def zeros(cls, shape, dtype=None):
         dtype = cls.default_dtype_if_missing(dtype)
         return cls.tensor_cls(np.zeros(shape, dtype), dtype)
+
+    @classmethod
+    def alloc(cls, nrows, ncols, dtype=None):
+        dtype = cls.default_dtype_if_missing(dtype)
+        return cls.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
 
     @classmethod
     def ones(cls, shape, dtype=None):
@@ -520,8 +548,16 @@ class Numpy(Backend):
         Numpy.reciprocal(out, out=out)
 
     @staticmethod
+    def fill(x, val):
+        x._tensor[:] = val
+
+    @staticmethod
     def clear(x):
         x._tensor[:] = 0
+
+    @staticmethod
+    def fill(x, val):
+        x._tensor.fill(val)
 
     @staticmethod
     def sum(obj):
@@ -589,6 +625,87 @@ class Numpy(Backend):
     @classmethod
     def not_equal(cls, x, y):
         return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
+
+    @staticmethod
+    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            # Compute the weighted average of the receptive field
+            # and store the result within the destination feature map.
+            # Do this for all filters in one shot.
+            rflinks = links[dst]
+            Numpy.dot(inputs.take(rflinks, axis=1), weights, out=prodbuf)
+            outputs[:, ofmlocs[dst]] = prodbuf
+
+    @staticmethod
+    def bprop_conv(weights, error, berror, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
+        Numpy.fill(berror, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            Numpy.dot(error.take(ofmlocs[dst], axis=1), weights.T(), bpropbuf)
+            rflinks = links[dst]
+            Numpy.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
+            berror[:, rflinks] = bpropbuf
+
+    @staticmethod
+    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
+                    ofmlocs, padding, stride, nifm, ngroups, fwidth, scale,
+                    updatebuf):
+        Numpy.fill(updates, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            # Accumulate the weight updates, going over all
+            # corresponding cells in the output feature maps.
+            rflinks = links[dst]
+            eslice = error.take(ofmlocs[dst], axis=1)
+            Numpy.dot(inputs.take(rflinks, axis=1).T(), eslice,
+                      out=updatebuf)
+            updates.add(updatebuf)
+        # Update the filters after summing the weight updates.
+        Numpy.multiply(updates, Numpy.wrap(scale), out=updates)
+        Numpy.subtract(weights, updates, out=weights)
+
+    @staticmethod
+    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape, fshape,
+                    padding, stride, nfm, maxinds):
+        # Reshape the input so that we have a separate row
+        # for each input feature map (this is to avoid a loop over
+        # each feature map).
+        inputs = Numpy.squish(inputs, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            # For this output unit, get the corresponding receptive fields
+            # within all input feature maps.
+            rf = inputs.take(links[dst], axis=1)
+            # Save the index of the maximum value within the receptive fields.
+            maxinds[:, dst] = rf.argmax(axis=1)
+            # Set the pre-activations to the maximum value.
+            outputs[:, dst] = rf[range(rf.shape[0]), maxinds[:, dst]]
+
+    @staticmethod
+    def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, maxinds):
+        Numpy.fill(berror, 0.0)
+        rberror = Numpy.squish(berror, nfm) 
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rflinks = links[dst]
+            inds = rflinks.take(maxinds[:, dst], axis=0)
+            rerror = Numpy.squish(error, nfm)
+            rberror[range(rberror.shape[0]), inds] += rerror[:, dst]
+
+    @staticmethod
+    def fprop_fc_dot(inputs, weights, out):
+        np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
+
+    @staticmethod
+    def bprop_fc_dot(deltas, weights, out):
+        np.dot(deltas._tensor, weights._tensor, out._tensor)
+
+    @staticmethod
+    def update_fc_dot(deltas, inputs, out):
+        np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
+
+    @staticmethod
+    def prep(raw):
+        return raw
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
