@@ -590,10 +590,6 @@ class Numpy(Backend):
     def not_equal(cls, x, y):
         return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
 
-    @classmethod
-    def nonzero(cls, x):
-        return cls.tensor_cls(np.nonzero(x._tensor)[1])
-
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
         if 'dtype' in weight_params:

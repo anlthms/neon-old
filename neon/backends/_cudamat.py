@@ -787,13 +787,6 @@ class Cudamat(Backend):
         res.equals(0)
         return CudamatTensor(res)
 
-    @staticmethod
-    def nonzero(x):
-        res = x._tensor.copy()
-        res.equals(0)
-        res.equals(0)
-        return CudamatTensor(res)
-
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
         weights = None
