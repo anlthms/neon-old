@@ -626,10 +626,6 @@ class Numpy(Backend):
     def not_equal(cls, x, y):
         return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
 
-    @classmethod
-    def nonzero(cls, x):
-        return cls.tensor_cls(np.nonzero(x._tensor)[1])
-
     @staticmethod
     def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
