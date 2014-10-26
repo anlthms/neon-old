@@ -43,6 +43,10 @@ We want to strive to have as few of these as possible
     # see the examples directory for sample .yaml files
     neon examples/mnist_numpy_mlp-784-100-10.yaml
 
+For MPI based distributed implementations:
+	# mpirun -n 4 -x PYTHONPATH neon examples/<path_to.yaml>, where PYTHONPATH includes ./
+	mpirun -n 4 -x PYTHONPATH bin/neon examples/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+
 
 ## Features ##
 * Works with our hardware!  Easy to transition between it and various GPU and

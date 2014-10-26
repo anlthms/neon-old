@@ -156,10 +156,10 @@ class GBDist(GB):
                 # display cost to logger on root node
                 if MPI.COMM_WORLD.rank == 0:
                     tcost = trcost_sum + tspcost_sum
-                    logger.info('epoch: %d, cost: %0.2f + %0.2f = %0.2f' %
-                                (epoch, trcost_sum / num_batches,
-                                 tspcost_sum / num_batches,
-                                 tcost / num_batches))
+                    logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
+                            ' %0.2f' % (self.trainable_layers[ind], epoch,
+                             trcost / num_batches, tspcost / num_batches,
+                             tcost / num_batches))
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],

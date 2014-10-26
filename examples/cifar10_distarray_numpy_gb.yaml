@@ -1,5 +1,7 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
 # model on CIFAR10 using MPI.
+# Filter sizes are different from non-dist version so we can go up to
+# 4 x 4 = 16 processes of parallelism.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
@@ -13,8 +15,8 @@
       dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy_{rank}.pkl',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy_{rank}.pkl',
     },
   ],
 

@@ -11,8 +11,8 @@
     !obj:neon.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy.pkl',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
