@@ -53,6 +53,83 @@ def test_overflow_wrap():
     assert fixed_to_float(x, dtype) == 5.875
 
 
+def test_underflow_saturate():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=3, frac_bits=3, overflow=0,
+                        rounding=0)
+    # 3 frac bits gives minimal precision of 2**-3 == 0.125
+    assert fixed_to_float(fixed_from_float(0.05, dtype), dtype) == 0.0
+
+
+def test_underflow_wrap():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=3, frac_bits=3, overflow=1,
+                        rounding=0)
+    # 3 frac bits gives minimal precision of 2**-3 == 0.125
+    # wrapping shouldn't have any impact here
+    assert fixed_to_float(fixed_from_float(0.05, dtype), dtype) == 0.0
+
+
+def test_midpoint_truncation():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0, overflow=0,
+                        rounding=0)
+    x = fixed_from_float(2.5, dtype)
+    # 2.5_10 -> 2_10 after scaling and truncation
+    assert x == 2
+    assert fixed_to_float(x, dtype) == 2.0
+
+
+def test_midpoint_round_nearest():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0, overflow=0,
+                        rounding=1)
+    x = fixed_from_float(2.5, dtype)
+    # 2.5_10 -> 3_10 after scaling and round to nearest (biased or unbiased)
+    assert x == 3
+    assert fixed_to_float(x, dtype) == 3.0
+
+
+def test_midpoint_rescale_truncation():
+    in_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=2, overflow=0,
+                           rounding=0)
+    out_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0,
+                            overflow=0, rounding=0)
+    x = fixed_from_float(2.5, in_dtype)
+    # 2.5_10 -> 10_10 after scaling and truncation (multiply by 2**2)
+    #        -> 00010.10_2
+    assert x == 10
+    #        -> 00010_2 truncating during rescale
+    #        -> 2_10
+    x = fp_rescale(x, in_dtype, out_dtype)
+    assert x == 2
+    assert fixed_to_float(x, out_dtype) == 2.0
+
+
+def test_midpoint_rescale_round_nearest():
+    in_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=2, overflow=0,
+                           rounding=0)
+    out_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0,
+                            overflow=0, rounding=1)
+    x = fixed_from_float(2.5, in_dtype)
+    # 2.5_10 -> 10_10 after scaling and truncation (multiply by 2**2)
+    #        -> 00010.10_2
+    assert x == 10
+    #        -> 00011_2 round nearest (i.e add 0.5_10 then truncate)
+    #        -> 3_10
+    x = fp_rescale(x, in_dtype, out_dtype)
+    assert x == 3
+    assert fixed_to_float(x, out_dtype) == 3.0
+
+
+def test_additional_point_shift_right():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=0, frac_bits=3, overflow=0,
+                        rounding=0, additional_point_shift=3)
+    assert fixed_to_float(fixed_from_float(0.00025, dtype), dtype) == 0.00025
+
+
+def test_additional_point_shift_left():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=3, frac_bits=0, overflow=0,
+                        rounding=0, additional_point_shift=-3)
+    assert fixed_to_float(fixed_from_float(5000, dtype), dtype) == 5000
+
+
 def test_negative_rep():
     dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=10, overflow=0,
                         rounding=0)
@@ -77,12 +154,141 @@ def test_overflow_neg_saturate():
     assert fixed_to_float(fixed_from_float(-21.9, dtype), dtype) == -8.0
 
 
+def test_overflow_neg_wrap():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=3, frac_bits=3, overflow=1,
+                        rounding=0)
+    x = fixed_from_float(-21.9, dtype)
+    # -21.9_10 -> -175_10 after scaling and truncation (multiply by 2**3)
+    #         -> 1...01010001_2
+    #         ->       010001_2 (wrap overflow)
+    #         -> 17_10 (as decimal)
+    #         -> 2.125_10 (Q3.3 conversion back to decimal)
+    assert x == 17
+    assert fixed_to_float(x, dtype) == 2.125
+
+
+def test_underflow_neg_saturate():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=3, frac_bits=3, overflow=0,
+                        rounding=0)
+    # 3 frac bits gives minimal precision of 2**-3 == 0.125
+    assert fixed_to_float(fixed_from_float(-0.05, dtype), dtype) == 0.0
+
+
+def test_underflow_neg_wrap():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=3, frac_bits=3, overflow=1,
+                        rounding=0)
+    # 3 frac bits gives minimal precision of 2**-3 == 0.125
+    # wrapping shouldn't have any impact here
+    assert fixed_to_float(fixed_from_float(-0.05, dtype), dtype) == 0.0
+
+
+def test_midpoint_neg_truncation():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0, overflow=0,
+                        rounding=0)
+    x = fixed_from_float(-2.5, dtype)
+    # -2.5_10 -> -2_10 after scaling and truncation
+    assert x == -2
+    assert fixed_to_float(x, dtype) == -2.0
+
+
+# TODO: test negative overflow saturation during rescale!!!
+
+
+def test_midpoint_neg_rescale_truncation():
+    in_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=2, overflow=0,
+                           rounding=0)
+    out_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0,
+                            overflow=0, rounding=0)
+    x = fixed_from_float(-2.5, in_dtype)
+    # -2.5_10 -> -10_10 after scaling and truncation (multiply by 2**2)
+    #         -> 11101.10_2
+    assert x == -10
+    #        -> 11101_2 truncating during rescale
+    #        -> -3_10
+    x = fp_rescale(x, in_dtype, out_dtype)
+    assert x == -3
+    assert fixed_to_float(x, out_dtype) == -3.0
+
+
+def test_midpoint_neg_round_nearest():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0, overflow=0,
+                        rounding=1)
+    x = fixed_from_float(-2.5, dtype)
+    # -2.5_10 -> -2_10 after scaling and (biased) round to nearest
+    assert x == -2
+    assert fixed_to_float(x, dtype) == -2.0
+
+
+def test_midpoint_neg_round_nearest_unbiased():
+    dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0, overflow=0,
+                        rounding=2)
+    x = fixed_from_float(-2.5, dtype)
+    # -2.5_10 -> -3_10 after scaling and (unbiased) round to nearest
+    assert x == -3
+    assert fixed_to_float(x, dtype) == -3.0
+
+
+def test_midpoint_neg_rescale_round_nearest():
+    in_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=2, overflow=0,
+                           rounding=0)
+    out_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0,
+                            overflow=0, rounding=1)
+    x = fixed_from_float(-2.5, in_dtype)
+    # -2.5_10 -> -10_10 after scaling and truncation (multiply by 2**2)
+    #         -> 11101.10_2
+    assert x == -10
+    # biased round nearest implies adding 0.5 and truncating
+    #        -> truncate(11101.10_2 + 00000.10_2)
+    #        -> 11110_2
+    #        -> -2_10
+    x = fp_rescale(x, in_dtype, out_dtype)
+    assert x == -2
+    assert fixed_to_float(x, out_dtype) == -2.0
+
+
+def test_midpoint_neg_rescale_round_nearest_unbiased():
+    in_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=2, overflow=0,
+                           rounding=0)
+    out_dtype = fixpt_dtype(sign_bit=False, int_bits=5, frac_bits=0,
+                            overflow=0, rounding=2)
+    x = fixed_from_float(-2.5, in_dtype)
+    # -2.5_10 -> -10_10 after scaling and truncation (multiply by 2**2)
+    #         -> 11101.10_2
+    assert x == -10
+    # unbiased round nearest implies not adding 0.5 in the rounding for
+    # negative midpoints (separate check required)
+    #        -> truncate(11101.10_2 + 00000.10_2)
+    #        -> 11110_2
+    #        -> -2_10
+    #        -> 00011_2 round nearest (i.e add 0.5_10 then truncate)
+    #        -> -3_10
+    x = fp_rescale(x, in_dtype, out_dtype)
+    assert x == -3
+    assert fixed_to_float(x, out_dtype) == -3.0
+
+
 def test_addition():
     dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=10, overflow=0,
                         rounding=0)
     x = fixed_from_float(4, dtype)
     y = fixed_from_float(10, dtype)
     assert fixed_to_float(fp_rescale(x + y, dtype, dtype), dtype) == 14.0
+
+
+def test_neg_addition():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=10, overflow=0,
+                        rounding=0)
+    x = fixed_from_float(-4, dtype)
+    y = fixed_from_float(-10, dtype)
+    assert fixed_to_float(fp_rescale(x + y, dtype, dtype), dtype) == -14.0
+
+
+def test_mixed_addition():
+    dtype = fixpt_dtype(sign_bit=True, int_bits=5, frac_bits=10, overflow=0,
+                        rounding=0)
+    x = fixed_from_float(4, dtype)
+    y = fixed_from_float(-10, dtype)
+    assert fixed_to_float(fp_rescale(x + y, dtype, dtype), dtype) == -6.0
 
 
 def test_overflow_saturated_addition():

@@ -74,7 +74,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

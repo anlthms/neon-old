@@ -45,7 +45,7 @@ class TestFixedPointTensor(object):
 
     def test_nofrac_round(self):
         dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=0, overflow=0,
-                            rounding=1)
+                            rounding=2)
         tns = FixedPointTensor([[1.8, 2.1, 2.5], [-3.2, -4.5, -3.6]], dtype)
         assert str(tns) == "[[ 2.  2.  3.]\n [-3. -5. -4.]]"
 

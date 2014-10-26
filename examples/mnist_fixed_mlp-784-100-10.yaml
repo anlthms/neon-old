@@ -12,7 +12,7 @@
       int_bits: 4,
       frac_bits: 11,
       overflow: 0,
-      rounding: 0,
+      rounding: 1,
     },
   },
   
@@ -59,7 +59,7 @@
           int_bits: 0,
           frac_bits: 15,
           overflow: 0,
-          rounding: 0
+          rounding: 1
         },
         velocity_dtype: *allfrac_dtype,
         delta_dtype: *allfrac_dtype,
@@ -100,7 +100,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }
