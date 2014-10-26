@@ -1,16 +1,13 @@
 """
-Sparsenet is the natural image dataset used by Olshausen and Field 
+Sparsenet is the natural image dataset used by Olshausen and Field
 More info at: http://redwood.berkeley.edu/bruno/sparsenet/
 """
 
-import gzip
 import logging
 import os
-import struct
 
 import numpy
 import scipy.io
-from ipdb import set_trace as trace
 import pickle
 
 from neon.util.compat import PY3
@@ -48,7 +45,6 @@ class SPARSENET(Dataset):
     raw_train_whitened = basejoin(raw_base_url, 'IMAGES.mat')
     raw_train_unwhitened = basejoin(raw_base_url, 'IMAGES_RAW.mat')
 
-
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
@@ -63,7 +59,9 @@ class SPARSENET(Dataset):
         return array
 
     def load(self):
-        
+        """
+        main function
+        """
         if 'repo_path' in self.__dict__:
             save_dir = os.path.join(self.repo_path,
                                     self.__class__.__name__)
@@ -77,27 +75,25 @@ class SPARSENET(Dataset):
                     numpy.random.shuffle(train_idcs)
                 train_idcs = train_idcs[0:int(10000 * self.sample_pct)]
             for url in (self.raw_train_unwhitened, self.raw_train_whitened):
-                name = os.path.basename(url).rstrip('.mat') # IMAGES
-                repo_mat_file = os.path.join(save_dir, name + '.mat') # '/usr/local/data/SPARSENET/IMAGES.mat'
+                name = os.path.basename(url).rstrip('.mat')
+                repo_mat_file = os.path.join(save_dir, name + '.mat')
                 repo_file = repo_mat_file.rstrip('.mat')
                 # download and create dataset
                 if not os.path.exists(repo_file):
-                    self.download_to_repo(url, save_dir) # interited from dataset I think 
-                    #trace()
-                    #with scipy.io.loadmat(repo_mat_file) as infile:
+                    self.download_to_repo(url, save_dir)
                     infile = scipy.io.loadmat(repo_mat_file)
                     with open(repo_file, 'wb') as outfile:
-                        data = infile[infile.keys()[0]] # 512x512x10 
-                        # this is where the patches are extracted so they can be cached
+                        data = infile[infile.keys()[0]]
+                        # patches are extracted so they can be cached
                         # doing non-overlapping 16x16 patches (1024 per image)
-                        patches=data.reshape(512/16,16,512/16,16,10).transpose(1,3,0,2,4).reshape(16,16, 1024*10)
-                        # save to pickle file. 
-                        print "dumping to", outfile
+                        patches = data.reshape(512/16, 16, 512/16, 16, 10)
+                        patches = patches.transpose(1, 3, 0, 2, 4)
+                        patches = patches.reshape(16, 16, 1024*10)
+                        print "Caching to pickle file: ", outfile
                         pickle.dump(patches, outfile)
                         outfile.close()
                 logger.info('loading: %s' % name)
                 # load existing data
-                print "test1 in repofile", repo_file
                 if 'IMAGES' in repo_file:
                     print "test2"
                     indat = self.read_image_file(repo_file, 'float32')

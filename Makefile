@@ -1,7 +1,7 @@
 # Top-level control of the building/installation/cleaning of various targets
 
 DOC_DIR=doc
-DOC_PUB_HOST=192.168.20.2
+DOC_PUB_HOST=atlas.localdomain
 DOC_PUB_USER=neon
 DOC_PUB_PATH=/home/neon/public/
 

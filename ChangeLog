@@ -3,6 +3,78 @@
 ## (unreleased)
 
 
+## v0.4.0 (2014-10-26)
+
+### Modifications
+
+* v0.4.0 release bump. [Scott Leishman]
+
+* Merge branch 'docs_tests' into 'master' [Scott Leishman]
+
+    Docs tests - MOP cleanup and domain name updates  See merge request
+    !40
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    ConvnetDist implementation  Distributed convnet implementation and
+    MPI/Dist code cleanup  See merge request !39
+
+* Merge branch 'cudaconvnet_integration' into 'master' [Scott Leishman]
+
+    Cudaconvnet integration  See merge request !38
+
+* Merge branch 'master' of gitlab.localdomain:algorithms/neon. [Urs]
+
+    n:algorithms/neon
+
+* style fixes. [Urs]
+
+* added the sparsenet natural image dataset. [Urs Koster]
+
+* Point to cudamat build on new gitlab server. [Scott Leishman]
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    Distarray  added distributed backprop for supervised layers  See merge
+    request !35
+
+* Changed mylearn to neon in gradient checker. [Anil Thomas]
+
+* Merge branch 'docs_tests' into 'master' [Scott Leishman]
+
+    Branding updates  All instances of mylearn should now be stricken from
+    the record (except in the ChangeLog).  Re-ran tests, and one
+    experiment, things seem to be ok.  See merge request !34
+
+* Merge branch 'fixpt_backend' into 'master' [Scott Leishman]
+
+    Fixpt backend  Several updates and bug fixes to fixed point backend to
+    allow end to end training (only examined MLP's using lots of
+    fractional precision so far).  Added new Iris dataset and example
+    networks for debugging purposes.  Other minor updates and fixes.  See
+    merge request !33
+
+* Merge branch 'distarray' into 'master' [Arjun Bansal]
+
+    Distarray  Added support for dist backprop in fully connected layers
+    See merge request !32
+
+* Bugfix for Numpy64 backend. [Scott Leishman]
+
+    Implementation prevented MNIST mlp example from running correctly
+    (holdover from previous attempts to pare down Numpy64 backend).
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    Distarray  changes up to pretraining of stacked autoencoder  See merge
+    request !31
+
+* Added automatic release notes generation.  Closes MYL-15. [Scott Leishman]
+
+    Could stand to be improved.  For instance maybe not including commit
+    body, also adding url links for JIRA ticket numbers.
+
+
 ## v0.3.0 (2014-09-25)
 
 ### Modifications

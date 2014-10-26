@@ -549,22 +549,6 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def nonzero(self, tsr):
-        """
-        Calculates and returns the indices of the elements whose value is
-        not equal to zero.
-
-        Arguments:
-            tsr (Tensor): the Tensor on which to find the non-zero indices
-
-        Returns:
-            Tensor: indices of elements that are non-zero.
-
-        Raises:
-            NotImplementedError: Can't be instantiated directly.
-        """
-        raise NotImplementedError()
-
     def norm(self, tsr, order=None, axis=None):
         """
         Calculates and returns the p-norm of the Tensor along the specified

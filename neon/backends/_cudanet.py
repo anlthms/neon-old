@@ -1,11 +1,11 @@
 """
-A `cudamat <https://github.com/cudamat/cudamat>`_ GPU based backend.
+A `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_ GPU based backend.
 """
 
 import logging
 import numpy
 import math
-import cudamat
+import cudanet
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.error import TooSlowToImplementError
@@ -13,10 +13,10 @@ from neon.util.error import TooSlowToImplementError
 logger = logging.getLogger(__name__)
 
 
-class CudamatTensor(Tensor):
+class CudanetTensor(Tensor):
 
     """
-    Simple wrapped `cudamat.CUDAMatrix` tensor
+    Simple wrapped `cudanet.CUDAMatrix` tensor
 
     Arguments:
         obj (numpy.ndarray): the actual data values (will be converted
@@ -28,7 +28,7 @@ class CudamatTensor(Tensor):
     _tensor = None
 
     def __init__(self, obj, dtype=None):
-        if type(obj) == cudamat.CUDAMatrix:
+        if type(obj) == cudanet.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape
         else:
@@ -45,7 +45,7 @@ class CudamatTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
-                self._tensor = cudamat.CUDAMatrix(obj)
+                self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
                 self._tensor = obj
@@ -67,7 +67,7 @@ class CudamatTensor(Tensor):
 
         Returns:
             numpy.ndarray: Representation of the underlying
-                           `cudamat.CUDAMatrix` tensor
+                           `cudanet.CUDAMatrix` tensor
         """
         return self._tensor.asarray()
 
@@ -77,11 +77,11 @@ class CudamatTensor(Tensor):
 
         Arguments:
             state (numpy.ndarray): Serialized representation of the underlying
-                                   `cudamat.CUDAMatrix` tensor to be unpacked.
+                                   `cudanet.CUDAMatrix` tensor to be unpacked.
         """
         self.__init__(state)
-        if not hasattr(cudamat.CUDAMatrix, 'ones'):
-            cudamat.cublas_init()
+        if not hasattr(cudanet.CUDAMatrix, 'ones'):
+            cudanet.cublas_init()
 
     def _slice_dim(self, _slice, dim=0):
         """
@@ -92,7 +92,7 @@ class CudamatTensor(Tensor):
             dim (int): dimension number. 0 is for rows, 1 for columns, etc.
 
         Returns:
-            CudamatTensor: view or new sliced copy
+            CudanetTensor: view or new sliced copy
 
         Raises:
             TooSlowToImplementError: if invalid `_slice` provided (too
@@ -107,7 +107,7 @@ class CudamatTensor(Tensor):
         if isinstance(_slice, slice):
             assert _slice.step is None or _slice.step == 1
             start, stop, stride = _slice.indices(self.shape[dim])
-            res = CudamatTensor(fn(start, stop))
+            res = CudanetTensor(fn(start, stop))
         elif _slice is Ellipsis:
             pass
         else:
@@ -123,7 +123,7 @@ class CudamatTensor(Tensor):
             key (tuple, int): the indices to extract/slice along.
 
         Returns:
-            CudamatTensor: view or new sliced copy
+            CudanetTensor: view or new sliced copy
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
@@ -145,23 +145,23 @@ class CudamatTensor(Tensor):
 
         Arguments:
             key (tuple, int): The indices to which we assign the values
-            value (CudamatTensor, int, float): The values to assign at each
+            value (CudanetTensor, int, float): The values to assign at each
                                                key position.  Must be scalar
-                                               or if a CudamatTensor, must
+                                               or if a CudanetTensor, must
                                                have the right shape.
 
         Returns:
-            CudamatTensor: update view of this tensor
+            CudanetTensor: update view of this tensor
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
             NotImplementedError: if invalid value type passed.
             TooSlowToImplementError: if arbitrarily indexed key passed.
         """
-        if isinstance(value, CudamatTensor):
+        if isinstance(value, CudanetTensor):
             value = value._tensor
         elif not isinstance(value, (int, float)):
-            raise NotImplementedError("can only assign Cudamat tensors or "
+            raise NotImplementedError("can only assign Cudanet tensors or "
                                       "numeric scalars")
         if isinstance(key, tuple):
             if len(key) > 2:
@@ -228,12 +228,12 @@ class CudamatTensor(Tensor):
         return -1 * self
 
     def __lt__(self, other):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.less_than(other._tensor, target)
         else:
             self._tensor.less_than(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __le__(self, other):
         # call __lt__ and __eq__ and iterate?
@@ -242,24 +242,24 @@ class CudamatTensor(Tensor):
     def __eq__(self, other):
         if other is None:
             return False
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.equals(other._tensor, target)
         else:
             self._tensor.equals(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __ne__(self, other):
         # go through results of __eq__ and negate
         raise NotImplementedError()
 
     def __gt__(self, other):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.greater_than(other._tensor, target)
         else:
             self._tensor.greater_than(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __ge__(self, other):
         # call __gt__ and __eq__ and iterate?
@@ -276,32 +276,32 @@ class CudamatTensor(Tensor):
                             as such.
 
         Returns:
-            CudamatTensor: containing the element-wise sum values.
+            CudanetTensor: containing the element-wise sum values.
         """
 
         if self.shape == other.shape:
-            target = cudamat.empty(self.shape)
-            if isinstance(other, CudamatTensor):
+            target = cudanet.empty(self.shape)
+            if isinstance(other, CudanetTensor):
                 self._tensor.add(other._tensor, target)
             else:
                 self._tensor.add(other, target)
-            return CudamatTensor(target)
+            return CudanetTensor(target)
         else:
             if other.shape[1] == 1:  # [Nx1] vector
-                ones = cudamat.empty((self.shape[0], 1))
+                ones = cudanet.empty((self.shape[0], 1))
                 ones.assign(1)
                 # outer product repmat (probably quite inefficient)
-                other = CudamatTensor(cudamat.dot(ones, other._tensor.T))
+                other = CudanetTensor(cudanet.dot(ones, other._tensor.T))
             else:  # [1xN] vector
-                ones = cudamat.empty((self.shape[0], 1))
+                ones = cudanet.empty((self.shape[0], 1))
                 ones.assign(1)
-                other = CudamatTensor(cudamat.dot(ones, other._tensor))
-            target = cudamat.empty(self.shape)
-            if isinstance(other, CudamatTensor):
+                other = CudanetTensor(cudanet.dot(ones, other._tensor))
+            target = cudanet.empty(self.shape)
+            if isinstance(other, CudanetTensor):
                 self._tensor.add(other._tensor, target)
             else:
                 self._tensor.add(other, target)
-            return CudamatTensor(target)
+            return CudanetTensor(target)
 
     def __radd__(self, other):
         """
@@ -313,14 +313,14 @@ class CudamatTensor(Tensor):
                             as such.
 
         Returns:
-            CudamatTensor: containing the element-wise sum values.
+            CudanetTensor: containing the element-wise sum values.
         """
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.add(other._tensor, target)
         else:
             self._tensor.add(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __iadd__(self, other):
         """
@@ -332,51 +332,51 @@ class CudamatTensor(Tensor):
                             as such.
 
         Returns:
-            CudamatTensor: updated view of this Tensor
+            CudanetTensor: updated view of this Tensor
         """
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             self._tensor.add(other._tensor)
         else:
             self._tensor.add(other)
         return self
 
     def __sub__(self, other):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.subtract(other._tensor, target)
         else:
             self._tensor.subtract(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __rsub__(self, other):
-        target = cudamat.empty(self.shape)
+        target = cudanet.empty(self.shape)
         self._tensor.mult(-1.0, target)
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             target.add(other._tensor)
         else:
             target.add(other)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __isub__(self, other):
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             self._tensor.subtract(other._tensor)
         else:
             self._tensor.subtract(other)
         return self
 
     def __mul__(self, other):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.mult(other._tensor, target)
         else:
             self._tensor.mult(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __rmul__(self, other):
         return self * other
 
     def __imul__(self, other):
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             self._tensor.mult(other._tensor)
         else:
             self._tensor.mult(other)
@@ -388,71 +388,71 @@ class CudamatTensor(Tensor):
 
     def __truediv__(self, other):
         # python3 fractional division
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
             self._tensor.divide(other._tensor, target)
         else:
             self._tensor.divide(other, target)
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __rdiv__(self, other):
         return self.__rtruediv__(other)
 
     def __rtruediv__(self, other):
-        target = cudamat.empty(self.shape)
+        target = cudanet.empty(self.shape)
         if isinstance(other, (float, int)):
-            other = CudamatTensor(other * numpy.ones(self.shape))
-        if isinstance(other, CudamatTensor):
+            other = CudanetTensor(other * numpy.ones(self.shape))
+        if isinstance(other, CudanetTensor):
             other._tensor.divide(self._tensor, target)
-        elif isinstance(other, cudamat.CUDAMatrix):
+        elif isinstance(other, cudanet.CUDAMatrix):
             other.divide(self._tensor, target)
         else:
             return NotImplemented
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __idiv__(self, other):
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             self._tensor.divide(other._tensor)
         else:
             self._tensor.divide(other)
         return self
 
     def __itruediv__(self, other):
-        if isinstance(other, CudamatTensor):
+        if isinstance(other, CudanetTensor):
             self._tensor.divide(other._tensor)
         else:
             self._tensor.divide(other)
         return self
 
     def __pow__(self, other, modulo=None):
-        target = cudamat.empty(self.shape)
-        if isinstance(other, CudamatTensor):
-            cudamat.pow(self._tensor, other._tensor, target)
+        target = cudanet.empty(self.shape)
+        if isinstance(other, CudanetTensor):
+            cudanet.pow(self._tensor, other._tensor, target)
         else:
-            cudamat.pow(self._tensor, other, target)
-        return CudamatTensor(target)
+            cudanet.pow(self._tensor, other, target)
+        return CudanetTensor(target)
 
     def __rpow__(self, other):
-        target = cudamat.empty(self.shape)
+        target = cudanet.empty(self.shape)
         if isinstance(other, (float, int)):
-            other = CudamatTensor(other)
-        if isinstance(other, CudamatTensor):
-            cudamat.pow(other._tensor, self._tensor, target)
-        elif isinstance(other, cudamat.CUDAMatrix):
-            cudamat.pow(other, self._tensor, target)
+            other = CudanetTensor(other)
+        if isinstance(other, CudanetTensor):
+            cudanet.pow(other._tensor, self._tensor, target)
+        elif isinstance(other, cudanet.CUDAMatrix):
+            cudanet.pow(other, self._tensor, target)
         else:
             return NotImplemented
-        return CudamatTensor(target)
+        return CudanetTensor(target)
 
     def __ipow__(self, other):
-        if isinstance(other, CudamatTensor):
-            cudamat.pow(self._tensor, other._tensor)
+        if isinstance(other, CudanetTensor):
+            cudanet.pow(self._tensor, other._tensor)
         else:
-            cudamat.pow(self._tensor, other)
+            cudanet.pow(self._tensor, other)
         return self
 
     def copy(self):
-        return CudamatTensor(self._tensor.copy())
+        return CudanetTensor(self._tensor.copy())
 
     def raw(self):
         self._tensor.copy_to_host()
@@ -460,17 +460,17 @@ class CudamatTensor(Tensor):
 
     def T(self): # flake8: noqa
         # CUDAMatrix.T is a transposed view.
-        return TransposedCudamatTensor(self._tensor, self._tensor.T)
+        return TransposedCudanetTensor(self._tensor, self._tensor.T)
 
     def transpose(self):
         # CUDAMatrix.transpose() returns a transposed copy.
-        return CudamatTensor(self._tensor.transpose())
+        return CudanetTensor(self._tensor.transpose())
 
     def reshape(self, shape):
-        return CudamatTensor(self._tensor.reshape(shape))
+        return CudanetTensor(self._tensor.reshape(shape))
 
     def argmax(self, axis):
-        return CudamatTensor(self._tensor.argmax(axis))
+        return CudanetTensor(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
         """
@@ -479,22 +479,20 @@ class CudamatTensor(Tensor):
         get flipped to always be rows.
         """
         # we only support contiguous indices at the moment because this
-        # is all cudamat supports efficiently.
+        # is all cudanet supports efficiently.
         if isinstance(indices, int):
-            indices = [indices, ]  # cudamat only supports 2D matrix
+            indices = [indices, ]  # cudanet only supports 2D matrix
             if self._tensor.shape[0] == 1:
                 axis = 1
                 # fix the axis if we are dealing with a vector. This is a hack
                 # and should be done differently.
-        if len(indices) == 0:
-            return self
         if (indices[-1] - indices[0] == len(indices) - 1):
             if axis == 0:
-                return CudamatTensor(self._tensor.get_row_slice(indices[0],
+                return CudanetTensor(self._tensor.get_row_slice(indices[0],
                                                                 indices[-1] +
                                                                 1))
             elif axis == 1:
-                return CudamatTensor(self._tensor.get_col_slice(indices[0],
+                return CudanetTensor(self._tensor.get_col_slice(indices[0],
                                                                 indices[-1] +
                                                                 1))
             elif axis is None:
@@ -512,9 +510,9 @@ class CudamatTensor(Tensor):
 
     def sum(self, axis=None):
         """
-        Sum elements of a CudamatTensor. If axis is None, all elements are
+        Sum elements of a CudanetTensor. If axis is None, all elements are
         summed and a numpy scalar returned. If axis is 1 or 2, sum along that
-        axis and return a CudamatTensor.
+        axis and return a CudanetTensor.
         """
         if axis is None:
             result = self._tensor.sum(axis=0).sum(axis=1)
@@ -524,7 +522,7 @@ class CudamatTensor(Tensor):
         else:
             result = self._tensor.sum(axis=axis)
             logger.debug('major change in functionality of sum')
-            return CudamatTensor(result)
+            return CudanetTensor(result)
 
     def mean(self):
         result = self._tensor.mean(axis=0).mean(axis=1)
@@ -545,89 +543,118 @@ class CudamatTensor(Tensor):
         return result.numpy_array[0][0]
 
     def log(self):
-        target = cudamat.empty(self.shape)
-        cudamat.log(self._tensor, target)
-        return CudamatTensor(target)
+        target = cudanet.empty(self.shape)
+        cudanet.log(self._tensor, target)
+        return CudanetTensor(target)
 
     def exp(self):
-        target = cudamat.empty(self.shape)
-        cudamat.exp(self._tensor, target)
-        return CudamatTensor(target)
+        target = cudanet.empty(self.shape)
+        cudanet.exp(self._tensor, target)
+        return CudanetTensor(target)
+
+    def get_minor_slice(self, start, end):
+        return self.__class__(self[:, start:end]._tensor)
+
+    def set_minor_slice(self, start, end, data):
+        self[:, start:end] = data
+
+    def get_major_slice(self, start, end):
+        return self.__class__(self[start:end]._tensor)
+
+    def set_major_slice(self, start, end, data):
+        self[start:end] = data
+
+    def major_axis(self):
+        return 1
+
+    def minor_axis(self):
+        return 0
 
 
-class TransposedCudamatTensor(CudamatTensor):
+class TransposedCudanetTensor(CudanetTensor):
     """
     Transposed CUDAMatrix tensor
     """
 
     def __init__(self, obj, transposed):
-        assert type(obj) == cudamat.CUDAMatrix
+        assert type(obj) == cudanet.CUDAMatrix
         self._tensor = transposed
         self.shape = (obj.shape[1], obj.shape[0])
 
 
-class Cudamat(Backend):
+class Cudanet(Backend):
     """
-    A `cudamat <https://github/com/cudamat/cudamat>`_ based backend for matrix
-    operations.
+    A `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_  based
+    backend for matrix operations.
 
     Attributes:
         epsilon (float): the unit roundoff for the elements underlying this
                          tensor.
     """
     # we need to cast epsilon to float to ensure it works with some of the type
-    # checking in cudamat functions like less_than() and so forth
+    # checking in cudanet functions like less_than() and so forth
     epsilon = float(numpy.finfo(numpy.float32).eps)
     default_dtype = numpy.float32
-    tensor_cls = CudamatTensor
+    tensor_cls = CudanetTensor
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        cudamat.cublas_init()
+        cudanet.cublas_init()
         self.rng_init()
 
     def __del__(self):
         pass
-        # cudamat.cublas_shutdown()
+        # cudanet.cublas_shutdown()
         # the above is what we ought to do, but generates Exceptions due to
-        # a known cudamat issue as described here:
-        # https://github.com/cudamat/cudamat/issues/19
+        # a known cudanet issue as described here:
+        # https://github.com/cudanet/cudanet/issues/19
 
-    def zeros(self, shape, dtype=numpy.float32):
-        return CudamatTensor(cudamat.CUDAMatrix(
+    @staticmethod
+    def empty(shape, dtype=None):
+        return CudanetTensor(cudanet.empty(shape))
+
+    @staticmethod
+    def zeros(shape, dtype=numpy.float32):
+        return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
-    def ones(self, shape, dtype=numpy.float32):
-        return CudamatTensor(cudamat.CUDAMatrix(
+    @staticmethod
+    def alloc(nrows, ncols, dtype=numpy.float32):
+        return CudanetTensor(cudanet.CUDAMatrix(
+            numpy.zeros((ncols, nrows), dtype=dtype)))
+
+    @staticmethod
+    def ones(shape, dtype=numpy.float32):
+        return CudanetTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
     @staticmethod
-    def array(obj):
+    def array(obj, dtype=None):
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
-        return CudamatTensor(ndarray)
+        return CudanetTensor(ndarray)
 
     @staticmethod
     def wrap(obj):
-        return CudamatTensor(obj)
+        return CudanetTensor(obj)
 
     @staticmethod
     def clip(a, a_min, a_max, out=None):
         if out is None:
-            out = CudamatTensor(cudamat.empty((a.shape[0], a.shape[1])))
+            out = CudanetTensor(cudanet.empty((a.shape[0], a.shape[1])))
         # storage needed here is pretty atrocious.  Any way we could speed this
         # up?  Would iterating element wise be faster?
-        clip_mask = cudamat.empty((a.shape[0], a.shape[1]))
-        clip_vals = cudamat.empty((a.shape[0], a.shape[1]))
+        clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
+        clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
         # clip values < a_min to a_min in out
         a._tensor.less_than(a_min, clip_mask)
         clip_vals.assign(a_min)
-        cudamat.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
         # clip values > a_max to a_max in out
         out._tensor.greater_than(a_max, clip_mask)
         clip_vals.assign(a_max)
-        cudamat.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
         return out
 
     def rng_init(self):
@@ -636,43 +663,44 @@ class Cudamat(Backend):
             seed = self.rng_seed
         numpy.random.seed(seed)
         try:
-            cudamat.CUDAMatrix.init_random(seed)
+            cudanet.CUDAMatrix.init_random(seed)
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
                             "integer.  You specified: %s" % str(seed))
-            cudamat.CUDAMatrix.init_random(0)
+            cudanet.CUDAMatrix.init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
-        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
+        return CudanetTensor(numpy.array(seq, dtype=numpy.float32))
 
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
-        return CudamatTensor(numpy.array(seq, dtype=numpy.float32))
+        return CudanetTensor(numpy.array(seq, dtype=numpy.float32))
 
     def append_bias(self, x):
         """
-        Adds a bias column to CudamatTensor x, returning a new CudamatTensor.
+        Adds a bias row to CudanetTensor x, returning a new CudanetTensor.
         """
-        result = cudamat.empty((x.shape[0], x.shape[1] + 1))
-        result.set_col_slice(0, x.shape[1], x._tensor)
-        result.set_col_slice(x.shape[1], (x.shape[1] + 1),
-                             cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
-        return CudamatTensor(result)
+        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
+        result.set_row_slice(0, x.shape[0], x._tensor)
+        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
+                             cudanet.CUDAMatrix.ones.slice(
+                                0, x.shape[1]).reshape((1, x.shape[1])))
+        return CudanetTensor(result)
 
     @staticmethod
     def copy(a):
-        assert type(a) == CudamatTensor
+        assert type(a) == CudanetTensor
         return a.copy()
 
     @staticmethod
     def argmax(x, axis=None):
-        return CudamatTensor(x._tensor.argmax(axis))
+        return CudanetTensor(x._tensor.argmax(axis))
 
     @staticmethod
     def dot(a, b, out):
-        cudamat.dot(a._tensor, b._tensor, out._tensor)
+        cudanet.dot(a._tensor, b._tensor, out._tensor)
 
     @staticmethod
     def add(a, b, out):
@@ -680,7 +708,7 @@ class Cudamat(Backend):
 
     @staticmethod
     def subtract(a, b, out):
-        if type(a._tensor) != cudamat.CUDAMatrix:
+        if type(a._tensor) != cudanet.CUDAMatrix:
             b._tensor.subtract(a._tensor, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
@@ -704,15 +732,19 @@ class Cudamat(Backend):
 
     @staticmethod
     def exp(x, out):
-        cudamat.exp(x._tensor, out._tensor)
+        cudanet.exp(x._tensor, out._tensor)
 
     @staticmethod
     def log(x, out):
-        cudamat.log(x._tensor, out._tensor)
+        cudanet.log(x._tensor, out._tensor)
 
     @staticmethod
     def logistic(x, out):
-        cudamat.sigmoid(x._tensor, out._tensor)
+        cudanet.sigmoid(x._tensor, out._tensor)
+
+    @staticmethod
+    def fill(x, val):
+        x._tensor[:] = val
 
     @staticmethod
     def sum(x):
@@ -738,11 +770,11 @@ class Cudamat(Backend):
             return res.numpy_array[0][0]
 
         if out is None:
-            res = cudamat.min(x._tensor, axis)
+            res = cudanet.min(x._tensor, axis)
         else:
-            res = cudamat.min(x._tensor, axis, out)
+            res = cudanet.min(x._tensor, axis, out)
 
-        return CudamatTensor(res)
+        return CudanetTensor(res)
 
     @staticmethod
     def max(x, axis=None, out=None, keepdims=False):
@@ -756,36 +788,96 @@ class Cudamat(Backend):
             return res.numpy_array[0][0]
 
         if out is None:
-            res = cudamat.max(x._tensor, axis)
+            res = cudanet.max(x._tensor, axis)
         else:
-            res = cudamat.max(x._tensor, axis, out)
+            res = cudanet.max(x._tensor, axis, out)
 
-        return CudamatTensor(res)
+        return CudanetTensor(res)
 
     @staticmethod
     def fabs(x, out=None):
         if out is not None:
-            res = cudamat.abs(x._tensor, out._tensor)
+            res = cudanet.abs(x._tensor, out._tensor)
         else:
-            res = cudamat.abs(x._tensor)
-        return CudamatTensor(res)
+            # XXX: temporary fix.
+            res = cudanet.abs(x._tensor, cudanet.empty(x.shape))
+        return CudanetTensor(res)
 
     @staticmethod
     def sqrt(x, out):
-        res = cudamat.sqrt(x._tensor, out._tensor)
-        return CudamatTensor(res)
+        res = cudanet.sqrt(x._tensor, out._tensor)
+        return CudanetTensor(res)
 
     @staticmethod
     def squish(obj, n):
-        assert obj.shape[1] % n == 0
-        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+        assert obj.shape[0] % n == 0
+        return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
 
     @staticmethod
     def not_equal(x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)
-        return CudamatTensor(res)
+        return CudanetTensor(res)
+
+    @staticmethod
+    def nonzero(x):
+        res = x._tensor.copy()
+        res.equals(0)
+        res.equals(0)
+        return CudanetTensor(res)
+
+    @staticmethod
+    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+        assert ifmshape[0] == ifmshape[1]
+        cudanet.convolution(weights._tensor, inputs._tensor, outputs._tensor,
+            ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
+            ngroups)
+
+    @staticmethod
+    def bprop_conv(weights, error, berror, links,  ifmshape, ofmshape,
+                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
+        cudanet.deconvolve_errors(weights._tensor, error._tensor,
+            berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
+            padding, stride, nifm, ngroups)
+
+    @staticmethod
+    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
+                    ofmlocs, padding, stride, nifm, ngroups, fwidth, scale,
+                    updatebuf):
+        cudanet.deconvolve_wts(error._tensor, inputs._tensor, updates._tensor, 
+            ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
+            padding, stride, nifm, ngroups, ofmshape[0])
+        weights -= scale * updates
+
+    @staticmethod
+    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape, fshape,
+                    padding, stride, nfm, maxinds):
+        cudanet.max_pool(inputs._tensor, outputs._tensor, nfm, fshape[1],
+            padding, stride, ofmshape[1])
+
+    @staticmethod
+    def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, maxinds):
+        cudanet.max_pool_undo(inputs._tensor, error._tensor, outputs._tensor,
+            berror._tensor, fshape[1], padding, stride, ofmshape[1])
+
+    @staticmethod
+    def fprop_fc_dot(inputs, weights, out):
+        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
+
+    @staticmethod
+    def bprop_fc_dot(deltas, weights, out):
+        cudanet.dot(weights.T()._tensor, deltas._tensor, out._tensor)
+
+    @staticmethod
+    def update_fc_dot(deltas, inputs, out):
+        cudanet.dot(deltas._tensor, inputs.T()._tensor, out._tensor)
+
+    @staticmethod
+    def prep(raw):
+        return raw.T.copy()
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
@@ -828,7 +920,7 @@ class Cudamat(Backend):
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
 
-        return CudamatTensor(numpy.array(weights, numpy.float32))
+        return CudanetTensor(numpy.array(weights, numpy.float32))
 
     def get_momentum_coef(self, epoch, momentum_params):
         # FIXME: Get rid of duplication.

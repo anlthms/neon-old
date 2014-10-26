@@ -3,7 +3,7 @@ Our in-house developed python machine learning library.
 ## Installation ##
 
     # get the latest source
-    git clone git@192.168.20.2:algorithms/neon.git neon
+    git clone git@gitlab.localdomain:algorithms/neon.git neon
     cd neon
     
     # build the package, install in your python package path via either:
@@ -25,8 +25,10 @@ We want to strive to have as few of these as possible
 * [sphinx](http://sphinx-doc.org/) for documentation generation
   * sphinxcontrib-napoleon for google style autodoc parsing
 * [flake8](https://flake8.readthedocs.org/) for style checking
-  * pep8-naming for variable name checking
-* [cudamat](https://github.com/cudamat/cudamat) for GPU based backend
+  * [pep8-naming](https://pypi.python.org/pypi/pep8-naming) plugin for variable
+    name checking
+* [cudat-convnet2](https://code.google.com/p/cuda-convnet2/),
+  [cudamat](https://github.com/cudamat/cudamat) for GPU based backends
 * [Cython](http://cython.org/) for fixedpoint backend compilation
 * [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
   calculations
@@ -39,7 +41,7 @@ We want to strive to have as few of these as possible
 
     # neon <path_to.yaml>
     # see the examples directory for sample .yaml files
-    neon examples/mnist_numpy_mlp-784-2000-10.yaml
+    neon examples/mnist_numpy_mlp-784-100-10.yaml
 
 
 ## Features ##
@@ -50,7 +52,8 @@ We want to strive to have as few of these as possible
 * Heavily instrumented for performance profiling, debugging, and visualization
 * Modular design
 * Well documented
-* Unit/regression/benchmark timing tested via [continuous integration](http://192.168.20.2:82)
+* Unit/regression/benchmark timing tested via
+  [continuous integration](http://gitlab.localdomain:82)
 * python 2 and 3 fully supported (tested against 2.7 and 3.4)
 
 
@@ -59,9 +62,9 @@ We want to strive to have as few of these as possible
 
 
 ## Documentation ##
-* [Main Source](http://192.168.20.2:5700)
-* [Developer Guide](http://192.168.20.2:5700/developing_neon.html)
-* [API](http://192.168.20.2:5700)
+* [Main Source](http://atlas.localdomain:5700)
+* [Developer Guide](http://atlas.localdomain:5700/developing_neon.html)
+* [API](http://atlas.localdomain:5700/api.html)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)

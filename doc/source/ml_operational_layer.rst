@@ -113,7 +113,6 @@ Summarization Operation Support
    neon.backends.backend.Backend.max
    neon.backends.backend.Backend.argmin
    neon.backends.backend.Backend.argmax
-   neon.backends.backend.Backend.nonzero
    neon.backends.backend.Backend.norm
 
 Initialization and Setup
