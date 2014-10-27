@@ -4,13 +4,15 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.fixedpoint.FixedPoint {
     rng_seed: 0,
-    sign_bit: False,
-    int_bits: 3,
-    frac_bits: 12,
-    overflow: 0,  # 0 == OFL_SATURATE
-    rounding: 0,  # 0 == RND_TRUNCATE
     seterr_handling: { 
-      all: 'raise',
+      all: 'warn',
+    },
+    default_dtype: &def_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
+      sign_bit: True,
+      int_bits: 4,
+      frac_bits: 11,
+      overflow: 0,
+      rounding: 1,
     },
   },
   
@@ -27,18 +29,16 @@
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 60,
+    num_epochs: 30,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
+    learning_rate: &lr 0.1,
+    temp_dtype: *def_dtype,
     momentum: {
-      type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
+      type: constant, #constant, nesterov
+      initial_coef: 0.90,
     },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-fixpt_simple.pkl',
+    serialized_path: './mlp-fixptsml_simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -47,13 +47,25 @@
         pos: 0,
         learning_rate: *lr,
         nin: 785, # input layer + 1 for the bias
-        nout: 2000,
+        nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
         },
+        weight_dtype: &allfrac_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
+          sign_bit: True,
+          int_bits: 0,
+          frac_bits: 15,
+          overflow: 0,
+          rounding: 1
+        },
+        velocity_dtype: *allfrac_dtype,
+        delta_dtype: *allfrac_dtype,
+        updates_dtype: *allfrac_dtype,
+        pre_act_dtype: *def_dtype,
+        output_dtype: *def_dtype,
       },
       !obj:neon.models.layer.Layer {
         name: output,
@@ -61,7 +73,7 @@
         batch_size: *bs,
         pos: 1,
         learning_rate: *lr,
-        nin: 2001, # previous nout + 1 for the bias
+        nin: 101, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
@@ -69,6 +81,12 @@
           scale: 4.0,
           bias_init: 0.0,
         },
+        weight_dtype: *allfrac_dtype,
+        velocity_dtype: *allfrac_dtype,
+        delta_dtype: *allfrac_dtype,
+        updates_dtype: *allfrac_dtype,
+        pre_act_dtype: *def_dtype,
+        output_dtype: *allfrac_dtype,
       },
     ],
   },
@@ -82,7 +100,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

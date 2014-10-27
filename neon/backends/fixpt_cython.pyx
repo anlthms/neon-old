@@ -21,22 +21,26 @@ ctypedef enum ofl_t:
 # rounding mechanisms
 ctypedef enum rnd_t:
     RND_TRUNCATE
-    RND_NEAREST
+    RND_NEAREST_BIASED
+    RND_NEAREST_UNBIASED
 
 # encapsulation of fixpt type parameters
 ctypedef struct fixpt:
     int sign_bit
     int int_bits
     int frac_bits
+    int point_shift
     ofl_t overflow
     rnd_t rounding
 
 cpdef inline fixpt fixpt_dtype(int sign_bit, int int_bits, int frac_bits,
-                               ofl_t overflow, rnd_t rounding):
+                               ofl_t overflow, rnd_t rounding,
+                               int point_shift = 0):
     cdef fixpt res
     res.sign_bit = sign_bit
     res.int_bits = int_bits
     res.frac_bits = frac_bits
+    res.point_shift = point_shift
     res.overflow = overflow
     res.rounding = rounding
     return res
@@ -44,22 +48,29 @@ cpdef inline fixpt fixpt_dtype(int sign_bit, int int_bits, int frac_bits,
 cpdef inline elemtype_t fp_rescale(elemtype_t inval, fixpt in_type,
                                    fixpt out_type):
     cdef elemtype_t max_int, outval
+    cdef int in_scale, out_scale
     outval = inval
+    in_scale = in_type.frac_bits + in_type.point_shift
+    out_scale = out_type.frac_bits + out_type.point_shift
     # scale to expected output format
-    if in_type.frac_bits != out_type.frac_bits:
-        if ((in_type.frac_bits > out_type.frac_bits) &
-            (out_type.rounding == RND_TRUNCATE)):
-            outval = inval >> (in_type.frac_bits - out_type.frac_bits)
-        elif ((in_type.frac_bits > out_type.frac_bits) & 
-              (out_type.rounding == RND_NEAREST)):
-            # add 0.5 prior to rescale to nearest
-            outval = ((inval + (1 << (in_type.frac_bits -
-                                      out_type.frac_bits - 1))) >>
-                     (in_type.frac_bits - out_type.frac_bits))
-        elif in_type.frac_bits < out_type.frac_bits:
-            outval = inval << (out_type.frac_bits - in_type.frac_bits)
-        else:
-            print("unsupported rounding format")
+    if in_scale != out_scale:
+        if (in_scale > out_scale):
+            if out_type.rounding == RND_TRUNCATE:
+                outval = inval >> (in_scale - out_scale)
+            elif (out_type.rounding == RND_NEAREST_BIASED or
+                  out_type.rounding == RND_NEAREST_UNBIASED):
+                # add 0.5 prior to rescale to nearest
+                outval = ((inval + (1 << (in_scale - out_scale - 1))) >>
+                          (in_scale - out_scale))
+                if (out_type.rounding == RND_NEAREST_UNBIASED and inval < 0 and
+                    inval & ((1 << in_scale) - 1) == (1 << (in_scale - 1))):
+                    # for unbiased midpoint rounding we want to prevent the
+                    # carry in bit from being set (i.e. don't add 0.5)
+                    outval = inval >> (in_scale - out_scale)
+            else:
+                print("unsupported rounding format")
+        elif in_scale < out_scale:
+            outval = inval << (out_scale - in_scale)
     # handle overflow
     max_int = <elemtype_t> 1 << (out_type.int_bits + out_type.frac_bits +
                     (1 - out_type.sign_bit))
@@ -69,17 +80,24 @@ cpdef inline elemtype_t fp_rescale(elemtype_t inval, fixpt in_type,
 
 cpdef inline elemtype_t fixed_from_float(elemfloat_t floatval, fixpt dtype):
     cdef elemtype_t fixedval, max_int
+    cdef elemfloat_t multiplier = 2.0**(dtype.frac_bits + dtype.point_shift)
     assert (dtype.sign_bit + dtype.int_bits + dtype.frac_bits) <= 32
     # truncate / round result
     if dtype.rounding == RND_TRUNCATE:
         # truncation done with cast to int
-        fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits)
+        fixedval = <elemtype_t> (floatval * multiplier)
     else:
-        # assume RND_NEAREST 
         if floatval >= 0:
-            fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits + 0.5)
+            # works for RND_NEAREST_BIASED and RND_NEAREST_UNBIASED
+            fixedval = <elemtype_t> (floatval * multiplier + 0.5)
         else:
-            fixedval = <elemtype_t> (floatval * 2**dtype.frac_bits - 0.5)
+            if dtype.rounding == RND_NEAREST_BIASED:
+                fixedval = <elemtype_t> (floatval * multiplier - 0.5)
+                if int(floatval) - floatval == 0.5:
+                    # midpoint value
+                    fixedval = <elemtype_t> (floatval * multiplier)
+            else: # dtype.rounding == RND_NEAREST_UNBIASED
+                fixedval = <elemtype_t> (floatval * multiplier - 0.5)
     # perform overflow handling
     max_int = <elemtype_t> 1 << (dtype.int_bits + dtype.frac_bits)
     if fixedval < max_int:
@@ -108,7 +126,9 @@ cpdef inline elemtype_t fixed_from_float(elemfloat_t floatval, fixpt dtype):
     return fixedval
     
 cpdef inline elemfloat_t fixed_to_float(elemtype_t fixedval, fixpt dtype):
-    cdef elemfloat_t floatval = <elemfloat_t> fixedval / 2**dtype.frac_bits
+    cdef elemfloat_t floatval = <elemfloat_t> fixedval / (2.0 **
+                                                          (dtype.frac_bits +
+                                                           dtype.point_shift))
     return floatval
     
 cpdef char* fixed_repr(elemfloat_t floatval, fixpt dtype):
@@ -172,7 +192,7 @@ def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
               np.ndarray[elemtype_t, ndim=2, mode="c"] out not None,
               fixpt a_dtype, fixpt b_dtype, fixpt out_dtype):
     """
-    Performs efficient matrix-matrix multiplication on existing fixed point
+    Performs naive matrix-matrix multiplication on existing fixed point
     matrices, writing results into a pre-allocated matrix of the same type.
 
     Assumes that each input matrix has exactly two dimensions, each element of
@@ -196,11 +216,7 @@ def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
                 out[x, y] += fp_rescale(A[x, i] * B[i, y], tmp_dtype,
                                         out_dtype)
             # note that we're only rescaling the additions once after
-            # accumulating an entire row.  Technically we should rescale after
-            # each individual addition but this speeds things up and shouldn't
-            # matter if we're doing saturation.  It's also closer to what our
-            # hardware does, only scaling after accumulating a block
-
-            # we already scale multiplications to out_dtype so the following
-            # does nothing:
-            # out[x, y] = fp_rescale(out[x, y], out_dtype, out_dtype)
+            # accumulating an entire row.  This likely differs from our
+            # hardware which rescales after accumulating each row of a 32x32
+            # block.
+            out[x, y] = fp_rescale(out[x, y], out_dtype, out_dtype)
