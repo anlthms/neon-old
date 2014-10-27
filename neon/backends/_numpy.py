@@ -665,26 +665,25 @@ class Numpy(Backend):
         Numpy.subtract(weights, updates, out=weights)
 
     @staticmethod
-    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape, fshape,
-                    padding, stride, nfm, maxinds):
-        # Reshape the input so that we have a separate row
-        # for each input feature map (this is to avoid a loop over
-        # each feature map).
-        inputs = Numpy.squish(inputs, nfm)
+    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, ofmlocs, padding, stride, nfm, maxinds):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = inputs.take(links[dst], axis=1)
+            srf = Numpy.squish(rf, nfm)
             # Save the index of the maximum value within the receptive fields.
-            maxinds[:, dst] = rf.argmax(axis=1)
+            maxinds[:, dst] = srf.argmax(axis=1)
             # Set the pre-activations to the maximum value.
-            outputs[:, dst] = rf[range(rf.shape[0]), maxinds[:, dst]]
+            maxvals = srf[range(srf.shape[0]), maxinds[:, dst]]
+            outputs[:, ofmlocs[dst]] = (
+                maxvals.reshape((maxvals.shape[0] / nfm, nfm)))
 
     @staticmethod
     def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
+                    fshape, ofmlocs, padding, stride, nfm, maxinds):
         Numpy.fill(berror, 0.0)
-        rberror = Numpy.squish(berror, nfm) 
+        rberror = Numpy.squish(berror, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[:, dst], axis=0)

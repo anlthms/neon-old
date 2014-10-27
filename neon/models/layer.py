@@ -375,6 +375,7 @@ class LocalLayer(YAMLable):
         self.nofm = nofm
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
+        self.fshape = fshape
         self.fheight, self.fwidth = fshape
         self.stride = stride
 
@@ -390,10 +391,9 @@ class LocalLayer(YAMLable):
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
                                         self.ofmsize)).raw()
-        ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
+        self.ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
-        self.rofmlocs = ofmlocs.raw()
+            self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
         self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
@@ -559,18 +559,18 @@ class ConvLayer(LocalLayer):
     def fprop(self, inputs):
         self.backend.fprop_conv(self.weights, inputs, self.output,
                                 self.rlinks, self.ifmshape, self.ofmshape,
-                                self.rofmlocs, 0, self.stride, self.nifm, 1,
+                                self.ofmlocs, 0, self.stride, self.nifm, 1,
                                 self.prodbuf)
 
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
                                     self.links, self.ifmshape, self.ofmshape,
-                                    self.rofmlocs, 0, self.stride, self.nifm,
+                                    self.ofmlocs, 0, self.stride, self.nifm,
                                     1, self.bpropbuf)
         self.backend.update_conv(self.weights, inputs, error, self.updates,
                                  self.links, self.ifmshape, self.ofmshape,
-                                 self.rofmlocs, 0, self.stride, self.nifm,
+                                 self.ofmlocs, 0, self.stride, self.nifm,
                                  1, self.fwidth, self.learning_rate,
                                  self.updatebuf)
 
@@ -965,148 +965,7 @@ class LocalDeFilteringLayer(object):
         self.prev.normalize_weights(self.weights)
 
 
-class PoolingLayer(YAMLable):
-
-    """
-    Base class for pooling layers.
-    """
-
-    def adjust_for_dist(self, ifmshape):
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmsize = self.ifmheight * self.ifmwidth
-
-        self.ofmheight = (self.ifmheight - self.fheight) / self.stride + 1
-        self.ofmwidth = (self.ifmwidth - self.fwidth) / self.stride + 1
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.nin = self.nifm * self.ifmsize
-        self.ofmshape = [self.ofmheight, self.ofmwidth]
-        if self.pos > 0:
-            self.berror = self.backend.zeros((self.batch_size, self.nin))
-
-        # Figure out the possible connections with the previous layer.
-        # Each unit in this layer could be connected to any one of
-        # self.psize units in the previous layer.
-        self.links = self.backend.zeros(
-            (self.ofmsize, self.psize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in xrange(self.ofmsize):
-            colinds = []
-            # Collect the column indices for the
-            # entire receptive field.
-            for row in xrange(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            if (src % self.ifmwidth + self.fwidth + self.stride) <= (
-                    self.ifmwidth):
-                # Slide the filter by the stride value.
-                src += self.stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the pooling window down by one stride.
-                src += self.stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst, :] = self.backend.array(colinds)
-
-        self.nout = self.nifm * self.ofmsize
-        self.output = self.backend.zeros((self.batch_size, self.nout))
-        self.delta = self.backend.zeros((self.batch_size, self.nout))
-
-        # setup reshaped view variables
-        self._init_reshaped_views()
-
-    def __init__(self, name, backend, batch_size, pos,
-                 nifm, ifmshape, fshape, stride):
-        self.name = name
-        self.backend = backend
-        self.nifm = nifm
-        self.ifmshape = ifmshape
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.fshape = fshape
-        self.fheight, self.fwidth = fshape
-        self.psize = self.fheight * self.fwidth
-        self.pos = pos
-        self.batch_size = batch_size
-        self.stride = stride
-
-        self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
-        self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
-        self.ofmshape = [self.ofmheight, self.ofmwidth]
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.nin = nifm * self.ifmsize
-        if pos > 0:
-            self.berror = backend.alloc(batch_size, self.nin)
-
-        # Figure out the possible connections with the previous layer.
-        # Each unit in this layer could be connected to any one of
-        # self.psize units in the previous layer.
-        self.links = backend.zeros((self.ofmsize, self.psize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in xrange(self.ofmsize):
-            colinds = []
-            # Collect the column indices for the
-            # entire receptive field.
-            for row in xrange(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the pooling window down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds, dtype='i32')
-
-        self.nout = nifm * self.ofmsize
-        self.output = backend.alloc(batch_size, self.nout)
-        self.delta = backend.alloc(batch_size, self.nout)
-
-        # setup reshaped view variables
-        self._init_reshaped_views()
-
-    def _init_reshaped_views(self):
-        """
-        Initialize reshaped view references to the arrays such that there is a
-        single row per feature map.
-        """
-        self.rdelta = self.backend.squish(self.delta, self.nifm)
-        self.routput = self.backend.squish(self.output, self.nifm)
-
-    def __getstate__(self):
-        """
-        Fine-grained control over the serialization to disk of an instance of
-        this class.
-        """
-        # since we will load a shared memory view, prevent writing reshaped
-        # object copies to disk
-        res = self.__dict__.copy()
-        res['rdelta'] = None
-        res['routput'] = None
-        return res
-
-    def __setstate__(self, state):
-        """
-        Fine-grained control over the loading of serialized object
-        representation of this class.
-
-        In this case we need to ensure that reshaped view references are
-        restored (copies of these variables are created when writing to disk)
-
-        Arguments:
-            state (dict): keyword attribute values to be loaded.
-        """
-        self.__dict__.update(state)
-        self._init_reshaped_views()
-
-    def fprop(self, inputs):
-        raise NotImplementedError('This class should not be instantiated.')
-
-
-class MaxPoolingLayer(PoolingLayer):
+class MaxPoolingLayer(LocalLayer):
 
     """
     Max pooling layer.
@@ -1114,10 +973,13 @@ class MaxPoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(MaxPoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                              nifm, ifmshape, fshape, stride)
+        super(MaxPoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
+            fshape, stride)
         self.maxinds = backend.alloc(batch_size * nifm, self.ofmsize,
                                      dtype='i32')
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
@@ -1136,8 +998,8 @@ class MaxPoolingLayer(PoolingLayer):
     def fprop(self, inputs):
         self.inputs = inputs
         self.backend.fprop_mpool(
-            inputs, self.routput, self.links,
-            self.ifmshape, self.ofmshape, self.fshape, 0,
+            inputs, self.output, self.links,
+            self.ifmshape, self.ofmshape, self.fshape, self.ofmlocs, 0,
             self.stride, self.nifm, self.maxinds)
 
     def bprop(self, error, inputs, epoch, momentum):
@@ -1145,7 +1007,8 @@ class MaxPoolingLayer(PoolingLayer):
             self.backend.bprop_mpool(
                 self.inputs, self.output,
                 error, self.berror, self.links, self.ifmshape, self.ofmshape,
-                self.fshape, 0, self.stride, self.nifm, self.maxinds)
+                self.fshape, self.ofmlocs, 0, self.stride, self.nifm,
+                self.maxinds)
 
 
 class MaxPoolingLayerDist(MaxPoolingLayer):
@@ -1165,7 +1028,7 @@ class MaxPoolingLayerDist(MaxPoolingLayer):
         super(MaxPoolingLayerDist, self).fprop(inputs)
 
 
-class L2PoolingLayer(PoolingLayer):
+class L2PoolingLayer(LocalLayer):
 
     """
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
@@ -1174,8 +1037,9 @@ class L2PoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                             nifm, ifmshape, fshape, stride)
+        super(L2PoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride)
         self.prodbuf = self.backend.zeros((batch_size * nifm, self.psize))
 
     def __str__(self):
@@ -1236,7 +1100,7 @@ class L2PoolingLayerDist(L2PoolingLayer):
         super(L2PoolingLayerDist, self).bprop(error, inputs, epoch, momentum)
 
 
-class AveragePoolingLayer(PoolingLayer):
+class AveragePoolingLayer(LocalLayer):
 
     """
     Average pooling.
@@ -1244,9 +1108,9 @@ class AveragePoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(AveragePoolingLayer, self).__init__(name, backend, batch_size,
-                                                  pos, nifm, ifmshape, fshape,
-                                                  stride)
+        super(AveragePoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride)
         self.nout = nifm * self.ofmsize
 
     def __str__(self):

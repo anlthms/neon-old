@@ -831,14 +831,16 @@ class Cudanet(Backend):
     def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
-        cudanet.convolution(weights._tensor, inputs._tensor, outputs._tensor,
+        cudanet.convolution(
+            weights._tensor, inputs._tensor, outputs._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
             ngroups)
 
     @staticmethod
     def bprop_conv(weights, error, berror, links,  ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
-        cudanet.deconvolve_errors(weights._tensor, error._tensor,
+        cudanet.deconvolve_errors(
+            weights._tensor, error._tensor,
             berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
             padding, stride, nifm, ngroups)
 
@@ -846,21 +848,24 @@ class Cudanet(Backend):
     def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
                     ofmlocs, padding, stride, nifm, ngroups, fwidth, scale,
                     updatebuf):
-        cudanet.deconvolve_wts(error._tensor, inputs._tensor, updates._tensor, 
+        cudanet.deconvolve_wts(
+            error._tensor, inputs._tensor, updates._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
         weights -= scale * updates
 
     @staticmethod
-    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape, fshape,
-                    padding, stride, nfm, maxinds):
-        cudanet.max_pool(inputs._tensor, outputs._tensor, nfm, fshape[1],
+    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+        cudanet.max_pool(
+            inputs._tensor, outputs._tensor, nfm, fshape[1],
             padding, stride, ofmshape[1])
 
     @staticmethod
     def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
-        cudanet.max_pool_undo(inputs._tensor, error._tensor, outputs._tensor,
+                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+        cudanet.max_pool_undo(
+            inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
     @staticmethod
