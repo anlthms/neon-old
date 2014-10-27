@@ -54,9 +54,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nfm: 16,
+        nifm: 16,
         ifmshape: [24, 24],
-        pshape: [2, 2],
+        fshape: [2, 2],
         stride: 2,
       },
       !obj:neon.models.layer.ConvLayer {
@@ -81,9 +81,9 @@
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        nfm: 32,
+        nifm: 32,
         ifmshape: [8, 8],
-        pshape: [2, 2],
+        fshape: [2, 2],
         stride: 2,
       },
       !obj:neon.models.layer.LayerWithNoBias {
@@ -92,7 +92,7 @@
         batch_size: *bs,
         pos: 4,
         learning_rate: *lr,
-        nin: 512, # nfm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 512, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
