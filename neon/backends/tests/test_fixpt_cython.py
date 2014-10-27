@@ -118,16 +118,20 @@ def test_midpoint_rescale_round_nearest():
     assert fixed_to_float(x, out_dtype) == 3.0
 
 
-def test_additional_point_shift_right():
+def test_point_shift_right():
     dtype = fixpt_dtype(sign_bit=True, int_bits=0, frac_bits=3, overflow=0,
-                        rounding=0, additional_point_shift=3)
-    assert fixed_to_float(fixed_from_float(0.00025, dtype), dtype) == 0.00025
+                        rounding=0, point_shift=3)
+    # .03125_10 -> 0.25_10 after scaling with frac_bits alone -> 0 when rounded
+    #           -> 2_10 with 3 additional point shift bits -> .010_2
+    assert fixed_to_float(fixed_from_float(0.03125, dtype), dtype) == 0.03125
 
 
-def test_additional_point_shift_left():
+def test_point_shift_left():
     dtype = fixpt_dtype(sign_bit=True, int_bits=3, frac_bits=0, overflow=0,
-                        rounding=0, additional_point_shift=-3)
-    assert fixed_to_float(fixed_from_float(5000, dtype), dtype) == 5000
+                        rounding=0, point_shift=-3)
+    # 32_10 -> 100000_2 in binary, which won't fit with 3 int bits and 0 frac
+    #       -> 100xxx._2 with 3 point shift bits
+    assert fixed_to_float(fixed_from_float(32.0, dtype), dtype) == 32.0
 
 
 def test_negative_rep():
