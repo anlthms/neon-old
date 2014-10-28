@@ -32,7 +32,7 @@ develop: build .git/hooks/pre-commit
 	-python setup.py develop
 
 install: build
-	pip install .
+	pip install --upgrade .
 
 uninstall:
 	pip uninstall -y neon
