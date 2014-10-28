@@ -118,7 +118,7 @@ class Layer(YAMLable):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch, momentum, ada):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         """
         # numpy pseudocode for the backprop:
         # velocity = velocity * momentum_coef    # decay the old velocity
