@@ -217,7 +217,7 @@ class LayerWithNoBias(Layer):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         # comment if not using denominator term in cross_entropy
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
@@ -621,7 +621,7 @@ class ConvLayer(LocalLayer):
                                 self.rofmlocs, 0, self.stride, self.nifm, 1,
                                 self.prodbuf)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
                                     self.links, self.ifmshape, self.ofmshape,
@@ -1199,7 +1199,7 @@ class MaxPoolingLayer(PoolingLayer):
             self.ifmshape, self.ofmshape, self.fshape, 0,
             self.stride, self.nifm, self.maxinds)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         if self.pos > 0:
             self.backend.bprop_mpool(
                 self.inputs, self.output,
