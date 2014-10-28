@@ -23,10 +23,6 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        # (urs) O_o
-        if 'ada' not in dir(self):
-            self.ada=dict()
-            self.ada['enable'] = False
 
     def fit(self, datasets):
         """
@@ -41,6 +37,8 @@ class MLP(Model):
             self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
+        if 'ada' not in self.__dict__:
+            self.ada = None
         tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]

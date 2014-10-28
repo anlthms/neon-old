@@ -138,7 +138,7 @@ class Layer(YAMLable):
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
-        if ada['enable']:
+        if ada is not None and ada['enable']:
           self.backend.multiply(self.updates,
                                 self.adadelta(epoch, self.updates, ada),
                                 out=self.updates)
@@ -163,8 +163,7 @@ class Layer(YAMLable):
         if ada_params['type'] == 'adadelta':
             rho = ada_params['rho']
             eps = ada_params['eps']
-            # OMG I can't believe I am doing this
-            if 'buffers' not in dir(self):
+            if 'buffers' not in self.__dict__:
                 # create buffers only if they don't exist
                 print "initializing expectations in epoch", epoch, "layer", self.name
                 self.Eg2t = self.backend.ones(updates.shape) * ada_params['init_Eg2t']
