@@ -11,15 +11,15 @@
     !obj:neon.datasets.cifar10.CIFAR10 {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_1pct-Numpy.pkl',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
   # Google Brain model specification
   model: !obj:neon.models.gb.GB {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 4,
     num_pretrain_epochs: 1,
     num_initial_epochs: 1,
     batch_size: &bs 100,

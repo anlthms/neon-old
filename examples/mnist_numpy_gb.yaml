@@ -19,8 +19,8 @@
   # Google Brain model specification
   model: !obj:neon.models.gb.GB {
     backend: *be,
-    num_epochs: 2,
-    num_pretrain_epochs: 1,
+    num_epochs: 4,
+    num_pretrain_epochs: 8,
     num_initial_epochs: 1,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,

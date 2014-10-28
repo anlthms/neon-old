@@ -12,8 +12,8 @@
       dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1,
-      serialized_path: '/usr/local/data/MNIST/mnist_1pct-Numpy_{rank}.pkl',
+      sample_pct: 10,
+      serialized_path: '/usr/local/data/MNIST_{size}/mnist_10pct-Numpy_{rank}.pkl',
     },
   ],
 
