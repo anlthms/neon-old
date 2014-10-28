@@ -137,7 +137,7 @@ class Layer(YAMLable):
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
-        self.backend.update_fc_dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
         if ada['enable']:
           self.backend.multiply(self.updates,
                                 self.adadelta(epoch, self.updates, ada),
