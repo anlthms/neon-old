@@ -48,6 +48,10 @@ For MPI based distributed implementations:
     # mpirun -n 4 -x PYTHONPATH neon examples/<path_to.yaml>, where PYTHONPATH includes ./
     mpirun -n 4 -x PYTHONPATH bin/neon examples/mnist_distarray_numpy_cnn-20-50-500-10.yaml
 
+In distributed environments full paths might be needed for mpirun and neon, for e.g.:
+
+    /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts /<full_path_to_neon>/neon /<full_path_to_examples>/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+
 
 ## Features ##
 * Works with our hardware!  Easy to transition between it and various GPU and
