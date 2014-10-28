@@ -127,10 +127,6 @@ class Layer(YAMLable):
         # weights  = weights + velocity          # update
         """
 
-        if 0:
-          print "name is", self.name
-          print "min pre act", abs(self.pre_act.raw().flatten()).min()
-          print "min error",  abs(error.raw().flatten()).min()
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
