@@ -118,24 +118,88 @@ class Layer(YAMLable):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada):
+        """
+        # numpy pseudocode for the backprop:
+        # velocity = velocity * momentum_coef    # decay the old velocity
+        # updates  = rate * dot(delta.T, inputs) # rate mixes in new gradient
+        # velocity = velocity + -updates         # decayed velocity + new grad
+        # weights  = weights + velocity          # update
+        """
+
+        if 0:
+          print "name is", self.name
+          print "min pre act", abs(self.pre_act.raw().flatten()).min()
+          print "min error",  abs(error.raw().flatten()).min()
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
-            self.backend.bprop_fc_dot(self.delta, self.weights[:, 0:endcol],
-                                      out=self.berror)
+            self.backend.dot(self.delta, self.weights[:, 0:endcol],
+                             out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
-        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
-
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
+        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        if ada['enable']:
+          self.backend.multiply(self.updates,
+                                self.adadelta(epoch, self.updates, ada),
+                                out=self.updates)
+        else:
+          self.backend.multiply(self.updates,
+                                self.backend.wrap(self.learning_rate),
+                                out=self.updates)
         self.backend.subtract(self.velocity, self.updates, out=self.velocity)
         self.backend.add(self.weights, self.velocity, out=self.weights)
+
+    def adadelta(self, epoch, updates, ada_params):
+        """
+        AdaDelta by Matt Zeiler 2012. In constrast to momentum, which is an
+        additive modification to the gradient update, this is a multiplicative
+        modification, i.e. a per-parameter replacement for the learning rate.
+        Inputs:
+          updates: The raw gradient
+        Outputs:
+          mu: The multiplicative factor for the learning rate
+        """
+
+        if ada_params['type'] == 'adadelta':
+            rho = ada_params['rho']
+            eps = ada_params['eps']
+            # OMG I can't believe I am doing this
+            if 'buffers' not in dir(self):
+                # create buffers only if they don't exist
+                print "initializing expectations in epoch", epoch, "layer", self.name
+                self.Eg2t = self.backend.ones(updates.shape) * ada_params['init_Eg2t']
+                self.Edx2t = self.backend.ones(updates.shape) * ada_params['init_Edx2t']
+                self.buffers = dict()
+                self.buffers['1'] = self.backend.zeros(updates.shape)
+                self.buffers['2'] = self.backend.zeros(updates.shape)
+                self.buffers['3'] = self.backend.zeros(updates.shape)
+            self.Eg2t = rho * self.Eg2t + (1-rho) * updates**2
+            self.backend.sqrt(self.Edx2t+eps, self.buffers['1'])
+            self.backend.sqrt(self.Eg2t+eps, self.buffers['2'])
+            mu = self.buffers['1'] / self.buffers['2']
+            velocity = mu * updates  
+            self.backend.square(velocity, self.buffers['3'])
+            self.Edx2t = rho * self.Edx2t + (1-rho) * self.buffers['3']
+            # these plots are useful for debugging, leaving them for now...
+            if 0:
+              plt.subplot(2, 1, self.pos+1)
+              plt.imshow(mu.raw(), interpolation='nearest', vmin=0, vmax=0.1)
+              plt.show()
+              plt.draw()
+            if 0:
+              plt.subplot(1, 2, self.pos+1)
+              plt.hist(np.log10(mu.raw().flatten()), 100)
+              plt.show()
+              plt.draw()
+        elif ada_params['type'] == 'rmsprop':
+            raise NotImplementedError("RMS prop not yet implemented")
+        else:
+            raise AttributeError("invalid momentum_params specified")
+        return mu
 
 
 class LayerWithNoBias(Layer):

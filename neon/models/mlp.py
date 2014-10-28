@@ -53,7 +53,7 @@ class MLP(Model):
                 self.fprop(inputs.get_minor_slice(start_idx, end_idx))
                 self.bprop(targets.get_minor_slice(start_idx, end_idx),
                            inputs.get_minor_slice(start_idx, end_idx),
-                           epoch, self.momentum)
+                           epoch, self.momentum, self.ada)
                 error += self.cost.apply_function(
                     self.backend, self.layers[-1].output,
                     targets.get_minor_slice(start_idx, end_idx),
@@ -105,26 +105,24 @@ class MLP(Model):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch, momentum):
+    def bprop(self, targets, inputs, epoch, momentum, ada):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
         error = self.cost.apply_derivative(self.backend,
                                            lastlayer.output, targets,
                                            self.temp)
-        self.backend.divide(
-            error,
-            self.backend.wrap(targets.shape[targets.major_axis()]),
-            out=error)
+        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+                            out=error)
         # Update the output layer.
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum, ada)
         while i > 1:
             i -= 1
             self.layers[i].bprop(self.layers[i + 1].berror,
                                  self.layers[i - 1].output,
-                                 epoch, momentum)
+                                 epoch, momentum, ada)
         # Update the first hidden layer.
         self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch,
-                                 momentum)
+                                 momentum, ada)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
