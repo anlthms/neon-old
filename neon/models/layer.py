@@ -130,14 +130,14 @@ class Layer(YAMLable):
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
-            self.backend.dot(self.delta, self.weights[:, 0:endcol],
+            self.backend.bprop_fc_dot(self.delta, self.weights[:, 0:endcol],
                              out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
-        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.update_fc_dot(self.delta.T(), inputs, out=self.updates)
         if ada['enable']:
           self.backend.multiply(self.updates,
                                 self.adadelta(epoch, self.updates, ada),
