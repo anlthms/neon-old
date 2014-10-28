@@ -290,7 +290,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         # comment if not using denominator term in cross_entropy
         self.backend.multiply(error, self.pre_act_, out=self.delta)
         if self.nout_ != self.nout:
@@ -317,7 +317,7 @@ class LayerWithNoActivation(LayerWithNoBias):
     def fprop(self, inputs):
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta = error
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
@@ -664,7 +664,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         inputs = self.input.get_fprop_view(inputs_)
         super(ConvLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta = error
         if self.pos > 0:
             self.backend.clear(self.berror)
@@ -797,7 +797,7 @@ class LocalFilteringLayer(LocalLayer):
             # size: # mbs x nofm
             self.output[:, self.rofmlocs[dst]] = self.prodbuf
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta = error
         if self.pos > 0:
             self.backend.clear(self.berror)
@@ -1004,7 +1004,7 @@ class LocalDeFilteringLayer(object):
                              out=self.prodbuf)
             self.output[:, rflinks] += self.prodbuf
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(error[:, rflinks],
@@ -1250,7 +1250,7 @@ class L2PoolingLayer(PoolingLayer):
             rf = rinputs.take(inds, axis=1)
             self.routput[:, dst] = rf.norm(axis=1)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta[:] = error
         rinputs = self.backend.squish(inputs, self.nifm)
         rberror = self.backend.squish(self.berror, self.nifm)
@@ -1321,7 +1321,7 @@ class AveragePoolingLayer(PoolingLayer):
             rf = rinputs.take(inds, axis=1)
             self.routput[:, dst] = rf.mean(axis=1)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta[:] = error
         rberror = self.backend.squish(self.berror, self.nfm)
         if self.pos > 0:
@@ -1545,7 +1545,7 @@ class LCNLayer(YAMLable):
                 self.exerror[:, rflinks] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
             self.bprop_div_normalize(error, inputs, epoch, momentum)
@@ -1772,7 +1772,7 @@ class LCNLayerDist(LCNLayer):
                 self.exerror[:, rflinks] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch, momentum, ada=None):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
             self.bprop_div_normalize(error, inputs, epoch, momentum)
