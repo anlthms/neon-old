@@ -117,48 +117,50 @@ class CIFAR10(Dataset):
         return (data, onehot)
 
     def load(self):
-        if self.inputs['train'] is None:
-            if 'repo_path' in self.__dict__:
-                if self.dist_flag:
-                    self.adjust_for_dist()
-                    ncols = len(self.dist_indices)
-                else:
-                    ncols = 32 * 32 * 3
-
-                ntrain_total = 50000
-                nclasses = 10
-                save_dir = os.path.join(self.repo_path,
-                                        self.__class__.__name__)
-                self.fetch_dataset(save_dir)
-                self.inputs['train'] = self.backend.zeros((ntrain_total,
-                                                          ncols),
-                                                          dtype=np.float32)
-                self.targets['train'] = self.backend.zeros((ntrain_total,
-                                                           nclasses),
-                                                           dtype=np.float32)
-                for i in range(5):
-                    filename = os.path.join(save_dir, 'cifar-10-batches-py',
-                                            'data_batch_' + str(i + 1))
-                    data, labels = self.load_file(filename, nclasses)
-                    nrows = data.shape[0]
-                    start = i * nrows
-                    end = (i + 1) * nrows
-                    self.inputs['train'][start:end] = data
-                    self.targets['train'][start:end] = labels
-
-                if 'sample_pct' in self.__dict__:
-                    self.sample_training_data()
-
-                filename = os.path.join(save_dir, 'cifar-10-batches-py',
-                                        'test_batch')
-                data, labels = self.load_file(filename, nclasses)
-                self.inputs['test'] = self.backend.zeros((data.shape[0],
-                                                          ncols),
-                                                         dtype=np.float32)
-                self.targets['test'] = self.backend.zeros((data.shape[0],
-                                                           nclasses),
-                                                          dtype=np.float32)
-                self.inputs['test'][:] = data
-                self.targets['test'][:] = labels
+        if self.inputs['train'] is not None:
+            return
+        if 'repo_path' in self.__dict__:
+            if self.dist_flag:
+                self.adjust_for_dist()
+                ncols = len(self.dist_indices)
             else:
-                raise AttributeError('repo_path not specified in config')
+                ncols = 32 * 32 * 3
+
+            ntrain_total = 50000
+            nclasses = 10
+            save_dir = os.path.join(self.repo_path,
+                                    self.__class__.__name__)
+            self.fetch_dataset(save_dir)
+            self.inputs['train'] = np.zeros((ntrain_total,
+                                             ncols),
+                                             dtype=np.float32)
+            self.targets['train'] = np.zeros((ntrain_total,
+                                              nclasses),
+                                              dtype=np.float32)
+            for i in range(5):
+                filename = os.path.join(save_dir, 'cifar-10-batches-py',
+                                        'data_batch_' + str(i + 1))
+                data, labels = self.load_file(filename, nclasses)
+                nrows = data.shape[0]
+                start = i * nrows
+                end = (i + 1) * nrows
+                self.inputs['train'][start:end] = data
+                self.targets['train'][start:end] = labels
+
+            if 'sample_pct' in self.__dict__:
+                self.sample_training_data()
+
+            filename = os.path.join(save_dir, 'cifar-10-batches-py',
+                                    'test_batch')
+            data, labels = self.load_file(filename, nclasses)
+            self.inputs['test'] = np.zeros((data.shape[0],
+                                            ncols),
+                                            dtype=np.float32)
+            self.targets['test'] = np.zeros((data.shape[0],
+                                             nclasses),
+                                             dtype=np.float32)
+            self.inputs['test'][:] = data
+            self.targets['test'][:] = labels
+            self.format()
+        else:
+            raise AttributeError('repo_path not specified in config')

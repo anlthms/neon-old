@@ -127,21 +127,23 @@ class Iris(Dataset):
         self.__dict__.update(kwargs)
 
     def load(self):
-        if self.inputs['train'] is None:
-            # split the dataset so that for each class we have 30 train, 10
-            # validation, and 10 test instances.
-            for name, l_idx, h_idx in (('train', 0, 30),
-                                       ('validation', 30, 40),
-                                       ('test', 40, 50)):
-                logger.info('loading: %s data' % name)
-                s_idcs = slice(l_idx, h_idx)
-                v_idcs = slice(l_idx + 50, h_idx + 50)
-                c_idcs = slice(l_idx + 100, h_idx + 100)
-                inputs = numpy.vstack((self.raw_inputs[s_idcs, :],
-                                       self.raw_inputs[v_idcs, :],
-                                       self.raw_inputs[c_idcs, :]))
-                self.inputs[name] = self.backend.array(inputs)
-                targets = numpy.vstack((self.raw_onehot_targets[s_idcs, :],
-                                        self.raw_onehot_targets[v_idcs, :],
-                                        self.raw_onehot_targets[c_idcs, :]))
-                self.targets[name] = self.backend.array(targets)
+        if self.inputs['train'] is not None:
+            return
+        # split the dataset so that for each class we have 30 train, 10
+        # validation, and 10 test instances.
+        for name, l_idx, h_idx in (('train', 0, 30),
+                                   ('validation', 30, 40),
+                                   ('test', 40, 50)):
+            logger.info('loading: %s data' % name)
+            s_idcs = slice(l_idx, h_idx)
+            v_idcs = slice(l_idx + 50, h_idx + 50)
+            c_idcs = slice(l_idx + 100, h_idx + 100)
+            inputs = numpy.vstack((self.raw_inputs[s_idcs, :],
+                                   self.raw_inputs[v_idcs, :],
+                                   self.raw_inputs[c_idcs, :]))
+            self.inputs[name] = inputs
+            targets = numpy.vstack((self.raw_onehot_targets[s_idcs, :],
+                                    self.raw_onehot_targets[v_idcs, :],
+                                    self.raw_onehot_targets[c_idcs, :]))
+            self.targets[name] = targets
+        self.format()

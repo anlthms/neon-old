@@ -703,8 +703,8 @@ class Numpy(Backend):
         np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
 
     @staticmethod
-    def prep(raw):
-        return raw
+    def format(raw):
+        return Numpy.array(raw)
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None

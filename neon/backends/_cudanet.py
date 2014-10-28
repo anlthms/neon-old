@@ -881,8 +881,8 @@ class Cudanet(Backend):
         cudanet.dot(deltas._tensor, inputs.T()._tensor, out._tensor)
 
     @staticmethod
-    def prep(raw):
-        return raw.T.copy()
+    def format(raw):
+        return Cudanet.array(raw.T.copy())
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
