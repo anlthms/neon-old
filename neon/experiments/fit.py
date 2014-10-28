@@ -52,7 +52,8 @@ class FitExperiment(Experiment):
                     if MPI_INSTALLED:
                         from mpi4py import MPI
                         ds.serialized_path = ds.serialized_path.format(
-                            rank=str(MPI.COMM_WORLD.rank))
+                            rank=str(MPI.COMM_WORLD.rank),
+                            size=str(MPI.COMM_WORLD.size))
                     else:
                         raise AttributeError("dist_flag set but mpi4py not "
                                              "installed")
@@ -70,9 +71,28 @@ class FitExperiment(Experiment):
         if hasattr(self.model, 'serialized_path'):
             mpath = self.model.serialized_path
             if os.path.exists(mpath):
+                if self.dist_flag:
+                    if MPI_INSTALLED:
+                        # deserialize the model at the root node only
+                        # can change behavior depending on future use cases
+                        if MPI.COMM_WORLD.rank == 0:
+                            self.model = deserialize(mpath)
+                    else:
+                        raise AttributeError("dist_flag set but mpi4py not "
+                                             "installed")
                 self.model = deserialize(mpath)
             else:
                 self.model.fit(self.datasets)
-                serialize(self.model, mpath)
+                if self.dist_flag:
+                    if MPI_INSTALLED:
+                        from mpi4py import MPI
+                        # serialize the model only at the root node
+                        if MPI.COMM_WORLD.rank == 0:
+                            serialize(self.model, mpath)
+                    else:
+                        raise AttributeError("dist_flag set but mpi4py not "
+                                             "installed")
+                else:
+                    serialize(self.model, mpath)
         else:
             self.model.fit(self.datasets)

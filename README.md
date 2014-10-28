@@ -43,6 +43,19 @@ We want to strive to have as few of these as possible
     # see the examples directory for sample .yaml files
     neon examples/mnist_numpy_mlp-784-100-10.yaml
 
+    # For MPI based parallel distributed implementations (single machine):
+    # mpirun -np <num_processes> -x <environment_vars> neon <path_to.yaml>
+    # ex: 4 process cnn example from top-level neon dir:
+    mpirun -n 4 -x PYTHONPATH bin/neon \
+           examples/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+
+    # In multi-machine MPI environments need hosts file, and full paths should
+    # be used:
+    /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
+        /<full_path_to_neon>/neon \
+        /<full_path_to_examples>/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+
+See docs for full details.
 
 ## Features ##
 * Works with our hardware!  Easy to transition between it and various GPU and

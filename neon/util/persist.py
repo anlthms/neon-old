@@ -104,7 +104,14 @@ def deserialize(load_path):
             initialize_yaml()
         return yaml.safe_load(load_path)
     else:
-        return cPickle.load(load_path)
+        try:
+            return cPickle.load(load_path)
+        except AttributeError:
+            msg = ("Problems deserializing: %s.  Its possible the interface "
+                   "for this object has changed since being serialized.  You "
+                   "may need to remove and recreate it." % load_path)
+            logger.error(msg)
+            raise AttributeError(msg)
 
 
 def serialize(obj, save_path):
