@@ -23,6 +23,10 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+        # (urs) O_o
+        if 'ada' not in dir(self):
+            self.ada=dict()
+            self.ada['enable'] = False
 
     def fit(self, datasets):
         """
