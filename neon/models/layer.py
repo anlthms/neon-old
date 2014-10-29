@@ -1040,7 +1040,10 @@ class L2PoolingLayer(LocalLayer):
         super(L2PoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
             ifmshape, fshape, stride)
-        self.prodbuf = self.backend.zeros((batch_size * nifm, self.psize))
+        self.prodbuf = self.backend.zeros((batch_size * nifm,
+                                           self.fshape[0] * self.fshape[1]))
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
@@ -1049,31 +1052,17 @@ class L2PoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nifm)
-        for dst in xrange(self.ofmsize):
-            inds = self.links[dst]
-            rf = rinputs.take(inds, axis=1)
-            self.routput[:, dst] = rf.norm(axis=1)
+        self.backend.fprop_l2pool(
+            inputs, self.output, self.links,
+            self.ifmshape, self.ofmshape, self.fshape,
+            0, self.stride, self.nifm)
 
     def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
-        rinputs = self.backend.squish(inputs, self.nifm)
-        rberror = self.backend.squish(self.berror, self.nifm)
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                inds = self.links[dst]
-                rf = rinputs.take(inds, axis=1)
-                denom = self.routput[:, dst:(dst + 1)].copy()
-                # If the L2 norm is zero, the entire receptive field must be
-                # zeros. In that case, we set the L2 norm to 1 before using
-                # it to normalize the receptive field.
-                denom[denom.raw() == 0] = 1
-                self.backend.divide(rf, denom, out=rf)
-                self.backend.multiply(
-                    self.rdelta[:, dst:(dst + 1)].repeat(self.psize, axis=1),
-                    rf, out=self.prodbuf)
-                rberror[:, inds] += self.prodbuf
+            self.backend.bprop_l2pool(
+                self.output, error, self.berror, self.links,
+                self.ifmshape, self.ofmshape, self.fshape,
+                0, self.stride, self.nifm, self.prodbuf)
 
 
 class L2PoolingLayerDist(L2PoolingLayer):
@@ -1112,6 +1101,7 @@ class AveragePoolingLayer(LocalLayer):
             name, backend, batch_size, pos, 0.0, nifm, nifm,
             ifmshape, fshape, stride)
         self.nout = nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("AveragePoolingLayer %s: %d nin, %d nout, "
@@ -1120,22 +1110,17 @@ class AveragePoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nifm)
-        for dst in range(self.ofmsize):
-            inds = self.links[dst]
-            rf = rinputs.take(inds, axis=1)
-            self.routput[:, dst] = rf.mean(axis=1)
+        self.backend.fprop_apool(
+            inputs, self.output, self.links,
+            self.ifmshape, self.ofmshape, self.fshape,
+            0, self.stride, self.nifm)
 
     def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
-        rberror = self.backend.squish(self.berror, self.nfm)
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            self.rdelta /= self.psize
-            for dst in range(self.ofmsize):
-                inds = self.links[dst]
-                rberror[:, inds] += (self.rdelta.take(range(dst, dst + 1),
-                                     axis=1))
+            self.backend.bprop_apool(
+                self.output, error, self.berror, self.links,
+                self.ifmshape, self.ofmshape, self.fshape,
+                0, self.stride, self.nifm)
 
 
 class Convolver(LocalLayer):

@@ -869,6 +869,26 @@ class Cudanet(Backend):
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
     @staticmethod
+    def fprop_apool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        raise NotImplementedError("TODO!")
+
+    @staticmethod
+    def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        raise NotImplementedError("TODO!")
+
+    @staticmethod
+    def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        raise NotImplementedError("TODO!")
+
+    @staticmethod
+    def bprop_l2pool(outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, prodbuf):
+        raise NotImplementedError("TODO!")
+
+    @staticmethod
     def fprop_fc_dot(inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 

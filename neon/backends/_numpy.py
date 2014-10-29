@@ -684,11 +684,61 @@ class Numpy(Backend):
                     fshape, ofmlocs, padding, stride, nfm, maxinds):
         Numpy.fill(berror, 0.0)
         rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[:, dst], axis=0)
-            rerror = Numpy.squish(error, nfm)
             rberror[range(rberror.shape[0]), inds] += rerror[:, dst]
+
+    @staticmethod
+    def fprop_apool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rf = inputs.take(links[dst], axis=1)
+            routputs[:, dst] = rf.mean(axis=1)
+
+    @staticmethod
+    def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        Numpy.divide(error, fshape[0] * fshape[1], out=error)
+        rerror = Numpy.squish(error, nfm)
+        rberror = Numpy.squish(rberror, nfm)
+        Numpy.fill(berror, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rberror[:, links[dst]] += (rerror.take(range(dst, dst + 1), axis=1))
+
+    @staticmethod
+    def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rf = rinputs.take(links[dst], axis=1)
+            routputs[:, dst] = rf.norm(axis=1)
+
+    @staticmethod
+    def bprop_l2pool(outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, prodbuf):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
+        Numpy.fill(berror, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            inds = linkd[dst]
+            rf = rinputs.take(inds, axis=1)
+            denom = routputs[:, dst:(dst + 1)].copy()
+            # If the L2 norm is zero, the entire receptive field must be
+            # zeros. In that case, we set the L2 norm to 1 before using
+            # it to normalize the receptive field.
+            denom[denom.raw() == 0] = 1
+            Numpy.divide(rf, denom, out=rf)
+            Numpy.multiply(
+                rerror[:, dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=1),
+                rf, out=prodbuf)
+            rberror[:, inds] += prodbuf
 
     @staticmethod
     def fprop_fc_dot(inputs, weights, out):
