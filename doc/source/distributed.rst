@@ -34,7 +34,7 @@ Distributing a new Layer
         super(L2PoolingLayerDist, self).fprop(inputs)
 
     # Similarly for bprop
-	def bprop(self, error, inputs_, epoch, momentum):
+    def bprop(self, error, inputs_, epoch, momentum):
         # Assuming 'error' is already halo consistent
     	# In GBDist model:
         # During unsupervised pre-training, 'error' does not have halos
