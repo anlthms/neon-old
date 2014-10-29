@@ -184,7 +184,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: &mm {
+            momentum_params: {
               type: linear_monotone, #constant, nesterov
               initial_coef: 0.99,
               start_epoch: 5,
@@ -197,7 +197,6 @@
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_dtype: &dt 'float32',
-        velocity_dtype: *dt,
         delta_dtype: *dt,
         updates_dtype: *dt,
         pre_act_dtype: *dt,
