@@ -22,13 +22,6 @@
     num_epochs: 60,
     batch_size: &bs 100,
     learning_rate: &lr 0.01,
-    momentum: {
-      type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './rbm-cudanet60.pkl',
     layers: [
@@ -37,7 +30,13 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: vis2hidlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+          },
+        },
         nin: 785, # num inputs + 1 for bias
         nout: 1001, # num outputs + 1 for bias
         activation: !obj:neon.transforms.logistic.Logistic {},
