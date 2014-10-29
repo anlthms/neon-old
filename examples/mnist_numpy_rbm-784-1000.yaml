@@ -21,7 +21,7 @@
     backend: *be,
     num_epochs: 20,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
+    learning_rate: &lr -0.01,
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './rbm-numpy20.pkl',
     layers: [
