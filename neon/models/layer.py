@@ -216,7 +216,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
-        #print inputs.shape, self.weights.T().shape, self.pre_act.shape
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
