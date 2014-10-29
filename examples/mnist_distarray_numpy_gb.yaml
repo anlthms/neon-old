@@ -32,13 +32,6 @@
     tied_weights: &tw True,
     visualize: False,
     spot_check: False,
-    momentum: {
-      type: linear_monotone,
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
@@ -49,8 +42,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
-        pretrain_learning_rate: *plr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer0lr,
+          lr_params: {
+            learning_rate: *lr,
+            pretrain_learning_rate: *plr,
+            backend: *be,
+          },
+        },
         tied_weights: *tw,
         nifm: 1,
         nofm: &nofm 8,
@@ -90,8 +89,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        learning_rate: *lr,
-        pretrain_learning_rate: *plr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer3lr,
+          lr_params: {
+            learning_rate: *lr,
+            pretrain_learning_rate: *plr,
+            backend: *be,
+          },
+        },
         tied_weights: *tw,
         nifm: *nofm,
         nofm: *nofm,
@@ -131,8 +136,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 6,
-        learning_rate: *lr,
-        pretrain_learning_rate: *plr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer6lr,
+          lr_params: {
+            learning_rate: *lr,
+            pretrain_learning_rate: *plr,
+            backend: *be,
+          },
+        },
         tied_weights: *tw,
         nifm: *nofm,
         nofm: *nofm,
@@ -170,7 +181,20 @@
         backend: *be,
         batch_size: *bs,
         pos: 9,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
         nin: 1800, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},

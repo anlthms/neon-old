@@ -660,7 +660,6 @@ class LocalFilteringLayer(LocalLayer):
 
     def pretrain_mode(self, pooling):
         self.learning_rule.set_pretrain_mode(True)
-        print "This learning rate is %f" % (self.learning_rule.learning_rate)
         self.pooling = pooling
         self.defilter = LocalDeFilteringLayer(self, self.tied_weights)
 
