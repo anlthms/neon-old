@@ -665,6 +665,7 @@ class LocalFilteringLayer(LocalLayer):
 
     def pretrain_mode(self, pooling):
         self.learning_rule.set_pretrain_mode(True)
+        print "This learning rate is %f" % (self.learning_rule.learning_rate)
         self.pooling = pooling
         self.defilter = LocalDeFilteringLayer(self, self.tied_weights)
 
@@ -834,6 +835,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         # temp1 stores a temp buffer without the chunk
         self.defilter.temp1 = [self.backend.zeros(
             (self.batch_size, self.input.local_array.local_array_size))]
+        self.learning_rule.set_pretrain_mode(True)
 
     def pretrain(self, inputs_, cost, epoch):
         # Forward propagate the input through this layer and a
@@ -903,6 +905,7 @@ class LocalDeFilteringLayer(object):
         self.berror = prev.backend.zeros((prev.batch_size, prev.nout))
         self.temp = [prev.backend.zeros(self.output.shape)]
         self.learning_rule = prev.learning_rule
+        self.learning_rule.set_pretrain_mode(True)
         self.backend = prev.backend
         self.rlinks = prev.rlinks
         self.prev = prev
@@ -934,6 +937,10 @@ class LocalDeFilteringLayer(object):
                              out=self.updatebuf)
             self.updates[self.prev.rofmlocs[dst]] = self.updatebuf
 
+        # self.backend.multiply(self.updates,
+        #                       self.backend.wrap(self.learning_rule.pretrain_learning_rate),
+        #                       out=self.updates)
+        # self.backend.subtract(self.weights, self.updates, out=self.weights)
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
         self.prev.normalize_weights(self.weights)

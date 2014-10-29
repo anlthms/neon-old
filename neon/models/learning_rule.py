@@ -37,6 +37,9 @@ class LearningRule(object):
     def allocate_state(self, params):
         pass
 
+    def set_pretrain_mode(self, pretrain_mode):
+        pass
+
     def apply_rule(self, params, updates, epoch):
         raise NotImplementedError()
 
@@ -77,18 +80,17 @@ class GradientDescentPretrain(GradientDescent):
         else:
             raise AttributeError("Missing required pretrain learning rate")
 
+        self.train_learning_rate = self.learning_rate
         self.pretrain_mode = False
 
     def set_pretrain_mode(self, pretrain_mode):
-        self.pretrain_mode = pretrain_mode
+        if (pretrain_mode):
+            self.learning_rate = self.pretrain_learning_rate
+        else:
+            self.learning_rate = self.train_learning_rate
 
     def apply_rule(self, params, updates, epoch):
-        if (self.pretrain_mode):
-            lr = self.learning_rate
-        else:
-            lr = self.pretrain_learning_rate
-
-        self.backend.multiply(updates, self.backend.wrap(lr), out=updates)
+        self.backend.multiply(updates, self.backend.wrap(self.learning_rate), out=updates)
         self.backend.subtract(params, updates, out=params)
 
 class GradientDescentMomentum(GradientDescent):
