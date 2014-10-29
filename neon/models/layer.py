@@ -131,7 +131,7 @@ class Layer(YAMLable):
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
             self.backend.bprop_fc_dot(self.delta, self.weights[:, 0:endcol],
-                             out=self.berror)
+                                      out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
         momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
@@ -139,13 +139,13 @@ class Layer(YAMLable):
                               out=self.velocity)
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
         if ada is not None and ada['enable']:
-          self.backend.multiply(self.updates,
-                                self.adadelta(epoch, self.updates, ada),
-                                out=self.updates)
+            self.backend.multiply(self.updates,
+                                  self.adadelta(epoch, self.updates, ada),
+                                  out=self.updates)
         else:
-          self.backend.multiply(self.updates,
-                                self.backend.wrap(self.learning_rate),
-                                out=self.updates)
+            self.backend.multiply(self.updates,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=self.updates)
         self.backend.subtract(self.velocity, self.updates, out=self.velocity)
         self.backend.add(self.weights, self.velocity, out=self.weights)
 
@@ -165,9 +165,15 @@ class Layer(YAMLable):
             eps = ada_params['eps']
             if 'buffers' not in self.__dict__:
                 # create buffers only if they don't exist
-                print "initializing expectations in epoch", epoch, "layer", self.name
-                self.Eg2t = self.backend.ones(updates.shape) * ada_params['init_Eg2t']
-                self.Edx2t = self.backend.ones(updates.shape) * ada_params['init_Edx2t']
+                print (
+                    "initializing expectations in epoch", epoch,
+                    "layer", self.name)
+                self.Eg2t = (
+                    self.backend.ones(updates.shape) *
+                    ada_params['init_Eg2t'])
+                self.Edx2t = (
+                    self.backend.ones(updates.shape) *
+                    ada_params['init_Edx2t'])
                 self.buffers = dict()
                 self.buffers['1'] = self.backend.zeros(updates.shape)
                 self.buffers['2'] = self.backend.zeros(updates.shape)
@@ -176,7 +182,7 @@ class Layer(YAMLable):
             self.backend.sqrt(self.Edx2t+eps, self.buffers['1'])
             self.backend.sqrt(self.Eg2t+eps, self.buffers['2'])
             mu = self.buffers['1'] / self.buffers['2']
-            velocity = mu * updates  
+            velocity = mu * updates
             self.backend.square(velocity, self.buffers['3'])
             self.Edx2t = rho * self.Edx2t + (1-rho) * self.buffers['3']
             # these plots are useful for debugging, leaving them for now...

@@ -9,6 +9,7 @@ from neon.models.model import Model
 
 logger = logging.getLogger(__name__)
 
+
 class MLP(Model):
 
     """
