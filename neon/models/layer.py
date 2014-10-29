@@ -365,7 +365,7 @@ class LocalLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 nofm, ifmshape, fshape, stride):
+                 nofm, ifmshape, fshape, stride, pooling=False):
         self.name = name
         self.backend = backend
         self.batch_size = batch_size
@@ -396,7 +396,12 @@ class LocalLayer(YAMLable):
             self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
-        self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
+        if pooling is True:
+            self.links = backend.zeros(
+                (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+        else:
+            self.links = backend.zeros(
+                (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in xrange(self.ofmsize):
@@ -407,8 +412,9 @@ class LocalLayer(YAMLable):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
-            for ifm in xrange(1, nifm):
-                colinds += [x + ifm * self.ifmsize for x in fminds]
+            if pooling is False:
+                for ifm in xrange(1, nifm):
+                    colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
                 # Slide the filter to the right by the stride value.
@@ -975,7 +981,7 @@ class MaxPoolingLayer(LocalLayer):
                  stride):
         super(MaxPoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
-            fshape, stride)
+            fshape, stride, pooling=True)
         self.maxinds = backend.alloc(batch_size * nifm, self.ofmsize,
                                      dtype='i32')
         self.nout = self.nifm * self.ofmsize
@@ -996,18 +1002,17 @@ class MaxPoolingLayer(LocalLayer):
                  self.backend.max(self.output)))
 
     def fprop(self, inputs):
-        self.inputs = inputs
         self.backend.fprop_mpool(
             inputs, self.output, self.links,
-            self.ifmshape, self.ofmshape, self.fshape, self.ofmlocs, 0,
+            self.ifmshape, self.ofmshape, self.fshape, 0,
             self.stride, self.nifm, self.maxinds)
 
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
             self.backend.bprop_mpool(
-                self.inputs, self.output,
+                inputs, self.output,
                 error, self.berror, self.links, self.ifmshape, self.ofmshape,
-                self.fshape, self.ofmlocs, 0, self.stride, self.nifm,
+                self.fshape, 0, self.stride, self.nifm,
                 self.maxinds)
 
 
@@ -1039,7 +1044,7 @@ class L2PoolingLayer(LocalLayer):
                  stride):
         super(L2PoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride)
+            ifmshape, fshape, stride, pooling=True)
         self.prodbuf = self.backend.zeros((batch_size * nifm,
                                            self.fshape[0] * self.fshape[1]))
         self.nout = self.nifm * self.ofmsize
@@ -1060,7 +1065,7 @@ class L2PoolingLayer(LocalLayer):
     def bprop(self, error, inputs, epoch, momentum):
         if self.pos > 0:
             self.backend.bprop_l2pool(
-                self.output, error, self.berror, self.links,
+                inputs, self.output, error, self.berror, self.links,
                 self.ifmshape, self.ofmshape, self.fshape,
                 0, self.stride, self.nifm, self.prodbuf)
 
@@ -1099,7 +1104,7 @@ class AveragePoolingLayer(LocalLayer):
                  stride):
         super(AveragePoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride)
+            ifmshape, fshape, stride, pooling=True)
         self.nout = nifm * self.ofmsize
         self.output = self.backend.alloc(self.batch_size, self.nout)
 

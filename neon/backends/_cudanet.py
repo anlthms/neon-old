@@ -856,14 +856,14 @@ class Cudanet(Backend):
 
     @staticmethod
     def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+                    fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool(
             inputs._tensor, outputs._tensor, nfm, fshape[1],
             padding, stride, ofmshape[1])
 
     @staticmethod
     def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+                    fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])

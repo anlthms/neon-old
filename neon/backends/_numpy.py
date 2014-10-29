@@ -666,22 +666,22 @@ class Numpy(Backend):
 
     @staticmethod
     def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+                    fshape, padding, stride, nfm, maxinds):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
-            rf = inputs.take(links[dst], axis=1)
-            srf = Numpy.squish(rf, nfm)
+            rf = rinputs.take(links[dst], axis=1)
             # Save the index of the maximum value within the receptive fields.
-            maxinds[:, dst] = srf.argmax(axis=1)
+            maxinds[:, dst] = rf.argmax(axis=1)
             # Set the pre-activations to the maximum value.
-            maxvals = srf[range(srf.shape[0]), maxinds[:, dst]]
-            outputs[:, ofmlocs[dst]] = (
-                maxvals.reshape((maxvals.shape[0] / nfm, nfm)))
+            maxvals = rf[range(rf.shape[0]), maxinds[:, dst]]
+            routputs[:, dst] = maxvals
 
     @staticmethod
     def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, ofmlocs, padding, stride, nfm, maxinds):
+                    fshape, padding, stride, nfm, maxinds):
         Numpy.fill(berror, 0.0)
         rberror = Numpy.squish(berror, nfm)
         rerror = Numpy.squish(error, nfm)
@@ -696,18 +696,18 @@ class Numpy(Backend):
         rinputs = Numpy.squish(inputs, nfm)
         routputs = Numpy.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rf = inputs.take(links[dst], axis=1)
+            rf = rinputs.take(links[dst], axis=1)
             routputs[:, dst] = rf.mean(axis=1)
 
     @staticmethod
     def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
-        Numpy.divide(error, fshape[0] * fshape[1], out=error)
-        rerror = Numpy.squish(error, nfm)
-        rberror = Numpy.squish(rberror, nfm)
         Numpy.fill(berror, 0.0)
+        error /= fshape[0] * fshape[1]
+        rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rberror[:, links[dst]] += (rerror.take(range(dst, dst + 1), axis=1))
+            rberror[:, links[dst]] += rerror[:, dst:(dst + 1)]
 
     @staticmethod
     def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
@@ -719,7 +719,7 @@ class Numpy(Backend):
             routputs[:, dst] = rf.norm(axis=1)
 
     @staticmethod
-    def bprop_l2pool(outputs, error, berror, links, ifmshape, ofmshape,
+    def bprop_l2pool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, prodbuf):
         rinputs = Numpy.squish(inputs, nfm)
         routputs = Numpy.squish(outputs, nfm)
@@ -727,7 +727,7 @@ class Numpy(Backend):
         rerror = Numpy.squish(error, nfm)
         Numpy.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            inds = linkd[dst]
+            inds = links[dst]
             rf = rinputs.take(inds, axis=1)
             denom = routputs[:, dst:(dst + 1)].copy()
             # If the L2 norm is zero, the entire receptive field must be
