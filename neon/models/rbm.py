@@ -47,7 +47,7 @@ class RBM(Model):
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
                 self.positive(inputs.get_minor_slice(start_idx, end_idx))
                 self.negative(inputs.get_minor_slice(start_idx, end_idx))
-                self.update(self.learning_rate, epoch, self.momentum)
+                self.update(epoch)
                 x_minus = self.layers[0].x_minus
                 nrows = x_minus.shape[x_minus.minor_axis()] - 1
                 error += self.cost.apply_function(
@@ -67,6 +67,6 @@ class RBM(Model):
         self.layers[0].negative(inputs)
         return None
 
-    def update(self, epsilon, epoch, momentum):
+    def update(self, epoch):
         """Wrapper for RBMLayer.update"""
-        self.layers[0].update(epsilon, epoch, momentum)
+        self.layers[0].update(epoch)
