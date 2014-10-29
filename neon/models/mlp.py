@@ -106,7 +106,7 @@ class MLP(Model):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch, momentum, ada):
+    def bprop(self, targets, inputs, epoch, momentum, ada=None):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
         error = self.cost.apply_derivative(self.backend,
