@@ -180,16 +180,6 @@ class Layer(YAMLable):
             self.backend.square(velocity, self.buffers['3'])
             self.Edx2t = rho * self.Edx2t + (1-rho) * self.buffers['3']
             # these plots are useful for debugging, leaving them for now...
-            if 0:
-              plt.subplot(2, 1, self.pos+1)
-              plt.imshow(mu.raw(), interpolation='nearest', vmin=0, vmax=0.1)
-              plt.show()
-              plt.draw()
-            if 0:
-              plt.subplot(1, 2, self.pos+1)
-              plt.hist(np.log10(mu.raw().flatten()), 100)
-              plt.show()
-              plt.draw()
         elif ada_params['type'] == 'rmsprop':
             raise NotImplementedError("RMS prop not yet implemented")
         else:
