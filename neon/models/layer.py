@@ -109,7 +109,6 @@ class Layer(YAMLable):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-<<<<<<< HEAD
     def bprop(self, error, inputs, epoch):
         """
         # numpy pseudocode for the backprop:
@@ -124,6 +123,7 @@ class Layer(YAMLable):
 
         inputs = self.backend.append_bias(inputs)
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 class LayerWithNoBias(Layer):
