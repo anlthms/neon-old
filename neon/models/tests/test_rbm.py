@@ -10,7 +10,7 @@ Tests for restricted boltzmann machine (RBM)
 """
 from nose.plugins.attrib import attr
 import numpy as np
-
+from neon.models.learning_rule import GradientDescent
 from neon.models.layer import RBMLayer
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
@@ -37,9 +37,12 @@ class TestCudaRBM:
         nin = 2
         conf = {'name': 'testlayer', 'num_nodes': 2,
                 'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
+        lr_params = {'learning_rate': 0.01, 'backend': myBackend}
+        thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01,
-                              nin + 1, nout=conf['num_nodes'] + 1,
+        self.layer = RBMLayer(conf['name'], backend=myBackend, batch_size=100, pos=0, 
+                              learning_rule=thislr,
+                              nin=nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
                               weight_init=conf['weight_init'])
 
