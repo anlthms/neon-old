@@ -112,7 +112,7 @@ class MLP(Model):
         error = self.cost.apply_derivative(self.backend,
                                            lastlayer.output, targets,
                                            self.temp)
-        self.backend.divide(error, self.backend.wrap(targets.major_axis()),
+        self.backend.divide(error, self.backend.wrap(targets.shape[targets.major_axis()]),
                             out=error)
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch)
