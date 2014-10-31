@@ -32,7 +32,7 @@ develop: build .git/hooks/pre-commit
 	-python setup.py develop
 
 install: build
-	pip install --upgrade .
+	pip install --upgrade --download-cache .pkgs --requirement requirements.txt .
 
 uninstall:
 	pip uninstall -y neon
@@ -63,7 +63,7 @@ doc: build
 html: doc
 
 style:
-	-flake8 .
+	-flake8 --exclude=.tox,build,dist,src .
 
 .git/hooks/pre-commit:
 	-flake8 --install-hook

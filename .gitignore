@@ -4,6 +4,7 @@
 .DS_Store
 .tox
 neon.egg-info
+src
 build
 neon/version.py
 MANIFEST
