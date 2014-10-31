@@ -40,8 +40,8 @@ class TestCudaRBM:
         lr_params = {'learning_rate': 0.01, 'backend': myBackend}
         thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], backend=myBackend, batch_size=100, pos=0, 
-                              learning_rule=thislr,
+        self.layer = RBMLayer(conf['name'], backend=myBackend, batch_size=100,
+                              pos=0, learning_rule=thislr,
                               nin=nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
                               weight_init=conf['weight_init'])

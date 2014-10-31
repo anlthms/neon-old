@@ -44,9 +44,9 @@ class Layer(YAMLable):
                                                    transform.
     """
 
-    def __init__(self, name, backend, batch_size, pos, nin, nout, 
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
-                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None, 
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
@@ -125,18 +125,19 @@ class Layer(YAMLable):
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
+
 class LayerWithNoBias(Layer):
 
     """
     Single NNet layer with no bias node
     """
 
-    def __init__(self, name, backend, batch_size, pos, nin, nout, 
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
-                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None, 
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-                                              pos, nin, nout, activation, 
+                                              pos, nin, nout, activation,
                                               weight_init, learning_rule)
         if pos > 0:
             self.berror = backend.alloc(batch_size, nin)
@@ -154,6 +155,7 @@ class LayerWithNoBias(Layer):
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
 
 class LayerWithNoBiasDist(LayerWithNoBias):
 
@@ -233,6 +235,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             self.backend.dot(self.delta.T(), inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
 
 class LayerWithNoActivation(LayerWithNoBias):
 
@@ -569,6 +572,7 @@ class ConvLayer(LocalLayer):
                                  1, self.fwidth, self.updatebuf)
         self.learning_rule.apply_rule(self.weights, self.updatebuf, epoch)
 
+
 class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     """
@@ -635,6 +639,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
 
         # Update the filters after summing the weight updates.
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
 
 class LocalFilteringLayer(LocalLayer):
 
