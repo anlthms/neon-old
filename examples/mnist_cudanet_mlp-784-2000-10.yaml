@@ -17,7 +17,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
+      serialized_path: '/usr/local/data/MNIST/mnist-Cudanet.pkl',
     },
   ],
   

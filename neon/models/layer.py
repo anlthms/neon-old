@@ -500,7 +500,7 @@ class LocalLayerDist(LocalLayer):
 
     def adjust_for_dist(self, ifmshape):
         """
-        ifmshape, rofmlocs etc. need to be updated
+        ifmshape, ofmlocs etc. need to be updated
         after halos have been defined
         """
         self.ifmheight, self.ifmwidth = ifmshape
@@ -525,16 +525,20 @@ class LocalLayerDist(LocalLayer):
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                              self.ofmsize))
 
-        ofmlocs = self.backend.zeros((self.ofmsize, self.nofm), dtype='i32')
+        self.ofmlocs = self.backend.zeros((self.ofmsize, self.nofm),
+                                          dtype='i32')
         for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = ofmstarts + dst
+            self.ofmlocs[dst, :] = ofmstarts + dst
         # stores the flattened px location across
         # ofm in columns
-        self.rofmlocs = ofmlocs.raw()
 
         # Figure out the connections with the previous layer.
-        self.links = self.backend.zeros(
-            (self.ofmsize, self.fsize), dtype='i32')
+        if self.pooling is True:
+            self.links = self.backend.zeros(
+                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
+        else:
+            self.links = self.backend.zeros(
+                (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in xrange(self.ofmsize):
@@ -545,8 +549,9 @@ class LocalLayerDist(LocalLayer):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
-            for ifm in xrange(1, self.nifm):
-                colinds += [x + ifm * self.ifmsize for x in fminds]
+            if self.pooling is False:
+                for ifm in xrange(1, self.nifm):
+                    colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + self.stride) <= (
                     self.ifmwidth):
@@ -560,12 +565,16 @@ class LocalLayerDist(LocalLayer):
             self.links[dst, :] = self.backend.array(colinds)
         self.rlinks = self.links.raw()
 
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.zeros((self.batch_size, self.nout))
+
     def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 nofm, ifmshape, fshape, stride):
+                 nofm, ifmshape, fshape, stride, pooling=False):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
+        self.fshape = fshape
         self.fheight, self.fwidth = fshape
         self.batch_size = batch_size
         self.pos = pos
@@ -585,6 +594,7 @@ class LocalLayerDist(LocalLayer):
         self.nofm = nofm
         self.fsize = nifm * self.fheight * self.fwidth
         self.stride = stride
+        self.pooling = pooling
 
 
 class ConvLayer(LocalLayer):
@@ -671,7 +681,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
-                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
+                self.backend.dot(self.delta.take(self.ofmlocs[dst], axis=1),
                                  self.weights.T(), self.bpropbuf)
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,
@@ -684,7 +694,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
+            delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
 
             # size of delta_slice: mbs x nofm
             # size of inputs: mbs x fsize
@@ -794,10 +804,10 @@ class LocalFilteringLayer(LocalLayer):
             # inputs.take: mbs x (ifmsize*nifm) ->  mbs x (fmsize*nifm)
             # self.weights: (nout x (ifmsize*nifm)).T -> (fsize x nofm)
             self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights.take(self.rofmlocs[dst], axis=0).T(),
+                             self.weights.take(self.ofmlocs[dst], axis=0).T(),
                              out=self.prodbuf)
             # size: # mbs x nofm
-            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+            self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
     def bprop(self, error, inputs, epoch, momentum, ada=None):
         self.delta = error
@@ -809,8 +819,8 @@ class LocalFilteringLayer(LocalLayer):
                 # size-guide
                 # self.delta.take: # mbs x nofm
                 # self.weights.take: # (nofm x fsize )
-                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
-                                 self.weights.take(self.rofmlocs[dst], axis=0),
+                self.backend.dot(self.delta.take(self.ofmlocs[dst], axis=1),
+                                 self.weights.take(self.ofmlocs[dst], axis=0),
                                  self.bpropbuf)
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,
@@ -820,11 +830,11 @@ class LocalFilteringLayer(LocalLayer):
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
+            delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
             self.backend.dot(delta_slice.T(),
                              inputs.take(rflinks, axis=1),
                              out=self.updatebuf)
-            self.updates[self.rofmlocs[dst]] = self.updatebuf
+            self.updates[self.ofmlocs[dst]] = self.updatebuf
 
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
@@ -998,10 +1008,10 @@ class LocalDeFilteringLayer(object):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:
-            # inputs[:, self.prev.rofmlocs[dst]]: mbs x nout -> mbs x nofm
+            # inputs[:, self.prev.ofmlocs[dst]]: mbs x nout -> mbs x nofm
             # self.weights.take: nofm x ifmsize
-            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]],
-                             self.weights.take(self.prev.rofmlocs[dst],
+            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]],
+                             self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0),
                              out=self.prodbuf)
             self.output[:, rflinks] += self.prodbuf
@@ -1010,15 +1020,15 @@ class LocalDeFilteringLayer(object):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(error[:, rflinks],
-                             self.weights.take(self.prev.rofmlocs[dst],
+                             self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0).T(),
                              out=self.bpropbuf)
-            self.berror[:, self.prev.rofmlocs[dst]] = self.bpropbuf
+            self.berror[:, self.prev.ofmlocs[dst]] = self.bpropbuf
             delta_slice = error[:, rflinks]
-            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]].T(),
+            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]].T(),
                              delta_slice,
                              out=self.updatebuf)
-            self.updates[self.prev.rofmlocs[dst]] = self.updatebuf
+            self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
         self.backend.multiply(self.updates,
                               self.backend.wrap(self.learning_rate),
                               out=self.updates)
@@ -1070,17 +1080,27 @@ class MaxPoolingLayer(LocalLayer):
                 self.fshape, 0, self.stride, self.nifm, self.maxinds)
 
 
-class MaxPoolingLayerDist(MaxPoolingLayer):
+class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
 
     """
     Distributed Max pooling layer.
     """
 
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+                 stride):
+        super(MaxPoolingLayerDist, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
+            fshape, stride, pooling=True)
+        self.maxinds = backend.alloc(batch_size * nifm, self.ofmsize,
+                                     dtype='i32')
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
+
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape
         super(MaxPoolingLayerDist, self).adjust_for_dist(self.ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nifm, self.psize))
+            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
@@ -1124,19 +1144,29 @@ class L2PoolingLayer(LocalLayer):
                 0, self.stride, self.nifm, self.prodbuf)
 
 
-class L2PoolingLayerDist(L2PoolingLayer):
+class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
 
     """
     Distributed L2 pooling layer. Each receptive field is pooled to obtain its
     L2 norm as output.
     """
 
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+                 stride):
+        super(L2PoolingLayerDist, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride, pooling=True)
+        self.prodbuf = self.backend.zeros((batch_size * nifm,
+                                           self.fshape[0] * self.fshape[1]))
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
+
     def adjust_for_dist(self):
         # shape with halos
         ifmshape = self.input.local_array.ifmshape
-        super(L2PoolingLayer, self).adjust_for_dist(ifmshape)
+        super(L2PoolingLayerDist, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nifm, self.psize))
+            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
@@ -1203,7 +1233,7 @@ class Convolver(LocalLayer):
             rflinks = self.rlinks[dst]
             self.backend.dot(inputs.take(rflinks, axis=1),
                              self.weights.T(), out=self.prodbuf)
-            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+            self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
 
 class LCNLayer(YAMLable):
@@ -1350,7 +1380,7 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
                 self.backend.multiply(error[:, loc], filt, out=self.prodbuf)
                 self.exerror[:, rflinks] -= self.prodbuf
@@ -1368,8 +1398,8 @@ class LCNLayer(YAMLable):
 
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
-                # self.conv.rofmlocs is over 1 fm only
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                # self.conv.ofmlocs is over 1 fm only
+                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
@@ -1595,8 +1625,8 @@ class LCNLayerDist(LCNLayer):
 
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
-                # self.conv.rofmlocs is over 1 fm only
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                # self.conv.ofmlocs is over 1 fm only
+                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
