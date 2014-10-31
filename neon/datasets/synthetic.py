@@ -36,10 +36,11 @@ class UniformRandom(Dataset):
         onehot = np.zeros((len(labels), self.nout), dtype=np.float32)
         for col in range(self.nout):
             onehot[:, col] = (labels == col)
-        return (self.backend.wrap(data), self.backend.wrap(onehot))
+        return (data, onehot)
 
     def load(self):
         self.inputs['train'], self.targets['train'] = (
             self.load_data((self.ntrain, self.nin)))
         self.inputs['test'], self.targets['test'] = (
             self.load_data((self.ntrain, self.nin)))
+        self.format()

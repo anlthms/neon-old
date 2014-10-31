@@ -9,6 +9,7 @@ from neon.models.model import Model
 
 logger = logging.getLogger(__name__)
 
+
 class MLP(Model):
 
     """
@@ -112,7 +113,9 @@ class MLP(Model):
         error = self.cost.apply_derivative(self.backend,
                                            lastlayer.output, targets,
                                            self.temp)
-        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+        self.backend.divide(error,
+                            self.backend.wrap(targets.shape[
+                                              targets.major_axis()]),
                             out=error)
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum, ada)

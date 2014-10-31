@@ -99,9 +99,10 @@ class SPARSENET(Dataset):
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
                     indat = indat.reshape((256, 10240)).T[train_idcs]
-                    self.inputs['train'] = self.backend.array(indat)
+                    self.inputs['train'] = indat
                 else:
                     logger.error('problems loading: %s' % name)
+            self.format()
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?

@@ -665,31 +665,80 @@ class Numpy(Backend):
         Numpy.subtract(weights, updates, out=weights)
 
     @staticmethod
-    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape, fshape,
-                    padding, stride, nfm, maxinds):
-        # Reshape the input so that we have a separate row
-        # for each input feature map (this is to avoid a loop over
-        # each feature map).
-        inputs = Numpy.squish(inputs, nfm)
+    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, maxinds):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
-            rf = inputs.take(links[dst], axis=1)
+            rf = rinputs.take(links[dst], axis=1)
             # Save the index of the maximum value within the receptive fields.
             maxinds[:, dst] = rf.argmax(axis=1)
             # Set the pre-activations to the maximum value.
-            outputs[:, dst] = rf[range(rf.shape[0]), maxinds[:, dst]]
+            maxvals = rf[range(rf.shape[0]), maxinds[:, dst]]
+            routputs[:, dst] = maxvals
 
     @staticmethod
     def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, maxinds):
         Numpy.fill(berror, 0.0)
-        rberror = Numpy.squish(berror, nfm) 
+        rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[:, dst], axis=0)
-            rerror = Numpy.squish(error, nfm)
             rberror[range(rberror.shape[0]), inds] += rerror[:, dst]
+
+    @staticmethod
+    def fprop_apool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rf = rinputs.take(links[dst], axis=1)
+            routputs[:, dst] = rf.mean(axis=1)
+
+    @staticmethod
+    def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        Numpy.fill(berror, 0.0)
+        error /= fshape[0] * fshape[1]
+        rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rberror[:, links[dst]] += rerror[:, dst:(dst + 1)]
+
+    @staticmethod
+    def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            rf = rinputs.take(links[dst], axis=1)
+            routputs[:, dst] = rf.norm(axis=1)
+
+    @staticmethod
+    def bprop_l2pool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm, prodbuf):
+        rinputs = Numpy.squish(inputs, nfm)
+        routputs = Numpy.squish(outputs, nfm)
+        rberror = Numpy.squish(berror, nfm)
+        rerror = Numpy.squish(error, nfm)
+        Numpy.fill(berror, 0.0)
+        for dst in xrange(ofmshape[0] * ofmshape[1]):
+            inds = links[dst]
+            rf = rinputs.take(inds, axis=1)
+            denom = routputs[:, dst:(dst + 1)].copy()
+            # If the L2 norm is zero, the entire receptive field must be
+            # zeros. In that case, we set the L2 norm to 1 before using
+            # it to normalize the receptive field.
+            denom[denom.raw() == 0] = 1
+            Numpy.divide(rf, denom, out=rf)
+            Numpy.multiply(
+                rerror[:, dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=1),
+                rf, out=prodbuf)
+            rberror[:, inds] += prodbuf
 
     @staticmethod
     def fprop_fc_dot(inputs, weights, out):
@@ -704,8 +753,8 @@ class Numpy(Backend):
         np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
 
     @staticmethod
-    def prep(raw):
-        return raw
+    def format(raw):
+        return Numpy.array(raw)
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None

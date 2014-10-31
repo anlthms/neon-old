@@ -63,7 +63,7 @@ doc: build
 html: doc
 
 style:
-	-flake8 .
+	-flake8 --exclude=.tox,build,dist,src .
 
 .git/hooks/pre-commit:
 	-flake8 --install-hook

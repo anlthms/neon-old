@@ -107,11 +107,11 @@ class GradientChecker(Experiment):
         targets = self.datasets[0].get_targets(train=True)['train']
 
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, 0.0)
+        self.model.bprop(targets, inputs, 0, self.model.momentum)
 
         self.save_state()
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, 0.0)
+        self.model.bprop(targets, inputs, 0, self.model.momentum)
         self.load_state()
 
         for ind in self.trainable_layers[::-1]:
