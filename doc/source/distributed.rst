@@ -14,7 +14,7 @@ Available Models
 Existing Models and Datasets can be tweaked by changing the \*_distarray_\*.yaml examples. Currently, we are using the halo/tower approach for distributing the convnet and the sparse autoencoder. For distributing a new Model, Layer or Dataset follow the recipe below:
 
 Distributing a new Model
---------------------
+------------------------
 
 1. Implement the Distributed Model as a derived class of the corresponding non-distributed Model class.
 2. To build a Distributed Model where layers have halo terms, associate with the layers a .input object of type GlobalArray that is used for halo transfers during fprop and bprop and is used to create the fprop and bprop views. See adjust_for_dist() functions in ConvnetDist and GBDist models for examples of .input object creation. <model>.adjust_for_dist() functions should also call layer.adjust_for_dist() that adjust the layer.ifmshape and related matrix sizes (e.g. weight matrix). 
@@ -22,7 +22,7 @@ Distributing a new Model
 4. Follow steps below for distributing associated Layer and Dataset classes.
 
 Distributing a new Layer
---------------------
+------------------------
 
 1. Implement the Distributed Layer as a derived class of the non-distributed Layer class.
 2. At a high-level user has to decide whether fprop and bprop for the current layer expect halo transfers before hand or not. This can depend on what type of layer it is (is it convolutional or not)? If the input is not already halo consistent before hand, then get_fprop_view() is called within the fprop function of the Layer. If the input is halo consistent, then there is no need for calling get_fprop_view() within fprop. For example, in L2PoolingLayerDist:
@@ -52,7 +52,7 @@ Distributing a new Layer
 
 
 Distributing a new Dataset
-----------------------
+--------------------------
 
 * Changes in YAML file for distributing a new dataset X, assuming distributed Layers and Models have been generated for another dataset Y (and optionally dataset X has been trained before with non-distributed Layers and Models). See examples/mnist_distarray_*.yaml or examples/cifar10_distarray_*.yaml for details.
 
