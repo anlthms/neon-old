@@ -1300,7 +1300,7 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
                 self.backend.multiply(error[:, loc], filt, out=self.prodbuf)
                 self.exerror[:, rflinks] -= self.prodbuf
@@ -1319,7 +1319,7 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
@@ -1546,7 +1546,7 @@ class LCNLayerDist(LCNLayer):
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst] + self.conv.ofmsize * fm
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
