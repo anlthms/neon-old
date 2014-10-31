@@ -22,7 +22,7 @@ else:
 class ConvnetDist(MLP):
 
     """
-    Fully connected, feed-forward, multi-layer perceptron model
+    Halo/tower distributed convolutional network
     """
 
     def adjust_for_dist(self):

@@ -49,6 +49,7 @@ class MNIST(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
+        self.dist_mode = 0  # halo/tower method
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
