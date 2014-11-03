@@ -84,7 +84,7 @@ class MLPDist(MLP):
                 self.fprop(inputs[start_idx:end_idx])
                 self.bprop(targets[start_idx:end_idx],
                            inputs[start_idx:end_idx],
-                           epoch, self.momentum)
+                           epoch)
                 if MPI.COMM_WORLD.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
@@ -152,7 +152,7 @@ class MLPDist(MLP):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch, momentum):
+    def bprop(self, targets, inputs, epoch):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
@@ -170,9 +170,9 @@ class MLPDist(MLP):
         if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
             lastlayer.bprop(error, self.layers[
                             i - 1].output.take(lastlayer.out_indices, axis=1),
-                            epoch, momentum)
+                            epoch)
         else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
         i -= 1
         while i > 0 and isinstance(self.layers[i], LayerWithNoBiasDist):
             # extract self.layers[i].pre_act terms
@@ -182,11 +182,11 @@ class MLPDist(MLP):
                 self.layers[i].bprop(self.layers[i + 1].berror,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].out_indices, axis=1),
-                                     epoch, momentum)
+                                     epoch)
             else:
                 self.layers[i].bprop(self.layers[i + 1].berror,
                                      self.layers[i - 1].output,
-                                     epoch, momentum)
+                                     epoch)
             i -= 1
 
         # first FC layer
@@ -194,4 +194,4 @@ class MLPDist(MLP):
             self.layers[i + 1].out_indices, axis=1)
         self.layers[i].bprop(self.layers[i + 1].berror,
                              inputs,
-                             epoch, momentum)
+                             epoch)
