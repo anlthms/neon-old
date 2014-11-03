@@ -3,7 +3,8 @@ ACADEMIC USE LICENSE AGREEMENT
 This Software, as defined below, is owned by Nervana Systems, Inc. (“Nervana”),
 a Delaware Corporation.
 
-By using this Software, you “Licensee” agree to be bound by the terms of this
+By using this Software, the National Energy Research Scientific Computing
+Center (NERSC), the “Licensee”, agrees to be bound by the terms of this
 ACADEMIC RESEARCH LICENSE AGREEMENT (“Agreement”). If Licensee does not wish to
 be bound by the terms of this Agreement, Licensee shall not use this Software
 in any manner whatsoever.
@@ -34,7 +35,8 @@ downloading or copying, in any form, for any purpose.
 4.  Intellectual Property
 4.1.  Nervana owns all right, title and interest, including all patents,
 copyrights and other intellectual property rights, in and to the Software,
-including any and all updates, modifications and derivative works.
+including any and all of Nervana's updates, modifications and derivative works
+of the Software.
 
 5.  Termination
 5.1.  Nervana may terminate this Agreement, at any time, effective upon
@@ -54,17 +56,19 @@ and safeguard the Software against unauthorized disclosure.
 (i) which is, or becomes generally available to the public, (ii) which was
 properly known by Licensee, without obligations of confidentiality, prior to
 disclosure by Nervana, (iii) which has been made available by Nervana to others
-without obligation of confidentiality or (iv) which is required to be disclosed
-by law or court order, provided, however, Licensee shall provide to Nervana
-prior notice of the intended disclosure and an opportunity to respond or object
-to such disclosure.
+without obligation of confidentiality, (iv) that either party develops
+independent of the other party's confidential information, or (v) which is
+required to be disclosed by law or court order, provided, however, Licensee shall
+provide to Nervana prior notice of the intended disclosure and an opportunity to
+respond or object to such disclosure.
 
 7.  Academic Publications and Presentations
-7.1.  Prior to the publication or public presentation of any information
-relating to the Software, Licensee shall present such material, in writing, to
-Nervana for review and approval, such approval not to be unreasonably withheld.
-Any such approval request shall be given at least fourteen (14) days prior to
-publication or presentation.
+7.1.  Copies of any proposed scientific articles, papers and abstracts of any
+information directly relating to the Software will be provided to Nervana fourteen
+(14) days prior to submission for Nervana's review, comment, and identification of
+any of Nervana's confidential information which was inadvertently included and
+which Nervana wishes to have deleted.  Licensee agrees to remove such Nervana’s
+confidential information prior to publication.
 7.2.  Licensee agrees to acknowledge Nervana in any publications or
 presentations resulting from use of the Software. Nervana shall be acknowledged
 as “Nervana Systems, Inc.” In the event, and to the extent, Nervana adopts a
