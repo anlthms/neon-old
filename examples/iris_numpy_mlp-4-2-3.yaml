@@ -39,7 +39,20 @@
         backend: *be,
         batch_size: 30,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant,
+              initial_coef: 0,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0,
+            },
+          },
+        },
         nin: 5, # input layer + 1 for the bias
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
@@ -54,7 +67,14 @@
         backend: *be,
         batch_size: 30,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
         nin: 3, # previous nout + 1 for the bias
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},

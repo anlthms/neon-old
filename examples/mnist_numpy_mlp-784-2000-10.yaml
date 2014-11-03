@@ -17,7 +17,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
+#      serialized_path: '/usr/local/data/MNIST/mnist_Numpy.pkl',
     },
   ],
   
@@ -42,7 +42,20 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
         nin: 785, # input layer + 1 for the bias
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -57,7 +70,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
         nin: 2001, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},

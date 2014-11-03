@@ -649,7 +649,7 @@ class Numpy(Backend):
 
     @staticmethod
     def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
-                    ofmlocs, padding, stride, nifm, ngroups, fwidth, scale,
+                    ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
         Numpy.fill(updates, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
@@ -660,9 +660,6 @@ class Numpy(Backend):
             Numpy.dot(inputs.take(rflinks, axis=1).T(), eslice,
                       out=updatebuf)
             updates.add(updatebuf)
-        # Update the filters after summing the weight updates.
-        Numpy.multiply(updates, Numpy.wrap(scale), out=updates)
-        Numpy.subtract(weights, updates, out=weights)
 
     @staticmethod
     def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,

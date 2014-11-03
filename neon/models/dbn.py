@@ -69,7 +69,7 @@ class DBN(Model):
                     batch_in = inputs[start_idx:end_idx]
                     self.positive(batch_in, i)
                     self.negative(batch_in, i)
-                    self.update(self.learning_rate, epoch, self.momentum, i)
+                    self.update(epoch, i)
                     batch_out = self.layers[i].x_minus[:,
                                                        0:(self.layers[i].
                                                           x_minus.shape[1] - 1)
@@ -92,6 +92,6 @@ class DBN(Model):
         self.layers[i].negative(inputs)
         return None
 
-    def update(self, epsilon, epoch, momentum, i):
+    def update(self, epsilon, epoch, i):
         """Wrapper for RBMLayer.update"""
-        self.layers[i].update(epsilon, epoch, momentum)
+        self.layers[i].update(epoch)
