@@ -24,22 +24,6 @@
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
-    learning_rate: &lr 0.1,
-    momentum: { # momentum is something that adds to the step
-      type: constant, # linear_monotone, constant, nesterov
-      initial_coef: 0,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0,
-    },
-    ada: { # ada is something that multiplies the step. 
-      enable: true,
-      type: adadelta, # adadelta, rmsprop
-      rho: 0.95,
-      eps: 0.0000001,
-      init_Edx2t: 0,
-      init_Eg2t: 0,
-    },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
@@ -48,7 +32,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: {
+            backend: *be,
+            rho: &rh 0.95,
+            epsilon: &ep 0.00001,
+          },
+        },
         nin: 785, # input layer + 1 for the bias
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -63,7 +54,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: {
+            backend: *be,
+            rho: *rh,
+            epsilon: *ep,
+          },
+        },
         nin: 101, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
