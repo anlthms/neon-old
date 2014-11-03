@@ -23,13 +23,6 @@
     num_epochs: 100,
     batch_size: &bs 100,
     learning_rate: &lr 0.01,
-    momentum: {
-      type: linear_monotone,
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.LayerWithNoBiasDist {
@@ -37,7 +30,20 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
         nin: 3072,
         nout: 200,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -52,7 +58,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
         nin: 200,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},

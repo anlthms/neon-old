@@ -846,13 +846,12 @@ class Cudanet(Backend):
 
     @staticmethod
     def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
-                    ofmlocs, padding, stride, nifm, ngroups, fwidth, scale,
+                    ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
         cudanet.deconvolve_wts(
             error._tensor, inputs._tensor, updates._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
-        weights -= scale * updates
 
     @staticmethod
     def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,

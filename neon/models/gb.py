@@ -44,8 +44,7 @@ class GB(MLP):
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
-                                                   epoch,
-                                                   self.momentum)
+                                                   epoch)
                     trcost += rcost
                     tspcost += spcost
                 tcost = trcost + tspcost
@@ -86,11 +85,11 @@ class GB(MLP):
                 if epoch < self.num_initial_epochs:
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
-                                    epoch, self.momentum)
+                                    epoch)
                 else:
                     self.bprop(targets[start_idx:end_idx],
                                inputs[start_idx:end_idx],
-                               epoch, self.momentum)
+                               epoch)
                 error += self.cost.apply_function(self.backend,
                                                   self.layers[-1].output,
                                                   targets[start_idx:end_idx],
@@ -155,14 +154,14 @@ class GB(MLP):
             sum += maxauc
         logger.info('average max auc %.4f' % (sum / targets.shape[1]))
 
-    def bprop_last(self, targets, inputs, epoch, momentum):
+    def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.
         error = self.cost.apply_derivative(self.backend,
                                            self.layers[-1].output, targets,
                                            self.temp)
         self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                             out=error)
-        self.layers[-1].bprop(error, self.layers[-2].output, epoch, momentum)
+        self.layers[-1].bprop(error, self.layers[-2].output, epoch)
 
     def fit(self, datasets):
         inputs = datasets[0].get_inputs(train=True)['train']

@@ -41,7 +41,7 @@ class Autoencoder(MLP):
                 self.fprop(inputs.get_minor_slice(start_idx, end_idx))
                 self.bprop(targets.get_minor_slice(start_idx, end_idx),
                            inputs.get_minor_slice(start_idx, end_idx),
-                           epoch, self.momentum)
+                           epoch)
                 error += self.cost.apply_function(
                     self.backend, self.layers[-1].output,
                     targets.get_minor_slice(start_idx, end_idx),
