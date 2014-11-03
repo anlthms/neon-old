@@ -8,9 +8,10 @@ from neon.util.testing import assert_tensor_near_equal
 
 def test_logistic_numpytensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
-    temp = Numpy.zeros((3, 1))
+    n = Numpy(rng_seed=0)
+    temp = n.zeros((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
-    logistic(Numpy, NumpyTensor(inputs), temp)
+    logistic(n, NumpyTensor(inputs), temp)
     assert_tensor_near_equal(NumpyTensor(outputs), temp)
 
 
@@ -27,10 +28,11 @@ def test_logistic_cudamattensor():
 
 def test_logistic_derivative_numpytensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
+    n = Numpy(rng_seed=0)
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     outputs = outputs * (1.0 - outputs)
-    temp = Numpy.zeros(inputs.shape)
-    logistic_derivative(Numpy, NumpyTensor(inputs), temp)
+    temp = n.zeros(inputs.shape)
+    logistic_derivative(n, NumpyTensor(inputs), temp)
     assert_tensor_near_equal(NumpyTensor(outputs), temp)
 
 

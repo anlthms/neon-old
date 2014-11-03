@@ -609,38 +609,31 @@ class Cudanet(Backend):
         # a known cudanet issue as described here:
         # https://github.com/cudanet/cudanet/issues/19
 
-    @staticmethod
-    def empty(shape, dtype=None):
+    def empty(self, shape, dtype=None):
         return CudanetTensor(cudanet.empty(shape))
 
-    @staticmethod
-    def zeros(shape, dtype=numpy.float32):
+    def zeros(self, shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
-    @staticmethod
-    def alloc(nrows, ncols, dtype=numpy.float32):
+    def alloc(self, nrows, ncols, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.zeros((ncols, nrows), dtype=dtype)))
 
-    @staticmethod
-    def ones(shape, dtype=numpy.float32):
+    def ones(self, shape, dtype=numpy.float32):
         return CudanetTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
-    @staticmethod
-    def array(obj, dtype=None):
+    def array(self, obj, dtype=None):
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return CudanetTensor(ndarray)
 
-    @staticmethod
-    def wrap(obj):
+    def wrap(self, obj):
         return CudanetTensor(obj)
 
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
+    def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = CudanetTensor(cudanet.empty((a.shape[0], a.shape[1])))
         # storage needed here is pretty atrocious.  Any way we could speed this
@@ -689,77 +682,61 @@ class Cudanet(Backend):
                                 0, x.shape[1]).reshape((1, x.shape[1])))
         return CudanetTensor(result)
 
-    @staticmethod
-    def copy(a):
+    def copy(self, a):
         assert type(a) == CudanetTensor
         return a.copy()
 
-    @staticmethod
-    def argmax(x, axis=None):
+    def argmax(self, x, axis=None):
         return CudanetTensor(x._tensor.argmax(axis))
 
-    @staticmethod
-    def dot(a, b, out):
+    def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def add(a, b, out):
+    def add(self, a, b, out):
         a._tensor.add(b._tensor, out._tensor)
 
-    @staticmethod
-    def subtract(a, b, out):
+    def subtract(self, a, b, out):
         if type(a._tensor) != cudanet.CUDAMatrix:
             b._tensor.subtract(a._tensor, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
             a._tensor.subtract(b._tensor, out._tensor)
 
-    @staticmethod
-    def multiply(a, b, out):
+    def multiply(self, a, b, out):
         a._tensor.mult(b._tensor, target=out._tensor)
 
-    @staticmethod
-    def divide(a, b, out):
+    def divide(self, a, b, out):
         a._tensor.divide(b._tensor, out._tensor)
 
-    @staticmethod
-    def reciprocal(a, out):
+    def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
 
-    @staticmethod
-    def greater(a, b, out):
+    def greater(self, a, b, out):
         a._tensor.greater_than(b._tensor, out._tensor)
 
-    @staticmethod
-    def exp(x, out):
+    def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
 
-    @staticmethod
-    def log(x, out):
+    def log(self, x, out):
         cudanet.log(x._tensor, out._tensor)
 
-    @staticmethod
-    def logistic(x, out):
+    def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
 
-    @staticmethod
-    def fill(x, val):
+    def fill(self, x, val):
         x._tensor[:] = val
 
-    @staticmethod
-    def sum(x):
+    def sum(self, x):
         if x is None:
             return float('NaN')
         return x.sum()
 
-    @staticmethod
-    def mean(x):
+    def mean(self, x):
         if x is None:
             return float('NaN')
         return x.mean()
 
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
+    def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -776,8 +753,7 @@ class Cudanet(Backend):
 
         return CudanetTensor(res)
 
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
+    def max(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -794,8 +770,7 @@ class Cudanet(Backend):
 
         return CudanetTensor(res)
 
-    @staticmethod
-    def fabs(x, out=None):
+    def fabs(self, x, out=None):
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
         else:
@@ -803,32 +778,27 @@ class Cudanet(Backend):
             res = cudanet.abs(x._tensor, cudanet.empty(x.shape))
         return CudanetTensor(res)
 
-    @staticmethod
-    def sqrt(x, out):
+    def sqrt(self, x, out):
         res = cudanet.sqrt(x._tensor, out._tensor)
         return CudanetTensor(res)
 
-    @staticmethod
-    def squish(obj, n):
+    def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
 
-    @staticmethod
-    def not_equal(x, y):
+    def not_equal(self, x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)
         return CudanetTensor(res)
 
-    @staticmethod
-    def nonzero(x):
+    def nonzero(self, x):
         res = x._tensor.copy()
         res.equals(0)
         res.equals(0)
         return CudanetTensor(res)
 
-    @staticmethod
-    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(
@@ -836,72 +806,60 @@ class Cudanet(Backend):
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
             ngroups)
 
-    @staticmethod
-    def bprop_conv(weights, error, berror, links,  ifmshape, ofmshape,
+    def bprop_conv(self, weights, error, berror, links,  ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         cudanet.deconvolve_errors(
             weights._tensor, error._tensor,
             berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
             padding, stride, nifm, ngroups)
 
-    @staticmethod
-    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
-                    ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
+                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
         cudanet.deconvolve_wts(
             error._tensor, inputs._tensor, updates._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
 
-    @staticmethod
-    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool(
             inputs._tensor, outputs._tensor, nfm, fshape[1],
             padding, stride, ofmshape[1])
 
-    @staticmethod
-    def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
+    def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
+                    ofmshape, fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    @staticmethod
-    def fprop_apool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    @staticmethod
-    def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
+    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    @staticmethod
-    def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    @staticmethod
-    def bprop_l2pool(outputs, error, berror, links, ifmshape, ofmshape,
+    def bprop_l2pool(self, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, prodbuf):
         raise NotImplementedError("TODO!")
 
-    @staticmethod
-    def fprop_fc_dot(inputs, weights, out):
+    def fprop_fc_dot(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    @staticmethod
-    def bprop_fc_dot(deltas, weights, out):
+    def bprop_fc_dot(self, deltas, weights, out):
         cudanet.dot(weights.T()._tensor, deltas._tensor, out._tensor)
 
-    @staticmethod
-    def update_fc_dot(deltas, inputs, out):
+    def update_fc_dot(self, deltas, inputs, out):
         cudanet.dot(deltas._tensor, inputs.T()._tensor, out._tensor)
 
-    @staticmethod
-    def format(raw):
-        return Cudanet.array(raw.T.copy())
+    def format(self, raw):
+        return self.array(raw.T.copy())
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.

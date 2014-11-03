@@ -601,19 +601,16 @@ class Cudamat(Backend):
         return CudamatTensor(cudamat.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
-    @staticmethod
-    def array(obj):
+    def array(self, obj):
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return CudamatTensor(ndarray)
 
-    @staticmethod
-    def wrap(obj):
+    def wrap(self, obj):
         return CudamatTensor(obj)
 
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
+    def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = CudamatTensor(cudamat.empty((a.shape[0], a.shape[1])))
         # storage needed here is pretty atrocious.  Any way we could speed this
@@ -661,73 +658,58 @@ class Cudamat(Backend):
                              cudamat.CUDAMatrix.ones.slice(0, x.shape[0]))
         return CudamatTensor(result)
 
-    @staticmethod
-    def copy(a):
+    def copy(self, a):
         assert type(a) == CudamatTensor
         return a.copy()
 
-    @staticmethod
-    def argmax(x, axis=None):
+    def argmax(self, x, axis=None):
         return CudamatTensor(x._tensor.argmax(axis))
 
-    @staticmethod
-    def dot(a, b, out):
+    def dot(self, a, b, out):
         cudamat.dot(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def add(a, b, out):
+    def add(self, a, b, out):
         a._tensor.add(b._tensor, out._tensor)
 
-    @staticmethod
-    def subtract(a, b, out):
+    def subtract(self, a, b, out):
         if type(a._tensor) != cudamat.CUDAMatrix:
             b._tensor.subtract(a._tensor, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
             a._tensor.subtract(b._tensor, out._tensor)
 
-    @staticmethod
-    def multiply(a, b, out):
+    def multiply(self, a, b, out):
         a._tensor.mult(b._tensor, target=out._tensor)
 
-    @staticmethod
-    def divide(a, b, out):
+    def divide(self, a, b, out):
         a._tensor.divide(b._tensor, out._tensor)
 
-    @staticmethod
-    def reciprocal(a, out):
+    def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
 
-    @staticmethod
-    def greater(a, b, out):
+    def greater(self, a, b, out):
         a._tensor.greater_than(b._tensor, out._tensor)
 
-    @staticmethod
-    def exp(x, out):
+    def exp(self, x, out):
         cudamat.exp(x._tensor, out._tensor)
 
-    @staticmethod
-    def log(x, out):
+    def log(self, x, out):
         cudamat.log(x._tensor, out._tensor)
 
-    @staticmethod
-    def logistic(x, out):
+    def logistic(self, x, out):
         cudamat.sigmoid(x._tensor, out._tensor)
 
-    @staticmethod
-    def sum(x):
+    def sum(self, x):
         if x is None:
             return float('NaN')
         return x.sum()
 
-    @staticmethod
-    def mean(x):
+    def mean(self, x):
         if x is None:
             return float('NaN')
         return x.mean()
 
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
+    def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -744,8 +726,7 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
+    def max(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         if axis is None and not keepdims:
@@ -762,26 +743,22 @@ class Cudamat(Backend):
 
         return CudamatTensor(res)
 
-    @staticmethod
-    def fabs(x, out=None):
+    def fabs(self, x, out=None):
         if out is not None:
             res = cudamat.abs(x._tensor, out._tensor)
         else:
             res = cudamat.abs(x._tensor)
         return CudamatTensor(res)
 
-    @staticmethod
-    def sqrt(x, out):
+    def sqrt(self, x, out):
         res = cudamat.sqrt(x._tensor, out._tensor)
         return CudamatTensor(res)
 
-    @staticmethod
-    def squish(obj, n):
+    def squish(self, obj, n):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    @staticmethod
-    def not_equal(x, y):
+    def not_equal(self, x, y):
         res = x._tensor.copy()
         res.equals(y._tensor)
         res.equals(0)

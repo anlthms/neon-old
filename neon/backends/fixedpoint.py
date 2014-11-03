@@ -35,8 +35,11 @@ class FixedPointTensor(NumpyTensor):
                                            type.  Set this to True to ignore
                                            the input type and force conversion
     """
+    default_dtype = fixpt_dtype(sign_bit=True, int_bits=4, frac_bits=11,
+                                overflow=0, rounding=0)
     def __init__(self, obj, dtype=None, force_rescale=False):
-        dtype = FixedPoint.default_dtype_if_missing(dtype)
+        if dtype is None:
+            dtype = self.default_dtype
         if ((not force_rescale) and type(obj) == np.ndarray and
             obj.dtype == elemtype):
             # already in the correct format, just assign to the _tensor
@@ -121,8 +124,7 @@ class FixedPoint(Numpy):
     tensor_cls = FixedPointTensor
     epsilon = 2**-10
 
-    @classmethod
-    def zeros(cls, shape, dtype=None):
+    def zeros(self, shape, dtype=None):
         """
         Instantiates a new FixedPointTensor object whose elements are all set
         to zero.
@@ -136,21 +138,18 @@ class FixedPoint(Numpy):
                                            specified in the default_dtype
                                            attribute.
         """
-        dtype = cls.default_dtype_if_missing(dtype)
+        dtype = self.default_dtype_if_missing(dtype)
         return FixedPointTensor(np.zeros(shape, dtype=elemfloat), dtype)
 
-    @classmethod
-    def array(cls, obj, dtype=None):
+    def array(self, obj, dtype=None):
         return FixedPointTensor(np.array(obj, dtype=elemfloat), dtype)
 
-    @classmethod
-    def wrap(cls, obj, dtype=None):
+    def wrap(self, obj, dtype=None):
         if dtype is None:
-            dtype = cls.suggest_dtype(obj)
+            dtype = self.suggest_dtype(obj)
         return FixedPointTensor(obj, dtype)
 
-    @classmethod
-    def suggest_dtype(cls, obj, max_word_bits=16):
+    def suggest_dtype(self, obj, max_word_bits=16):
         """
         Attempts to infer a reasonable dtype that balances handling the entire
         data input range without losing too much precision.
@@ -175,8 +174,7 @@ class FixedPoint(Numpy):
             frac_bits -= 1
         return fixpt_dtype(sign_bit, int_bits, frac_bits, overflow, rounding)
 
-    @staticmethod
-    def display(value, sign_bit=True, int_bits=5, frac_bits=10,
+    def display(self, value, sign_bit=True, int_bits=5, frac_bits=10,
                 overflow=0, rounding=0):
         """
         Helper to print a representation of the given value in various forms
@@ -247,8 +245,7 @@ class FixedPoint(Numpy):
         """
         return FixedPointTensor(np.random.uniform(low, high, size), dtype)
 
-    @staticmethod
-    def append_bias(x):
+    def append_bias(self, x):
         """
         Adds a bias column of ones to FixedPointTensor x,
         returning a new FixedPointTensor.
@@ -258,14 +255,12 @@ class FixedPoint(Numpy):
         return FixedPointTensor(np.concatenate((float_x, bias), axis=1),
                                 x.dtype)
 
-    @classmethod
-    def argmax(cls, x, axis=None):
+    def argmax(self, x, axis=None):
         # since np.argmax may return elements of our internal elemtype, we need
         # to force rescaling it
-        return cls.tensor_cls(np.argmax(x._tensor, axis), force_rescale=True)
+        return self.tensor_cls(np.argmax(x._tensor, axis), force_rescale=True)
 
-    @staticmethod
-    def dot(a, b, out):
+    def dot(self, a, b, out):
         if not a._tensor.flags['C_CONTIGUOUS']:
                 a._tensor = np.ascontiguousarray(a._tensor)
         if not b._tensor.flags['F_CONTIGUOUS']:
@@ -275,8 +270,7 @@ class FixedPoint(Numpy):
         naive_dot(a._tensor, b._tensor, out._tensor, a.dtype, b.dtype,
                   out.dtype)
 
-    @classmethod
-    def scale_to_largest(cls, a, b):
+    def scale_to_largest(self, a, b):
         """
         Helper that ensures operands are on the same scale by (potentially)
         copying and upcasting one of the operands.
@@ -311,20 +305,17 @@ class FixedPoint(Numpy):
             out_dtype = b.dtype
         return (out_dtype, out_a, out_b)
 
-    @classmethod
-    def add(cls, a, b, out):
-        in_dtype, a_tensor, b_tensor = cls.scale_to_largest(a, b)
+    def add(self, a, b, out):
+        in_dtype, a_tensor, b_tensor = self.scale_to_largest(a, b)
         np.add(a_tensor, b_tensor, out._tensor)
         fp_rescale_array(out._tensor, in_dtype, out.dtype)
 
-    @classmethod
-    def subtract(cls, a, b, out):
-        in_dtype, a_tensor, b_tensor = cls.scale_to_largest(a, b)
+    def subtract(self, a, b, out):
+        in_dtype, a_tensor, b_tensor = self.scale_to_largest(a, b)
         np.subtract(a_tensor, b_tensor, out._tensor)
         fp_rescale_array(out._tensor, in_dtype, out.dtype)
 
-    @classmethod
-    def multiply(cls, a, b, out):
+    def multiply(self, a, b, out):
         # for multiplication we don't need matching scales to start
         np.multiply(a._tensor, b._tensor, out._tensor)
         tmp_dtype = fixpt_dtype(a.dtype['sign_bit'],
@@ -333,8 +324,7 @@ class FixedPoint(Numpy):
                                 a.dtype['overflow'], a.dtype['rounding'])
         fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
 
-    @classmethod
-    def divide(cls, a, b, out):
+    def divide(self, a, b, out):
         # for division, shift the numerator to required scale first
         # then do integer division.
         # required scale assuming out has f frac bits, a has m frac bits, and
@@ -346,20 +336,17 @@ class FixedPoint(Numpy):
         fp_rescale_array(a_tensor, a.dtype, tmp_dt)
         np.divide(a_tensor, b._tensor, out._tensor)
 
-    @classmethod
-    def reciprocal(cls, a, out):
-        cls.divide(cls.wrap(1.0, out.dtype), a, out)
+    def reciprocal(self, a, out):
+        self.divide(self.wrap(1.0, out.dtype), a, out)
 
-    @classmethod
-    def greater(cls, a, b, out):
+    def greater(self, a, b, out):
         np.greater(a._tensor, b._tensor, out._tensor)
         # greater result stored as int64 with 0 or 1 values.  Just need to
         # shift accordingly
         tmp_dtype = fixpt_dtype(True, 5, 0, 0, 0)
         fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
 
-    @classmethod
-    def log(cls, x, out):
+    def log(self, x, out):
         # for the moment we punt on a fixed point exponent, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
@@ -367,8 +354,7 @@ class FixedPoint(Numpy):
         np.log(tmp, tmp)
         out._tensor = fixed_from_float_array(tmp, out.dtype)
 
-    @classmethod
-    def exp(cls, x, out):
+    def exp(self, x, out):
         # for the moment we punt on a fixed point exponent, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
@@ -376,8 +362,7 @@ class FixedPoint(Numpy):
         np.exp(tmp, tmp)
         out._tensor = fixed_from_float_array(tmp, out.dtype)
 
-    @classmethod
-    def logistic(cls, x, out):
+    def logistic(self, x, out):
         # for the moment we punt on a fixed point exponent, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
@@ -386,8 +371,7 @@ class FixedPoint(Numpy):
         Numpy.logistic(tmp, tmp)
         out._tensor = fixed_from_float_array(tmp._tensor, out.dtype)
 
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
+    def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = FixedPointTensor(np.empty_like(a._tensor), a.dtype)
         np.clip(a._tensor, fixed_from_float(a_min, a.dtype),
@@ -395,8 +379,7 @@ class FixedPoint(Numpy):
         fp_rescale_array(out._tensor, a.dtype, out.dtype)
         return out
 
-    @staticmethod
-    def mean(x, axis=None, dtype=np.float32, out=None, keepdims=False):
+    def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(fixed_to_float_array(x._tensor, x.dtype), axis, dtype,
@@ -406,8 +389,7 @@ class FixedPoint(Numpy):
         else:
             return FixedPointTensor(res, x.dtype)
 
-    @staticmethod
-    def min(x, axis=None, out=None, keepdims=False):
+    def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.min(fixed_to_float_array(x._tensor, x.dtype), axis, out,
@@ -417,8 +399,7 @@ class FixedPoint(Numpy):
         else:
             return FixedPointTensor(res, x.dtype)
 
-    @staticmethod
-    def max(x, axis=None, out=None, keepdims=False):
+    def max(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.max(fixed_to_float_array(x._tensor, x.dtype), axis, out,
@@ -428,8 +409,7 @@ class FixedPoint(Numpy):
         else:
             return FixedPointTensor(res, x.dtype)
 
-    @staticmethod
-    def fabs(x, out=None):
+    def fabs(self, x, out=None):
         if out is not None:
             res = np.fabs(x._tensor, out._tensor)
         else:

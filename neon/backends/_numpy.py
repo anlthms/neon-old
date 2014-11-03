@@ -395,46 +395,38 @@ class Numpy(Backend):
         self.err_init()
         self.rng_init()
 
-    @classmethod
-    def default_dtype_if_missing(cls, in_dtype):
+    def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
-            in_dtype = cls.default_dtype
+            in_dtype = self.default_dtype
         return in_dtype
 
-    @classmethod
-    def empty(cls, shape, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(np.empty(shape, dtype), dtype)
+    def empty(self, shape, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.empty(shape, dtype), dtype)
 
-    @classmethod
-    def zeros(cls, shape, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(np.zeros(shape, dtype), dtype)
+    def zeros(self, shape, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.zeros(shape, dtype), dtype)
 
-    @classmethod
-    def alloc(cls, nrows, ncols, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
+    def alloc(self, nrows, ncols, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
 
-    @classmethod
-    def ones(cls, shape, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(np.ones(shape, dtype), dtype)
+    def ones(self, shape, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.ones(shape, dtype), dtype)
 
-    @classmethod
-    def array(cls, obj, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(np.array(obj, dtype), dtype)
+    def array(self, obj, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.array(obj, dtype), dtype)
 
-    @classmethod
-    def wrap(cls, obj, dtype=None):
-        dtype = cls.default_dtype_if_missing(dtype)
-        return cls.tensor_cls(obj, dtype)
+    def wrap(self, obj, dtype=None):
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(obj, dtype)
 
-    @classmethod
-    def clip(cls, a, a_min, a_max, out=None):
+    def clip(self, a, a_min, a_max, out=None):
         if out is None:
-            out = cls._tensor_cls(np.empty_like(a._tensor))
+            out = self._tensor_cls(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
         return out
 
@@ -485,187 +477,154 @@ class Numpy(Backend):
         """
         return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
 
-    @classmethod
-    def append_bias(cls, x, dtype=np.float32):
+    def append_bias(self, x, dtype=np.float32):
         """
         Adds a bias column of ones to NumpyTensor x,
         returning a new NumpyTensor.
         """
-        return cls.tensor_cls(np.concatenate((x._tensor,
+        return self.tensor_cls(np.concatenate((x._tensor,
                                                np.ones((x.shape[0], 1),
                                                         dtype)),
                                               axis=1), dtype)
 
-    @classmethod
-    def copy(cls, a):
-        return cls.tensor_cls(np.copy(a))
+    def copy(self, a):
+        return self.tensor_cls(np.copy(a))
 
-    @classmethod
-    def argmax(cls, x, axis=None):
-        return cls.tensor_cls(np.argmax(x._tensor, axis))
+    def argmax(self, x, axis=None):
+        return self.tensor_cls(np.argmax(x._tensor, axis))
 
-    @staticmethod
-    def dot(a, b, out):
+    def dot(self, a, b, out):
         np.dot(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def add(a, b, out):
+    def add(self, a, b, out):
         np.add(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def subtract(a, b, out):
+    def subtract(self, a, b, out):
         np.subtract(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def multiply(a, b, out):
+    def multiply(self, a, b, out):
         np.multiply(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def divide(a, b, out):
+    def divide(self, a, b, out):
         np.divide(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def reciprocal(a, out):
+    def reciprocal(self, a, out):
         np.divide(1.0, a._tensor, out._tensor)
 
-    @staticmethod
-    def greater(a, b, out):
+    def greater(self, a, b, out):
         np.greater(a._tensor, b._tensor, out._tensor)
 
-    @staticmethod
-    def exp(x, out):
+    def exp(self, x, out):
         np.exp(x._tensor, out=out._tensor)
 
-    @staticmethod
-    def log(x, out):
+    def log(self, x, out):
         np.log(x._tensor, out=out._tensor)
 
-    @staticmethod
-    def logistic(x, out):
-        Numpy.multiply(x, Numpy.wrap(-1.0), out=out)
-        Numpy.exp(out, out=out)
-        Numpy.add(out, Numpy.wrap(1.0), out=out)
-        Numpy.reciprocal(out, out=out)
+    def logistic(self, x, out):
+        self.multiply(x, self.wrap(-1.0), out=out)
+        self.exp(out, out=out)
+        self.add(out, self.wrap(1.0), out=out)
+        self.reciprocal(out, out=out)
 
-    @staticmethod
-    def fill(x, val):
-        x._tensor[:] = val
-
-    @staticmethod
-    def clear(x):
+    def clear(self, x):
         x._tensor[:] = 0
 
-    @staticmethod
-    def fill(x, val):
+    def fill(self, x, val):
         x._tensor.fill(val)
 
-    @staticmethod
-    def sum(obj):
+    def sum(self, obj):
         return obj._tensor.sum()
 
-    @classmethod
-    def mean(cls, x, axis=None, dtype=np.float32, out=None, keepdims=False):
+    def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return cls.tensor_cls(res)
+            return self.tensor_cls(res)
 
-    @classmethod
-    def min(cls, x, axis=None, out=None, keepdims=False):
+    def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.min(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return cls.tensor_cls(res)
+            return self.tensor_cls(res)
 
-    @classmethod
-    def max(cls, x, axis=None, out=None, keepdims=False):
+    def max(self, x, axis=None, out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.max(x._tensor, axis, out, keepdims)
         if axis is None and not keepdims:
             return res
         else:
-            return cls.tensor_cls(res)
+            return self.tensor_cls(res)
 
-    @classmethod
-    def fabs(cls, x, out=None):
+    def fabs(self, x, out=None):
         if out is not None:
             res = np.fabs(x._tensor, out._tensor)
         else:
             res = np.fabs(x._tensor)
-        return cls.tensor_cls(res)
+        return self.tensor_cls(res)
 
-    @classmethod
-    def sqrt(cls, x, out):
+    def sqrt(self, x, out):
         res = np.sqrt(x._tensor, out._tensor)
-        return cls.tensor_cls(res)
+        return self.tensor_cls(res)
 
-    @staticmethod
-    def square(x, out):
+    def square(self, x, out):
         np.multiply(x._tensor, x._tensor, out._tensor)
 
-    @staticmethod
-    def cube(x, out):
+    def cube(self, x, out):
         np.multiply(x._tensor, x._tensor, out._tensor)
         np.multiply(out._tensor, x._tensor, out._tensor)
 
-    @staticmethod
-    def squish(obj, n):
-        """ reshape a tensor by increasing the first dimensions by factor n, and
-        shrinking the the second dimension by factor n."""
+    def squish(self, obj, n):
+        """ reshape a tensor by increasing the first dimensions by factor n,
+        and shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    @classmethod
-    def not_equal(cls, x, y):
-        return cls.tensor_cls(np.not_equal(x._tensor, y._tensor))
+    def not_equal(self, x, y):
+        return self.tensor_cls(np.not_equal(x._tensor, y._tensor))
 
-    @staticmethod
-    def fprop_conv(weights, inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
-            Numpy.dot(inputs.take(rflinks, axis=1), weights, out=prodbuf)
+            self.dot(inputs.take(rflinks, axis=1), weights, out=prodbuf)
             outputs[:, ofmlocs[dst]] = prodbuf
 
-    @staticmethod
-    def bprop_conv(weights, error, berror, links, ifmshape, ofmshape,
+    def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
-        Numpy.fill(berror, 0.0)
+        self.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            Numpy.dot(error.take(ofmlocs[dst], axis=1), weights.T(), bpropbuf)
+            self.dot(error.take(ofmlocs[dst], axis=1), weights.T(), bpropbuf)
             rflinks = links[dst]
-            Numpy.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
+            self.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
             berror[:, rflinks] = bpropbuf
 
-    @staticmethod
-    def update_conv(weights, inputs, error, updates, links, ifmshape, ofmshape,
-                    ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
+                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
-        Numpy.fill(updates, 0.0)
+        self.fill(updates, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = error.take(ofmlocs[dst], axis=1)
-            Numpy.dot(inputs.take(rflinks, axis=1).T(), eslice,
-                      out=updatebuf)
+            self.dot(inputs.take(rflinks, axis=1).T(), eslice,
+                     out=updatebuf)
             updates.add(updatebuf)
 
-    @staticmethod
-    def fprop_mpool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, maxinds):
-        rinputs = Numpy.squish(inputs, nfm)
-        routputs = Numpy.squish(outputs, nfm)
+        rinputs = self.squish(inputs, nfm)
+        routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
@@ -676,53 +635,48 @@ class Numpy(Backend):
             maxvals = rf[range(rf.shape[0]), maxinds[:, dst]]
             routputs[:, dst] = maxvals
 
-    @staticmethod
-    def bprop_mpool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
-        Numpy.fill(berror, 0.0)
-        rberror = Numpy.squish(berror, nfm)
-        rerror = Numpy.squish(error, nfm)
+    def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
+                    ofmshape, fshape, padding, stride, nfm, maxinds):
+        self.fill(berror, 0.0)
+        rberror = self.squish(berror, nfm)
+        rerror = self.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[:, dst], axis=0)
             rberror[range(rberror.shape[0]), inds] += rerror[:, dst]
 
-    @staticmethod
-    def fprop_apool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
-        rinputs = Numpy.squish(inputs, nfm)
-        routputs = Numpy.squish(outputs, nfm)
+        rinputs = self.squish(inputs, nfm)
+        routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=1)
             routputs[:, dst] = rf.mean(axis=1)
 
-    @staticmethod
-    def bprop_apool(outputs, error, berror, links, ifmshape, ofmshape,
+    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
-        Numpy.fill(berror, 0.0)
+        self.fill(berror, 0.0)
         error /= fshape[0] * fshape[1]
-        rberror = Numpy.squish(berror, nfm)
-        rerror = Numpy.squish(error, nfm)
+        rberror = self.squish(berror, nfm)
+        rerror = self.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rberror[:, links[dst]] += rerror[:, dst:(dst + 1)]
 
-    @staticmethod
-    def fprop_l2pool(inputs, outputs, links, ifmshape, ofmshape,
+    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
-        rinputs = Numpy.squish(inputs, nfm)
-        routputs = Numpy.squish(outputs, nfm)
+        rinputs = self.squish(inputs, nfm)
+        routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=1)
             routputs[:, dst] = rf.norm(axis=1)
 
-    @staticmethod
-    def bprop_l2pool(inputs, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, prodbuf):
-        rinputs = Numpy.squish(inputs, nfm)
-        routputs = Numpy.squish(outputs, nfm)
-        rberror = Numpy.squish(berror, nfm)
-        rerror = Numpy.squish(error, nfm)
-        Numpy.fill(berror, 0.0)
+    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
+                    ofmshape, fshape, padding, stride, nfm, prodbuf):
+        rinputs = self.squish(inputs, nfm)
+        routputs = self.squish(outputs, nfm)
+        rberror = self.squish(berror, nfm)
+        rerror = self.squish(error, nfm)
+        self.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=1)
@@ -731,27 +685,23 @@ class Numpy(Backend):
             # zeros. In that case, we set the L2 norm to 1 before using
             # it to normalize the receptive field.
             denom[denom.raw() == 0] = 1
-            Numpy.divide(rf, denom, out=rf)
-            Numpy.multiply(
+            self.divide(rf, denom, out=rf)
+            self.multiply(
                 rerror[:, dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=1),
                 rf, out=prodbuf)
             rberror[:, inds] += prodbuf
 
-    @staticmethod
-    def fprop_fc_dot(inputs, weights, out):
+    def fprop_fc_dot(self, inputs, weights, out):
         np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
 
-    @staticmethod
-    def bprop_fc_dot(deltas, weights, out):
+    def bprop_fc_dot(self, deltas, weights, out):
         np.dot(deltas._tensor, weights._tensor, out._tensor)
 
-    @staticmethod
-    def update_fc_dot(deltas, inputs, out):
+    def update_fc_dot(self, deltas, inputs, out):
         np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
 
-    @staticmethod
-    def format(raw):
-        return Numpy.array(raw)
+    def format(self, raw):
+        return self.array(raw)
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
@@ -858,14 +808,12 @@ class Numpy64(Numpy):
             dtype=np.float64
         return super(Numpy64, self).gen_weights(size, weight_params, dtype)
 
-    @staticmethod
-    def append_bias(x, dtype=np.float64):
+    def append_bias(self, x, dtype=np.float64):
         return Numpy64Tensor(np.concatenate((x._tensor,
                                             np.ones((x.shape[0], 1), dtype)),
                                             axis=1), dtype)
 
-    @staticmethod
-    def clip(a, a_min, a_max, out=None):
+    def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = Numpy64Tensor(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
