@@ -7,6 +7,9 @@ By using this Software, you “Licensee” agree to be bound by the terms of thi
 ACADEMIC RESEARCH LICENSE AGREEMENT (“Agreement”). If Licensee does not wish to
 be bound by the terms of this Agreement, Licensee shall not use this Software
 in any manner whatsoever.
+Provided, however, if you have entered into a separate license agreement with
+Nervana in relation to the Software, you may use the Software under the terms
+and conditions of such separate license agreement.
 
 1.  Definitions
 1.1.  “Software” means the (i) source code, (ii) documentation, (iii) object
@@ -15,7 +18,7 @@ updates or modifications which may be provided from time to time at Nervana’s
 discretion, of the software library in Python and C/C++ to design and run deep
 neural networks on different datasets with interchangeable backends for
 different hardware platforms, in floating point and fixed point numeric
-systems, identified internally by Nervana as “neon”.
+systems, identified by Nervana as “neon”.
 
 2.  License Grant
 2.1.  Nervana grants to Licensee a royalty-free, paid-up, nonexclusive,

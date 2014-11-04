@@ -1,83 +1,79 @@
-# MLP on CIFAR-10
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST. Network archetecture matches Arjun's Matlab variant. 
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  dist_flag: &df True,
-  backend: &be !obj:neon.backends._numpy.Numpy { 
+  backend: &be !obj:neon.backends._cudanet.Cudanet {
     rng_seed: 0,
+    seterr_handling: { 
+      all: 'warn',  # warn or raise
+    },
   },
-
+  
   datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 1, # FC split
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Numpy_{rank}.pkl',
+      sample_pct: 100,
+      serialized_path: '/usr/local/data/MNIST/mnist-Cudanet.pkl',
     },
   ],
-
+  
   # simple MLP model specification
-  model: !obj:neon.models.mlp_dist.MLPDist {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 100,
+    num_epochs: 10,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './mlp-cudanetsml-simple.pkl',
     layers: [
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: h0lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
+            rho: &rh 0.95,
+            epsilon: &ep 0.000001,
           },
         },
-        nin: 3072,
-        nout: 200,
+        nin: 785, # input layer + 1 for the bias
+        nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
+          type: normal,
+          loc: 0.0,
+          scale: 0.01,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
-            momentum_params: *mm,
+            rho: *rh,
+            epsilon: *ep,
           },
         },
-        nin: 200,
+        nin: 101, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
+          type: node_normalized,
+          scale: 4.0,
+          bias_init: 0.0,
         },
       },
     ],
   },
-
+  
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

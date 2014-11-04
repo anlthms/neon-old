@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class LearningRule(object):
     """
-    Base object for applying a learning rule on the parameters to be updated
+    Base object for applying learning rule on the parameters to be updated
 
     Attributes:
         name (str): Used to identify this LearningRule when logging.
@@ -43,7 +43,7 @@ class LearningRule(object):
 class GradientDescent(LearningRule):
     """
     Vanilla gradient descent based update rule that can optionally support use
-    of weight decay.
+    of weght decay.
     """
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescent, self).__init__(name, lr_params)
@@ -168,14 +168,21 @@ class GradientDescentMomentum(GradientDescent):
 # cleaner/faster
 class AdaDelta(LearningRule):
     """
-    Adadelta based learning rule updates.  See Zeiler2012 for instance.
+    Adadelta based learning rule updates.  See Zeiler2012 for isntance.
     """
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(AdaDelta, self).__init__(name, lr_params)
-        self.rho = rho
-        self.epsilon = epsilon
+        if 'rho' in lr_params:
+            self.rho = lr_params['rho']
+        else:
+            raise AttributeError("Missing required parameter rho")
+        if 'epsilon' in lr_params:
+            self.epsilon = lr_params['epsilon']
+        else:
+            raise AttributeError("Missing required parameter epsilon")
         self.exp_gradsq_dtype = param_dtype
         self.exp_deltsq_dtype = param_dtype
+        self.scratch_space_dtype = param_dtype
         self.lrates_dtype = param_dtype
         self.lrates_dtype = param_dtype
         self.exp_gradsq = None
@@ -184,6 +191,7 @@ class AdaDelta(LearningRule):
         self.scratch_space = None
 
     def allocate_state(self, params):
+
         if self.exp_gradsq is None:
             self.exp_gradsq = self.backend.zeros(params.shape,
                                                  self.exp_gradsq_dtype)
@@ -202,8 +210,8 @@ class AdaDelta(LearningRule):
                               out=self.exp_gradsq)
         self.backend.multiply(updates, updates,
                               out=self.scratch_space)
-        self.backend.multiply(self.scratch_space, self.backend.wrap(1.0 -
-                                                                    self.rho),
+        self.backend.multiply(self.scratch_space,
+                              self.backend.wrap(1.0 - self.rho),
                               out=self.scratch_space)
         self.backend.add(self.exp_gradsq, self.scratch_space,
                          out=self.exp_gradsq)
@@ -224,8 +232,8 @@ class AdaDelta(LearningRule):
                               out=self.exp_deltsq)
         self.backend.multiply(self.lrates, self.lrates,
                               out=self.scratch_space)
-        self.backend.multiply(self.scratch_space, self.backend.wrap(1.0 -
-                                                                    self.rho),
+        self.backend.multiply(self.scratch_space,
+                              self.backend.wrap(1.0 - self.rho),
                               out=self.scratch_space)
         self.backend.add(self.exp_deltsq, self.scratch_space,
                          out=self.exp_deltsq)
