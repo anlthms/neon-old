@@ -570,7 +570,7 @@ class ConvLayer(LocalLayer):
                                  self.links, self.ifmshape, self.ofmshape,
                                  self.ofmlocs, 0, self.stride, self.nifm,
                                  1, self.fwidth, self.updatebuf)
-        self.learning_rule.apply_rule(self.weights, self.updatebuf, epoch)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):
