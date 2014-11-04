@@ -1,11 +1,11 @@
-# Experiment settings to train/test a 1 hidden layer Neural Net on full
-# MNIST. Network archetecture matches Arjun's Matlab variant. 
+# Experiment settings to train/test a small 1 hidden layer Neural Net on full
+# MNIST, using Adadelta based updates.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._cudanet.Cudanet {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: { 
-      all: 'warn',  # warn or raise
+      all: 'warn',
     },
   },
   
@@ -15,7 +15,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Cudanet.pkl',
     },
   ],
   
@@ -25,7 +24,6 @@
     num_epochs: 10,
     batch_size: &bs 100,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-cudanetsml-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -37,7 +35,7 @@
           lr_params: {
             backend: *be,
             rho: &rh 0.95,
-            epsilon: &ep 0.000001,
+            epsilon: &ep 0.00001,
           },
         },
         nin: 785, # input layer + 1 for the bias

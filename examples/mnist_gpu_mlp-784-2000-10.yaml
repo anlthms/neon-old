@@ -2,7 +2,7 @@
 # MNIST.  Parameters are optimized for performance.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy64 {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     # set which numpy issues raise exceptions, warnings, etc.
     # see: numpy.seterr()
@@ -17,7 +17,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy64.pkl',
     },
   ],
   
@@ -26,23 +25,28 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
-    momentum: {
-      type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp64-simple.pkl',
+    serialized_path: './mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: &lr 0.01,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
         nin: 785, # input layer + 1 for the bias
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -57,7 +61,14 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
         nin: 2001, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
@@ -79,7 +90,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 10,
+    level: 20,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

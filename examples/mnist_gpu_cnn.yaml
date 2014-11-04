@@ -1,7 +1,7 @@
 # Experiment settings to train/test a CNN on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._cudanet.Cudanet {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
 
@@ -11,7 +11,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      #serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
     },
   ],
   
@@ -21,21 +20,25 @@
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    #serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer1lr,
           lr_params: {
-            rho: &ro 0.95,
-            epsilon: &eps 0.000001,
+            learning_rate: &lr 0.01,
             backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
           },
         },
         nifm: 1,
@@ -64,12 +67,12 @@
         backend: *be,
         batch_size: *bs,
         pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer3lr,
           lr_params: {
-            rho: *ro,
-            epsilon: *eps,
+            learning_rate: *lr,
             backend: *be,
+            momentum_params: *mm,
           },
         },
         nifm: 16,
@@ -98,12 +101,12 @@
         backend: *be,
         batch_size: *bs,
         pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer5lr,
           lr_params: {
-            rho: *ro,
-            epsilon: *eps,
+            learning_rate: *lr,
             backend: *be,
+            momentum_params: *mm,
           },
         },
         nin: 512, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
@@ -120,12 +123,12 @@
         backend: *be,
         batch_size: *bs,
         pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
-            rho: *ro,
-            epsilon: *eps,
+            learning_rate: *lr,
             backend: *be,
+            momentum_params: *mm,
           },
         },
         nin: 500,

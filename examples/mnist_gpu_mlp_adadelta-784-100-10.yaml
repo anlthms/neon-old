@@ -1,13 +1,11 @@
-# Experiment settings to train/test a 1 hidden layer Neural Net on full
-# MNIST.  Parameters are optimized for performance.
+# Experiment settings to train/test a small 1 hidden layer Neural Net on full
+# MNIST, using Adadelta based updates.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
-    # set which numpy issues raise exceptions, warnings, etc.
-    # see: numpy.seterr()
-    seterr_handling: {
-      all: 'warn',
+    seterr_handling: { 
+      all: 'warn',  # warn or raise
     },
   },
   
@@ -17,47 +15,31 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-#      serialized_path: '/usr/local/data/MNIST/mnist_Numpy.pkl',
     },
   ],
   
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 60,
+    num_epochs: 10,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
-    momentum: {
-      type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: h0lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
+            rho: &rh 0.95,
+            epsilon: &ep 0.000001,
           },
         },
         nin: 785, # input layer + 1 for the bias
-        nout: 2000,
+        nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
@@ -70,15 +52,15 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
-            momentum_params: *mm,
+            rho: *rh,
+            epsilon: *ep,
           },
         },
-        nin: 2001, # previous nout + 1 for the bias
+        nin: 101, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {

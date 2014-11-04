@@ -1,7 +1,7 @@
 # Experiment settings to train/test a stacked autoencoder on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._cudanet.Cudanet {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
 
@@ -11,7 +11,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Cudanet.pkl',
     },
   ],
   
@@ -20,7 +19,6 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    learning_rate: &lr 0.0001,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './ae-cudanet.pkl',
     layers: [
@@ -32,7 +30,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: enc1lr,
           lr_params: {
-            learning_rate: *lr,
+            learning_rate: &lr 0.0001,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, #constant, nesterov

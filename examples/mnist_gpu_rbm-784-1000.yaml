@@ -2,28 +2,26 @@
 # template for DBM layers
 
 !obj:neon.experiments.fit.FitExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
     },
   ],
   
   # RBM model specification
   model: !obj:neon.models.rbm.RBM {
     backend: *be,
-    num_epochs: 20,
+    num_epochs: 60,
     batch_size: &bs 100,
-    learning_rate: &lr -0.01,
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    serialized_path: './rbm-numpy20.pkl',
+    serialized_path: './rbm-cudanet60.pkl',
     layers: [
       !obj:neon.models.layer.RBMLayer {
         name: vis2hid,
@@ -33,7 +31,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescent {
           name: vis2hidlr,
           lr_params: {
-            learning_rate: *lr,
+            learning_rate: &lr -0.01,
             backend: *be,
           },
         },

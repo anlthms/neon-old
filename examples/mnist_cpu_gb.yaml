@@ -1,18 +1,17 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
-# model on CIFAR10.
+# model on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
   },
 
   datasets: [
-    # CIFAR10 data
-    !obj:neon.datasets.cifar10.CIFAR10 {
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
@@ -20,14 +19,10 @@
   model: !obj:neon.models.gb.GB {
     backend: *be,
     num_epochs: 4,
-    num_pretrain_epochs: 1,
+    num_pretrain_epochs: 2,
     num_initial_epochs: 1,
     batch_size: &bs 100,
-    learning_rate: &lr 0.1,
     pretraining: &pt True,
-    sparsity: &sp 0.1,
-    pretrain_learning_rate: &plr 0.001,
-    tied_weights: &tw True,
     visualize: False,
     spot_check: False,
     pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
@@ -36,23 +31,23 @@
       !obj:neon.models.layer.LocalFilteringLayer {
         name: layer0,
         pretraining: *pt,
-        sparsity: *sp,
+        sparsity: &sp 0.1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
           name: layer0lr,
           lr_params: {
-            learning_rate: *lr,
-            pretrain_learning_rate: *plr,
+            learning_rate: &lr 0.1,
+            pretrain_learning_rate: &plr 0.01,
             backend: *be,
           },
         },
-        tied_weights: *tw,
-        nifm: 3,
+        tied_weights: &tw True,
+        nifm: 1,
         nofm: 8,
-        ifmshape: [32, 32],
-        fshape: [6, 6],
+        ifmshape: [28, 28],
+        fshape: [4, 4],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -66,8 +61,8 @@
         batch_size: *bs,
         pos: 1,
         nifm: 8,
-        ifmshape: [27, 27],
-        fshape: [5, 5],
+        ifmshape: [25, 25],
+        fshape: [3, 3],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -99,7 +94,7 @@
         nifm: 8,
         nofm: 8,
         ifmshape: [23, 23],
-        fshape: [6, 6],
+        fshape: [3, 3],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -113,8 +108,8 @@
         batch_size: *bs,
         pos: 4,
         nifm: 8,
-        ifmshape: [18, 18],
-        fshape: [5, 5],
+        ifmshape: [21, 21],
+        fshape: [3, 3],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -123,7 +118,7 @@
         batch_size: *bs,
         pos: 5,
         nifm: 8,
-        ifmshape: [14, 14],
+        ifmshape: [19, 19],
         fshape: [3, 3],
         stride: 1,
       },
@@ -145,8 +140,8 @@
         tied_weights: *tw,
         nifm: 8,
         nofm: 8,
-        ifmshape: [14, 14],
-        fshape: [6, 6],
+        ifmshape: [19, 19],
+        fshape: [3, 3],
         stride: 1,
         weight_init: {
           type: uniform,
@@ -160,8 +155,8 @@
         batch_size: *bs,
         pos: 7,
         nifm: 8,
-        ifmshape: [9, 9],
-        fshape: [5, 5],
+        ifmshape: [17, 17],
+        fshape: [3, 3],
         stride: 1,
       },
       !obj:neon.models.layer.LCNLayer {
@@ -170,7 +165,7 @@
         batch_size: *bs,
         pos: 8,
         nifm: 8,
-        ifmshape: [5, 5],
+        ifmshape: [15, 15],
         fshape: [3, 3],
         stride: 1,
       },
@@ -184,7 +179,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: &mm {
+            momentum_params: {
               type: linear_monotone, #constant, nesterov
               initial_coef: 0.99,
               start_epoch: 5,
@@ -193,9 +188,15 @@
             },
           },
         },
-        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 1800, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_dtype: &dt 'float32',
+        delta_dtype: *dt,
+        updates_dtype: *dt,
+        pre_act_dtype: *dt,
+        output_dtype: *dt,
+        berror_dtype: *dt,
         weight_init: {
           type: uniform,
           low: -0.1,
@@ -207,7 +208,7 @@
 
   # logging options that are passed to logging.basicConfig
   logging: {
-    level: 20,  #logging.DEBUG == 10
+    level: 10,  #logging.DEBUG == 10
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

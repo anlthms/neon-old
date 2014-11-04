@@ -1,29 +1,31 @@
-# MLP on CIFAR-10
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# Iris dataset.  Simple network meant more as a sanity check.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
+    seterr_handling: {
+      all: 'warn',
+    },
   },
-
+  
   datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
+    !obj:neon.datasets.iris.Iris {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-#      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
+      sample_pct: 100,
     },
   ],
-
+  
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 100,
-    batch_size: &bs 100,
-    learning_rate: &lr 0.01,
-
+    num_epochs: 2500,
+    batch_size: &bs 30,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './iris-mlp-simple.pkl',
     layers: [
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -31,27 +33,27 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: *lr,
+            learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
+              type: constant,
+              initial_coef: 0,
               start_epoch: 5,
               saturate_epoch: 5,
-              saturated_coef: 0.90,
+              saturated_coef: 0,
             },
           },
         },
-        nin: 3072,
-        nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        nin: 5, # input layer + 1 for the bias
+        nout: 2,
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
-          low: -0.1,
-          high: 0.1,
+          low: -1,
+          high: 1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -64,18 +66,18 @@
             momentum_params: *mm,
           },
         },
-        nin: 200,
-        nout: 10,
+        nin: 3, # previous nout + 1 for the bias
+        nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
-          low: -0.1,
-          high: 0.1,
+          low: -1,
+          high: 1,
         },
       },
     ],
   },
-
+  
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

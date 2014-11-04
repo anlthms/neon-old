@@ -1,37 +1,103 @@
-# Experiment settings to train/test a CNN on MNIST.
+# Experiment settings to train/test a distributed CNN on MNIST using MPI.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._cudanet.Cudanet {
+  dist_flag: &df True,
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
   },
 
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
+      dist_flag: *df,
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      #serialized_path: '/usr/local/data/MNIST/mnist_10pct-Numpy.pkl',
     },
   ],
-  
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.convnet_dist.ConvnetDist {
     backend: *be,
-    num_epochs: 5,
+    num_epochs: 2,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    #serialized_path: './cnn-small.pkl',
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayerDist {
         name: layer1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: l1lr,
+          lr_params: {
+            learning_rate: &lr 0.01,
+            backend: *be,
+          },
+        },
+        nifm: 1,
+        nofm: 20,
+        ifmshape: [28, 28],
+        fshape: [5, 5],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayerDist {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nifm: 20,
+        ifmshape: [24, 24],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.ConvLayerDist {
+        name: layer3,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: l3lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+          },
+        },
+        nifm: 20,
+        nofm: 50,
+        ifmshape: [12, 12],
+        fshape: [5, 5],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayerDist {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        nifm: 50,
+        ifmshape: [8, 8],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      # todo: support FC-> FC connections
+      !obj:neon.models.layer.LayerWithNoBiasDist {
+        name: layer5,
+        backend: *be,
+        batch_size: *bs,
+        pos: 4,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer1lr,
+          name: l4lr,
           lr_params: {
             learning_rate: *lr,
             backend: *be,
@@ -44,75 +110,7 @@
             },
           },
         },
-        nifm: 1,
-        nofm: 16,
-        ifmshape: [28, 28],
-        fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
-      },
-      !obj:neon.models.layer.MaxPoolingLayer {
-        name: layer2,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        nifm: 16,
-        ifmshape: [24, 24],
-        fshape: [2, 2],
-        stride: 2,
-      },
-      !obj:neon.models.layer.ConvLayer {
-        name: layer3,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nifm: 16,
-        nofm: 32,
-        ifmshape: [12, 12],
-        fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
-      },
-      !obj:neon.models.layer.MaxPoolingLayer {
-        name: layer4,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        nifm: 32,
-        ifmshape: [8, 8],
-        fshape: [2, 2],
-        stride: 2,
-      },
-      !obj:neon.models.layer.LayerWithNoBias {
-        name: layer5,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 512, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
@@ -121,16 +119,16 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: output,
         backend: *be,
         batch_size: *bs,
         pos: 5,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
+          name: l5lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
+            learning_rate: *lr,
             momentum_params: *mm,
           },
         },
@@ -145,7 +143,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
