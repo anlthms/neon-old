@@ -14,12 +14,12 @@ from neon.backends.fixpt_cython import (fixed_from_float,
                                            naive_dot, elemtype, elemfloat,
                                            fixpt_dtype, fp_rescale_array,
                                            fp_rescale)
-from neon.backends._numpy import Numpy, NumpyTensor
+from neon.backends.cpu import CPU, CPUTensor
 
 logger = logging.getLogger(__name__)
 
 
-class FixedPointTensor(NumpyTensor):
+class FixedPointTensor(CPUTensor):
     """
     CPU based configurable fixed point data structure.
 
@@ -94,7 +94,7 @@ class FixedPointTensor(NumpyTensor):
         return self.__class__(np.copy(self._tensor), dtype=self.dtype)
 
 
-class FixedPoint(Numpy):
+class FixedPoint(CPU):
     """
     Sets up a CPU based fixed point backend for matrix ops.
 
@@ -367,8 +367,8 @@ class FixedPoint(Numpy):
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
         tmp = fixed_to_float_array(x._tensor, x.dtype)
-        tmp = Numpy.wrap(tmp)
-        Numpy.logistic(tmp, tmp)
+        tmp = self.wrap(tmp)
+        super(FixedPoint, self).logistic(tmp, tmp)
         out._tensor = fixed_from_float_array(tmp._tensor, out.dtype)
 
     def clip(self, a, a_min, a_max, out=None):

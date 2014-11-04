@@ -1,48 +1,48 @@
 from nose.plugins.attrib import attr
 import numpy as np
 
-from neon.backends._numpy import Numpy, NumpyTensor
+from neon.backends.cpu import CPU, CPUTensor
 from neon.transforms.logistic import logistic, logistic_derivative
 from neon.util.testing import assert_tensor_near_equal
 
 
-def test_logistic_numpytensor():
+def test_logistic_cputensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
-    n = Numpy(rng_seed=0)
-    temp = n.zeros((3, 1))
+    be = CPU(rng_seed=0)
+    temp = be.zeros((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
-    logistic(n, NumpyTensor(inputs), temp)
-    assert_tensor_near_equal(NumpyTensor(outputs), temp)
+    logistic(be, CPUTensor(inputs), temp)
+    assert_tensor_near_equal(CPUTensor(outputs), temp)
 
 
 @attr('cuda')
-def test_logistic_cudamattensor():
-    from neon.backends._cudamat import Cudamat, CudamatTensor
+def test_logistic_gputensor():
+    from neon.backends.gpu import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
-    c = Cudamat(rng_seed=0)
-    temp = c.zeros((3, 1))
-    logistic(c, CudamatTensor(inputs), temp)
-    assert_tensor_near_equal(CudamatTensor(outputs), temp)
+    be = GPU(rng_seed=0)
+    temp = be.zeros((3, 1))
+    logistic(be, GPUTensor(inputs), temp)
+    assert_tensor_near_equal(GPUTensor(outputs), temp)
 
 
-def test_logistic_derivative_numpytensor():
+def test_logistic_derivative_cputensor():
     inputs = np.array([0, 1, -2]).reshape((3, 1))
-    n = Numpy(rng_seed=0)
+    be = CPU(rng_seed=0)
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     outputs = outputs * (1.0 - outputs)
-    temp = n.zeros(inputs.shape)
-    logistic_derivative(n, NumpyTensor(inputs), temp)
-    assert_tensor_near_equal(NumpyTensor(outputs), temp)
+    temp = be.zeros(inputs.shape)
+    logistic_derivative(be, CPUTensor(inputs), temp)
+    assert_tensor_near_equal(CPUTensor(outputs), temp)
 
 
 @attr('cuda')
-def test_logistic_derivative_cudamattensor():
-    from neon.backends._cudamat import Cudamat, CudamatTensor
+def test_logistic_derivative_gputensor():
+    from neon.backends.gpu import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     outputs = outputs * (1.0 - outputs)
-    c = Cudamat(rng_seed=0)
-    temp = c.zeros(inputs.shape)
-    logistic_derivative(c, CudamatTensor(inputs), temp)
-    assert_tensor_near_equal(CudamatTensor(outputs), temp)
+    be = GPU(rng_seed=0)
+    temp = be.zeros(inputs.shape)
+    logistic_derivative(be, GPUTensor(inputs), temp)
+    assert_tensor_near_equal(GPUTensor(outputs), temp)
