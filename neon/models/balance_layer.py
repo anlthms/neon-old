@@ -5,7 +5,17 @@ from neon.transforms.tanh import Tanh as neonTanh
 from neon.transforms.rectified import RectLin as neonRectlin
 from neon.transforms.linear import Identity and neonIdentity
 
-class BalanceLayer(object):
+
+class Layer:
+    """Generic Layer class
+
+    Ensures inheriting class implement a
+    forward() method.
+    """
+    def forward(self, X):
+        raise NotImplementedError()
+
+class NeuralLayer(Layer):
     """Balance Network Layer
 
     n_input : int
@@ -143,7 +153,7 @@ class BalanceLayer(object):
             Derivative of the loss w.r.t the hidden state below
         """
         deriv = self.nonlinear.apply_derivative(self.backend, self.prestate)
-        dlossdz = backend.multiply(dlossdh, deriv)
+        dlossdz = dlossdh*deriv
         dWupdate = self.backend.dot(self.X.T, dlossdz)
         dbupdate = self.backend.sum(dlossdz, axis=0)
         if accumulate:
@@ -156,25 +166,27 @@ class BalanceLayer(object):
 
     def update_b(self):
         """Update bias parameters
-        TODO : neon integration
         """
-        raise NotImplementedError
         if self.adadelta_eps is not None:
-            self.dlossdb2 = self.adadelta_rho*self.dlossdb2 + (1.-self.adadelta_rho)*(self.dlossdb**2)
-            rms_dlossdb2 = np.sqrt(self.dlossdb2 + self.adadelta_eps)
-            rms_db2 = np.sqrt(self.db2 + self.adadelta_eps)
+            old = self.adadelta_rho*self.dlossdb2
+            new = (1.-self.adadelta_rho)*self.dlossdb*self.dlossdb
+            self.backend.add(old, new, self.dlossdb2)
+            rms_dlossdb2 = self.dlossdb2+self.adadelta_eps
+            self.backend.sqrt(rms_dlossdb2, rms_dlossdb2)
+            rms_db2 = self.db2+self.adadelta_eps
+            rms_db2 = self.backend.sqrt(rms_db2, rms_db2)
             learning_rate_b = rms_db2/rms_dlossdb2
         else:
             learning_rate_b = self.learning_rate
 
         if self.momentum is not None:
-            self.velocitydb = self.momentum*self.velocitydb - learning_rate_b*self.dlossdb
+            self.backend.subtract(self.momentum*self.velocitydb, learning_rate_b*self.dlossdb, self.velocitydb)
             deltab = self.velocitydb
         else:
             deltab = -learning_rate_b*self.dlossdb
 
         if self.adadelta_eps is not None:
-            self.db2 = self.adadelta_rho*self.db2 + (1.-self.adadelta_rho)*(deltab**2)
+            self.backend.add(self.adadelta_rho*self.db2, (1.-self.adadelta_rho)*(deltab**2), self.db2)
         
         self.b += deltab
 
