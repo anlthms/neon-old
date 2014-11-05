@@ -4,11 +4,11 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
-    seterr_handling: { 
+    seterr_handling: {
       all: 'warn',
     },
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
@@ -18,7 +18,7 @@
       serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
     },
   ],
-  
+
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
@@ -26,7 +26,7 @@
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-numpysml-simple.pkl',
+    # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -87,7 +87,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 10,
+    level: 20,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }
