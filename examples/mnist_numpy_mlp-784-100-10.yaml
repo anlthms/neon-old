@@ -26,7 +26,7 @@
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    # serialized_path: './mlp-numpysml-simple.pkl',
+    serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,

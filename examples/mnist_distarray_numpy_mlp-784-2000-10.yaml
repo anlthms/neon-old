@@ -1,28 +1,29 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
-# MNIST.  Parameters are optimized for performance.
+# MNIST. Network archetecture matches Arjun's Matlab variant.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  dist_flag: &df True,
   backend: &be !obj:neon.backends._numpy.Numpy {
     rng_seed: 0,
-    # set which numpy issues raise exceptions, warnings, etc.
-    # see: numpy.seterr()
     seterr_handling: {
       all: 'warn',
     },
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
+      dist_flag: *df,
+      dist_mode: 1, # FC split
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Numpy.pkl',
+      serialized_path: '/usr/local/data/MNIST_{size}/mnist-Numpy_{rank}.pkl',
     },
   ],
-  
+
   # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp_dist.MLPDist {
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
@@ -35,9 +36,9 @@
       saturated_coef: 0.90,
     },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-simple.pkl',
+    # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer.LayerDist {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -65,7 +66,7 @@
           scale: 0.01,
         },
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
