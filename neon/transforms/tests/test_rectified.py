@@ -29,7 +29,10 @@ def test_rectlin_cputensor():
 
 @attr('cuda')
 def test_rectlin_gputensor():
-    from neon.backends.gpu import GPUTensor
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
+    # with:
+    # from neon.backends.gpu import GPUTensor
     assert_tensor_equal(GPUTensor([[4, 0], [0, 9]]),
                         rectlin(GPUTensor([[4, 0], [-2, 9]])))
 
@@ -58,6 +61,9 @@ def test_rectlin_derivative_cputensor():
 
 @attr('cuda')
 def test_rectlin_derivative_gputensor():
-    from neon.backends.gpu import GPUTensor
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
+    # with:
+    # from neon.backends.gpu import GPUTensor
     assert_tensor_equal(GPUTensor([[1, 0], [0, 1]]),
                         rectlin_derivative(GPUTensor([[4, 0], [-2, 9]])))

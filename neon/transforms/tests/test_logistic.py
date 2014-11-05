@@ -17,7 +17,11 @@ def test_logistic_cputensor():
 
 @attr('cuda')
 def test_logistic_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import (Cudamat as GPU,  # flake8:noqa
+                                                    CudamatTensor as GPUTensor)
+    # with:
+    # from neon.backends.gpu import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     be = GPU(rng_seed=0)
@@ -38,7 +42,11 @@ def test_logistic_derivative_cputensor():
 
 @attr('cuda')
 def test_logistic_derivative_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import (Cudamat as GPU,
+                                                    CudamatTensor as GPUTensor)
+    # with:
+    # from neon.backends.gpu import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = 1.0 / (1.0 + np.exp(-inputs))
     outputs = outputs * (1.0 - outputs)
