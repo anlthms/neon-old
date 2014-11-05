@@ -1,7 +1,7 @@
-# MLP on CIFAR-10
+# GPU based MLP on CIFAR-10
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._cudanet.Cudanet {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
 
@@ -10,7 +10,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Numpy.pkl',
     },
   ],
 
@@ -19,8 +18,6 @@
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
-
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.LayerWithNoBias {
@@ -31,7 +28,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: *lr,
+            learning_rate: &lr 0.01,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, #constant, nesterov
