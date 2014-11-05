@@ -122,7 +122,7 @@ class ConvnetDist(MLP):
             error = 0.0
             for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.info('batch = %d' % (batch))
+                    logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
                 self.fprop(inputs[start_idx:end_idx])

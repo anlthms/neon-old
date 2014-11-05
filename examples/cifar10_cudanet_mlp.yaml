@@ -1,7 +1,7 @@
 # MLP on CIFAR-10
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends._numpy.Numpy {
+  backend: &be !obj:neon.backends._cudanet.Cudanet {
     rng_seed: 0,
   },
 
