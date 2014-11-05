@@ -1,0 +1,96 @@
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST.  Parameters are optimized for performance.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.gpu.GPU {
+    rng_seed: 0,
+    # set which numpy issues raise exceptions, warnings, etc.
+    # see: numpy.seterr()
+    seterr_handling: {
+      all: 'warn',
+    },
+  },
+  
+  datasets: [
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+    },
+  ],
+  
+  # simple MLP model specification
+  model: !obj:neon.models.mlp.MLP {
+    backend: *be,
+    num_epochs: 60,
+    batch_size: &bs 100,
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './mlp-simple.pkl',
+    layers: [
+      !obj:neon.models.layer.Layer {
+        name: h0,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: &lr 0.01,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
+        nin: 785, # input layer + 1 for the bias
+        nout: 2000,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: normal,
+          loc: 0.0,
+          scale: 0.01,
+        },
+      },
+      !obj:neon.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 2001, # previous nout + 1 for the bias
+        nout: 10,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: node_normalized,
+          scale: 4.0,
+          bias_init: 0.0,
+        },
+      },
+    ],
+  },
+  
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

@@ -5,7 +5,7 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 import logging
 import os
 
-from neon.backends._numpy import Numpy
+from neon.backends.cpu import CPU
 from neon.util.compat import PY3
 
 if PY3:
@@ -50,8 +50,8 @@ class Dataset(object):
         """
         self.__dict__.update(state)
         if self.backend is None:
-            # use Numpy as a default backend
-            self.backend = Numpy()
+            # use CPU as a default backend
+            self.backend = CPU()
 
     def load(self, backend=None):
         """
@@ -62,7 +62,7 @@ class Dataset(object):
             backend (neon.backends.backend.Backend, optional): The
                      underlying data structure type used to hold this
                      data once loaded.  If None will use
-                     `neon.backends._numpy.Numpy`
+                     `neon.backends.cpu.CPU`
 
         Raises:
             NotImplementedError: should be overridden in child class
