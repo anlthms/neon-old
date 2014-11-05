@@ -460,6 +460,13 @@ class CPU(Backend):
         self.add(out, self.wrap(1.0), out=out)
         self.reciprocal(out, out=out)
 
+    def rectlin(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+        self.multiply(x, out, out=out)
+
+    def rectlin_derivative(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+
     def clear(self, x):
         x._tensor[:] = 0
 
