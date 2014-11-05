@@ -1,6 +1,6 @@
 #!/usr/bin/env/python
 
-from neon.backends import fixpt
+from neon.backends import flexpt
 
 # defaults
 DEFAULT_FP_VALS = {
@@ -20,11 +20,11 @@ def check_rep(x, exp_val, **kwargs):
     args["sym"] = '+' if exp_val >= 0 else '-'
     args["exp_val"] = abs(exp_val)
     print(repr(x))
-    print("fixpt({sym}{exp_val}, sign_bit={sign_bit}, int_bits={int_bits}, "
+    print("flexpt({sym}{exp_val}, sign_bit={sign_bit}, int_bits={int_bits}, "
           "frac_bits={frac_bits}, overflow={overflow}, "
           "rounding={rounding})".format(**args))
     print("")
-    assert repr(x) == ("fixpt({sym}{exp_val}, sign_bit={sign_bit}, "
+    assert repr(x) == ("flexpt({sym}{exp_val}, sign_bit={sign_bit}, "
                        "int_bits={int_bits}, frac_bits={frac_bits}, "
                        "overflow={overflow}, rounding={rounding})".
                        format(**args))
@@ -38,12 +38,12 @@ def test_creation_and_rep():
         "overflow": 0,
         "rounding": 0,
     }
-    x = fixpt(1.0, **params)
+    x = flexpt(1.0, **params)
     check_rep(x, 1.0, **params)
 
 
 def test_defaulting():
-    x = fixpt(5)
+    x = flexpt(5)
     check_rep(x, 5.0)
 
     params = {
@@ -52,7 +52,7 @@ def test_defaulting():
         "overflow": 0,
         "frac_bits": 3,
     }
-    x = fixpt(9.0, **params)
+    x = flexpt(9.0, **params)
     check_rep(x, 9.0, **params)
 
 
@@ -64,7 +64,7 @@ def test_fracbit_rep():
     }
     for frac_bits in range(0, 6):
         params["frac_bits"] = frac_bits
-        x = fixpt(1.1, **params)
+        x = flexpt(1.1, **params)
         exp_val = 0.0
         step_size = 2**(- frac_bits)
         while (exp_val + step_size) < 0.1:
@@ -85,7 +85,7 @@ def test_overflow_saturate():
         "rounding": 0,
     }
     # 3 int bits and 3 frac bits allows signed numbers in range [-8, 7.875]
-    x = fixpt(21.9, **params)
+    x = flexpt(21.9, **params)
     check_rep(x, 7.875, **params)
 
 
@@ -97,7 +97,7 @@ def test_overflow_wrap():
         "overflow": 1,  # OFL_WRAP
         "rounding": 0,  # RND_TRUNCATE
     }
-    x = fixpt(21.9, **params)
+    x = flexpt(21.9, **params)
     # 21.9_10 -> 175_10 after scaling and truncation (multiply by 2**3)
     #         -> 10101111_2
     #         ->   101111_2 (wrap overflow)
@@ -106,7 +106,7 @@ def test_overflow_wrap():
 
 
 def test_negative_rep():
-    x = fixpt(-3.0)
+    x = flexpt(-3.0)
     check_rep(x, -3.0)
 
 
@@ -114,7 +114,7 @@ def test_negative_frac():
     params = {
         "frac_bits": 10,
     }
-    x = fixpt(-4.7, **params)
+    x = flexpt(-4.7, **params)
     check_rep(x, -4.7001953125, **params)
 
 
@@ -125,13 +125,13 @@ def test_overflow_neg_saturate():
         "overflow": 0,
         "rounding": 0,
     }
-    x = fixpt(-21.9, **params)
+    x = flexpt(-21.9, **params)
     check_rep(x, -8.0, **params)
 
 
 def test_addition():
-    x = fixpt(4)
-    y = fixpt(10)
+    x = flexpt(4)
+    y = flexpt(10)
     check_rep(x + y, 14.0)
 
 
@@ -141,8 +141,8 @@ def test_overflow_saturated_addition():
         "frac_bits": 10,
         "overflow": 0,
     }
-    x = fixpt(24.567, **params)
-    y = fixpt(10, **params)
+    x = flexpt(24.567, **params)
+    y = flexpt(10, **params)
     check_rep(x + y, 31.9990234375, **params)
 
 
@@ -153,8 +153,8 @@ def test_rounding_truncated_addition():
         "rounding": 0,
     }
     # with 3 fractional bits
-    x = fixpt(14.567, **params)  # --> 116.536 --> 116 after truncation
-    y = fixpt(10, **params)  # --> 80 (after truncation)
+    x = flexpt(14.567, **params)  # --> 116.536 --> 116 after truncation
+    y = flexpt(10, **params)  # --> 80 (after truncation)
     # 196_10 --> 11000.100_2 -> 24.5_10 Q5.3 (.125 * 4 for frac)
     check_rep(x + y, 24.5, **params)
 
@@ -166,7 +166,7 @@ def test_rounding_nearest_addition():
         "rounding": 1,  # RND_NEAREST
     }
     # with 3 fractional bits
-    x = fixpt(14.567, **params)  # --> 116.536 --> 117 after round nearest
-    y = fixpt(10, **params)  # --> 80 (after truncation)
+    x = flexpt(14.567, **params)  # --> 116.536 --> 117 after round nearest
+    y = flexpt(10, **params)  # --> 80 (after truncation)
     # 197_10 --> 11000.101_2 -> 24.625_10 Q5.3 (.125 * 5 for frac)
     check_rep(x + y, 24.625, **params)
