@@ -1,7 +1,7 @@
 # MLP on CIFAR-10
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+  backend: &be !obj:neon.backends._cudanet.Cudanet {
     rng_seed: 0,
   },
 
@@ -19,6 +19,8 @@
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
+    learning_rate: &lr 0.01,
+
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.LayerWithNoBias {
@@ -29,7 +31,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: &lr 0.01,
+            learning_rate: *lr,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, #constant, nesterov
