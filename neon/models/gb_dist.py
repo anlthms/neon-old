@@ -133,7 +133,7 @@ class GBDist(GB):
                 tspcost_sum = 0.0
                 for batch in xrange(num_batches):
                     if MPI.COMM_WORLD.rank == 0:
-                        logger.info('batch = %d' % (batch))
+                        logger.debug('batch = %d' % (batch))
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                     output = inputs[start_idx:end_idx]
@@ -167,8 +167,9 @@ class GBDist(GB):
                                     os.path.join('recon', 'output')], ind)
         logger.info('Done with pretraining')
         end_time = time.time()
-        logger.info('%d time taken: %0.2f' %
-                    (MPI.COMM_WORLD.rank, end_time - start_time))
+        if MPI.COMM_WORLD.rank == 0:
+            logger.info('%d time taken: %0.2f' %
+                        (MPI.COMM_WORLD.rank, end_time - start_time))
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayerDist):
@@ -187,7 +188,7 @@ class GBDist(GB):
             error = 0.0
             for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.info('batch = %d' % (batch))
+                    logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
@@ -211,8 +212,9 @@ class GBDist(GB):
                 logger.info('epoch: %d, training error: %0.5f' %
                             (epoch, error / num_batches))
         end_time = time.time()
-        logger.info('%d time taken: %0.2f' %
-                    (MPI.COMM_WORLD.rank, end_time - start_time))
+        if MPI.COMM_WORLD.rank == 0:
+            logger.info('%d time taken: %0.2f' %
+                        (MPI.COMM_WORLD.rank, end_time - start_time))
 
     def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.

@@ -190,7 +190,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
         self.weights = self.weights.take(out_indices, axis=1)
 
-        self.updates = self.backend.zeros((self.nout_, self.nin))
+        self.updates = self.backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
         self.delta = self.backend.zeros((self.batch_size, self.nout))
         self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
@@ -202,7 +202,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
@@ -227,12 +227,14 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
             if self.pos > 0:
-                self.backend.dot(self.delta_, self.weights, out=self.berror)
-            self.backend.dot(self.delta_.T(), inputs, out=self.updates)
+                self.backend.bprop_fc_dot(self.delta_, self.weights,
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta_, inputs, out=self.updates)
         else:
             if self.pos > 0:
-                self.backend.dot(self.delta, self.weights, out=self.berror)
-            self.backend.dot(self.delta.T(), inputs, out=self.updates)
+                self.backend.bprop_fc_dot(self.delta, self.weights,
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -570,7 +572,7 @@ class ConvLayer(LocalLayer):
                                  self.links, self.ifmshape, self.ofmshape,
                                  self.ofmlocs, 0, self.stride, self.nifm,
                                  1, self.fwidth, self.updatebuf)
-        self.learning_rule.apply_rule(self.weights, self.updatebuf, epoch)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):
@@ -591,7 +593,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.updatebuf = backend.zeros((nofm, self.fsize))
+        self.updatebuf = backend.zeros((self.fsize, nofm))
         self.learning_rule.allocate_state(self.updates)
 
     def adjust_for_dist(self):
@@ -605,30 +607,15 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         super(ConvLayerDist, self).fprop(inputs)
 
     def bprop(self, error, inputs, epoch):
-        self.delta = error
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                self.backend.dot(self.delta.take(self.ofmlocs[dst], axis=1),
-                                 self.weights.T(), self.bpropbuf)
-                rflinks = self.rlinks[dst]
-                self.backend.add(self.bpropbuf,
-                                 self.berror.take(rflinks, axis=1),
-                                 out=self.bpropbuf)
-                self.berror[:, rflinks] = self.bpropbuf
-
-        self.backend.clear(self.updates)
-        for dst in xrange(self.ofmsize):
-            # Accumulate the weight updates, going over all
-            # corresponding cells in the output feature maps.
-            rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
-
-            # size of delta_slice: mbs x nofm
-            # size of inputs: mbs x fsize
-            self.backend.dot(delta_slice.T(), inputs.take(rflinks, axis=1),
-                             out=self.updatebuf)
-            self.updates.add(self.updatebuf.T())
+            self.backend.bprop_conv(self.weights, error, self.berror,
+                                    self.links, self.ifmshape, self.ofmshape,
+                                    self.ofmlocs, 0, self.stride, self.nifm,
+                                    1, self.bpropbuf)
+        self.backend.update_conv(self.weights, inputs, error, self.updates,
+                                 self.links, self.ifmshape, self.ofmshape,
+                                 self.ofmlocs, 0, self.stride, self.nifm,
+                                 1, self.fwidth, self.updatebuf)
 
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the

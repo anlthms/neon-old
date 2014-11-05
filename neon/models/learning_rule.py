@@ -43,7 +43,7 @@ class LearningRule(object):
 class GradientDescent(LearningRule):
     """
     Vanilla gradient descent based update rule that can optionally support use
-    of weght decay.
+    of weight decay.
     """
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescent, self).__init__(name, lr_params)
@@ -105,7 +105,7 @@ class GradientDescentMomentum(GradientDescent):
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
-        if self.velocity is None:
+        if self.velocity is None or self.velocity.shape != params.shape:
             self.velocity = self.backend.zeros(params.shape,
                                                self.velocity_dtype)
 
