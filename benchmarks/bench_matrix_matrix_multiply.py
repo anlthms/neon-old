@@ -52,7 +52,11 @@ if __name__ == '__main__':
                      #  ('neon.backends.fixedpoint', 'FixedPoint')]
                      ]
     if CUDA_GPU:
-        test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
+        # TODO: once cudanet init/shutdown resolved replace:
+        test_backends.insert(1, ('neon.backends.unsupported._cudamat',
+                                 'Cudamat'))
+        # with:
+        # test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
     for a_dims, b_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:

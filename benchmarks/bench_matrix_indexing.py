@@ -91,9 +91,13 @@ def bench_mat_slicing(backend, classname, a_dims, slices, axes, number=10000,
 if __name__ == '__main__':
     number = 10000
     repeat = 3
-    test_backends = [('neon.backends._numpy', 'Numpy'), ]
+    test_backends = [('neon.backends.cpu', 'CPU'), ]
     if CUDA_GPU:
-        test_backends.insert(1, ('neon.backends._cudamat', 'Cudamat'))
+        # TODO: once cudanet init/shutdown resolved replace:
+        test_backends.insert(1, ('neon.backends.unsupported._cudamat',
+                                 'Cudamat'))
+        # with:
+        # test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
     # contiguous slice testing
     for a_dims, slices, axes in [((5, 5), slice(0, 2), 0),
                                  ((5, 5), slice(0, 2), 1),
