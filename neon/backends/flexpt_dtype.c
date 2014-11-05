@@ -1,4 +1,4 @@
-/* Fixed Point decimal number type for use within Numpy */
+/* Flexpoint decimal number type for use within Numpy */
 
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION
 
@@ -52,13 +52,13 @@ typedef struct {
     int64_t val;
     ofl_t overflow;
     rnd_t rounding;
-}  fixpt;
+}  flexpt;
 
 
-static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
+static NPY_INLINE flexpt make_flexpt_double(double float_val, uint8_t sign_bit,
                                           uint8_t int_bits, uint8_t frac_bits,
                                           ofl_t overflow, rnd_t rounding) {
-    fixpt fi;
+    flexpt fi;
     int word_len = sign_bit + int_bits + frac_bits;
     double int_val, uint_val;
     int64_t max_int;
@@ -121,8 +121,8 @@ static NPY_INLINE fixpt make_fixpt_double(double float_val, uint8_t sign_bit,
     return fi;
 }
 
-static NPY_INLINE fixpt fixpt_add(fixpt x, fixpt y) {
-    fixpt res;
+static NPY_INLINE flexpt flexpt_add(flexpt x, flexpt y) {
+    flexpt res;
     int64_t max_int;
 
     if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
@@ -144,8 +144,8 @@ static NPY_INLINE fixpt fixpt_add(fixpt x, fixpt y) {
     return res;
 }
 
-static NPY_INLINE fixpt fixpt_subtract(fixpt x, fixpt y) {
-    fixpt res;
+static NPY_INLINE flexpt flexpt_subtract(flexpt x, flexpt y) {
+    flexpt res;
     int64_t max_int;
 
     if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
@@ -167,8 +167,8 @@ static NPY_INLINE fixpt fixpt_subtract(fixpt x, fixpt y) {
     return res;
 }
 
-static NPY_INLINE fixpt fixpt_multiply(fixpt x, fixpt y) {
-    fixpt res;
+static NPY_INLINE flexpt flexpt_multiply(flexpt x, flexpt y) {
+    flexpt res;
     int64_t max_int;
 
     if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
@@ -190,8 +190,8 @@ static NPY_INLINE fixpt fixpt_multiply(fixpt x, fixpt y) {
     return res;
 }
 
-static NPY_INLINE fixpt fixpt_divide(fixpt x, fixpt y) {
-    fixpt res;
+static NPY_INLINE flexpt flexpt_divide(flexpt x, flexpt y) {
+    flexpt res;
     int64_t max_int;
 
     if (x.sign_bit == y.sign_bit && x.int_bits == y.int_bits &&
@@ -214,24 +214,24 @@ static NPY_INLINE fixpt fixpt_divide(fixpt x, fixpt y) {
 }
 typedef struct {
     PyObject_HEAD;
-    fixpt fi;
-} PyFixPt;
+    flexpt fi;
+} PyFlexPt;
 
-static PyTypeObject PyFixPt_Type;
+static PyTypeObject PyFlexPt_Type;
 
-static NPY_INLINE int PyFixPt_Check(PyObject* object) {
-    return PyObject_IsInstance(object,(PyObject*)&PyFixPt_Type);
+static NPY_INLINE int PyFlexPt_Check(PyObject* object) {
+    return PyObject_IsInstance(object,(PyObject*)&PyFlexPt_Type);
 }
 
-static PyObject* PyFixPt_FromFixPt(fixpt x) {
-    PyFixPt* p = (PyFixPt*) PyFixPt_Type.tp_alloc(&PyFixPt_Type, 0);
+static PyObject* PyFlexPt_FromFlexPt(flexpt x) {
+    PyFlexPt* p = (PyFlexPt*) PyFlexPt_Type.tp_alloc(&PyFlexPt_Type, 0);
     if (p) {
         p->fi = x;
     }
     return (PyObject*) p;
 }
 
-static PyObject* pyfixpt_new(PyTypeObject* type, PyObject* args,
+static PyObject* pyflexpt_new(PyTypeObject* type, PyObject* args,
                              PyObject* kwds) {
     
     double val = 0.0;
@@ -242,23 +242,23 @@ static PyObject* pyfixpt_new(PyTypeObject* type, PyObject* args,
     rnd_t rounding = DEF_ROUNDING;
     char* kwnames[] = {"val", "sign_bit", "int_bits", "frac_bits", "overflow",
                        "rounding", NULL};
-    fixpt fi;
+    flexpt fi;
     if (PyArg_ParseTupleAndKeywords(args, kwds, "d|bbbbb", kwnames,
                                     &val, &sign_bit, &int_bits, &frac_bits,
                                     &overflow, &rounding)) {
-        fi = make_fixpt_double(val, sign_bit, int_bits, frac_bits, overflow,
+        fi = make_flexpt_double(val, sign_bit, int_bits, frac_bits, overflow,
                                rounding);
-        return PyFixPt_FromFixPt(fi);
+        return PyFlexPt_FromFlexPt(fi);
     } else {
         PyErr_SetString(PyExc_TypeError, "Problems parsing constructor args");
         return 0;
     }
 }
 
-#define AS_FIXPT(dst, object) \
-    fixpt dst = {0}; \
-    if (PyFixPt_Check(object)) { \
-        dst = ((PyFixPt*)object)->fi; \
+#define AS_FLEXPT(dst, object) \
+    flexpt dst = {0}; \
+    if (PyFlexPt_Check(object)) { \
+        dst = ((PyFlexPt*)object)->fi; \
     } else { \
         double n_ = PyFloat_AsDouble(object); \
         if (n_ == -1.0  && PyErr_Occurred()) { \
@@ -282,22 +282,22 @@ static PyObject* pyfixpt_new(PyTypeObject* type, PyObject* args,
             Py_INCREF(Py_NotImplemented); \
             return Py_NotImplemented; \
         } \
-        dst = make_fixpt_double(n_, DEF_SIGNED, DEF_INT_BITS, DEF_FRAC_BITS, \
+        dst = make_flexpt_double(n_, DEF_SIGNED, DEF_INT_BITS, DEF_FRAC_BITS, \
                                 DEF_OVERFLOW, DEF_ROUNDING); \
     }
 
 #define FIXPT_BINOP_2(name, exp) \
-    static PyObject* pyfixpt_##name(PyObject* a, PyObject* b) { \
-        AS_FIXPT(x, a); \
-        AS_FIXPT(y, b); \
-        fixpt z = exp; \
+    static PyObject* pyflexpt_##name(PyObject* a, PyObject* b) { \
+        AS_FLEXPT(x, a); \
+        AS_FLEXPT(y, b); \
+        flexpt z = exp; \
         if (PyErr_Occurred()) { \
             return 0; \
         } \
-        return PyFixPt_FromFixPt(z); \
+        return PyFlexPt_FromFlexPt(z); \
     }
 
-#define FIXPT_BINOP(name) FIXPT_BINOP_2(name, fixpt_##name(x, y))
+#define FIXPT_BINOP(name) FIXPT_BINOP_2(name, flexpt_##name(x, y))
 FIXPT_BINOP(add)
 FIXPT_BINOP(subtract)
 FIXPT_BINOP(multiply)
@@ -308,7 +308,7 @@ FIXPT_BINOP(divide)
  * Write a decimal representation of the number into the buffer passed.
  * ex. "+4.53"
  */
-static void fixpt_to_str(fixpt x, char buf[]) {
+static void flexpt_to_str(flexpt x, char buf[]) {
 
     size_t pos;
 
@@ -324,13 +324,13 @@ static void fixpt_to_str(fixpt x, char buf[]) {
 }
 
 
-static PyObject* pyfixpt_repr(PyObject* self) {
-    fixpt x = ((PyFixPt*)self)->fi;
+static PyObject* pyflexpt_repr(PyObject* self) {
+    flexpt x = ((PyFlexPt*)self)->fi;
     char buf[256];
     char val[64];
 
-    fixpt_to_str(x, val);
-    snprintf(buf, 256, "fixpt(%s, sign_bit=%d, int_bits=%d, frac_bits=%d, "
+    flexpt_to_str(x, val);
+    snprintf(buf, 256, "flexpt(%s, sign_bit=%d, int_bits=%d, frac_bits=%d, "
              "overflow=%d, rounding=%d)", val, x.sign_bit, x.int_bits,
              x.frac_bits, x.overflow, x.rounding);
     return PyUString_FromString(buf);
@@ -343,7 +343,7 @@ PyMethodDef module_methods[] = {
 #if defined(NPY_PY3K)
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "fixpt_dtype",
+    "flexpt_dtype",
     NULL,
     -1,
     module_methods,
@@ -354,11 +354,11 @@ static struct PyModuleDef moduledef = {
 };
 #endif
 
-static PyNumberMethods pyfixpt_as_number = {
-    pyfixpt_add,          /* nb_add */
-    pyfixpt_subtract,     /* nb_subtract */
-    pyfixpt_multiply,     /* nb_multiply */
-    pyfixpt_divide,       /* nb_divide */
+static PyNumberMethods pyflexpt_as_number = {
+    pyflexpt_add,          /* nb_add */
+    pyflexpt_subtract,     /* nb_subtract */
+    pyflexpt_multiply,     /* nb_multiply */
+    pyflexpt_divide,       /* nb_divide */
     0,    /* nb_remainder */
     0,                       /* nb_divmod */
     0,                       /* nb_power */
@@ -398,15 +398,15 @@ static PyNumberMethods pyfixpt_as_number = {
     0,                       /* nb_index */
 };
 
-static PyTypeObject PyFixPt_Type = {
+static PyTypeObject PyFlexPt_Type = {
 #if defined(NPY_PY3K)
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
 #else
     PyObject_HEAD_INIT(&PyType_Type)
     0,                                        /* ob_size */
 #endif
-    "fixpt",                                /* tp_name */
-    sizeof(PyFixPt),                        /* tp_basicsize */
+    "flexpt",                                /* tp_name */
+    sizeof(PyFlexPt),                        /* tp_basicsize */
     0,                                        /* tp_itemsize */
     0,                                        /* tp_dealloc */
     0,                                        /* tp_print */
@@ -417,8 +417,8 @@ static PyTypeObject PyFixPt_Type = {
 #else
     0,                                          /* tp_compare */
 #endif
-    pyfixpt_repr,                           /* tp_repr */
-    &pyfixpt_as_number,                     /* tp_as_number */
+    pyflexpt_repr,                           /* tp_repr */
+    &pyflexpt_as_number,                     /* tp_as_number */
     0,                                        /* tp_as_sequence */
     0,                                        /* tp_as_mapping */
     0,                          /* tp_hash */
@@ -428,7 +428,7 @@ static PyTypeObject PyFixPt_Type = {
     0,                                        /* tp_setattro */
     0,                                        /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-    "fixed point representation of real numbers",       /* tp_doc */
+    "flexpoint representation of real numbers",       /* tp_doc */
     0,                                        /* tp_traverse */
     0,                                        /* tp_clear */
     0,                   /* tp_richcompare */
@@ -445,7 +445,7 @@ static PyTypeObject PyFixPt_Type = {
     0,                                        /* tp_dictoffset */
     0,                                        /* tp_init */
     0,                                        /* tp_alloc */
-    pyfixpt_new,                              /* tp_new */
+    pyflexpt_new,                              /* tp_new */
     0,                                        /* tp_free */
     0,                                          /* tp_is_gc */
     0,                                          /* tp_bases */
@@ -460,9 +460,9 @@ static PyTypeObject PyFixPt_Type = {
 };
 
 #if defined(NPY_PY3K)
-PyMODINIT_FUNC PyInit_fixpt_dtype(void) {
+PyMODINIT_FUNC PyInit_flexpt_dtype(void) {
 #else
-PyMODINIT_FUNC initfixpt_dtype(void) {
+PyMODINIT_FUNC initflexpt_dtype(void) {
 #endif
 
     PyObject *m;
@@ -479,7 +479,7 @@ PyMODINIT_FUNC initfixpt_dtype(void) {
 #if defined(NPY_PY3K)
     m = PyModule_Create(&moduledef);
 #else
-    m = Py_InitModule("fixpt_dtype", module_methods);
+    m = Py_InitModule("flexpt_dtype", module_methods);
 #endif
 
     if (!m) {
@@ -491,8 +491,8 @@ PyMODINIT_FUNC initfixpt_dtype(void) {
     }
 
     /* add the new types */
-    Py_INCREF(&PyFixPt_Type);
-    PyModule_AddObject(m, "fixpt", (PyObject*)&PyFixPt_Type);
+    Py_INCREF(&PyFlexPt_Type);
+    PyModule_AddObject(m, "flexpt", (PyObject*)&PyFlexPt_Type);
 
 #if defined(NPY_PY3K)
     return m;

@@ -1,13 +1,14 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
-# Iris dataset.  Simple network meant more as a sanity check.
+# Iris dataset, using flexpoint instead of float.
+# Simple network meant more as a sanity check.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.fixedpoint.FixedPoint {
+  backend: &be !obj:neon.backends.flexpoint.Flexpoint {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
     },
-    default_dtype: &def_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
+    default_dtype: &def_dtype !obj:neon.backends.flexpoint.flexpt_dtype {
       sign_bit: True,
       int_bits: 4,
       frac_bits: 24,
@@ -21,7 +22,6 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/Iris/iris-FixedPoint.pkl',
     },
   ],
   
@@ -30,14 +30,6 @@
     backend: *be,
     batch_size: 30,
     num_epochs: 2500,
-    learning_rate: &lr 0.1,
-    momentum: {
-      type: constant, #constant, nesterov
-      initial_coef: 0,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0,
-    },
     temp_dtype: *def_dtype,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './iris-fixpt-mlp-simple.pkl',
@@ -50,7 +42,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: *lr,
+            learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
               type: constant,

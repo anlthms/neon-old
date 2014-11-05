@@ -7,7 +7,7 @@ cimport numpy as np
 # though we don't use the Numpy C-API, this call prevents compiler warnings
 np.import_array()
 
-# define the storage used for each fixed-point element
+# define the storage used for each flexpoint element
 ctypedef np.int64_t elemtype_t
 elemtype = np.int64
 ctypedef float elemfloat_t
@@ -24,8 +24,8 @@ ctypedef enum rnd_t:
     RND_NEAREST_BIASED
     RND_NEAREST_UNBIASED
 
-# encapsulation of fixpt type parameters
-ctypedef struct fixpt:
+# encapsulation of flexpt type parameters
+ctypedef struct flexpt:
     int sign_bit
     int int_bits
     int frac_bits
@@ -33,10 +33,10 @@ ctypedef struct fixpt:
     ofl_t overflow
     rnd_t rounding
 
-cpdef inline fixpt fixpt_dtype(int sign_bit, int int_bits, int frac_bits,
-                               ofl_t overflow, rnd_t rounding,
-                               int point_shift = 0):
-    cdef fixpt res
+cpdef inline flexpt flexpt_dtype(int sign_bit, int int_bits, int frac_bits,
+                                 ofl_t overflow, rnd_t rounding,
+                                 int point_shift = 0):
+    cdef flexpt res
     res.sign_bit = sign_bit
     res.int_bits = int_bits
     res.frac_bits = frac_bits
@@ -45,8 +45,8 @@ cpdef inline fixpt fixpt_dtype(int sign_bit, int int_bits, int frac_bits,
     res.rounding = rounding
     return res
 
-cpdef inline elemtype_t fp_rescale(elemtype_t inval, fixpt in_type,
-                                   fixpt out_type):
+cpdef inline elemtype_t fp_rescale(elemtype_t inval, flexpt in_type,
+                                   flexpt out_type):
     cdef elemtype_t max_int, outval
     cdef int in_scale, out_scale
     outval = inval
@@ -78,85 +78,80 @@ cpdef inline elemtype_t fp_rescale(elemtype_t inval, fixpt in_type,
         outval = max_int - 1
     return outval
 
-cpdef inline elemtype_t fixed_from_float(elemfloat_t floatval, fixpt dtype):
-    cdef elemtype_t fixedval, max_int
+cpdef inline elemtype_t flex_from_float(elemfloat_t floatval, flexpt dtype):
+    cdef elemtype_t flexval, max_int
     cdef elemfloat_t multiplier = 2.0**(dtype.frac_bits + dtype.point_shift)
     assert (dtype.sign_bit + dtype.int_bits + dtype.frac_bits) <= 32
     # truncate / round result
     if dtype.rounding == RND_TRUNCATE:
         # truncation done with cast to int
-        fixedval = <elemtype_t> (floatval * multiplier)
+        flexval = <elemtype_t> (floatval * multiplier)
     else:
         if floatval >= 0:
             # works for RND_NEAREST_BIASED and RND_NEAREST_UNBIASED
-            fixedval = <elemtype_t> (floatval * multiplier + 0.5)
+            flexval = <elemtype_t> (floatval * multiplier + 0.5)
         else:
             if dtype.rounding == RND_NEAREST_BIASED:
-                fixedval = <elemtype_t> (floatval * multiplier - 0.5)
+                flexval = <elemtype_t> (floatval * multiplier - 0.5)
                 if int(floatval) - floatval == 0.5:
                     # midpoint value
-                    fixedval = <elemtype_t> (floatval * multiplier)
+                    flexval = <elemtype_t> (floatval * multiplier)
             else: # dtype.rounding == RND_NEAREST_UNBIASED
-                fixedval = <elemtype_t> (floatval * multiplier - 0.5)
+                flexval = <elemtype_t> (floatval * multiplier - 0.5)
     # perform overflow handling
     max_int = <elemtype_t> 1 << (dtype.int_bits + dtype.frac_bits)
-    if fixedval < max_int:
-        if fixedval < -max_int:
+    if flexval < max_int:
+        if flexval < -max_int:
             # negative overflow
             if dtype.overflow == OFL_SATURATE:
-                fixedval = -max_int
+                flexval = -max_int
             else:
                 # assume OFL_WRAP - undefined for signed ints
                 if dtype.sign_bit:
                     print("undefined signed neg. overflow wrapping")
-                    fixedval = 0
+                    flexval = 0
                 else:
-                    fixedval = fixedval & (max_int - 1)
-    elif fixedval >= max_int:
+                    flexval = flexval & (max_int - 1)
+    elif flexval >= max_int:
         # positive overflow
         if dtype.overflow == OFL_SATURATE:
-            fixedval = max_int - 1
+            flexval = max_int - 1
         else:
             # assume OFL_WRAP
-            fixedval = fixedval & (max_int - 1)
+            flexval = flexval & (max_int - 1)
     else:
         # non representable value like nan, inf
         print("non-representable value")
-        fixed_val = 0
-    return fixedval
+        flexval = 0
+    return flexval
     
-cpdef inline elemfloat_t fixed_to_float(elemtype_t fixedval, fixpt dtype):
-    cdef elemfloat_t floatval = <elemfloat_t> fixedval / (2.0 **
-                                                          (dtype.frac_bits +
-                                                           dtype.point_shift))
+cpdef inline elemfloat_t flex_to_float(elemtype_t flexval, flexpt dtype):
+    cdef elemfloat_t floatval = <elemfloat_t> flexval / (2.0 **
+                                                         (dtype.frac_bits +
+                                                          dtype.point_shift))
     return floatval
-    
-cpdef char* fixed_repr(elemfloat_t floatval, fixpt dtype):
-    res = "raw float: %f\nfixed decimal: %+.*f" % (floatval, dtype.frac_bits,
-           fixed_to_float(fixed_from_float(floatval, dtype), dtype))
-    return res
     
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def fixed_from_float_array(np.ndarray[elemfloat_t, ndim=2, mode="c"] A not None,
-                           fixpt dtype):
+def flex_from_float_array(np.ndarray[elemfloat_t, ndim=2, mode="c"] A not None,
+                          flexpt dtype):
     """
-    Construct a 2-d fixed-point array from the values in the floating point
+    Construct a 2-d flexpoint array from the values in the floating point
     array given.
     """
     cdef Py_ssize_t x, y
     cdef np.ndarray[elemtype_t, ndim=2] res = np.empty_like(A, dtype=elemtype)
     for x in xrange(res.shape[0]):
         for y in xrange(res.shape[1]):
-            res[x, y] = fixed_from_float(A[x, y], dtype)
+            res[x, y] = flex_from_float(A[x, y], dtype)
     return res
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def fixed_to_float_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
-                         fixpt dtype):
+def flex_to_float_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
+                        flexpt dtype):
     """
-    Construct a 2-d floating-point array from the values in the fixed point
+    Construct a 2-d floating-point array from the values in the flexpoint
     array given.
     """
     cdef Py_ssize_t x, y
@@ -164,15 +159,15 @@ def fixed_to_float_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
                                                              dtype=elemfloat)
     for x in xrange(res.shape[0]):
         for y in xrange(res.shape[1]):
-            res[x, y] = fixed_to_float(A[x, y], dtype)
+            res[x, y] = flex_to_float(A[x, y], dtype)
     return res
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def fp_rescale_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
-                     fixpt in_dtype, fixpt out_dtype):
+                     flexpt in_dtype, flexpt out_dtype):
     """
-    Perform an inplace rescale of the fixed point array passed.
+    Perform an inplace rescale of the flexpoint array passed.
     """
     cdef Py_ssize_t x, y
     if (in_dtype.int_bits == out_dtype.int_bits and 
@@ -190,7 +185,7 @@ def fp_rescale_array(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
 def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
               np.ndarray[elemtype_t, ndim=2, mode="fortran"] B not None,
               np.ndarray[elemtype_t, ndim=2, mode="c"] out not None,
-              fixpt a_dtype, fixpt b_dtype, fixpt out_dtype):
+              flexpt a_dtype, flexpt b_dtype, flexpt out_dtype):
     """
     Performs naive matrix-matrix multiplication on existing fixed point
     matrices, writing results into a pre-allocated matrix of the same type.
@@ -202,7 +197,7 @@ def naive_dot(np.ndarray[elemtype_t, ndim=2, mode="c"] A not None,
     without copying by passing in the .T view of the numpy array.
     """
     cdef Py_ssize_t x, y, i
-    cdef fixpt tmp_dtype
+    cdef flexpt tmp_dtype
     assert A.shape[1] == B.shape[0]
     assert A.shape[0] == out.shape[0]
     assert B.shape[1] == out.shape[1]
