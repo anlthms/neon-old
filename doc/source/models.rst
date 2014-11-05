@@ -10,6 +10,9 @@ Available Models
 
    neon.models.mlp.MLP
    neon.models.autoencoder.Autoencoder
+   neon.models.gb.GB
+   neon.models.rbm.RBM
+   neon.models.dbn.DBN
 
 Adding a new Model type
 -----------------------

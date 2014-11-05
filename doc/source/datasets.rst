@@ -7,7 +7,11 @@ Available Datasets
 .. autosummary::
    :toctree: generated/
 
+   neon.datasets.cifar10.CIFAR10
+   neon.datasets.iris.Iris
    neon.datasets.mnist.MNIST
+   neon.datasets.sparsenet.SPARSENET
+   neon.datasets.synthetic.UniformRandom
 
 Adding a new Dataset
 --------------------
