@@ -7,11 +7,20 @@ import logging
 from neon.util.persist import deserialize
 
 
-def test_layers():
+def run_sanity(conf_file, result):
     dir = os.path.dirname(os.path.realpath(__file__))
-    experiment = deserialize(os.path.join(dir, 'sanity_layers.yaml'))
+    experiment = deserialize(os.path.join(dir, conf_file))
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)
 
     experiment.run()
-    assert experiment.model.result == 0.3203125
+    assert experiment.model.result == result
+
+
+def test_layers():
+    run_sanity('sanity_layers.yaml', 0.3203125)
+
+
+# XXX: temporarily commented out due to assertion failure in initCublas()
+#def test_gpu_backend():
+#    run_sanity('sanity_gpu_backend.yaml', 0.390625)
