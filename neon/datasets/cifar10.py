@@ -36,6 +36,7 @@ class CIFAR10(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
+        self.dist_mode = 0  # halo/tower method
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
@@ -76,24 +77,35 @@ class CIFAR10(Dataset):
         # computes the indices to load from input data for the dist case
 
         comm_rank = self.comm.rank
-        # todo: will change for different x/y dims for comm_per_dim
-        self.comm_per_dim = int(np.sqrt(self.comm.size))
+        self.dist_indices = []
         img_width = 32
         img_2d_size = img_width ** 2
-        px_per_dim = img_width / self.comm_per_dim
-        r_i = []
-        c_i = []
-        self.dist_indices = []
-        # top left corner in 2-D image
-        for row in range(self.comm_per_dim):
-            for col in range(self.comm_per_dim):
-                r_i.append(row * px_per_dim)
-                c_i.append(col * px_per_dim)
-        for ch in range(3):
-            for r in range(r_i[comm_rank], r_i[comm_rank] + px_per_dim):
-                self.dist_indices.extend(
-                    [ch * img_2d_size + r * img_width + x for x in range(
-                        c_i[comm_rank], c_i[comm_rank] + px_per_dim)])
+        img_size = img_2d_size * 3
+
+        if self.dist_mode == 0:
+            # todo: will change for different x/y dims for comm_per_dim
+            self.comm_per_dim = int(np.sqrt(self.comm.size))
+            px_per_dim = img_width / self.comm_per_dim
+            r_i = []
+            c_i = []
+            # top left corner in 2-D image
+            for row in range(self.comm_per_dim):
+                for col in range(self.comm_per_dim):
+                    r_i.append(row * px_per_dim)
+                    c_i.append(col * px_per_dim)
+            for ch in range(3):
+                for r in range(r_i[comm_rank], r_i[comm_rank] + px_per_dim):
+                    self.dist_indices.extend(
+                        [ch * img_2d_size + r * img_width + x for x in range(
+                            c_i[comm_rank], c_i[comm_rank] + px_per_dim)])
+        elif self.dist_mode == 1:
+            if img_size % self.comm.size != 0:
+                raise ValueError('Unsupported img_size % '
+                                 'MPI.COMM_WORLD.size != 0')
+            nin = img_size / self.comm.size
+            self.dist_indices.extend(range(self.comm.rank * nin,
+                                           (self.comm.rank + 1) *
+                                           nin))
 
     def load_file(self, filename, nclasses):
         logger.info('loading: %s' % filename)
@@ -117,48 +129,46 @@ class CIFAR10(Dataset):
         return (data, onehot)
 
     def load(self):
-        if self.inputs['train'] is None:
-            if 'repo_path' in self.__dict__:
-                if self.dist_flag:
-                    self.adjust_for_dist()
-                    ncols = len(self.dist_indices)
-                else:
-                    ncols = 32 * 32 * 3
-
-                ntrain_total = 50000
-                nclasses = 10
-                save_dir = os.path.join(self.repo_path,
-                                        self.__class__.__name__)
-                self.fetch_dataset(save_dir)
-                self.inputs['train'] = self.backend.zeros((ntrain_total,
-                                                          ncols),
-                                                          dtype=np.float32)
-                self.targets['train'] = self.backend.zeros((ntrain_total,
-                                                           nclasses),
-                                                           dtype=np.float32)
-                for i in range(5):
-                    filename = os.path.join(save_dir, 'cifar-10-batches-py',
-                                            'data_batch_' + str(i + 1))
-                    data, labels = self.load_file(filename, nclasses)
-                    nrows = data.shape[0]
-                    start = i * nrows
-                    end = (i + 1) * nrows
-                    self.inputs['train'][start:end] = data
-                    self.targets['train'][start:end] = labels
-
-                if 'sample_pct' in self.__dict__:
-                    self.sample_training_data()
-
-                filename = os.path.join(save_dir, 'cifar-10-batches-py',
-                                        'test_batch')
-                data, labels = self.load_file(filename, nclasses)
-                self.inputs['test'] = self.backend.zeros((data.shape[0],
-                                                          ncols),
-                                                         dtype=np.float32)
-                self.targets['test'] = self.backend.zeros((data.shape[0],
-                                                           nclasses),
-                                                          dtype=np.float32)
-                self.inputs['test'][:] = data
-                self.targets['test'][:] = labels
+        if self.inputs['train'] is not None:
+            return
+        if 'repo_path' in self.__dict__:
+            if self.dist_flag:
+                self.adjust_for_dist()
+                ncols = len(self.dist_indices)
             else:
-                raise AttributeError('repo_path not specified in config')
+                ncols = 32 * 32 * 3
+
+            ntrain_total = 50000
+            nclasses = 10
+            save_dir = os.path.join(self.repo_path,
+                                    self.__class__.__name__)
+            self.fetch_dataset(save_dir)
+            self.inputs['train'] = np.zeros((ntrain_total, ncols),
+                                            dtype=np.float32)
+            self.targets['train'] = np.zeros((ntrain_total, nclasses),
+                                             dtype=np.float32)
+            for i in range(5):
+                filename = os.path.join(save_dir, 'cifar-10-batches-py',
+                                        'data_batch_' + str(i + 1))
+                data, labels = self.load_file(filename, nclasses)
+                nrows = data.shape[0]
+                start = i * nrows
+                end = (i + 1) * nrows
+                self.inputs['train'][start:end] = data
+                self.targets['train'][start:end] = labels
+
+            if 'sample_pct' in self.__dict__:
+                self.sample_training_data()
+
+            filename = os.path.join(save_dir, 'cifar-10-batches-py',
+                                    'test_batch')
+            data, labels = self.load_file(filename, nclasses)
+            self.inputs['test'] = np.zeros((data.shape[0], ncols),
+                                           dtype=np.float32)
+            self.targets['test'] = np.zeros((data.shape[0], nclasses),
+                                            dtype=np.float32)
+            self.inputs['test'][:] = data
+            self.targets['test'][:] = labels
+            self.format()
+        else:
+            raise AttributeError('repo_path not specified in config')

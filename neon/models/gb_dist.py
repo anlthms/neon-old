@@ -133,7 +133,7 @@ class GBDist(GB):
                 tspcost_sum = 0.0
                 for batch in xrange(num_batches):
                     if MPI.COMM_WORLD.rank == 0:
-                        logger.info('batch = %d' % (batch))
+                        logger.debug('batch = %d' % (batch))
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                     output = inputs[start_idx:end_idx]
@@ -144,8 +144,7 @@ class GBDist(GB):
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
-                                                   epoch,
-                                                   self.momentum)
+                                                   epoch)
                     trcost += rcost
                     tspcost += spcost
                 # accumulate trcost and tspcost cost across all nodes
@@ -168,8 +167,9 @@ class GBDist(GB):
                                     os.path.join('recon', 'output')], ind)
         logger.info('Done with pretraining')
         end_time = time.time()
-        logger.info('%d time taken: %0.2f' %
-                    (MPI.COMM_WORLD.rank, end_time - start_time))
+        if MPI.COMM_WORLD.rank == 0:
+            logger.info('%d time taken: %0.2f' %
+                        (MPI.COMM_WORLD.rank, end_time - start_time))
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayerDist):
@@ -188,7 +188,7 @@ class GBDist(GB):
             error = 0.0
             for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.info('batch = %d' % (batch))
+                    logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
@@ -196,12 +196,12 @@ class GBDist(GB):
                     # only bprop on FC layers
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
-                                    epoch, self.momentum)
+                                    epoch)
                 else:
                     # bprop through full stack
                     self.bprop(targets[start_idx:end_idx],
                                inputs[start_idx:end_idx],
-                               epoch, self.momentum)
+                               epoch)
                 if MPI.COMM_WORLD.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
@@ -212,10 +212,11 @@ class GBDist(GB):
                 logger.info('epoch: %d, training error: %0.5f' %
                             (epoch, error / num_batches))
         end_time = time.time()
-        logger.info('%d time taken: %0.2f' %
-                    (MPI.COMM_WORLD.rank, end_time - start_time))
+        if MPI.COMM_WORLD.rank == 0:
+            logger.info('%d time taken: %0.2f' %
+                        (MPI.COMM_WORLD.rank, end_time - start_time))
 
-    def bprop_last(self, targets, inputs, epoch, momentum):
+    def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.
         if MPI.COMM_WORLD.rank == 0:
             # apply derivative on root node's FC layer output
@@ -231,9 +232,9 @@ class GBDist(GB):
         self.error._tensor = MPI.COMM_WORLD.bcast(self.error.raw())
         self.layers[-1].pre_act_ = self.layers[-1].pre_act
         self.layers[-1].bprop(
-            self.error, self.layers[-2].output, epoch, momentum)
+            self.error, self.layers[-2].output, epoch)
 
-    def bprop(self, targets, inputs, epoch, momentum):
+    def bprop(self, targets, inputs, epoch):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
@@ -248,7 +249,7 @@ class GBDist(GB):
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch, momentum)
+        lastlayer.bprop(error, self.layers[i - 1].output, epoch)
 
         # following code is difficult to refactor:
         # 1) LCN berror has no halos for top layer, but does for middle layers
@@ -261,7 +262,7 @@ class GBDist(GB):
         i -= 1
         self.layers[i].bprop(self.layers[i + 1].berror,
                              self.layers[i - 1].output,
-                             epoch, momentum)
+                             epoch)
         while i > 0:
             i -= 1
             # aggregate the berror terms at halo locations
@@ -273,19 +274,19 @@ class GBDist(GB):
                         i + 1].input.local_array.get_bprop_view(
                         self.layers[i + 1].berror),
                     self.layers[i - 1].output,
-                    epoch, momentum)
+                    epoch)
             elif isinstance(self.layers[i], L2PoolingLayerDist):
                 # LCN layer gives a bprop view for berror already
                 self.layers[i].bprop(self.layers[i + 1].berror,
                                      self.layers[i - 1].output,
-                                     epoch, momentum)
+                                     epoch)
             elif isinstance(self.layers[i], LocalFilteringLayerDist):
                 self.layers[i].bprop(
                     self.layers[
                         i + 1].input.local_array.get_bprop_view(
                         self.layers[i + 1].berror),
                     self.layers[i].input.local_array.chunk,
-                    epoch, momentum)
+                    epoch)
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]

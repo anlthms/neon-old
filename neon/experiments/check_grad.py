@@ -7,7 +7,7 @@ import numpy as np
 
 from neon.experiments.experiment import Experiment
 from neon.datasets.synthetic import UniformRandom
-from neon.backends._numpy import Numpy
+from neon.backends.cpu import CPU
 
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class GradientChecker(Experiment):
             return
 
         backend_type = type(self.model.backend)
-        if backend_type != Numpy:
+        if backend_type != CPU:
             logger.error('%s backend is not supported.' % backend_type)
             return
 
@@ -107,11 +107,11 @@ class GradientChecker(Experiment):
         targets = self.datasets[0].get_targets(train=True)['train']
 
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, 0.0)
+        self.model.bprop(targets, inputs, 0, self.model.momentum)
 
         self.save_state()
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, 0.0)
+        self.model.bprop(targets, inputs, 0, self.model.momentum)
         self.load_state()
 
         for ind in self.trainable_layers[::-1]:

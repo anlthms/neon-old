@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class FitPredictErrorExperiment(FitExperiment):
-
     """
     In this `Experiment`, a model is first trained on a training dataset to
     learn a set of parameters, then these parameters are used to generate
@@ -26,9 +25,9 @@ class FitPredictErrorExperiment(FitExperiment):
     Kwargs:
         backend (neon.backends.Backend): The backend to associate with the
                                             datasets to use in this experiment
-        TODO: add other params
+    TODO:
+        add other params
     """
-
     def run(self):
         """
         Actually carry out each of the experiment steps.

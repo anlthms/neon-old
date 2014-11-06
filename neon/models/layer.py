@@ -44,10 +44,10 @@ class Layer(YAMLable):
                                                    transform.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype=None,
-                 velocity_dtype=None, delta_dtype=None, updates_dtype=None,
-                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
+                 activation, weight_init, learning_rule, weight_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
         self.activation = activation
@@ -55,10 +55,8 @@ class Layer(YAMLable):
         self.nout = nout
         self.weight_init = weight_init
         self.weight_dtype = weight_dtype
-        self.velocity_dtype = velocity_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        self.velocity = self.backend.zeros(self.weights.shape, velocity_dtype)
         self.delta = self.backend.alloc(batch_size, nout, delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
         self.updates_dtype = updates_dtype
@@ -66,7 +64,8 @@ class Layer(YAMLable):
                                           pre_act_dtype)
         self.output = self.backend.alloc(batch_size, self.nout, output_dtype)
         self.pos = pos
-        self.learning_rate = learning_rate
+        self.learning_rule = learning_rule
+        self.learning_rule.allocate_state(self.updates)
         self.batch_size = batch_size
         if pos > 0:
             # This is storage for the backward propagated error.
@@ -85,10 +84,7 @@ class Layer(YAMLable):
                 "   dtype={z_dtype}\n\t"
                 "weights: mean={w_avg:g}, min={w_min:g}, abs_min={w_absmin:g},"
                 " max={w_max:g},\n\t"
-                "         dtype={w_dtype}\n\t"
-                "velocity: mean={v_avg:g}, min={v_min:g}, "
-                "abs_min={v_absmin:g}, max={w_max:g},\n\t"
-                "          dtype={v_dtype}\n".format
+                "         dtype={w_dtype}\n".format
                 (lyr_nm=self.name, nin=self.nin, nout=self.nout,
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__,
@@ -106,19 +102,19 @@ class Layer(YAMLable):
                  w_min=self.backend.min(self.weights),
                  w_absmin=self.backend.min(self.backend.fabs(self.weights)),
                  w_max=self.backend.max(self.weights),
-                 w_dtype=self.weights.dtype,
-                 v_avg=self.backend.mean(self.velocity),
-                 v_min=self.backend.min(self.velocity),
-                 v_absmin=self.backend.min(self.backend.fabs(self.velocity)),
-                 v_max=self.backend.max(self.velocity),
-                 v_dtype=self.velocity.dtype))
+                 w_dtype=self.weights.dtype))
 
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
+        """
+        # numpy pseudocode for the backprop:
+        # updates  = dot(delta.T, inputs)        # calculate new gradient
+        # weight update itself done by application of learning rule
+        """
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
@@ -126,16 +122,8 @@ class Layer(YAMLable):
                                       out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
-        momentum_coef = self.backend.get_momentum_coef(epoch, momentum)
-        self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
-                              out=self.velocity)
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
-
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.velocity, self.updates, out=self.velocity)
-        self.backend.add(self.weights, self.velocity, out=self.weights)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class LayerWithNoBias(Layer):
@@ -144,13 +132,13 @@ class LayerWithNoBias(Layer):
     Single NNet layer with no bias node
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weight_dtype=None,
-                 velocity_dtype=None, delta_dtype=None, updates_dtype=None,
-                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
+                 activation, weight_init, learning_rule, weight_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-                                              pos, learning_rate, nin, nout,
-                                              activation, weight_init)
+                                              pos, nin, nout, activation,
+                                              weight_init, learning_rule)
         if pos > 0:
             self.berror = backend.alloc(batch_size, nin)
 
@@ -158,17 +146,15 @@ class LayerWithNoBias(Layer):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
         self.backend.multiply(error, self.pre_act, out=self.delta)
         if self.pos > 0:
             self.backend.bprop_fc_dot(self.delta, self.weights,
                                       out=self.berror)
         self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class LayerWithNoBiasDist(LayerWithNoBias):
@@ -204,8 +190,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
         self.weights = self.weights.take(out_indices, axis=1)
 
-        self.velocity = self.backend.zeros(self.weights.shape)
-        self.updates = self.backend.zeros((self.nout_, self.nin))
+        self.updates = self.backend.zeros(self.weights.shape)
+        self.learning_rule.allocate_state(self.updates)
         self.delta = self.backend.zeros((self.batch_size, self.nout))
         self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
         self.delta_gather = self.backend.zeros(
@@ -216,7 +202,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
@@ -231,7 +217,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
         self.backend.multiply(error, self.pre_act_, out=self.delta)
         if self.nout_ != self.nout:
@@ -241,16 +227,16 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
             if self.pos > 0:
-                self.backend.dot(self.delta_, self.weights, out=self.berror)
-            self.backend.dot(self.delta_.T(), inputs, out=self.updates)
+                self.backend.bprop_fc_dot(self.delta_, self.weights,
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta_, inputs, out=self.updates)
         else:
             if self.pos > 0:
-                self.backend.dot(self.delta, self.weights, out=self.berror)
-            self.backend.dot(self.delta.T(), inputs, out=self.updates)
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+                self.backend.bprop_fc_dot(self.delta, self.weights,
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class LayerWithNoActivation(LayerWithNoBias):
@@ -258,16 +244,14 @@ class LayerWithNoActivation(LayerWithNoBias):
     def fprop(self, inputs):
         self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         self.delta = error
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
 
         self.backend.dot(self.delta.T(), inputs, out=self.updates)
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class RBMLayer(Layer):
@@ -276,17 +260,19 @@ class RBMLayer(Layer):
     CD1 training layer for RBM
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init):
+    def __init__(self, name, backend, batch_size, pos, nin,
+                 nout, activation, weight_init, learning_rule):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
-                                       learning_rate, nin, nout,
-                                       activation, weight_init)
+                                       nin, nout, activation, weight_init,
+                                       learning_rule)
         self.p_hid_plus = backend.alloc(batch_size, self.nout)
         self.s_hid_plus = backend.alloc(batch_size, self.nout)
         self.p_hid_minus = backend.alloc(batch_size, self.nout)
         self.p_plus = backend.zeros((self.nout, nin))
         self.p_minus = backend.zeros((self.nout, nin))
         self.diff = backend.zeros((self.nout, nin))
+        self.learning_rule = learning_rule
+        self.learning_rule.allocate_state(self.diff)
         self.neg_pre_act = backend.alloc(batch_size, self.nin)
         self.x_minus = backend.alloc(batch_size, self.nin)
 
@@ -325,19 +311,16 @@ class RBMLayer(Layer):
         self.backend.update_fc_dot(self.p_hid_minus, self.x_minus,
                                    out=self.p_minus)
 
-    def update(self, epsilon, epoch, momentum):
+    def update(self, epoch):
         """
         CD1 weight update
 
         Arguments:
-            epsilon: step size
             epoch: not used, for future compatibility
-            momentum: not used, for future compatibility
         """
         self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
-        self.backend.multiply(self.diff, self.backend.wrap(epsilon),
-                              out=self.diff)
-        self.backend.add(self.weights, self.diff, out=self.weights)
+
+        self.learning_rule.apply_rule(self.weights, self.diff, epoch)
         # epoch, momentum?
 
 
@@ -349,11 +332,11 @@ class AELayer(LayerWithNoBias):
     TODO: merge with generic Layer above.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nin,
-                 nout, activation, weight_init, weights=None):
+    def __init__(self, name, backend, batch_size, pos, nin,
+                 nout, activation, weight_init, learning_rule, weights=None):
         super(AELayer, self).__init__(name, backend, batch_size, pos,
-                                      learning_rate, nin, nout,
-                                      activation, weight_init)
+                                      nin, nout, activation, weight_init,
+                                      learning_rule)
         if weights is not None:
             self.weights = weights
 
@@ -364,19 +347,20 @@ class LocalLayer(YAMLable):
     Base class for locally connected layers.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 nofm, ifmshape, fshape, stride):
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
+                 nofm, ifmshape, fshape, stride, pooling=False):
         self.name = name
         self.backend = backend
         self.batch_size = batch_size
         self.pos = pos
-        self.learning_rate = learning_rate
         self.nifm = nifm
         self.nofm = nofm
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
+        self.fshape = fshape
         self.fheight, self.fwidth = fshape
         self.stride = stride
+        self.learning_rule = learning_rule
 
         self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
         self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
@@ -390,13 +374,17 @@ class LocalLayer(YAMLable):
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
                                         self.ofmsize)).raw()
-        ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
+        self.ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
-        self.rofmlocs = ofmlocs.raw()
+            self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
-        self.links = backend.zeros((self.ofmsize, self.fsize), dtype='i32')
+        if pooling is True:
+            self.links = backend.zeros(
+                (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+        else:
+            self.links = backend.zeros(
+                (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in xrange(self.ofmsize):
@@ -407,8 +395,9 @@ class LocalLayer(YAMLable):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
-            for ifm in xrange(1, nifm):
-                colinds += [x + ifm * self.ifmsize for x in fminds]
+            if pooling is False:
+                for ifm in xrange(1, nifm):
+                    colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
                 # Slide the filter to the right by the stride value.
@@ -439,7 +428,7 @@ class LocalLayerDist(LocalLayer):
 
     def adjust_for_dist(self, ifmshape):
         """
-        ifmshape, rofmlocs etc. need to be updated
+        ifmshape, ofmlocs etc. need to be updated
         after halos have been defined
         """
         self.ifmheight, self.ifmwidth = ifmshape
@@ -464,16 +453,20 @@ class LocalLayerDist(LocalLayer):
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                              self.ofmsize))
 
-        ofmlocs = self.backend.zeros((self.ofmsize, self.nofm), dtype='i32')
+        self.ofmlocs = self.backend.zeros((self.ofmsize, self.nofm),
+                                          dtype='i32')
         for dst in xrange(self.ofmsize):
-            ofmlocs[dst, :] = ofmstarts + dst
+            self.ofmlocs[dst, :] = ofmstarts + dst
         # stores the flattened px location across
         # ofm in columns
-        self.rofmlocs = ofmlocs.raw()
 
         # Figure out the connections with the previous layer.
-        self.links = self.backend.zeros(
-            (self.ofmsize, self.fsize), dtype='i32')
+        if self.pooling is True:
+            self.links = self.backend.zeros(
+                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
+        else:
+            self.links = self.backend.zeros(
+                (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in xrange(self.ofmsize):
@@ -484,8 +477,9 @@ class LocalLayerDist(LocalLayer):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
-            for ifm in xrange(1, self.nifm):
-                colinds += [x + ifm * self.ifmsize for x in fminds]
+            if self.pooling is False:
+                for ifm in xrange(1, self.nifm):
+                    colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + self.stride) <= (
                     self.ifmwidth):
@@ -499,16 +493,20 @@ class LocalLayerDist(LocalLayer):
             self.links[dst, :] = self.backend.array(colinds)
         self.rlinks = self.links.raw()
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
-                 nofm, ifmshape, fshape, stride):
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.zeros((self.batch_size, self.nout))
+
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
+                 nofm, ifmshape, fshape, stride, pooling=False):
         self.name = name
         self.backend = backend
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
+        self.fshape = fshape
         self.fheight, self.fwidth = fshape
         self.batch_size = batch_size
         self.pos = pos
-        self.learning_rate = learning_rate
+        self.learning_rule = learning_rule
         self.pos = pos
         # self.dtype = dtype
         self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
@@ -524,6 +522,7 @@ class LocalLayerDist(LocalLayer):
         self.nofm = nofm
         self.fsize = nifm * self.fheight * self.fwidth
         self.stride = stride
+        self.pooling = pooling
 
 
 class ConvLayer(LocalLayer):
@@ -532,10 +531,10 @@ class ConvLayer(LocalLayer):
     Convolutional layer.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, weight_init):
         super(ConvLayer, self).__init__(name, backend, batch_size, pos,
-                                        learning_rate, nifm, nofm,
+                                        learning_rule, nifm, nofm,
                                         ifmshape, fshape, stride)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
@@ -545,6 +544,7 @@ class ConvLayer(LocalLayer):
         self.prodbuf = backend.alloc(batch_size, nofm)
         self.bpropbuf = backend.alloc(batch_size, self.fsize)
         self.updatebuf = backend.zeros(self.weights.shape)
+        self.learning_rule.allocate_state(self.updates)
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -559,20 +559,20 @@ class ConvLayer(LocalLayer):
     def fprop(self, inputs):
         self.backend.fprop_conv(self.weights, inputs, self.output,
                                 self.rlinks, self.ifmshape, self.ofmshape,
-                                self.rofmlocs, 0, self.stride, self.nifm, 1,
+                                self.ofmlocs, 0, self.stride, self.nifm, 1,
                                 self.prodbuf)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
                                     self.links, self.ifmshape, self.ofmshape,
-                                    self.rofmlocs, 0, self.stride, self.nifm,
+                                    self.ofmlocs, 0, self.stride, self.nifm,
                                     1, self.bpropbuf)
         self.backend.update_conv(self.weights, inputs, error, self.updates,
                                  self.links, self.ifmshape, self.ofmshape,
-                                 self.rofmlocs, 0, self.stride, self.nifm,
-                                 1, self.fwidth, self.learning_rate,
-                                 self.updatebuf)
+                                 self.ofmlocs, 0, self.stride, self.nifm,
+                                 1, self.fwidth, self.updatebuf)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):
@@ -581,10 +581,10 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
     Distributed convolutional layer.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate, nifm,
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, weight_init):
         super(ConvLayerDist, self).__init__(name, backend, batch_size, pos,
-                                            learning_rate, nifm, nofm,
+                                            learning_rule, nifm, nofm,
                                             ifmshape, fshape, stride)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
@@ -593,7 +593,8 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.updates = backend.zeros(self.weights.shape)
         self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
-        self.updatebuf = backend.zeros((nofm, self.fsize))
+        self.updatebuf = backend.zeros((self.fsize, nofm))
+        self.learning_rule.allocate_state(self.updates)
 
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape
@@ -605,31 +606,16 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         inputs = self.input.get_fprop_view(inputs_)
         super(ConvLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs, epoch, momentum):
-        self.delta = error
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
-                                 self.weights.T(), self.bpropbuf)
-                rflinks = self.rlinks[dst]
-                self.backend.add(self.bpropbuf,
-                                 self.berror.take(rflinks, axis=1),
-                                 out=self.bpropbuf)
-                self.berror[:, rflinks] = self.bpropbuf
-
-        self.backend.clear(self.updates)
-        for dst in xrange(self.ofmsize):
-            # Accumulate the weight updates, going over all
-            # corresponding cells in the output feature maps.
-            rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
-
-            # size of delta_slice: mbs x nofm
-            # size of inputs: mbs x fsize
-            self.backend.dot(delta_slice.T(), inputs.take(rflinks, axis=1),
-                             out=self.updatebuf)
-            self.updates.add(self.updatebuf.T())
+            self.backend.bprop_conv(self.weights, error, self.berror,
+                                    self.links, self.ifmshape, self.ofmshape,
+                                    self.ofmlocs, 0, self.stride, self.nifm,
+                                    1, self.bpropbuf)
+        self.backend.update_conv(self.weights, inputs, error, self.updates,
+                                 self.links, self.ifmshape, self.ofmshape,
+                                 self.ofmlocs, 0, self.stride, self.nifm,
+                                 1, self.fwidth, self.updatebuf)
 
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the
@@ -639,10 +625,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
 
         # Update the filters after summing the weight updates.
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class LocalFilteringLayer(LocalLayer):
@@ -652,11 +635,11 @@ class LocalFilteringLayer(LocalLayer):
     are not shared.
     """
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate,
+    def __init__(self, name, backend, batch_size, pos, learning_rule,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
-                 pretraining, pretrain_learning_rate, sparsity, tied_weights):
+                 pretraining, sparsity, tied_weights):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
-                                                  pos, learning_rate,
+                                                  pos, learning_rule,
                                                   nifm, nofm, ifmshape, fshape,
                                                   stride)
         self.ifmsize = ifmshape[0] * ifmshape[1]
@@ -670,10 +653,11 @@ class LocalFilteringLayer(LocalLayer):
         self.prodbuf = backend.zeros((batch_size, nofm))
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
         self.updatebuf = backend.zeros((nofm, self.fsize))
+        self.learning_rule = learning_rule
+
+        self.learning_rule.allocate_state(self.updates)
         if pretraining is True:
             self.sparsity = sparsity
-            self.pretrain_learning_rate = pretrain_learning_rate
-            self.train_learning_rate = self.learning_rate
             self.tied_weights = tied_weights
 
     def __str__(self):
@@ -687,14 +671,14 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def pretrain_mode(self, pooling):
-        self.learning_rate = self.pretrain_learning_rate
+        self.learning_rule.set_pretrain_mode(True)
         self.pooling = pooling
         self.defilter = LocalDeFilteringLayer(self, self.tied_weights)
 
     def train_mode(self):
-        self.learning_rate = self.train_learning_rate
+        self.learning_rule.set_pretrain_mode(False)
 
-    def pretrain(self, inputs, cost, epoch, momentum):
+    def pretrain(self, inputs, cost, epoch):
         # Forward propagate the input through this layer and a
         # defiltering layer to reconstruct the input.
         self.fprop(inputs)
@@ -710,16 +694,16 @@ class LocalFilteringLayer(LocalLayer):
                                       inputs, self.defilter.temp)
         self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
                             out=error)
-        self.defilter.bprop(error, self.output, epoch, momentum)
+        self.defilter.bprop(error, self.output, epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[0]) *
                  (self.backend.ones(self.pooling.output.shape)))
-        self.pooling.bprop(error, self.output, epoch, momentum)
+        self.pooling.bprop(error, self.output, epoch)
         # Aggregate the errors from both layers before back propagating
         # through the current layer.
         berror = self.defilter.berror + self.pooling.berror
-        self.bprop(berror, inputs, epoch, momentum)
+        self.bprop(berror, inputs, epoch)
         rcost = cost.apply_function(self.backend, self.defilter.output,
                                     inputs, self.defilter.temp)
         spcost = self.sparsity * self.pooling.output.sum()
@@ -733,12 +717,12 @@ class LocalFilteringLayer(LocalLayer):
             # inputs.take: mbs x (ifmsize*nifm) ->  mbs x (fmsize*nifm)
             # self.weights: (nout x (ifmsize*nifm)).T -> (fsize x nofm)
             self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights.take(self.rofmlocs[dst], axis=0).T(),
+                             self.weights.take(self.ofmlocs[dst], axis=0).T(),
                              out=self.prodbuf)
             # size: # mbs x nofm
-            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+            self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         self.delta = error
         if self.pos > 0:
             self.backend.clear(self.berror)
@@ -748,8 +732,8 @@ class LocalFilteringLayer(LocalLayer):
                 # size-guide
                 # self.delta.take: # mbs x nofm
                 # self.weights.take: # (nofm x fsize )
-                self.backend.dot(self.delta.take(self.rofmlocs[dst], axis=1),
-                                 self.weights.take(self.rofmlocs[dst], axis=0),
+                self.backend.dot(self.delta.take(self.ofmlocs[dst], axis=1),
+                                 self.weights.take(self.ofmlocs[dst], axis=0),
                                  self.bpropbuf)
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,
@@ -759,16 +743,13 @@ class LocalFilteringLayer(LocalLayer):
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.rofmlocs[dst], axis=1)
+            delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
             self.backend.dot(delta_slice.T(),
                              inputs.take(rflinks, axis=1),
                              out=self.updatebuf)
-            self.updates[self.rofmlocs[dst]] = self.updatebuf
+            self.updates[self.ofmlocs[dst]] = self.updatebuf
 
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
         self.normalize_weights(self.weights)
 
 
@@ -833,16 +814,17 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
 
         self.normalize_weights(self.weights)
         self.updates = self.backend.zeros(self.weights.shape)
+        self.learning_rule.allocate_state(self.updates)
         self.prodbuf = self.backend.zeros((self.batch_size, self.nofm))
         self.bpropbuf = self.backend.zeros((self.batch_size, self.fsize))
         self.updatebuf = self.backend.zeros((self.nofm, self.fsize))
 
-    def __init__(self, name, backend, batch_size, pos, learning_rate,
+    def __init__(self, name, backend, batch_size, pos, learning_rule,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
-                 pretraining, pretrain_learning_rate, sparsity, tied_weights):
+                 pretraining, sparsity, tied_weights):
         super(
             LocalFilteringLayerDist, self).__init__(name, backend, batch_size,
-                                                    pos, learning_rate,
+                                                    pos, learning_rule,
                                                     nifm, nofm, ifmshape,
                                                     fshape, stride)
         self.nout = self.ofmsize * nofm
@@ -852,8 +834,6 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                                 dtype='float32')
         if pretraining is True:
             self.sparsity = sparsity
-            self.pretrain_learning_rate = pretrain_learning_rate
-            self.train_learning_rate = self.learning_rate
             self.tied_weights = tied_weights
 
     def pretrain_mode(self, pooling):
@@ -861,12 +841,15 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         # temp1 stores a temp buffer without the chunk
         self.defilter.temp1 = [self.backend.zeros(
             (self.batch_size, self.input.local_array.local_array_size))]
+        self.learning_rule.set_pretrain_mode(True)
 
-    def pretrain(self, inputs_, cost, epoch, momentum):
+    def pretrain(self, inputs_, cost, epoch):
         # Forward propagate the input through this layer and a
         # defiltering layer to reconstruct the input.
         inputs = self.fprop(inputs_)
         self.defilter.fprop(self.output)
+
+        self.learning_rule.set_pretrain_mode(True)
 
         # halo aggregation across chunks for defiltering layer
         self.autoencoder.make_bprop_view(self.defilter.output)
@@ -885,15 +868,15 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                       self.defilter.temp)
         self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
                             out=error)
-        self.defilter.bprop(error, self.output, epoch, momentum)
+        self.defilter.bprop(error, self.output, epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[0]) *
                  (self.backend.ones(self.pooling.output.shape)))
-        self.pooling.bprop(error, self.output, epoch, momentum)
+        self.pooling.bprop(error, self.output, epoch)
         berror = self.defilter.berror + (
             self.pooling.input.get_bprop_view(self.pooling.berror))
-        self.bprop(berror, inputs, epoch, momentum)
+        self.bprop(berror, inputs, epoch)
         rcost = cost.apply_function(self.backend,
                                     self.autoencoder.defiltering_local_image,
                                     inputs_,
@@ -927,7 +910,8 @@ class LocalDeFilteringLayer(object):
         self.updatebuf = prev.backend.zeros((prev.nofm, prev.fsize))
         self.berror = prev.backend.zeros((prev.batch_size, prev.nout))
         self.temp = [prev.backend.zeros(self.output.shape)]
-        self.learning_rate = prev.pretrain_learning_rate
+        self.learning_rule = prev.learning_rule
+        self.learning_rule.set_pretrain_mode(True)
         self.backend = prev.backend
         self.rlinks = prev.rlinks
         self.prev = prev
@@ -937,176 +921,34 @@ class LocalDeFilteringLayer(object):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:
-            # inputs[:, self.prev.rofmlocs[dst]]: mbs x nout -> mbs x nofm
+            # inputs[:, self.prev.ofmlocs[dst]]: mbs x nout -> mbs x nofm
             # self.weights.take: nofm x ifmsize
-            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]],
-                             self.weights.take(self.prev.rofmlocs[dst],
+            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]],
+                             self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0),
                              out=self.prodbuf)
             self.output[:, rflinks] += self.prodbuf
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(error[:, rflinks],
-                             self.weights.take(self.prev.rofmlocs[dst],
+                             self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0).T(),
                              out=self.bpropbuf)
-            self.berror[:, self.prev.rofmlocs[dst]] = self.bpropbuf
+            self.berror[:, self.prev.ofmlocs[dst]] = self.bpropbuf
             delta_slice = error[:, rflinks]
-            self.backend.dot(inputs[:, self.prev.rofmlocs[dst]].T(),
+            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]].T(),
                              delta_slice,
                              out=self.updatebuf)
-            self.updates[self.prev.rofmlocs[dst]] = self.updatebuf
-        self.backend.multiply(self.updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=self.updates)
-        self.backend.subtract(self.weights, self.updates, out=self.weights)
+            self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
         self.prev.normalize_weights(self.weights)
 
 
-class PoolingLayer(YAMLable):
-
-    """
-    Base class for pooling layers.
-    """
-
-    def adjust_for_dist(self, ifmshape):
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmsize = self.ifmheight * self.ifmwidth
-
-        self.ofmheight = (self.ifmheight - self.fheight) / self.stride + 1
-        self.ofmwidth = (self.ifmwidth - self.fwidth) / self.stride + 1
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.nin = self.nifm * self.ifmsize
-        self.ofmshape = [self.ofmheight, self.ofmwidth]
-        if self.pos > 0:
-            self.berror = self.backend.zeros((self.batch_size, self.nin))
-
-        # Figure out the possible connections with the previous layer.
-        # Each unit in this layer could be connected to any one of
-        # self.psize units in the previous layer.
-        self.links = self.backend.zeros(
-            (self.ofmsize, self.psize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in xrange(self.ofmsize):
-            colinds = []
-            # Collect the column indices for the
-            # entire receptive field.
-            for row in xrange(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            if (src % self.ifmwidth + self.fwidth + self.stride) <= (
-                    self.ifmwidth):
-                # Slide the filter by the stride value.
-                src += self.stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the pooling window down by one stride.
-                src += self.stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst, :] = self.backend.array(colinds)
-
-        self.nout = self.nifm * self.ofmsize
-        self.output = self.backend.zeros((self.batch_size, self.nout))
-        self.delta = self.backend.zeros((self.batch_size, self.nout))
-
-        # setup reshaped view variables
-        self._init_reshaped_views()
-
-    def __init__(self, name, backend, batch_size, pos,
-                 nifm, ifmshape, fshape, stride):
-        self.name = name
-        self.backend = backend
-        self.nifm = nifm
-        self.ifmshape = ifmshape
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.fshape = fshape
-        self.fheight, self.fwidth = fshape
-        self.psize = self.fheight * self.fwidth
-        self.pos = pos
-        self.batch_size = batch_size
-        self.stride = stride
-
-        self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
-        self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
-        self.ofmshape = [self.ofmheight, self.ofmwidth]
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.nin = nifm * self.ifmsize
-        if pos > 0:
-            self.berror = backend.alloc(batch_size, self.nin)
-
-        # Figure out the possible connections with the previous layer.
-        # Each unit in this layer could be connected to any one of
-        # self.psize units in the previous layer.
-        self.links = backend.zeros((self.ofmsize, self.psize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in xrange(self.ofmsize):
-            colinds = []
-            # Collect the column indices for the
-            # entire receptive field.
-            for row in xrange(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the pooling window down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds, dtype='i32')
-
-        self.nout = nifm * self.ofmsize
-        self.output = backend.alloc(batch_size, self.nout)
-        self.delta = backend.alloc(batch_size, self.nout)
-
-        # setup reshaped view variables
-        self._init_reshaped_views()
-
-    def _init_reshaped_views(self):
-        """
-        Initialize reshaped view references to the arrays such that there is a
-        single row per feature map.
-        """
-        self.rdelta = self.backend.squish(self.delta, self.nifm)
-        self.routput = self.backend.squish(self.output, self.nifm)
-
-    def __getstate__(self):
-        """
-        Fine-grained control over the serialization to disk of an instance of
-        this class.
-        """
-        # since we will load a shared memory view, prevent writing reshaped
-        # object copies to disk
-        res = self.__dict__.copy()
-        res['rdelta'] = None
-        res['routput'] = None
-        return res
-
-    def __setstate__(self, state):
-        """
-        Fine-grained control over the loading of serialized object
-        representation of this class.
-
-        In this case we need to ensure that reshaped view references are
-        restored (copies of these variables are created when writing to disk)
-
-        Arguments:
-            state (dict): keyword attribute values to be loaded.
-        """
-        self.__dict__.update(state)
-        self._init_reshaped_views()
-
-    def fprop(self, inputs):
-        raise NotImplementedError('This class should not be instantiated.')
-
-
-class MaxPoolingLayer(PoolingLayer):
+class MaxPoolingLayer(LocalLayer):
 
     """
     Max pooling layer.
@@ -1114,10 +956,13 @@ class MaxPoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(MaxPoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                              nifm, ifmshape, fshape, stride)
+        super(MaxPoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
+            fshape, stride, pooling=True)
         self.maxinds = backend.alloc(batch_size * nifm, self.ofmsize,
                                      dtype='i32')
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
@@ -1134,38 +979,47 @@ class MaxPoolingLayer(PoolingLayer):
                  self.backend.max(self.output)))
 
     def fprop(self, inputs):
-        self.inputs = inputs
         self.backend.fprop_mpool(
-            inputs, self.routput, self.links,
+            inputs, self.output, self.links,
             self.ifmshape, self.ofmshape, self.fshape, 0,
             self.stride, self.nifm, self.maxinds)
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             self.backend.bprop_mpool(
-                self.inputs, self.output,
+                inputs, self.output,
                 error, self.berror, self.links, self.ifmshape, self.ofmshape,
                 self.fshape, 0, self.stride, self.nifm, self.maxinds)
 
 
-class MaxPoolingLayerDist(MaxPoolingLayer):
+class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
 
     """
     Distributed Max pooling layer.
     """
 
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+                 stride):
+        super(MaxPoolingLayerDist, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
+            fshape, stride, pooling=True)
+        self.maxinds = backend.alloc(batch_size * nifm, self.ofmsize,
+                                     dtype='i32')
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
+
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape
         super(MaxPoolingLayerDist, self).adjust_for_dist(self.ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nifm, self.psize))
+            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
         super(MaxPoolingLayerDist, self).fprop(inputs)
 
 
-class L2PoolingLayer(PoolingLayer):
+class L2PoolingLayer(LocalLayer):
 
     """
     L2 pooling layer. Each receptive field is pooled to obtain its L2 norm
@@ -1174,9 +1028,13 @@ class L2PoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(L2PoolingLayer, self).__init__(name, backend, batch_size, pos,
-                                             nifm, ifmshape, fshape, stride)
-        self.prodbuf = self.backend.zeros((batch_size * nifm, self.psize))
+        super(L2PoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride, pooling=True)
+        self.prodbuf = self.backend.zeros((batch_size * nifm,
+                                           self.fshape[0] * self.fshape[1]))
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("L2PoolingLayer %s: %d nin, %d nout, "
@@ -1185,58 +1043,54 @@ class L2PoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nifm)
-        for dst in xrange(self.ofmsize):
-            inds = self.links[dst]
-            rf = rinputs.take(inds, axis=1)
-            self.routput[:, dst] = rf.norm(axis=1)
+        self.backend.fprop_l2pool(
+            inputs, self.output, self.links,
+            self.ifmshape, self.ofmshape, self.fshape,
+            0, self.stride, self.nifm)
 
-    def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
-        rinputs = self.backend.squish(inputs, self.nifm)
-        rberror = self.backend.squish(self.berror, self.nifm)
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
-                inds = self.links[dst]
-                rf = rinputs.take(inds, axis=1)
-                denom = self.routput[:, dst:(dst + 1)].copy()
-                # If the L2 norm is zero, the entire receptive field must be
-                # zeros. In that case, we set the L2 norm to 1 before using
-                # it to normalize the receptive field.
-                denom[denom.raw() == 0] = 1
-                self.backend.divide(rf, denom, out=rf)
-                self.backend.multiply(
-                    self.rdelta[:, dst:(dst + 1)].repeat(self.psize, axis=1),
-                    rf, out=self.prodbuf)
-                rberror[:, inds] += self.prodbuf
+            self.backend.bprop_l2pool(
+                inputs, self.output, error, self.berror, self.links,
+                self.ifmshape, self.ofmshape, self.fshape,
+                0, self.stride, self.nifm, self.prodbuf)
 
 
-class L2PoolingLayerDist(L2PoolingLayer):
+class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
 
     """
     Distributed L2 pooling layer. Each receptive field is pooled to obtain its
     L2 norm as output.
     """
 
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+                 stride):
+        super(L2PoolingLayerDist, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride, pooling=True)
+        self.prodbuf = self.backend.zeros((batch_size * nifm,
+                                           self.fshape[0] * self.fshape[1]))
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
+
     def adjust_for_dist(self):
         # shape with halos
         ifmshape = self.input.local_array.ifmshape
-        super(L2PoolingLayer, self).adjust_for_dist(ifmshape)
+        super(L2PoolingLayerDist, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.zeros(
-            (self.batch_size * self.nifm, self.psize))
+            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
         super(L2PoolingLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs_, epoch, momentum):
+    def bprop(self, error, inputs_, epoch):
         # redo-ing get_fprop_view, could cache for speed-up
         inputs = self.input.get_fprop_view(inputs_)
-        super(L2PoolingLayerDist, self).bprop(error, inputs, epoch, momentum)
+        super(L2PoolingLayerDist, self).bprop(error, inputs, epoch)
 
 
-class AveragePoolingLayer(PoolingLayer):
+class AveragePoolingLayer(LocalLayer):
 
     """
     Average pooling.
@@ -1244,10 +1098,11 @@ class AveragePoolingLayer(PoolingLayer):
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
                  stride):
-        super(AveragePoolingLayer, self).__init__(name, backend, batch_size,
-                                                  pos, nifm, ifmshape, fshape,
-                                                  stride)
+        super(AveragePoolingLayer, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride, pooling=True)
         self.nout = nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
 
     def __str__(self):
         return ("AveragePoolingLayer %s: %d nin, %d nout, "
@@ -1256,22 +1111,17 @@ class AveragePoolingLayer(PoolingLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        rinputs = self.backend.squish(inputs, self.nifm)
-        for dst in range(self.ofmsize):
-            inds = self.links[dst]
-            rf = rinputs.take(inds, axis=1)
-            self.routput[:, dst] = rf.mean(axis=1)
+        self.backend.fprop_apool(
+            inputs, self.output, self.links,
+            self.ifmshape, self.ofmshape, self.fshape,
+            0, self.stride, self.nifm)
 
-    def bprop(self, error, inputs, epoch, momentum):
-        self.delta[:] = error
-        rberror = self.backend.squish(self.berror, self.nfm)
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
-            self.backend.clear(self.berror)
-            self.rdelta /= self.psize
-            for dst in range(self.ofmsize):
-                inds = self.links[dst]
-                rberror[:, inds] += (self.rdelta.take(range(dst, dst + 1),
-                                     axis=1))
+            self.backend.bprop_apool(
+                self.output, error, self.berror, self.links,
+                self.ifmshape, self.ofmshape, self.fshape,
+                0, self.stride, self.nifm)
 
 
 class Convolver(LocalLayer):
@@ -1295,7 +1145,7 @@ class Convolver(LocalLayer):
             rflinks = self.rlinks[dst]
             self.backend.dot(inputs.take(rflinks, axis=1),
                              self.weights.T(), out=self.prodbuf)
-            self.output[:, self.rofmlocs[dst]] = self.prodbuf
+            self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
 
 class LCNLayer(YAMLable):
@@ -1437,18 +1287,18 @@ class LCNLayer(YAMLable):
                                            self.start_col)
         self.berror = self.berror.reshape((self.batch_size, self.nin))
 
-    def bprop_sub_normalize(self, error, inputs, epoch, momentum):
+    def bprop_sub_normalize(self, error, inputs, epoch):
         self.backend.clear(self.exerror)
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
                 self.backend.multiply(error[:, loc], filt, out=self.prodbuf)
                 self.exerror[:, rflinks] -= self.prodbuf
         self.reshape_error()
 
-    def bprop_div_normalize(self, error, inputs, epoch, momentum):
+    def bprop_div_normalize(self, error, inputs, epoch):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
@@ -1460,8 +1310,8 @@ class LCNLayer(YAMLable):
 
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
-                # self.conv.rofmlocs is over 1 fm only
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                # self.conv.ofmlocs is over 1 fm only
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
@@ -1486,13 +1336,13 @@ class LCNLayer(YAMLable):
                 self.exerror[:, rflinks] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
-            self.bprop_div_normalize(error, inputs, epoch, momentum)
-            self.bprop_sub_normalize(self.berror, inputs, epoch, momentum)
+            self.bprop_div_normalize(error, inputs, epoch)
+            self.bprop_sub_normalize(self.berror, inputs, epoch)
 
-    def bprop_fast(self, error, inputs, epoch, momentum):
+    def bprop_fast(self, error, inputs, epoch):
         """
         An incorrect, but much faster version of backprop.
         """
@@ -1671,7 +1521,7 @@ class LCNLayerDist(LCNLayer):
         self.input.make_fprop_view(self.subout)
         self.fprop_div_normalize()
 
-    def bprop_div_normalize(self, error, inputs, epoch, momentum):
+    def bprop_div_normalize(self, error, inputs, epoch):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
 
@@ -1687,8 +1537,8 @@ class LCNLayerDist(LCNLayer):
 
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
-                # self.conv.rofmlocs is over 1 fm only
-                loc = self.conv.rofmlocs[dst] + self.conv.ofmsize * fm
+                # self.conv.ofmlocs is over 1 fm only
+                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=1)
                 subout = self.subout.take(loc, axis=1)
                 assert divout[subout.raw() == 0].sum() == 0
@@ -1713,14 +1563,14 @@ class LCNLayerDist(LCNLayer):
                 self.exerror[:, rflinks] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch, momentum):
+    def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
-            self.bprop_div_normalize(error, inputs, epoch, momentum)
+            self.bprop_div_normalize(error, inputs, epoch)
 
             self.bprop_sub_normalize(
                 self.input.get_bprop_view(self.berror),
-                inputs, epoch, momentum)
+                inputs, epoch)
 
             self.berror = (
                 self.input.get_bprop_view(self.berror))

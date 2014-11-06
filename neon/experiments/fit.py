@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class FitExperiment(Experiment):
-
     """
     In this `Experiment`, a model is trained on a training dataset to
     learn a set of parameters
@@ -25,9 +24,9 @@ class FitExperiment(Experiment):
     Kwargs:
         backend (neon.backends.Backend): The backend to associate with the
                                             datasets to use in this experiment
-        TODO: add other params
+    TODO:
+        add other params
     """
-
     def __init__(self, **kwargs):
         # default dist_flag to False
         self.dist_flag = False
@@ -41,7 +40,6 @@ class FitExperiment(Experiment):
         """
         Actually carry out each of the experiment steps.
         """
-
         # load and/or deserialize any unloaded datasets
         for ds_idx in range(len(self.datasets)):
             ds = self.datasets[ds_idx]

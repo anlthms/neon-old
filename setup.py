@@ -37,11 +37,11 @@ try:
 except ImportError:
     use_cython = False
     suffix = "c"
-extensions = [Extension('neon.backends.fixpt_dtype',
-                        sources=['neon/backends/fixpt_dtype.c'],
+extensions = [Extension('neon.backends.flexpt_dtype',
+                        sources=['neon/backends/flexpt_dtype.c'],
                         include_dirs=[np.get_include()]),
-              Extension('neon.backends.fixpt_cython',
-                        ['neon/backends/fixpt_cython.' + suffix],
+              Extension('neon.backends.flexpt_cython',
+                        ['neon/backends/flexpt_cython.' + suffix],
                         include_dirs=[np.get_include()])]
 if use_cython:
     extensions = cythonize(extensions)
@@ -51,7 +51,7 @@ setup(name='neon',
       description='Deep learning library with configurable backends',
       long_description=open('README.md').read(),
       author='Nervana Systems',
-      author_email='software@nervanasys.com',
+      author_email='info@nervanasys.com',
       url='http://www.nervanasys.com',
       packages=['neon',
                 'neon.backends',

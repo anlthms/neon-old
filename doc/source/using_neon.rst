@@ -21,7 +21,7 @@ Installation
 
 Installing MPI on an Ubuntu cluster
 -----------------------------------
-Neon provides distributed implementations of convnets and sparse autoencoders.
+Neon provides distributed implementations of convnets and sparse autoencoders in addition to the non-distributed implementations.
 It has been tested with `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1.8/>`_ and `mpi4py <https://bitbucket.org/mpi4py/mpi4py>`_.
 
 1. Install OpenMPI:

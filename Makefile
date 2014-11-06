@@ -32,7 +32,7 @@ develop: build .git/hooks/pre-commit
 	-python setup.py develop
 
 install: build
-	pip install --upgrade .
+	pip install --upgrade --download-cache .pkgs --requirement requirements.txt .
 
 uninstall:
 	pip uninstall -y neon
@@ -53,8 +53,8 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
-	-rm -f neon/backends/fixpt_dtype.so
-	-rm -f neon/backends/fixpt_cython.so
+	-rm -f neon/backends/flexpt_dtype.so
+	-rm -f neon/backends/flexpt_cython.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean
@@ -63,7 +63,7 @@ doc: build
 html: doc
 
 style:
-	-flake8 .
+	-flake8 --exclude=.tox,build,dist,src .
 
 .git/hooks/pre-commit:
 	-flake8 --install-hook

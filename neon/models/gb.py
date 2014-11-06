@@ -22,7 +22,7 @@ class GB(MLP):
 
     def pretrain(self, inputs):
         start_time = time.time()
-        logger.info('commencing unsupervised pretraining')
+        logger.debug('commencing unsupervised pretraining')
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
@@ -44,8 +44,7 @@ class GB(MLP):
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
-                                                   epoch,
-                                                   self.momentum)
+                                                   epoch)
                     trcost += rcost
                     tspcost += spcost
                 tcost = trcost + tspcost
@@ -79,18 +78,18 @@ class GB(MLP):
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
-                logger.info('batch = %d' % (batch))
+                logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
                 if epoch < self.num_initial_epochs:
                     self.bprop_last(targets[start_idx:end_idx],
                                     inputs[start_idx:end_idx],
-                                    epoch, self.momentum)
+                                    epoch)
                 else:
                     self.bprop(targets[start_idx:end_idx],
                                inputs[start_idx:end_idx],
-                               epoch, self.momentum)
+                               epoch)
                 error += self.cost.apply_function(self.backend,
                                                   self.layers[-1].output,
                                                   targets[start_idx:end_idx],
@@ -155,14 +154,14 @@ class GB(MLP):
             sum += maxauc
         logger.info('average max auc %.4f' % (sum / targets.shape[1]))
 
-    def bprop_last(self, targets, inputs, epoch, momentum):
+    def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.
         error = self.cost.apply_derivative(self.backend,
                                            self.layers[-1].output, targets,
                                            self.temp)
         self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                             out=error)
-        self.layers[-1].bprop(error, self.layers[-2].output, epoch, momentum)
+        self.layers[-1].bprop(error, self.layers[-2].output, epoch)
 
     def fit(self, datasets):
         inputs = datasets[0].get_inputs(train=True)['train']

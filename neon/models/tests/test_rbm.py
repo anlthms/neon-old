@@ -10,7 +10,7 @@ Tests for restricted boltzmann machine (RBM)
 """
 from nose.plugins.attrib import attr
 import numpy as np
-
+from neon.models.learning_rule import GradientDescent
 from neon.models.layer import RBMLayer
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
@@ -18,10 +18,8 @@ from neon.util.testing import assert_tensor_near_equal
 from neon.util.compat import CUDA_GPU
 
 if CUDA_GPU:
-    from neon.backends._cudanet import Cudanet, CudanetTensor
-
-    kwargs = {'rng_seed': 0}
-    myBackend = Cudanet(**kwargs)  # gives a backend!
+    from neon.backends.gpu import GPU, GPUTensor
+    be = GPU(rng_seed=0)
 
 
 class TestCudaRBM:
@@ -29,7 +27,7 @@ class TestCudaRBM:
     @attr('cuda')
     def setup(self):
         # reusable fake data
-        self.inputs = CudanetTensor(np.ones((2, 100)))
+        self.inputs = GPUTensor(np.ones((2, 100)))
 
         # create simple backend instance
 
@@ -37,9 +35,12 @@ class TestCudaRBM:
         nin = 2
         conf = {'name': 'testlayer', 'num_nodes': 2,
                 'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
+        lr_params = {'learning_rate': 0.01, 'backend': be}
+        thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], myBackend, 100, 0, 0.01,
-                              nin + 1, nout=conf['num_nodes'] + 1,
+        self.layer = RBMLayer(conf['name'], backend=be, batch_size=100,
+                              pos=0, learning_rule=thislr,
+                              nin=nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
                               weight_init=conf['weight_init'])
 
@@ -63,8 +64,8 @@ class TestCudaRBM:
     def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        temp = [myBackend.zeros(self.inputs.shape)]
-        thecost = self.cost.apply_function(myBackend, self.inputs,
+        temp = [be.zeros(self.inputs.shape)]
+        thecost = self.cost.apply_function(be, self.inputs,
                                            self.layer.x_minus.take(range(
                                                self.layer.x_minus.shape[0] -
                                                1), axis=0), temp)
