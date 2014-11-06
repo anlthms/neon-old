@@ -20,7 +20,7 @@ else
 endif
 
 
-.PHONY: default build develop install uninstall test test_all clean_pyc clean \
+.PHONY: default build develop install uninstall test test_all sanity speed clean_pyc clean \
 	      doc html style lint bench dist publish_doc release
 
 default: build
@@ -47,6 +47,13 @@ endif
 
 test_all: build
 	tox
+
+sanity: build
+	@echo "Running sanity tests..."
+
+speed: build
+	@echo "Running speed tests..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_test.py
 
 clean_pyc:
 	-find . -name '*.py[co]' -exec rm {} \;
