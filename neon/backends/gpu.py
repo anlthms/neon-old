@@ -293,7 +293,7 @@ class GPUTensor(Tensor):
                 ones = cudanet.empty((self.shape[0], 1))
                 ones.assign(1)
                 # outer product repmat (probably quite inefficient)
-                other = GPUTensor(cudanet.dot(ones, other._tensor.T))
+                other = GPUTensor(cudanet.dot(ones, other._tensor.transpose()))
             else:  # [1xN] vector
                 ones = cudanet.empty((self.shape[0], 1))
                 ones.assign(1)
@@ -460,13 +460,8 @@ class GPUTensor(Tensor):
         self._tensor.copy_to_host()
         return self._tensor.numpy_array
 
-    def T(self): # flake8: noqa
-        # CUDAMatrix.T is a transposed view.
-        return TransposedGPUTensor(self._tensor, self._tensor.T)
-
     def transpose(self):
-        # CUDAMatrix.transpose() returns a transposed copy.
-        return GPUTensor(self._tensor.transpose())
+        return TransposedGPUTensor(self._tensor, self._tensor.T)
 
     def reshape(self, shape):
         return GPUTensor(self._tensor.reshape(shape))
@@ -491,12 +486,10 @@ class GPUTensor(Tensor):
         if (indices[-1] - indices[0] == len(indices) - 1):
             if axis == 0:
                 return GPUTensor(self._tensor.get_row_slice(indices[0],
-                                                                indices[-1] +
-                                                                1))
+                                                            indices[-1] + 1))
             elif axis == 1:
                 return GPUTensor(self._tensor.get_col_slice(indices[0],
-                                                                indices[-1] +
-                                                                1))
+                                                            indices[-1] + 1))
             elif axis is None:
                 # we might be able to do this by first doing a reshape?
                 raise TooSlowToImplementError("need to first reshape")
@@ -585,7 +578,7 @@ class TransposedGPUTensor(GPUTensor):
 
 class GPU(Backend):
     """
-    Setus up a `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_ 
+    Sets up a `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
     based backend for matrix operations.
 
     Attributes:
@@ -680,7 +673,7 @@ class GPU(Backend):
         result.set_row_slice(0, x.shape[0], x._tensor)
         result.set_row_slice(x.shape[0], (x.shape[0] + 1),
                              cudanet.CUDAMatrix.ones.slice(
-                                0, x.shape[1]).reshape((1, x.shape[1])))
+                             0, x.shape[1]).reshape((1, x.shape[1])))
         return GPUTensor(result)
 
     def copy(self, a):
@@ -843,24 +836,24 @@ class GPU(Backend):
         raise NotImplementedError("TODO!")
 
     def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+                     fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
     def bprop_l2pool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, prodbuf):
+                     fshape, padding, stride, nfm, prodbuf):
         raise NotImplementedError("TODO!")
 
     def fprop_fc_dot(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
     def bprop_fc_dot(self, deltas, weights, out):
-        cudanet.dot(weights.T()._tensor, deltas._tensor, out._tensor)
+        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
     def update_fc_dot(self, deltas, inputs, out):
-        cudanet.dot(deltas._tensor, inputs.T()._tensor, out._tensor)
+        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def format(self, raw):
-        return self.array(raw.T.copy())
+        return self.array(raw.transpose().copy())
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
