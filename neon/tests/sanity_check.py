@@ -14,6 +14,6 @@ def sanity_check(conf_file, result):
     assert experiment.model.result == result
 
 if __name__ == '__main__':
-    sanity_check('check_cpu.yaml', 0.3203125)
-    sanity_check('check_gpu.yaml', 0.390625)
+    sanity_check('check_cpu.yaml', 0.5390625)
+    sanity_check('check_gpu.yaml', 0.5625)
     print 'OK'

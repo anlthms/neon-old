@@ -83,8 +83,9 @@ class ToyImages(Dataset):
             routput[channel] = aos[..., channel]
 
     def ellipse(self, draw, xrad, yrad):
+        red, green, blue = np.random.randint(0, 256, 3)
         draw.rectangle((0, 0, self.ifmheight, self.ifmwidth),
-                       fill=(0, 0, 0))
+                       fill=(red, green, blue))
         xleft = self.center[0] - xrad
         yleft = self.center[1] - yrad
         xright = self.center[0] + xrad
