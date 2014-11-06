@@ -26,7 +26,7 @@ endif
 default: build
 
 build: clean_pyc
-	python setup.py build_ext --inplace
+	@python setup.py build_ext --inplace
 
 develop: build .git/hooks/pre-commit
 	-python setup.py develop
@@ -49,14 +49,15 @@ test_all: build
 	tox
 
 sanity: build
-	@echo "Running sanity tests..."
+	@echo "Running sanity checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py
 
 speed: build
-	@echo "Running speed tests..."
-	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_test.py
+	@echo "This will take a minute. Running speed checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py
 
 clean_pyc:
-	-find . -name '*.py[co]' -exec rm {} \;
+	@-find . -name '*.py[co]' -exec rm {} \;
 
 clean:
 	-python setup.py clean
