@@ -326,6 +326,13 @@ class NumpyTensor(Tensor):
         else:
             return self.__class__(res)
 
+    def sumsq(self, axis=None, dtype=np.float32, out=None):
+        res = np.sum(self._tensor * self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return self.__class__(res)
+
     def get_minor_slice(self, start, end):
         return self.__class__(self[start:end]._tensor)
 
@@ -531,6 +538,27 @@ class Numpy(Backend):
     @staticmethod
     def greater(a, b, out):
         np.greater(a._tensor, b._tensor, out._tensor)
+
+    @staticmethod
+    def xcov(a, b, out):
+        a0 = a._tensor - a._tensor.mean(0, keepdims=True)
+        b0 = b._tensor - b._tensor.mean(0, keepdims=True)
+        np.dot(a0.T, b0, out._tensor)
+        Numpy.divide(out, Numpy.wrap(a.shape[0]), out=out)
+
+    @staticmethod
+    def xcov(a, b, out):
+        a0 = a._tensor - a._tensor.mean(0, keepdims=True)
+        b0 = b._tensor - b._tensor.mean(0, keepdims=True)
+        np.dot(a0.T, b0, out._tensor)
+        Numpy.divide(out, Numpy.wrap(a.shape[0]), out=out)
+
+    @staticmethod
+    def mean_norm(a, axis, out):
+        if (axis=-1 or axis=None):
+            out._tensor = a._tensor - a._tensor.mean()
+        else:
+            out._tensor = a._tensor - a._tensor.mean(axis, keepdims=True)
 
     @staticmethod
     def exp(x, out):
