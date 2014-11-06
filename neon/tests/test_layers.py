@@ -18,9 +18,7 @@ def run_sanity(conf_file, result):
 
 
 def test_layers():
-    run_sanity('sanity_layers.yaml', 0.3203125)
+    run_sanity('sanity_cpu.yaml', 0.3203125)
+    # XXX: temporarily commented out due to assertion failure in initCublas()
+    #run_sanity('sanity_gpu.yaml', 0.390625)
 
-
-# XXX: temporarily commented out due to assertion failure in initCublas()
-#def test_gpu_backend():
-#    run_sanity('sanity_gpu_backend.yaml', 0.390625)

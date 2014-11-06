@@ -103,11 +103,13 @@ class ToyImages(Dataset):
         ncircles = shape[0] / 2
 
         for row in xrange(0, ncircles):
+            # Make circles.
             rad = np.random.randint(self.minrad, self.maxrad)
             self.circle(draw, rad)
             self.soa(np.array(im), data[row])
 
         for row in xrange(ncircles, shape[0]):
+            # Make ellipses.
             while True:
                 xrad, yrad = np.random.randint(self.minrad, self.maxrad, 2)
                 if xrad != yrad:
