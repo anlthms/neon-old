@@ -459,7 +459,7 @@ class CPU(Backend):
         a0 = a._tensor - a._tensor.mean(0, keepdims=True)
         b0 = b._tensor - b._tensor.mean(0, keepdims=True)
         np.dot(a0.T, b0, out._tensor)
-        Numpy.divide(out, Numpy.wrap(a.shape[0]), out=out)
+        CPU.divide(out, CPU.wrap(a.shape[0]), out=out)
 
     def mean_norm(self, a, axis, out):
         if (axis=-1 or axis=None):

@@ -540,7 +540,7 @@ class GPUTensor(Tensor):
         else:
             result = self._tensor.sumsq(axis=axis)
             logger.debug('major change in functionality of sum')
-            return CudanetTensor(result)
+            return GPUTensor(result)
 
 
     def mean(self):
