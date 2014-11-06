@@ -79,8 +79,8 @@ def test_flexpt_cython():
              "B = B.astype(np.int64)\n"
              "out = np.empty([%d, %d], np.int64)" %
              (SIZE, SIZE, SIZE, SIZE, SIZE, SIZE))
-    res = timeit.repeat("naive_dot(A, B.T, out, dtype, dtype, dtype)",
-                        setup=setup, number=NUMBER, repeat=REPEAT)
+    res = timeit.repeat("naive_dot(A, B.transpose(), out, dtype, dtype, "
+                        "dtype)", setup=setup, number=NUMBER, repeat=REPEAT)
     return min(res)
 
 if __name__ == '__main__':
