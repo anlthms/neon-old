@@ -14,4 +14,4 @@ def test_layers():
         logging.basicConfig(**experiment.logging)
 
     experiment.run()
-    assert experiment.model.result == 0.34375
+    assert experiment.model.result == 0.3203125

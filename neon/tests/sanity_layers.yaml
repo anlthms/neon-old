@@ -105,7 +105,7 @@
         nifm: 4,
         ifmshape: [28, 28],
         fshape: [2, 2],
-        stride: 1,
+        stride: 2,
       },
       !obj:neon.models.layer.L2PoolingLayer {
         name: layer5,
@@ -113,7 +113,7 @@
         batch_size: *bs,
         pos: 5,
         nifm: 4,
-        ifmshape: [27, 27],
+        ifmshape: [14, 14],
         fshape: [2, 2],
         stride: 1,
       },
@@ -130,7 +130,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 2704,
+        nin: 676,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
