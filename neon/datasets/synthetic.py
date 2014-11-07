@@ -5,7 +5,6 @@ Datasets with fake data for testing purposes.
 import logging
 import numpy as np
 
-from PIL import Image, ImageDraw
 from neon.datasets.dataset import Dataset
 
 
@@ -73,41 +72,29 @@ class ToyImages(Dataset):
         self.center = (self.ifmwidth / 2, self.ifmheight / 2)
         np.random.seed(0)
 
-    def soa(self, aos, output):
-        """
-        Convert from array of structures to structure of arrays.
-        """
-        assert aos.ndim == 3
-        routput = output.reshape((aos.shape[2], aos.shape[0], aos.shape[1]))
-        for channel in xrange(aos.shape[2]):
-            routput[channel] = aos[..., channel]
+    def ellipse(self, canvas, xrad, yrad):
+        rcanvas = canvas.reshape((self.nifm, self.ifmheight, self.ifmwidth))
+        smooth = 10
+        angs = np.linspace(0, 2 * np.pi, smooth * 360)
+        si = np.sin(angs)
+        co = np.cos(angs)
+        xvals = np.int32(xrad * co) + self.center[0]
+        yvals = np.int32(yrad * si) + self.center[1]
+        for fm in xrange(self.nifm):
+            rcanvas[fm, xvals, yvals] = np.random.randint(256)
 
-    def ellipse(self, draw, xrad, yrad):
-        red, green, blue = np.random.randint(0, 256, 3)
-        draw.rectangle((0, 0, self.ifmheight, self.ifmwidth),
-                       fill=(red, green, blue))
-        xleft = self.center[0] - xrad
-        yleft = self.center[1] - yrad
-        xright = self.center[0] + xrad
-        yright = self.center[1] + yrad
-        red, green, blue = np.random.randint(0, 256, 3)
-        draw.ellipse((xleft, yleft, xright, yright), fill=(red, green, blue))
-
-    def circle(self, draw, rad):
-        self.ellipse(draw, rad, rad)
+    def circle(self, canvas, rad):
+        self.ellipse(canvas, rad, rad)
 
     def load_data(self, shape):
         data = np.zeros(shape, dtype=np.float32)
         labels = np.zeros(shape[0], dtype=np.float32)
-        im = Image.new('RGB', (self.ifmheight, self.ifmwidth))
-        draw = ImageDraw.Draw(im)
         ncircles = shape[0] / 2
 
         for row in xrange(0, ncircles):
             # Make circles.
             rad = np.random.randint(self.minrad, self.maxrad)
-            self.circle(draw, rad)
-            self.soa(np.array(im), data[row])
+            self.circle(data[row], rad)
 
         for row in xrange(ncircles, shape[0]):
             # Make ellipses.
@@ -115,9 +102,8 @@ class ToyImages(Dataset):
                 xrad, yrad = np.random.randint(self.minrad, self.maxrad, 2)
                 if xrad != yrad:
                     break
-            self.ellipse(draw, xrad, yrad)
+            self.ellipse(data[row], xrad, yrad)
             labels[row] = 1
-            self.soa(np.array(im), data[row])
 
         data /= 255
         onehot = np.zeros((len(labels), self.nout), dtype=np.float32)
