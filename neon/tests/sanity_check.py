@@ -16,5 +16,5 @@ def sanity_check(conf_file, result):
 if __name__ == '__main__':
     sanity_check('check_cpu.yaml', 0.5390625)
     sanity_check('check_gpu.yaml', 0.5625)
-    sanity_check('check_dist.yaml', 0.53125)
+    sanity_check('check_dist.yaml', 0.5078125)
     print 'OK'

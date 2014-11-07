@@ -333,7 +333,8 @@ class LocalLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, pooling=False, activation=None):
+                 nofm, ifmshape, fshape, stride, pooling=False,
+                 activation=None):
         self.name = name
         self.backend = backend
         self.activation = activation
@@ -483,9 +484,11 @@ class LocalLayerDist(LocalLayer):
         self.output = self.backend.zeros((self.batch_size, self.nout))
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, pooling=False):
+                 nofm, ifmshape, fshape, stride, pooling=False,
+                 activation=None):
         self.name = name
         self.backend = backend
+        self.activation = activation
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
         self.fshape = fshape
@@ -535,7 +538,7 @@ class ConvLayer(LocalLayer):
         if activation is not None:
             self.pre_act = backend.alloc(batch_size, self.nout)
         else:
-            self.pre_act = self.output 
+            self.pre_act = self.output
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -592,7 +595,10 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.updatebuf = backend.zeros((self.fsize, nofm))
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
+            self.pre_act = backend.alloc(batch_size, self.nout)
             raise NotImplementedError('TODO')
+        else:
+            self.pre_act = self.output
 
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape

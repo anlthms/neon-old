@@ -56,6 +56,15 @@ speed: build
 	@echo "This will take a minute. Running speed checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py
 
+grad: build
+	@echo "Running gradient checks..."
+	@echo "CPU:"
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_cpu.yaml
+	@echo "GPU:"
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_gpu.yaml
+
+all: style test sanity grad speed
+
 clean_pyc:
 	@-find . -name '*.py[co]' -exec rm {} \;
 
