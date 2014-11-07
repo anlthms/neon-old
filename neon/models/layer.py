@@ -239,21 +239,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
-class LayerWithNoActivation(LayerWithNoBias):
-
-    def fprop(self, inputs):
-        self.backend.dot(inputs, self.weights.transpose(), out=self.pre_act)
-
-    def bprop(self, error, inputs, epoch):
-        self.delta = error
-        if self.pos > 0:
-            self.backend.dot(self.delta, self.weights, out=self.berror)
-
-        self.backend.dot(self.delta.transpose(), inputs, out=self.updates)
-
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-
-
 class RBMLayer(Layer):
 
     """
@@ -348,9 +333,10 @@ class LocalLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, pooling=False):
+                 nofm, ifmshape, fshape, stride, pooling=False, activation=None):
         self.name = name
         self.backend = backend
+        self.activation = activation
         self.batch_size = batch_size
         self.pos = pos
         self.nifm = nifm
@@ -532,10 +518,11 @@ class ConvLayer(LocalLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, weight_init):
+                 nofm, ifmshape, fshape, stride, weight_init, activation=None):
         super(ConvLayer, self).__init__(name, backend, batch_size, pos,
                                         learning_rule, nifm, nofm,
-                                        ifmshape, fshape, stride)
+                                        ifmshape, fshape, stride,
+                                        activation=activation)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
@@ -545,6 +532,10 @@ class ConvLayer(LocalLayer):
         self.bpropbuf = backend.alloc(batch_size, self.fsize)
         self.updatebuf = backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
+        if activation is not None:
+            self.pre_act = backend.alloc(batch_size, self.nout)
+        else:
+            self.pre_act = self.output 
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -557,12 +548,16 @@ class ConvLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def fprop(self, inputs):
-        self.backend.fprop_conv(self.weights, inputs, self.output,
+        self.backend.fprop_conv(self.weights, inputs, self.pre_act,
                                 self.rlinks, self.ifmshape, self.ofmshape,
                                 self.ofmlocs, 0, self.stride, self.nifm, 1,
                                 self.prodbuf)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
                                     self.links, self.ifmshape, self.ofmshape,
@@ -582,10 +577,11 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, weight_init):
+                 nofm, ifmshape, fshape, stride, weight_init, activation=None):
         super(ConvLayerDist, self).__init__(name, backend, batch_size, pos,
                                             learning_rule, nifm, nofm,
-                                            ifmshape, fshape, stride)
+                                            ifmshape, fshape, stride,
+                                            activation=activation)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
@@ -595,6 +591,8 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.bpropbuf = backend.zeros((batch_size, self.fsize))
         self.updatebuf = backend.zeros((self.fsize, nofm))
         self.learning_rule.allocate_state(self.updates)
+        if activation is not None:
+            raise NotImplementedError('TODO')
 
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape
