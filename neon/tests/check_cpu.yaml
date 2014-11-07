@@ -60,18 +60,16 @@
         fshape: [2, 2],
         stride: 1,
       },
-      # XXX: commented out because this layer produces different results
-      # on OSX versus Linux.
-      #!obj:neon.models.layer.LCNLayer {
-      #  name: layer2,
-      #  backend: *be,
-      #  batch_size: *bs,
-      #  pos: 2,
-      #  nifm: 1,
-      #  ifmshape: [29, 29],
-      #  fshape: [3, 3],
-      #  stride: 1,
-      #},
+      !obj:neon.models.layer.LCNLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        nifm: 1,
+        ifmshape: [29, 29],
+        fshape: [3, 3],
+        stride: 1,
+      },
       !obj:neon.models.layer.LocalFilteringLayer {
         name: layer3,
         backend: *be,
