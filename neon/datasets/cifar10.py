@@ -3,7 +3,6 @@ CIFAR-10 contains color images of 10 classes.
 More info at: http://www.cs.toronto.edu/~kriz/cifar.html
 """
 
-import cPickle
 import logging
 import numpy as np
 import os
@@ -11,6 +10,7 @@ import tarfile
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED
+from neon.util.persist import deserialize
 
 
 logger = logging.getLogger(__name__)
@@ -109,9 +109,7 @@ class CIFAR10(Dataset):
 
     def load_file(self, filename, nclasses):
         logger.info('loading: %s' % filename)
-        fo = open(filename, 'rb')
-        dict = cPickle.load(fo)
-        fo.close()
+        dict = deserialize(filename)
 
         full_image = np.float32(dict['data'])
         full_image /= 255.

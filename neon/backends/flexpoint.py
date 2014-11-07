@@ -4,7 +4,6 @@ configurable integer and fraction bit width, rounding and overflow schemes.
 """
 
 import logging
-import math
 import numpy as np
 
 from neon.backends.cpu import CPU, CPUTensor
@@ -13,8 +12,7 @@ from neon.backends.flexpt_cython import (flex_from_float,
                                          flex_to_float,
                                          flex_to_float_array,
                                          naive_dot, elemtype, elemfloat,
-                                         flexpt_dtype, fp_rescale_array,
-                                         fp_rescale)
+                                         flexpt_dtype, fp_rescale_array)
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +35,22 @@ class FlexpointTensor(CPUTensor):
     """
     default_dtype = flexpt_dtype(sign_bit=True, int_bits=4, frac_bits=11,
                                  overflow=0, rounding=0)
+
     def __init__(self, obj, dtype=None, force_rescale=False):
         if dtype is None:
             dtype = self.default_dtype
-        if ((not force_rescale) and type(obj) == np.ndarray and
-            obj.dtype == elemtype):
+        if ((not force_rescale) and type(obj) == np.ndarray and (obj.dtype
+                                                                 == elemtype)):
             # already in the correct format, just assign to the _tensor
-                self._tensor = obj
-                self.shape = obj.shape
+            self._tensor = obj
+            self.shape = obj.shape
         elif (not force_rescale) and type(obj) == elemtype:
             # single element case
             self._tensor = np.array([[obj]], elemtype)
             self.shape = self._tensor.shape
         else:
             super(FlexpointTensor, self).__init__(obj, dtype=elemfloat)
-            force_rescale=True
+            force_rescale = True
             if not self._tensor.flags['C_CONTIGUOUS']:
                 self._tensor = np.ascontiguousarray(self._tensor)
         # ensure we can convert to a 2D representation
@@ -87,8 +86,8 @@ class FlexpointTensor(CPUTensor):
         if isinstance(value, self.__class__):
             fp_rescale_array(self._tensor[clean_key], value.dtype, self.dtype)
 
-    def T(self):  # flake8: noqa
-        return self.__class__(self._tensor.T, dtype=self.dtype)
+    def transpose(self):
+        return self.__class__(self._tensor.transpose(), dtype=self.dtype)
 
     def copy(self):
         return self.__class__(np.copy(self._tensor), dtype=self.dtype)
@@ -143,7 +142,8 @@ class Flexpoint(CPU):
 
     def alloc(self, nrows, ncols, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(np.zeros((nrows, ncols), dtype=elemfloat), dtype)
+        return self.tensor_cls(np.zeros((nrows, ncols), dtype=elemfloat),
+                               dtype)
 
     def array(self, obj, dtype=None):
         return self.tensor_cls(np.array(obj, dtype=elemfloat), dtype)
@@ -257,7 +257,7 @@ class Flexpoint(CPU):
         float_x = flex_to_float_array(x._tensor, x.dtype)
         bias = np.ones((x.shape[0], 1), dtype=elemfloat)
         return FlexpointTensor(np.concatenate((float_x, bias), axis=1),
-                                x.dtype)
+                               x.dtype)
 
     def argmax(self, x, axis=None):
         # since np.argmax may return elements of our internal elemtype, we need
