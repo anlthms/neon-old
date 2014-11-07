@@ -1,7 +1,7 @@
 from nose.plugins.attrib import attr
 import numpy as np
 
-from neon.backends._numpy import NumpyTensor
+from neon.backends.cpu import CPU, CPUTensor
 from neon.transforms.rectified import rectlin, rectlin_derivative
 from neon.util.testing import assert_tensor_equal
 
@@ -20,23 +20,21 @@ def test_rectlin_mixed():
                         rectlin(np.array([[4, 0], [-2, 9]])))
 
 
-def test_rectlin_numpytensor():
-    assert_tensor_equal(NumpyTensor([[4, 0], [0, 9]]),
-                        rectlin(NumpyTensor([[4, 0], [-2, 9]])))
+def test_rectlin_cputensor():
+    be = CPU()
+    temp = be.zeros((2, 2))
+    be.rectlin(CPUTensor([[4, 0], [-2, 9]]), temp)
+    assert_tensor_equal(CPUTensor([[4, 0], [0, 9]]), temp)
 
 
 @attr('cuda')
-def test_rectlin_cudamattensor():
-    from neon.backends._cudamat import CudamatTensor
-    assert_tensor_equal(CudamatTensor([[4, 0], [0, 9]]),
-                        rectlin(CudamatTensor([[4, 0], [-2, 9]])))
-
-
-@attr('cuda')
-def test_rectlin_diff_backends():
-    from neon.backends._cudamat import CudamatTensor
-    assert_tensor_equal(NumpyTensor([[4, 0], [0, 9]]),
-                        rectlin(CudamatTensor([[4, 0], [-2, 9]])))
+def test_rectlin_gputensor():
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
+    # with:
+    # from neon.backends.gpu import GPUTensor
+    assert_tensor_equal(GPUTensor([[4, 0], [0, 9]]),
+                        rectlin(GPUTensor([[4, 0], [-2, 9]])))
 
 
 def test_rectlin_derivative_positives():
@@ -54,18 +52,18 @@ def test_rectlin_derivative_mixed():
                         rectlin_derivative(np.array([[4, 0], [-2, 9]])))
 
 
-def test_rectlin_derivative_numpytensor():
-    assert_tensor_equal(NumpyTensor([[1, 0], [0, 1]]),
-                        rectlin_derivative(NumpyTensor([[4, 0], [-2, 9]])))
+def test_rectlin_derivative_cputensor():
+    be = CPU()
+    temp = be.zeros((2, 2))
+    be.rectlin_derivative(CPUTensor([[4, 0], [-2, 9]]), temp)
+    assert_tensor_equal(CPUTensor([[1, 0], [0, 1]]), temp)
 
 
 @attr('cuda')
-def test_rectlin_derivative_cudamattensor():
-    from neon.backends._cudamat import CudamatTensor
-    assert_tensor_equal(CudamatTensor([[1, 0], [0, 1]]),
-                        rectlin_derivative(CudamatTensor([[4, 0], [-2, 9]])))
-
-
-def test_rectlin_derivative_diff_backends():
-    assert_tensor_equal(np.array([[1, 0], [0, 1]]),
-                        rectlin_derivative(NumpyTensor([[4, 0], [-2, 9]])))
+def test_rectlin_derivative_gputensor():
+    # TODO: fix cudanet init/shutdown then replace
+    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
+    # with:
+    # from neon.backends.gpu import GPUTensor
+    assert_tensor_equal(GPUTensor([[1, 0], [0, 1]]),
+                        rectlin_derivative(GPUTensor([[4, 0], [-2, 9]])))

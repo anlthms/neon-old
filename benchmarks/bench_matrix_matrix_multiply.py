@@ -47,12 +47,16 @@ def bench_mat_mat_multiply(backend, classname, a_dims, b_dims, number=10000,
 if __name__ == '__main__':
     number = 100
     repeat = 3
-    test_backends = [('neon.backends._numpy', 'Numpy'),
-                     ('neon.backends._numpy', 'Numpy64'),
+    test_backends = [('neon.backends.cpu', 'CPU'),
+                     ('neon.backends.unsupported._numpy', 'Numpy64'),
                      #  ('neon.backends.fixedpoint', 'FixedPoint')]
                      ]
     if CUDA_GPU:
-        test_backends.insert(1, ('neon.backends._cudamat', 'Cudamat'))
+        # TODO: once cudanet init/shutdown resolved replace:
+        test_backends.insert(1, ('neon.backends.unsupported._cudamat',
+                                 'Cudamat'))
+        # with:
+        # test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
     for a_dims, b_dims in [((2, 2), (2, 2)), ((32, 32), (32, 32)),
                            ((500, 500), (500, 500)),
                            ((1000, 1600), (1600, 1000))]:

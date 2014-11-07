@@ -9,4 +9,4 @@ Which should yield an executable in your system path named `neon`
 
 Then just issue:
 
-    neon examples/whatever_example.yaml
+    neon whatever_example.yaml

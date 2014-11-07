@@ -1,0 +1,208 @@
+# Experiment settings to train/test a "Google Brain" style sparse autoencoder
+# model on CIFAR10.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.cpu.CPU {
+    rng_seed: 0,
+  },
+
+  datasets: [
+    # CIFAR10 data
+    !obj:neon.datasets.cifar10.CIFAR10 {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 10,
+    },
+  ],
+
+  # Google Brain model specification
+  model: !obj:neon.models.gb.GB {
+    backend: *be,
+    num_epochs: 4,
+    num_pretrain_epochs: 1,
+    num_initial_epochs: 1,
+    batch_size: &bs 100,
+    pretraining: &pt True,
+    visualize: False,
+    spot_check: False,
+    pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    layers: [
+      !obj:neon.models.layer.LocalFilteringLayer {
+        name: layer0,
+        pretraining: *pt,
+        sparsity: &sp 0.1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer0lr,
+          lr_params: {
+            learning_rate: &lr 0.1,
+            pretrain_learning_rate: &plr 0.001,
+            backend: *be,
+          },
+        },
+        tied_weights: &tw True,
+        nifm: 3,
+        nofm: 8,
+        ifmshape: [32, 32],
+        fshape: [6, 6],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.L2PoolingLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nifm: 8,
+        ifmshape: [27, 27],
+        fshape: [5, 5],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LCNLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        nifm: 8,
+        ifmshape: [23, 23],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LocalFilteringLayer {
+        name: layer3,
+        pretraining: *pt,
+        sparsity: *sp,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer3lr,
+          lr_params: {
+            learning_rate: *lr,
+            pretrain_learning_rate: *plr,
+            backend: *be,
+          },
+        },
+        tied_weights: *tw,
+        nifm: 8,
+        nofm: 8,
+        ifmshape: [23, 23],
+        fshape: [6, 6],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.L2PoolingLayer {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 4,
+        nifm: 8,
+        ifmshape: [18, 18],
+        fshape: [5, 5],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LCNLayer {
+        name: layer5,
+        backend: *be,
+        batch_size: *bs,
+        pos: 5,
+        nifm: 8,
+        ifmshape: [14, 14],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LocalFilteringLayer {
+        name: layer6,
+        pretraining: *pt,
+        sparsity: *sp,
+        backend: *be,
+        batch_size: *bs,
+        pos: 6,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentPretrain {
+          name: layer6lr,
+          lr_params: {
+            learning_rate: *lr,
+            pretrain_learning_rate: *plr,
+            backend: *be,
+          },
+        },
+        tied_weights: *tw,
+        nifm: 8,
+        nofm: 8,
+        ifmshape: [14, 14],
+        fshape: [6, 6],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.L2PoolingLayer {
+        name: layer7,
+        backend: *be,
+        batch_size: *bs,
+        pos: 7,
+        nifm: 8,
+        ifmshape: [9, 9],
+        fshape: [5, 5],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LCNLayer {
+        name: layer8,
+        backend: *be,
+        batch_size: *bs,
+        pos: 8,
+        nifm: 8,
+        ifmshape: [5, 5],
+        fshape: [3, 3],
+        stride: 1,
+      },
+      !obj:neon.models.layer.LayerWithNoBias {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 9,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
+        nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nout: 10,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  logging: {
+    level: 20,  #logging.DEBUG == 10
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

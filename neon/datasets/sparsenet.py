@@ -98,7 +98,7 @@ class SPARSENET(Dataset):
                     print "test2"
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
-                    indat = indat.reshape((256, 10240)).T[train_idcs]
+                    indat = indat.reshape((256, 10240)).transpose()[train_idcs]
                     self.inputs['train'] = indat
                 else:
                     logger.error('problems loading: %s' % name)

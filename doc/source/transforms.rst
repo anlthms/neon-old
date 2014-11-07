@@ -19,3 +19,6 @@ Available Transforms
 
    neon.transforms.sum_squared.SumSquaredDiffs
    neon.transforms.cross_entropy.CrossEntropy
+
+   neon.transforms.gaussian.gauss
+   neon.transforms.gaussian.gaussian_filter

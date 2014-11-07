@@ -53,8 +53,8 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
-	-rm -f neon/backends/fixpt_dtype.so
-	-rm -f neon/backends/fixpt_cython.so
+	-rm -f neon/backends/flexpt_dtype.so
+	-rm -f neon/backends/flexpt_cython.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

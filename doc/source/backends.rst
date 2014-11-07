@@ -7,8 +7,13 @@ Current Implementations
 .. autosummary::
    :toctree: generated/
 
-   neon.backends._numpy.Numpy
-   neon.backends._cudamat.Cudamat
+   neon.backends.cpu.CPU
+   neon.backends.gpu.GPU
+   neon.backends.flexpoint.Flexpoint
+
+   neon.backends.unsupported._numpy.Numpy
+   neon.backends.unsupported._cudamat.Cudamat
+   neon.backends.unsupported._cudanet.Cudanet
 
 Adding a new Backend
 --------------------

@@ -16,23 +16,39 @@ Backends
    neon.backends.backend.Backend
 ..   neon.backends.backend.Backend.Tensor
 
-Numpy
------
+CPU
+---
 
 .. autosummary::
    :toctree: generated/
 
-   neon.backends._numpy.Numpy
-..   neon.backends._numpy.Numpy.Tensor
+   neon.backends.cpu.CPU
 
-CUDAMat
--------
+GPU
+---
 
 .. autosummary::
    :toctree: generated/
 
-   neon.backends._cudamat.Cudamat
-..   neon.backends._cudamat.Cudamat.Tensor
+   neon.backends.gpu.GPU
+
+Flexpoint
+---------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.backends.flexpoint.Flexpoint
+
+Unsupported
+------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.backends.unsupported._numpy.Numpy
+   neon.backends.unsupported._cudamat.Cudamat
+   neon.backends.unsupported._cudanet.Cudanet
 
 
 Models
@@ -125,6 +141,38 @@ MNIST
 
    neon.datasets.mnist.MNIST
 
+CIFAR10
+-------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.cifar10.CIFAR10
+
+Iris
+----
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.iris.Iris
+
+Sparsenet
+----------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.sparsenet.SPARSENET
+
+Synthetic
+---------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.synthetic.UniformRandom
+
 
 Experiments
 ===========
@@ -133,6 +181,9 @@ Experiments
    :toctree: generated/
 
    neon.experiments.experiment.Experiment
+   neon.experiments.fit.FitExperiment
+   neon.experiments.fit_predict_err.FitPredictErrorExperiment
+   neon.experiments.check_grad.GradientChecker
 
 
 Miscellaneous
@@ -142,3 +193,5 @@ Miscellaneous
    :toctree: generated/
 
    neon.util.compat.PY3
+   neon.util.compat.CUDA_GPU
+   neon.util.compat.MPI_INSTALLED

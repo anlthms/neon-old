@@ -44,10 +44,9 @@
   # --------------------------
   # backend - Controls how data will be constructed and operated on
   #           during the experiment.  Key parameter allowing the following types:
-  #           Numpy - 32-bit float numpy wrapped CPU based data
-  #           Numpy64 - 64-bit float numpy wrapped CPU based data
+  #           CPU - 32-bit float numpy wrapped CPU based data
   #           FixedPoint - fixed decimal point wrapped CPU based data
-  #           Cudamat - 32-bit float cudamat wrapped GPU based data
+  #           GPU - 32-bit float cuda-convnet2 wrapped GPU based data
   # datasets - list containing the input data to train/test against.  types:
   #            MNIST - handwritten digit image dataset
   #            CIFAR10 - 10 class object image dataset
@@ -61,9 +60,9 @@
   #         GB - "google brain" style sparse autoencoder network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
-  backend: &be !obj:neon.backends._numpy.Numpy {
-    # Numpy backend parameters:
-    # -------------------------
+  backend: &be !obj:neon.backends.cpu.CPU {
+    # CPU backend parameters:
+    # -----------------------
     # rng_seed - seed value for random number generator
     # seterr_handling - controls how floating point errors are handled
     rng_seed: 0,
@@ -88,7 +87,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-      serialized_path: '/usr/local/data/Iris/iris-Numpy.pkl',
+      serialized_path: '/usr/local/data/Iris/iris-CPU.pkl',
     },
   ],
   

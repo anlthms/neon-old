@@ -112,7 +112,7 @@ class Layer(YAMLable):
     def bprop(self, error, inputs, epoch):
         """
         # numpy pseudocode for the backprop:
-        # updates  = dot(delta.T, inputs)        # calculate new gradient
+        # updates = dot(delta.transpose(), inputs)  # calculate new gradient
         # weight update itself done by application of learning rule
         """
         self.backend.multiply(error, self.pre_act, out=self.delta)
@@ -334,14 +334,14 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 class LayerWithNoActivation(LayerWithNoBias):
 
     def fprop(self, inputs):
-        self.backend.dot(inputs, self.weights.T(), out=self.pre_act)
+        self.backend.dot(inputs, self.weights.transpose(), out=self.pre_act)
 
     def bprop(self, error, inputs, epoch):
         self.delta = error
         if self.pos > 0:
             self.backend.dot(self.delta, self.weights, out=self.berror)
 
-        self.backend.dot(self.delta.T(), inputs, out=self.updates)
+        self.backend.dot(self.delta.transpose(), inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -809,7 +809,8 @@ class LocalFilteringLayer(LocalLayer):
             # inputs.take: mbs x (ifmsize*nifm) ->  mbs x (fmsize*nifm)
             # self.weights: (nout x (ifmsize*nifm)).T -> (fsize x nofm)
             self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights.take(self.ofmlocs[dst], axis=0).T(),
+                             self.weights.take(self.ofmlocs[dst],
+                                               axis=0).transpose(),
                              out=self.prodbuf)
             # size: # mbs x nofm
             self.output[:, self.ofmlocs[dst]] = self.prodbuf
@@ -836,7 +837,7 @@ class LocalFilteringLayer(LocalLayer):
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
             delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
-            self.backend.dot(delta_slice.T(),
+            self.backend.dot(delta_slice.transpose(),
                              inputs.take(rflinks, axis=1),
                              out=self.updatebuf)
             self.updates[self.ofmlocs[dst]] = self.updatebuf
@@ -1026,11 +1027,11 @@ class LocalDeFilteringLayer(object):
             rflinks = self.rlinks[dst]
             self.backend.dot(error[:, rflinks],
                              self.weights.take(self.prev.ofmlocs[dst],
-                                               axis=0).T(),
+                                               axis=0).transpose(),
                              out=self.bpropbuf)
             self.berror[:, self.prev.ofmlocs[dst]] = self.bpropbuf
             delta_slice = error[:, rflinks]
-            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]].T(),
+            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]].transpose(),
                              delta_slice,
                              out=self.updatebuf)
             self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
@@ -1236,7 +1237,7 @@ class Convolver(LocalLayer):
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(inputs.take(rflinks, axis=1),
-                             self.weights.T(), out=self.prodbuf)
+                             self.weights.transpose(), out=self.prodbuf)
             self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
 
