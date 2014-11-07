@@ -80,9 +80,9 @@ class ConvnetDist(MLP):
                         raise ValueError('Unsupported layer.nin % '
                                          'MPI.COMM_WORLD.size != 0')
                     layer.nin = layer.nin / MPI.COMM_WORLD.size
-                    layer.out_indices = range(MPI.COMM_WORLD.rank * layer.nin,
-                                              (MPI.COMM_WORLD.rank + 1) *
-                                              layer.nin)
+                    layer.in_indices = range(MPI.COMM_WORLD.rank * layer.nin,
+                                             (MPI.COMM_WORLD.rank + 1) *
+                                             layer.nin)
                     layer.prev_layer = 'LayerWithNoBiasDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
@@ -193,7 +193,7 @@ class ConvnetDist(MLP):
             if (isinstance(layer, LayerWithNoBiasDist) and
                 isinstance(self.layers[layer.pos - 1],
                            LayerWithNoBiasDist)):
-                y = y.take(layer.out_indices, axis=1)
+                y = y.take(layer.in_indices, axis=1)
             layer.fprop(y)
             y = layer.output
 
@@ -214,7 +214,7 @@ class ConvnetDist(MLP):
         lastlayer.pre_act_ = lastlayer.pre_act
         if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
             lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.out_indices, axis=1),
+                            i - 1].output.take(lastlayer.in_indices, axis=1),
                             epoch)
         else:
             lastlayer.bprop(error, self.layers[i - 1].output, epoch)
@@ -222,11 +222,11 @@ class ConvnetDist(MLP):
         while isinstance(self.layers[i], LayerWithNoBiasDist):
             # extract self.layers[i].pre_act terms
             self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].out_indices, axis=1)
+                self.layers[i + 1].in_indices, axis=1)
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
                 self.layers[i].bprop(self.layers[i + 1].berror,
                                      self.layers[i - 1].output.
-                                     take(self.layers[i].out_indices, axis=1),
+                                     take(self.layers[i].in_indices, axis=1),
                                      epoch)
             else:
                 self.layers[i].bprop(self.layers[i + 1].berror,
