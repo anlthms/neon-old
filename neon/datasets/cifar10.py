@@ -42,7 +42,7 @@ class CIFAR10(Dataset):
             if MPI_INSTALLED:
                 from mpi4py import MPI
                 self.comm = MPI.COMM_WORLD
-                # for now require that comm.size is a square and divides 28
+                # for now require that comm.size is a square and divides 32
                 if self.comm.size not in [1, 4, 16]:
                     raise AttributeError('MPI.COMM_WORLD.size not compatible')
             else:
@@ -99,13 +99,13 @@ class CIFAR10(Dataset):
                         [ch * img_2d_size + r * img_width + x for x in range(
                             c_i[comm_rank], c_i[comm_rank] + px_per_dim)])
         elif self.dist_mode == 1:
-            if img_size % self.comm.size != 0:
-                raise ValueError('Unsupported img_size % '
-                                 'MPI.COMM_WORLD.size != 0')
-            nin = img_size / self.comm.size
-            self.dist_indices.extend(range(self.comm.rank * nin,
-                                           (self.comm.rank + 1) *
-                                           nin))
+            start_idx = 0
+            for j in range(comm_rank):
+                start_idx += (img_size // self.comm.size +
+                              (img_size % self.comm.size > j))
+            nin = (img_size // self.comm.size +
+                   (img_size % self.comm.size > comm_rank))
+            self.dist_indices.extend(range(start_idx, start_idx + nin))
 
     def load_file(self, filename, nclasses):
         logger.info('loading: %s' % filename)

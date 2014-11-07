@@ -33,7 +33,7 @@ class GB(MLP):
                 trcost = 0.0
                 tspcost = 0.0
                 for batch in xrange(num_batches):
-                    logger.info('batch = %d' % (batch))
+                    logger.debug('batch = %d' % (batch))
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                     output = inputs[start_idx:end_idx]
