@@ -1,6 +1,6 @@
 """
 Our CPU based backend interface and tensor data structure.  Our implementation
-wraps :mod:`numpy` ndarray and related operations 
+wraps :mod:`numpy` ndarray and related operations
 """
 
 import logging
@@ -231,12 +231,8 @@ class CPUTensor(Tensor):
     def raw(self):
         return self._tensor
 
-    def T(self):  # flake8: noqa
-        return self.__class__(self._tensor.T,
-                              dtype=self._tensor.dtype)
-
     def transpose(self):
-        return self.__class__(self._tensor.T,
+        return self.__class__(self._tensor.transpose(),
                               dtype=self._tensor.dtype)
 
     def reshape(self, shape):
@@ -418,7 +414,7 @@ class CPU(Backend):
         """
         return self.tensor_cls(np.concatenate((x._tensor,
                                                np.ones((x.shape[0], 1),
-                                                        dtype)),
+                                                       dtype)),
                                               axis=1), dtype)
 
     def copy(self, a):
@@ -544,7 +540,8 @@ class CPU(Backend):
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         self.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            self.dot(error.take(ofmlocs[dst], axis=1), weights.T(), bpropbuf)
+            self.dot(error.take(ofmlocs[dst], axis=1), weights.transpose(),
+                     bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
             berror[:, rflinks] = bpropbuf
@@ -558,7 +555,7 @@ class CPU(Backend):
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = error.take(ofmlocs[dst], axis=1)
-            self.dot(inputs.take(rflinks, axis=1).T(), eslice,
+            self.dot(inputs.take(rflinks, axis=1).transpose(), eslice,
                      out=updatebuf)
             updates.add(updatebuf)
 
@@ -604,7 +601,7 @@ class CPU(Backend):
             rberror[:, links[dst]] += rerror[:, dst:(dst + 1)]
 
     def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+                     fshape, padding, stride, nfm):
         rinputs = self.squish(inputs, nfm)
         routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
@@ -612,7 +609,7 @@ class CPU(Backend):
             routputs[:, dst] = rf.norm(axis=1)
 
     def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
-                    ofmshape, fshape, padding, stride, nfm, prodbuf):
+                     ofmshape, fshape, padding, stride, nfm, prodbuf):
         rinputs = self.squish(inputs, nfm)
         routputs = self.squish(outputs, nfm)
         rberror = self.squish(berror, nfm)
@@ -633,13 +630,13 @@ class CPU(Backend):
             rberror[:, inds] += prodbuf
 
     def fprop_fc_dot(self, inputs, weights, out):
-        np.dot(inputs._tensor, weights.T()._tensor, out._tensor)
+        np.dot(inputs._tensor, weights.transpose()._tensor, out._tensor)
 
     def bprop_fc_dot(self, deltas, weights, out):
         np.dot(deltas._tensor, weights._tensor, out._tensor)
 
     def update_fc_dot(self, deltas, inputs, out):
-        np.dot(deltas.T()._tensor, inputs._tensor, out._tensor)
+        np.dot(deltas.transpose()._tensor, inputs._tensor, out._tensor)
 
     def format(self, raw):
         return self.array(raw)
