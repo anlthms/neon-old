@@ -1125,6 +1125,39 @@ class AveragePoolingLayer(LocalLayer):
                 0, self.stride, self.nifm)
 
 
+class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
+
+    """
+    Distributed Average pooling layer.
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
+                 stride):
+        super(AveragePoolingLayerDist, self).__init__(
+            name, backend, batch_size, pos, 0.0, nifm, nifm,
+            ifmshape, fshape, stride, pooling=True)
+        self.prodbuf = self.backend.zeros((batch_size * nifm,
+                                           self.fshape[0] * self.fshape[1]))
+        self.nout = self.nifm * self.ofmsize
+        self.output = self.backend.alloc(self.batch_size, self.nout)
+
+    def adjust_for_dist(self):
+        # shape with halos
+        ifmshape = self.input.local_array.ifmshape
+        super(AveragePoolingLayerDist, self).adjust_for_dist(ifmshape)
+        self.prodbuf = self.backend.zeros(
+            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
+
+    def fprop(self, inputs_):
+        inputs = self.input.get_fprop_view(inputs_)
+        super(AveragePoolingLayerDist, self).fprop(inputs)
+
+    def bprop(self, error, inputs_, epoch):
+        # redo-ing get_fprop_view, could cache for speed-up
+        inputs = self.input.get_fprop_view(inputs_)
+        super(AveragePoolingLayerDist, self).bprop(error, inputs, epoch)
+
+
 class Convolver(LocalLayer):
 
     """

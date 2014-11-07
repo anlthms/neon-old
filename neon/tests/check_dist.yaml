@@ -1,7 +1,7 @@
 # Configuration for sanity checking.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
   },
 
@@ -13,14 +13,14 @@
     },
   ],
 
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.convnet_dist.ConvnetDist {
     backend: *be,
     num_epochs: 1,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer.ConvLayerDist {
         name: layer0,
         backend: *be,
         batch_size: *bs,
@@ -50,7 +50,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer.MaxPoolingLayerDist {
         name: layer1,
         backend: *be,
         batch_size: *bs,
@@ -60,7 +60,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: layer6,
         backend: *be,
         batch_size: *bs,
@@ -82,7 +82,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.LayerWithNoBiasDist {
         name: output,
         backend: *be,
         batch_size: *bs,
