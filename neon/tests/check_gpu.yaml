@@ -1,0 +1,114 @@
+# Configuration for sanity checking.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.gpu.GPU {
+    rng_seed: 0,
+  },
+
+  datasets: [
+    !obj:neon.datasets.synthetic.ToyImages {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+    },
+  ],
+
+  model: !obj:neon.models.mlp.MLP {
+    backend: *be,
+    num_epochs: 1,
+    batch_size: &bs 32,
+    learning_rate: &lr 0.01,
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    layers: [
+      !obj:neon.models.layer.ConvLayer {
+        name: layer0,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer0lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: &mm {
+              type: linear_monotone,
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
+          },
+        },
+        nifm: 3,
+        nofm: 16,
+        ifmshape: [32, 32],
+        fshape: [3, 3],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nifm: 16,
+        ifmshape: [30, 30],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.LayerWithNoBias {
+        name: layer6,
+        backend: *be,
+        batch_size: *bs,
+        pos: 6,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer6lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 3600,
+        nout: 100,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.LayerWithNoBias {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 7,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 100,
+        nout: 2,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+    ],
+  },
+
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

@@ -23,6 +23,7 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+        self.result = 0
 
     def fit(self, datasets):
         """
@@ -149,7 +150,7 @@ class MLP(Model):
                         ds.backend.argmax(
                             targets[item],
                             axis=targets[item].minor_axis()))
-                    err = ds.backend.mean(misclass)
+                    self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * err))
+                        item, 100 * self.result))
         # TODO: return values instead?
