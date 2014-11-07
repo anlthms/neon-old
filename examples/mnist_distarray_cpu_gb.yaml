@@ -21,7 +21,7 @@
   model: !obj:neon.models.gb_dist.GBDist {
     backend: *be,
     num_epochs: 4,
-    num_pretrain_epochs: 8,
+    num_pretrain_epochs: 2,
     num_initial_epochs: 1,
     batch_size: &bs 100,
     pretraining: &pt True,
