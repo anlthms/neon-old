@@ -20,13 +20,13 @@ else
 endif
 
 
-.PHONY: default build develop install uninstall test test_all clean_pyc clean \
+.PHONY: default build develop install uninstall test test_all sanity speed grad all clean_pyc clean \
 	      doc html style lint bench dist publish_doc release
 
 default: build
 
 build: clean_pyc
-	python setup.py build_ext --inplace
+	@python setup.py build_ext --inplace
 
 develop: build .git/hooks/pre-commit
 	-python setup.py develop
@@ -48,8 +48,25 @@ endif
 test_all: build
 	tox
 
+sanity: build
+	@echo "Running sanity checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py
+
+speed: build
+	@echo "This will take a minute. Running speed checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py
+
+grad: build
+	@echo "Running gradient checks..."
+	@echo "CPU:"
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_cpu.yaml
+	@echo "GPU:"
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_gpu.yaml
+
+all: style test sanity grad speed
+
 clean_pyc:
-	-find . -name '*.py[co]' -exec rm {} \;
+	@-find . -name '*.py[co]' -exec rm {} \;
 
 clean:
 	-python setup.py clean
@@ -63,7 +80,7 @@ doc: build
 html: doc
 
 style:
-	-flake8 --exclude=.tox,build,dist,src .
+	@-flake8 --exclude=.tox,build,dist,src .
 
 .git/hooks/pre-commit:
 	-flake8 --install-hook
