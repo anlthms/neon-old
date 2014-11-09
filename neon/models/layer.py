@@ -12,6 +12,8 @@ from neon.util.distarray import gdist_consts as gc
 from neon.util.distarray.local_array import LocalArray
 from neon.util.persist import YAMLable
 
+from ipdb import set_trace as trace
+
 if MPI_INSTALLED:
     from mpi4py import MPI
 
@@ -131,7 +133,7 @@ class LayerWithNoBias(Layer):
     """
     Single NNet layer with no bias node
     """
-
+    print "ENTERING NOBIAS LAYER"
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
@@ -144,6 +146,49 @@ class LayerWithNoBias(Layer):
 
     def fprop(self, inputs):
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
+
+    def bprop(self, error, inputs, epoch):
+        # comment if not using denominator term in cross_entropy
+        self.backend.multiply(error, self.pre_act, out=self.delta)
+        if self.pos > 0:
+            self.backend.bprop_fc_dot(self.delta, self.weights,
+                                      out=self.berror)
+        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+class RecurrentLayer(Layer):
+
+    """
+    Single RNN layer with no bias node
+    """
+    print "ENTERING RECURRENT LAYER"
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
+                 activation, weight_init, weight_init_rec, learning_rule, weight_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
+        # super calls into Layer.__init__() for weight init. 
+        super(RecurrentLayer, self).__init__(name, backend, batch_size,
+                                              pos, nin, nout, activation,
+                                              weight_init, learning_rule)
+        # but the extra weight matrix needs to be initialized here:
+        self.weights_rec = self.backend.gen_weights((nout, nout), weight_init_rec,
+                                                weight_dtype)
+        # may need to also define extra self.delta self.pre_act 
+        if pos > 0:
+            self.berror = backend.alloc(batch_size, nin)
+
+    def fprop(self, y, inputs):
+        #self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
+        #self.activation.apply_both(self.backend, self.pre_act, self.output)
+
+        # TODO: to use fc_dot here, need an extra buffer
+        z1 = np.dot(y, self.weights_rec)
+        z2 = np.dot(inputs, self.weights)
+        self.pre_act = z1 + z2
+        trace()
         self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
