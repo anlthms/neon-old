@@ -252,12 +252,6 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
-    def add(self, obj):
-        self._tensor += obj._tensor
-
-    def sub(self, obj):
-        self._tensor -= obj._tensor
-
     def norm(self, axis):
         return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
 
@@ -557,7 +551,7 @@ class CPU(Backend):
             eslice = error.take(ofmlocs[dst], axis=1)
             self.dot(inputs.take(rflinks, axis=1).transpose(), eslice,
                      out=updatebuf)
-            updates.add(updatebuf)
+            self.add(updates, updatebuf, out=updates)
 
     def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, maxinds):

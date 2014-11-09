@@ -497,12 +497,6 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def add(self, obj):
-        self._tensor.add(obj._tensor)
-
-    def sub(self, obj):
-        self._tensor.subtract(obj._tensor)
-
     def sum(self, axis=None):
         """
         Sum elements of a GPUTensor. If axis is None, all elements are
