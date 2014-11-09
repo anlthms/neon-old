@@ -4,34 +4,36 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
-    seterr_handling: { 
-      all: 'warn',
+    seterr_handling: {
+      all: 'raise', #  'warn' or 
     },
   },
-  
+
   datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
+    # Moby Dick data
+    !obj:neon.datasets.mobydick.MOBYDICK {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 100,
+      sample_pct: 1, # 100 for full, 10 subsample for speed
     },
   ],
-  
-  # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+
+  # simple RNN model specification
+  model: !obj:neon.models.rnn.RNN {
     backend: *be,
     num_epochs: 30,
     batch_size: &bs 100,
+    unrolls: 5,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.Layer {
-        name: h0,
+      # recurrent layer
+      !obj:neon.models.layer.RecurrentLayer {
+        name: recurrent,
         backend: *be,
         batch_size: *bs,
         pos: 0,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
+          name: h1lr,
           lr_params: {
             learning_rate: &lr 0.1,
             backend: *be,
@@ -41,16 +43,22 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
-        nout: 100,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        nin: 128, # and an implicit 64 rec weight.
+        nout: 64,
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.01,
+          type: node_normalized,
+          scale: 4.0,
+          bias_init: 0.0,
+        },
+        weight_init_rec: {
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
         },
       },
-      !obj:neon.models.layer.Layer {
+      # output layer
+      !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -63,8 +71,8 @@
             momentum_params: *mm,
           },
         },
-        nin: 101, # previous nout + 1 for the bias
-        nout: 10,
+        nin: 64, # previous nout + 1 for the bias
+        nout: 128,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: node_normalized,
@@ -74,7 +82,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
@@ -88,3 +96,4 @@
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }
+
