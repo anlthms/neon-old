@@ -133,7 +133,6 @@ class LayerWithNoBias(Layer):
     """
     Single NNet layer with no bias node
     """
-    print "ENTERING NOBIAS LAYER"
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
@@ -164,7 +163,6 @@ class RecurrentLayer(Layer):
     """
     Single RNN layer with no bias node
     """
-    print "ENTERING RECURRENT LAYER"
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, weight_init_rec, learning_rule, weight_dtype=None,
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
