@@ -642,6 +642,21 @@ class CPU(Backend):
         return self.array(raw)
 
     def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations:
+        uniform - uniform distribution
+        sparse_eigenvalued - each weight has 15 nonzero inputs and the 
+                maximum eigenvalue of the weight matrix is scaled to 1.2 
+        normal or gaussian - normal distribution
+        node_normalized - initialization is as discussed in Glorot2010
+
+        Inputs:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Outputs:
+            weights: The weights
+        """
         weights = None
         if 'dtype' in weight_params:
             dtype = weight_params['dtype']
@@ -666,6 +681,34 @@ class CPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             weights = self.normal(loc, scale, size, dtype)
+        elif (weight_params['type'] == 'sparse_eigenvalued'):
+            # initialization for RNNS as in Sutskever 2013
+            # After discussing with Scott, this will be a 
+            # GPUBackend.numpyapply() call for the linalg.eig
+            sparseness = 12
+            eigenvalue = 1.2
+            if 'sparseness' in weight_params:
+                sparseness = weight_params['sparseness']
+            if 'eigenvalue' in weight_params:
+                eigenvalue = weight_params['eigenvalue']
+            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
+                        (str(size), sparseness, eigenvalue))
+            elements = size[0]*size[1]
+            nonzeros = size[0] * sparseness
+            
+            weights = np.zeros(size).flatten()
+            nonzeroindex = np.random.permutation(elements)[0:nonzeros]
+            weights[nonzeroindex] = 0.3  * np.random.randn(nonzeros) # small in, out
+            weights = weights.reshape(size)
+            # eig for square hidden matrices
+            if size[0] == size[1]:
+                temp = np.linalg.eig(weights)
+                max_eig = np.max(np.absolute(temp[0]))
+                weights = self.tensor_cls(eigenvalue * weights / max_eig)
+            else:
+                raise AttributeError("non-square weight matrix cannot be" +
+                                "initialized with the eigenvalue method")
+
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
