@@ -7,10 +7,12 @@ import logging
 import numpy
 import os
 import struct
+import numpy as np
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import PY3, MPI_INSTALLED
 
+from ipdb import set_trace as trace
 
 if PY3:
     from urllib.parse import urljoin as basejoin
@@ -89,14 +91,16 @@ class MOBYDICK(Dataset):
                 if self.sample_pct < 1.0:
                     numpy.random.shuffle(train_idcs)
                 train_idcs = train_idcs[0:int(1000000 * self.sample_pct)]
-            url = raw_base_url
+            url = self.raw_base_url
             name = os.path.basename(url).rstrip('.txt')
             repo_file = os.path.join(save_dir, name + '.txt')
             if not os.path.exists(repo_file):
                 self.download_to_repo(url, save_dir)
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
-            self.inputs['train'] = indat[train_idcs]
+            #trace()
+            self.inputs['train'] = indat[:, train_idcs].T
+            self.inputs['test'] = indat[:, range(1000000, 1001000)].T
          
             self.format()
         else:
