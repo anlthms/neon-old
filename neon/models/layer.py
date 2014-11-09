@@ -128,6 +128,98 @@ class Layer(YAMLable):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
+class LayerDist(Layer):
+
+    def adjust_for_dist(self):
+        # indices of the input layer in weight matrix
+        in_indices = []
+        cond1 = self.prev_layer == 'MaxPoolingLayerDist'
+        cond2 = self.prev_layer == 'LCNLayerDist'
+        if cond1 or cond2:
+            logger.debug('ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, '
+                         'global_size=%d, global_width=%d', self.ifmshape[0],
+                         self.ifmshape[1], self.nifm, self.global_size,
+                         self.global_width)
+            for cur_channel in range(self.nifm):
+                current_index = (cur_channel * self.global_size +
+                                 self.top_left_row_output * self.global_width +
+                                 self.top_left_col_output)
+                for cur_row in range(self.ifmshape[0]):
+                    in_indices.extend(
+                        range(current_index, current_index + self.ifmshape[1]))
+                    current_index += self.global_width
+        elif self.prev_layer == 'LayerDist':
+            in_indices = self.in_indices
+        else:
+            raise ValueError('Unsupported previous layer for '
+                             'LayerDist')
+
+        self.weights = self.weights.take(in_indices, axis=1)
+
+        self.updates = self.backend.zeros(self.weights.shape)
+        self.learning_rule.allocate_state(self.updates)
+        self.delta = self.backend.zeros((self.batch_size, self.nout))
+        self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
+        self.delta_gather = self.backend.zeros(
+            (self.batch_size * MPI.COMM_WORLD.size, self.nout))
+        if self.pos > 0:
+            # This is storage for the backward propagated error.
+            if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
+                self.berror = self.backend.zeros((self.batch_size,
+                                                  self.nin - 1))
+            else:
+                self.berror = self.backend.zeros((self.batch_size, self.nin))
+
+    def fprop(self, inputs):
+        if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
+            inputs = self.backend.append_bias(inputs)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
+        # accumulate the pre_act values before applying non-linearity
+        self.pre_act._tensor = MPI.COMM_WORLD.reduce(
+            self.pre_act.raw(), op=MPI.SUM, root=0)
+        # apply non-linearity on the output node
+        if MPI.COMM_WORLD.rank == 0:
+            # this stores the derivatives in self.pre_act
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
+        # strictly, following line not needed for top-most layer
+        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.raw())
+        # broadcast back the pre_act values for bprop.
+        # note: suboptimal for dist implementation,
+        # but a consequence of reusing the pre_act buffer for fprop and bprop
+        self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
+
+    def bprop(self, error, inputs, epoch):
+        """
+        # numpy pseudocode for the backprop:
+        # updates  = dot(delta.T, inputs)        # calculate new gradient
+        # weight update itself done by application of learning rule
+        """
+        self.backend.multiply(error, self.pre_act_, out=self.delta)
+        endcol = self.weights.shape[1]
+        if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
+            inputs = self.backend.append_bias(inputs)
+            endcol = self.weights.shape[1] - 1
+        if self.nout_ != self.nout:
+            MPI.COMM_WORLD.Allgather(
+                self.delta.raw(), self.delta_gather._tensor)
+            # todo: only supported in numpy backend for now
+            self.delta_._tensor = np.hstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            if self.pos > 0:
+                self.backend.bprop_fc_dot(self.delta_,
+                                          self.weights[:, 0:endcol],
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta_, inputs, out=self.updates)
+        else:
+            if self.pos > 0:
+                self.backend.bprop_fc_dot(self.delta,
+                                          self.weights[:, 0:endcol],
+                                          out=self.berror)
+            self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
 class LayerWithNoBias(Layer):
 
     """
@@ -209,7 +301,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def adjust_for_dist(self):
         # indices of the input layer in weight matrix
-        out_indices = []
+        in_indices = []
         cond1 = self.prev_layer == 'MaxPoolingLayerDist'
         cond2 = self.prev_layer == 'LCNLayerDist'
         if cond1 or cond2:
@@ -222,16 +314,16 @@ class LayerWithNoBiasDist(LayerWithNoBias):
                                  self.top_left_row_output * self.global_width +
                                  self.top_left_col_output)
                 for cur_row in range(self.ifmshape[0]):
-                    out_indices.extend(
+                    in_indices.extend(
                         range(current_index, current_index + self.ifmshape[1]))
                     current_index += self.global_width
         elif self.prev_layer == 'LayerWithNoBiasDist':
-            out_indices = self.out_indices
+            in_indices = self.in_indices
         else:
             raise ValueError('Unsupported previous layer for '
                              'LayerWithNoBiasDist')
 
-        self.weights = self.weights.take(out_indices, axis=1)
+        self.weights = self.weights.take(in_indices, axis=1)
 
         self.updates = self.backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
