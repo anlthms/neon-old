@@ -28,6 +28,14 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+        if 'temp_dtype' not in self.__dict__:
+            self.temp_dtype = None
+        if 'ada' not in self.__dict__:
+            self.ada = None
+        tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
+                                     self.temp_dtype)
+        self.temp = [tempbuf, tempbuf.copy()]
+        self.result = 0
 
     def fit(self, datasets):
         """
@@ -47,15 +55,7 @@ class MLP(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
         nrecs = inputs.shape[inputs.major_axis()]
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
-        if 'temp_dtype' not in self.__dict__:
-            self.temp_dtype = None
-        if 'ada' not in self.__dict__:
-            self.ada = None
-        tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
-                                     self.temp_dtype)
-        self.temp = [tempbuf, tempbuf.copy()]
+        assert 'batch_size' in self.__dict__
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -176,7 +176,7 @@ class MLP(Model):
                         ds.backend.argmax(
                             targets[item],
                             axis=targets[item].minor_axis()))
-                    err = ds.backend.mean(misclass)
+                    self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * err))
+                        item, 100 * self.result))
         # TODO: return values instead?
