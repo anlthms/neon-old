@@ -5,9 +5,8 @@ Numerical gradient checking to validate backprop code.
 import logging
 import numpy as np
 
-from neon.experiments.experiment import Experiment
 from neon.datasets.synthetic import UniformRandom
-from neon.backends.cpu import CPU
+from neon.experiments.experiment import Experiment
 
 
 logger = logging.getLogger(__name__)
