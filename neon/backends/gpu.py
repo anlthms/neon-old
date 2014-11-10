@@ -223,49 +223,15 @@ class GPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def asnumpyarray(self):
+        self._tensor.copy_to_host()
+        return self._tensor.numpy_array
+
     def __float__(self):
         raise NotImplementedError()
 
     def __neg__(self):
         return -1 * self
-
-    def __lt__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.less_than(other._tensor, target)
-        else:
-            self._tensor.less_than(other, target)
-        return GPUTensor(target)
-
-    def __le__(self, other):
-        # call __lt__ and __eq__ and iterate?
-        raise NotImplementedError()
-
-    def __eq__(self, other):
-        if other is None:
-            return False
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.equals(other._tensor, target)
-        else:
-            self._tensor.equals(other, target)
-        return GPUTensor(target)
-
-    def __ne__(self, other):
-        # go through results of __eq__ and negate
-        raise NotImplementedError()
-
-    def __gt__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.greater_than(other._tensor, target)
-        else:
-            self._tensor.greater_than(other, target)
-        return GPUTensor(target)
-
-    def __ge__(self, other):
-        # call __gt__ and __eq__ and iterate?
-        raise NotImplementedError()
 
     def __add__(self, other):
         """

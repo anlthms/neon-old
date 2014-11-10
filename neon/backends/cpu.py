@@ -80,6 +80,9 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def asnumpyarray(self):
+        return self._tensor
+
     def __float__(self):
         return float(self._tensor)
 

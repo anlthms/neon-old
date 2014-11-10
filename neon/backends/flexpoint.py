@@ -86,6 +86,10 @@ class FlexpointTensor(CPUTensor):
         if isinstance(value, self.__class__):
             fp_rescale_array(self._tensor[clean_key], value.dtype, self.dtype)
 
+    def asnumpyarray(self):
+        return flex_to_float_array(np.ascontiguousarray(self._tensor),
+                                   self.dtype)
+
     def transpose(self):
         return self.__class__(self._tensor.transpose(), dtype=self.dtype)
 
@@ -123,6 +127,41 @@ class Flexpoint(CPU):
     tensor_cls = FlexpointTensor
     epsilon = 2**-10
 
+    def empty(self, shape, dtype=None):
+        """
+        Instantiates a new FlexpointTensor object whose elements are all set
+        to zero.
+
+        Arguments:
+            shape (int or sequence of ints): Shape of the new array.
+            dtype (flexpt_dtype, optional): Specification of flexpoint
+                                            parameters, passed through to the
+                                            FlexpointTensor constructor.
+                                            If None, we use the values
+                                            specified in the default_dtype
+                                            attribute.
+        """
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.empty(shape, dtype=elemfloat), dtype)
+
+    def array(self, obj, dtype=None):
+        """
+        Instantiates a new FlexpointTensor object whose elements are set to the
+        values of obj.
+
+        Arguments:
+            obj (array_like): input array object to construct from.  Can be
+                              built-in python scalar or list (of lists), or a
+                              numpy.ndarray
+            dtype (flexpt_dtype, optional): Specification of flexpoint
+                                            parameters, passed through to the
+                                            FlexpointTensor constructor.
+                                            If None, we use the values
+                                            specified in the default_dtype
+                                            attribute.
+        """
+        return self.tensor_cls(np.array(obj, dtype=elemfloat), dtype)
+
     def zeros(self, shape, dtype=None):
         """
         Instantiates a new FlexpointTensor object whose elements are all set
@@ -140,13 +179,27 @@ class Flexpoint(CPU):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros(shape, dtype=elemfloat), dtype)
 
+    def ones(self, shape, dtype=None):
+        """
+        Instantiates a new FlexpointTensor object whose elements are all set
+        to one.
+
+        Arguments:
+            shape (int or sequence of ints): Shape of the new array.
+            dtype (flexpt_dtype, optional): Specification of flexpoint
+                                            parameters, passed through to the
+                                            FlexpointTensor constructor.
+                                            If None, we use the values
+                                            specified in the default_dtype
+                                            attribute.
+        """
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.ones(shape, dtype=elemfloat), dtype)
+
     def alloc(self, nrows, ncols, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros((nrows, ncols), dtype=elemfloat),
                                dtype)
-
-    def array(self, obj, dtype=None):
-        return self.tensor_cls(np.array(obj, dtype=elemfloat), dtype)
 
     def wrap(self, obj, dtype=None):
         if dtype is None:
