@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class GPUTensor(Tensor):
+
     """
     Our n-dimensional array data structure that can reside on host or on GPU
     device.  Our implementation is a wrapped `cudanet.CUDAMatrix` tensor, where
@@ -527,9 +528,11 @@ class GPUTensor(Tensor):
 
 
 class TransposedGPUTensor(GPUTensor):
+
     """
     Transposed CUDAMatrix tensor
     """
+
     def __init__(self, obj, transposed):
         assert type(obj) == cudanet.CUDAMatrix
         self._tensor = transposed
@@ -537,6 +540,7 @@ class TransposedGPUTensor(GPUTensor):
 
 
 class GPU(Backend):
+
     """
     Sets up a `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
     based backend for matrix operations.
@@ -688,7 +692,7 @@ class GPU(Backend):
         result.set_row_slice(0, x.shape[0], x._tensor)
         result.set_row_slice(x.shape[0], (x.shape[0] + 1),
                              cudanet.CUDAMatrix.ones.slice(
-                             0, x.shape[1]).reshape((1, x.shape[1])))
+                                 0, x.shape[1]).reshape((1, x.shape[1])))
         return GPUTensor(result)
 
     def copy(self, a):
@@ -1010,3 +1014,30 @@ class GPU(Backend):
             weights[:, -1] = weight_params['bias_init']
 
         return GPUTensor(numpy.array(weights, numpy.float32))
+
+
+class GPUDataDist(GPU):
+    """
+    helper sub-class for data parallel implementations
+    """
+    def update_fc_dot(self, deltas, inputs, out):
+        raise NotImplementedError
+
+        # super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+        # trivial implementation below
+        # could optimize by making each proc responsible for #params/comm.size
+        # of the params
+        # For GPU version have to implement this without using reduce as cuda
+        # aware MPI does not support collective reduction
+        # out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        # This division by comm.size corresponds to following line in mlp bprop
+        # self.backend.divide(error,
+        #                    self.backend.wrap(targets.shape[
+        #                                      targets.major_axis()]),
+        #                    out=error)
+        # out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+
+    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
+                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+                    updatebuf):
+        raise NotImplementedError

@@ -6,13 +6,18 @@ wraps :mod:`numpy` ndarray and related operations
 import logging
 import math
 import numpy as np
+from neon.util.compat import MPI_INSTALLED
 
 from neon.backends.backend import Backend, Tensor
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
 
 class CPUTensor(Tensor):
+
     """
     Our basic n-dimensional array data structure that resides in host memory,
     and is meant to be manipulated on the CPU.  wrapped `numpy.ndarray` tensor.
@@ -301,6 +306,7 @@ class CPUTensor(Tensor):
 
 
 class CPU(Backend):
+
     """
     Sets up a :mod:`numpy` based backend for matrix ops.  By default, we use
     32-bit element data types for any arrays constructed.
@@ -825,3 +831,32 @@ class CPU(Backend):
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
         return weights
+
+
+class CPUDataDist(CPU):
+    """
+    helper sub-class for data parallel implementations
+    """
+    def update_fc_dot(self, deltas, inputs, out):
+        super(CPUDataDist, self).update_fc_dot(deltas, inputs, out)
+        # trivial implementation below
+        # could optimize by making each proc responsible for #params/comm.size
+        # of the params
+        out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        # This division by comm.size corresponds to following line in mlp bprop
+        # self.backend.divide(error,
+        #                    self.backend.wrap(targets.shape[
+        #                                      targets.major_axis()]),
+        #                    out=error)
+        out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+
+    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
+                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+                    updatebuf):
+        super(CPUDataDist, self).update_conv(weights, inputs, error, updates,
+                                             links, ifmshape, ofmshape,
+                                             ofmlocs, padding, stride, nifm,
+                                             ngroups, fwidth, updatebuf)
+        updates._tensor = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
+                                                root=0)
+        updates._tensor = MPI.COMM_WORLD.bcast(updates.raw())
