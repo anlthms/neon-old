@@ -2,10 +2,7 @@
 Speed check
 """
 import os
-import sys
 import time
-import neon
-import logging
 from neon.util.persist import deserialize
 
 

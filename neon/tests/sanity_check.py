@@ -2,8 +2,6 @@
 Sanity check
 """
 import os
-import neon
-import logging
 from neon.util.persist import deserialize
 
 
