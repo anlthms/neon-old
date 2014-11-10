@@ -564,25 +564,80 @@ class GPU(Backend):
         # https://github.com/cudanet/cudanet/issues/19
 
     def empty(self, shape, dtype=None):
+        """
+        Instantiate a new instance of the GPUTensor class without initializing
+        each element's value.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
         return GPUTensor(cudanet.empty(shape))
 
-    def zeros(self, shape, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros(shape, dtype=dtype)))
-
-    def alloc(self, nrows, ncols, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros((ncols, nrows), dtype=dtype)))
-
-    def ones(self, shape, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.ones(shape, dtype=dtype)))
-
     def array(self, obj, dtype=None):
+        """
+        Instantiate a new instance of the GPUTensor class based on the values
+        and shape of obj passed.
+
+        Arguments:
+            obj (numpy.ndarray): The n-dimensional array of values to use in
+                                 initializing the values of this Tensor.  Note
+                                 that python built-in types like scalar
+                                 integers and lists are supported.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return GPUTensor(ndarray)
+
+    def zeros(self, shape, dtype=numpy.float32):
+        """
+        Instantiate a new instance of the GPUTensor class setting each element
+        value to 0.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.zeros(shape, dtype=dtype)))
+
+    def ones(self, shape, dtype=numpy.float32):
+        """
+        Instantiate a new instance of the GPUTensor class setting each element
+        value to 1.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.ones(shape, dtype=dtype)))
+
+    def alloc(self, nrows, ncols, dtype=numpy.float32):
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.zeros((ncols, nrows), dtype=dtype)))
 
     def wrap(self, obj):
         return GPUTensor(obj)
@@ -665,8 +720,112 @@ class GPU(Backend):
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
 
-    def greater(self, a, b, out):
-        a._tensor.greater_than(b._tensor, out._tensor)
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.equals(right._tensor, out._tensor)
+        return out
+
+    def not_equal(self, left, right, out):
+        """
+        Performs element-wise non-equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.equal(left, right, out)
+        out._tensor.equals(0, out._tensor)
+        return out
+
+    def greater(self, left, right, out):
+        """
+        Performs element-wise greater than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.greater_than(right._tensor, out._tensor)
+        return out
+
+    def greater_equal(self, left, right, out):
+        """
+        Performs element-wise greater than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.add(left._tensor.greater_than(right._tensor),
+                 left._tensor.equals(right._tensor),
+                 out._tensor)
+        return out
+
+    def less(self, left, right, out):
+        """
+        Performs element-wise less than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.less_than(right._tensor, out._tensor)
+        return out
+
+    def less_equal(self, left, right, out):
+        """
+        Performs element-wise less than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.add(left._tensor.less_than(right._tensor),
+                 left._tensor.equals(right._tensor),
+                 out._tensor)
+        return out
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -739,12 +898,6 @@ class GPU(Backend):
     def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
-
-    def not_equal(self, x, y):
-        res = x._tensor.copy()
-        res.equals(y._tensor)
-        res.equals(0)
-        return GPUTensor(res)
 
     def nonzero(self, x):
         res = x._tensor.copy()
