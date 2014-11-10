@@ -2,63 +2,113 @@
 
 import numpy as np
 
-from neon.backends.flexpoint import (FlexpointTensor, flexpt_dtype)
-# from neon.util.testing import assert_tensor_equal
+from neon.backends.flexpoint import (Flexpoint, FlexpointTensor, flexpt_dtype)
+from neon.util.testing import assert_tensor_equal
 
 
-class TestFlexpointTensor(object):
+class TestFlexpoint(object):
 
     def __init__(self):
         # this code gets called prior to each test
         self.default_dtype = flexpt_dtype(sign_bit=True, int_bits=4,
                                           frac_bits=11, overflow=0, rounding=0)
+        self.be = Flexpoint()
 
     def test_empty_creation(self):
-        tns = FlexpointTensor([], self.default_dtype)
-        # this behavior deviates from numpy dimension reduction (0,)
-        # but is expected given that we need to currently create a 2D structure
-        assert tns.shape == (0, 1)
+        tns = self.be.empty((4, 3))
+        assert tns.shape == (4, 3)
 
-    def test_1d_creation(self):
-        tns = FlexpointTensor([1, 2, 3, 4], self.default_dtype)
-        assert tns.shape == (4, 1)
-
-    def test_2d_creation(self):
-        tns = FlexpointTensor([[1, 2], [3, 4]], self.default_dtype)
+    def test_array_creation(self):
+        tns = self.be.array([[1, 2], [3, 4]])
         assert tns.shape == (2, 2)
+        assert_tensor_equal(tns, FlexpointTensor([[1, 2], [3, 4]]))
 
-    def test_2d_ndarray_creation(self):
-        tns = FlexpointTensor(np.array([[1.5, 2.5], [3.3, 9.2],
-                                        [0.111111, 5]]),
-                              self.default_dtype)
-        assert tns.shape == (3, 2)
+    def test_zeros_creation(self):
+        tns = self.be.zeros([3, 1])
+        assert tns.shape == (3, 1)
+        assert_tensor_equal(tns, FlexpointTensor([[0], [0], [0]]))
 
-    def test_str(self):
-        tns = FlexpointTensor([[1, 2], [3, 4]], self.default_dtype)
-        assert str(tns) == "[[ 1.  2.]\n [ 3.  4.]]"
+    def test_ones_creation(self):
+        tns = self.be.ones([1, 4])
+        assert tns.shape == (1, 4)
+        assert_tensor_equal(tns, FlexpointTensor([[1, 1, 1, 1]]))
 
-    def test_nofrac_trunc(self):
-        dtype = flexpt_dtype(sign_bit=True, int_bits=4, frac_bits=0,
-                             overflow=0, rounding=0)
-        tns = FlexpointTensor([[1.8, 2.1], [-3.2, -4.5]], dtype)
-        assert str(tns) == "[[ 1.  2.]\n [-3. -4.]]"
+    def test_all_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[1, 1], [1, 1]]))
 
-    def test_nofrac_round(self):
-        dtype = flexpt_dtype(sign_bit=True, int_bits=4, frac_bits=0,
-                             overflow=0, rounding=2)
-        tns = FlexpointTensor([[1.8, 2.1, 2.5], [-3.2, -4.5, -3.6]], dtype)
-        assert str(tns) == "[[ 2.  2.  3.]\n [-3. -5. -4.]]"
+    def test_some_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.array([[0, 1], [0, 1]])
+        out = self.be.empty([2, 2])
+        self.be.equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[0, 1], [0, 1]]))
 
-    def test_overflow_sat(self):
-        dtype = flexpt_dtype(sign_bit=True, int_bits=4, frac_bits=2,
-                             overflow=0, rounding=0)
-        tns = FlexpointTensor([[15.0, 15.75, 16.0, 239.3],
-                               [-15.0, -16.0, -16.12, -432]], dtype)
-        assert str(tns) == ("[[ 15.    15.75  15.75  15.75]\n"
-                            " [-15.   -16.   -16.   -16.  ]]")
+    def test_none_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.zeros([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[0, 0], [0, 0]]))
 
-    def test_underflow_sat(self):
-        dtype = flexpt_dtype(sign_bit=True, int_bits=4, frac_bits=2,
-                             overflow=0, rounding=0)
-        tns = FlexpointTensor([[0.25, 0.15], [-0.25, -0.15]], dtype)
-        assert str(tns) == ("[[ 0.25  0.  ]\n [-0.25  0.  ]]")
+    def test_all_not_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.zeros([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.not_equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[1, 1], [1, 1]]))
+
+    def test_some_not_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.array([[0, 1], [0, 1]])
+        out = self.be.empty([2, 2])
+        self.be.not_equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[1, 0], [1, 0]]))
+
+    def test_none_not_equal(self):
+        left = self.be.ones([2, 2])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.not_equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[0, 0], [0, 0]]))
+
+    def test_greater(self):
+        left = self.be.array([[-1, 0], [1, 92]])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.greater(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[0, 0], [0, 1]]))
+
+    def test_greater_equal(self):
+        left = self.be.array([[-1, 0], [1, 92]])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.greater_equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[0, 0], [1, 1]]))
+
+    def test_less(self):
+        left = self.be.array([[-1, 0], [1, 92]])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.less(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[1, 1], [0, 0]]))
+
+    def test_less_equal(self):
+        left = self.be.array([[-1, 0], [1, 92]])
+        right = self.be.ones([2, 2])
+        out = self.be.empty([2, 2])
+        self.be.less_equal(left, right, out)
+        assert out.shape == (2, 2)
+        assert_tensor_equal(out, FlexpointTensor([[1, 1], [1, 0]]))

@@ -82,7 +82,7 @@ class FlexpointTensor(CPUTensor):
 
     def __setitem__(self, key, value):
         clean_key = self._clean(key)
-        self._tensor[clean_key] = self._clean(value)
+        self._tensor[clean_key] = self._clean(self.__class__(value))
         if isinstance(value, self.__class__):
             fp_rescale_array(self._tensor[clean_key], value.dtype, self.dtype)
 
@@ -200,6 +200,126 @@ class Flexpoint(CPU):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros((nrows, ncols), dtype=elemfloat),
                                dtype)
+
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.equal(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
+
+    def not_equal(self, left, right, out):
+        """
+        Performs element-wise non-equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.not_equal(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
+
+    def greater(self, left, right, out):
+        """
+        Performs element-wise greater than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.greater(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
+
+    def greater_equal(self, left, right, out):
+        """
+        Performs element-wise greater than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.greater_equal(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
+
+    def less(self, left, right, out):
+        """
+        Performs element-wise less than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.less(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
+
+    def less_equal(self, left, right, out):
+        """
+        Performs element-wise less than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (FlexpointTensor): left-hand side operand.
+            right (FlexpointTensor): right-hand side operand.
+            out (FlexpointTensor): where the result will be stored.
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        np.less_equal(left._tensor, right._tensor, out._tensor)
+        # rescale int64 0 or 1 value up to internal type
+        fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
+                         out.dtype)
+        return out
 
     def wrap(self, obj, dtype=None):
         if dtype is None:
@@ -395,13 +515,6 @@ class Flexpoint(CPU):
 
     def reciprocal(self, a, out):
         self.divide(self.wrap(1.0, out.dtype), a, out)
-
-    def greater(self, a, b, out):
-        np.greater(a._tensor, b._tensor, out._tensor)
-        # greater result stored as int64 with 0 or 1 values.  Just need to
-        # shift accordingly
-        tmp_dtype = flexpt_dtype(True, 5, 0, 0, 0)
-        fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
 
     def log(self, x, out):
         # for the moment we punt on a flexpoint exponent, just do an
