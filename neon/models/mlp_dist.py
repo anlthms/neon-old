@@ -20,7 +20,7 @@ else:
 class MLPDist(MLP):
 
     """
-    Fully connected, feed-forward, multi-layer perceptron model
+    MPI distributed fully connected, feed-forward, multi-layer perceptron model
     """
 
     def adjust_for_dist(self):

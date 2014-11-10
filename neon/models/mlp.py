@@ -6,6 +6,10 @@ import logging
 import math
 
 from neon.models.model import Model
+from neon.util.compat import MPI_INSTALLED
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,7 @@ class MLP(Model):
     """
 
     def __init__(self, **kwargs):
+        self.dist_mode = None
         self.__dict__.update(kwargs)
         for req_param in ['layers']:
             if not hasattr(self, req_param):
@@ -28,6 +33,15 @@ class MLP(Model):
         """
         Learn model weights on the given datasets.
         """
+        if self.dist_mode == 'datapar':
+            valid_batch_size = (self.batch_size != datasets[0].batch_size /
+                                datasets[0].num_procs)
+            if valid_batch_size:
+                raise ValueError('Dataset batch size must be Model batch '
+                                 'size * num_procs. Model batch size of %d '
+                                 'might work.' % (datasets[0].batch_size /
+                                                  datasets[0].num_procs))
+
         for layer in self.layers:
             logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
@@ -60,8 +74,15 @@ class MLP(Model):
                     self.backend, self.layers[-1].output,
                     targets.get_minor_slice(start_idx, end_idx),
                     self.temp)
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / num_batches))
+            if self.dist_mode == 'datapar':
+                error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
+                if MPI.COMM_WORLD.rank == 0:
+                    logger.info('epoch: %d, total training error: %0.5f' %
+                                (epoch, error / num_batches /
+                                    MPI.COMM_WORLD.size))
+            else:
+                logger.info('epoch: %d, total training error: %0.5f' %
+                            (epoch, error / num_batches))
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -113,10 +134,16 @@ class MLP(Model):
         error = self.cost.apply_derivative(self.backend,
                                            lastlayer.output, targets,
                                            self.temp)
-        self.backend.divide(error,
-                            self.backend.wrap(targets.shape[
-                                              targets.major_axis()]),
-                            out=error)
+        if self.dist_mode == 'datapar':
+            self.backend.divide(error,
+                                self.backend.wrap(MPI.COMM_WORLD.size *
+                                                  self.batch_size),
+                                out=error)
+        else:
+            self.backend.divide(error,
+                                self.backend.wrap(targets.shape[
+                                    targets.major_axis()]),
+                                out=error)
         # Update the output layer.
         lastlayer.bprop(error, self.layers[i - 1].output, epoch)
         while i > 1:
