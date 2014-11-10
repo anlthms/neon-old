@@ -206,6 +206,10 @@ class GB(MLP):
         self.fprop(inputs)
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
+        maxinds = self.backend.empty((self.batch_size, self.batch_size),
+                                     dtype="i32")
+        notinds = self.backend.empty((self.batch_size, self.batch_size),
+                                     dtype="i32")
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
         inc = 0.1
         # Do a greedy search to find input data that maximizes the output
@@ -220,8 +224,8 @@ class GB(MLP):
                 self.fprop(inputs)
                 output = lastlayer.output[range(self.batch_size),
                                           range(self.batch_size)]
-                maxinds = output > outmax
-                notinds = output < outmax
+                self.backend.greater(output, outmax, out=maxinds)
+                self.backend.less(output, outmax, out=notinds)
                 outmax[maxinds] = output[maxinds]
                 inputs[notinds, :] = saved[notinds, :]
                 count += maxinds.sum()

@@ -20,8 +20,9 @@ else
 endif
 
 
-.PHONY: default build develop install uninstall test test_all sanity speed grad all clean_pyc clean \
-	      doc html style lint bench dist publish_doc release
+.PHONY: default build develop install uninstall test test_all sanity speed \
+	      grad all clean_pyc clean doc html style lint bench dist publish_doc \
+	      release
 
 default: build
 

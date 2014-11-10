@@ -12,7 +12,6 @@ Available Transforms
 .. autosummary::
    :toctree: generated/
 
-   neon.transforms.linear.Identity
    neon.transforms.rectified.RectLin
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh

@@ -85,6 +85,9 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def asnumpyarray(self):
+        return self._tensor
+
     def __float__(self):
         return float(self._tensor)
 
@@ -257,12 +260,6 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
-    def add(self, obj):
-        self._tensor += obj._tensor
-
-    def sub(self, obj):
-        self._tensor -= obj._tensor
-
     def norm(self, axis):
         return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
 
@@ -337,24 +334,79 @@ class CPU(Backend):
         return in_dtype
 
     def empty(self, shape, dtype=None):
+        """
+        Instantiate a new instance of the CPUTensor class without initializing
+        individual element values.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            CPUTensor: newly created data structure reference
+        """
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.empty(shape, dtype), dtype)
 
+    def array(self, obj, dtype=None):
+        """
+        Instantiate a new instance of the CPUTensor class setting each element
+        value to what is specified in obj.
+
+        Arguments:
+            obj (numpy.ndarray): The data structure containing element values
+                                 spread across a number of dimensions.  Python
+                                 built-in types like ints and lists are
+                                 supported.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            CPUTensor: newly created data structure reference
+        """
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.array(obj, dtype), dtype)
+
     def zeros(self, shape, dtype=None):
+        """
+        Instantiate a new instance of the CPUTensor class setting each element
+        value to 0.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            CPUTensor: newly created data structure reference
+        """
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros(shape, dtype), dtype)
+
+    def ones(self, shape, dtype=None):
+        """
+        Instantiate a new instance of the CPUTensor class setting each element
+        value to 1.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            CPUTensor: newly created data structure reference
+        """
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.ones(shape, dtype), dtype)
 
     def alloc(self, nrows, ncols, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
-
-    def ones(self, shape, dtype=None):
-        dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(np.ones(shape, dtype), dtype)
-
-    def array(self, obj, dtype=None):
-        dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(np.array(obj, dtype), dtype)
 
     def wrap(self, obj, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
@@ -447,8 +499,101 @@ class CPU(Backend):
     def reciprocal(self, a, out):
         np.divide(1.0, a._tensor, out._tensor)
 
-    def greater(self, a, b, out):
-        np.greater(a._tensor, b._tensor, out._tensor)
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.equal(left._tensor, right._tensor, out._tensor)
+
+    def not_equal(self, left, right, out):
+        """
+        Performs element-wise non-equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.not_equal(left._tensor, right._tensor, out._tensor)
+
+    def greater(self, left, right, out):
+        """
+        Performs element-wise greater than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.greater(left._tensor, right._tensor, out._tensor)
+
+    def greater_equal(self, left, right, out):
+        """
+        Performs element-wise greater than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.greater_equal(left._tensor, right._tensor, out._tensor)
+
+    def less(self, left, right, out):
+        """
+        Performs element-wise less than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.less(left._tensor, right._tensor, out._tensor)
+
+    def less_equal(self, left, right, out):
+        """
+        Performs element-wise less than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor): left-hand side operand.
+            right (CPUTensor): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.less_equal(left._tensor, right._tensor, out._tensor)
 
     def exp(self, x, out):
         np.exp(x._tensor, out=out._tensor)
@@ -529,9 +674,6 @@ class CPU(Backend):
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
 
-    def not_equal(self, x, y):
-        return self.tensor_cls(np.not_equal(x._tensor, y._tensor))
-
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
@@ -563,7 +705,7 @@ class CPU(Backend):
             eslice = error.take(ofmlocs[dst], axis=1)
             self.dot(inputs.take(rflinks, axis=1).transpose(), eslice,
                      out=updatebuf)
-            updates.add(updatebuf)
+            self.add(updates, updatebuf, out=updates)
 
     def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm, maxinds):
@@ -690,57 +832,11 @@ class CPU(Backend):
             weights[:, -1] = weight_params['bias_init']
         return weights
 
-    def get_momentum_coef(self, epoch, momentum_params):
-        coef = 0.0
-        if 'coef' in momentum_params:
-            coef = momentum_params['coef']
-        if 'initial_coef' in momentum_params:
-            init_coef = momentum_params['initial_coef']
-        else:
-            init_coef = coef
-        if 'saturated_coef' in momentum_params:
-            saturated_coef = momentum_params['saturated_coef']
-        else:
-            saturated_coef = coef
-        if 'start_epoch' in momentum_params:
-            start_epoch = momentum_params['start_epoch']
-        else:
-            start_epoch = None
-        if 'saturate_epoch' in momentum_params:
-            saturate_epoch = momentum_params['saturate_epoch']
-        else:
-            saturate_epoch = None
-
-        if momentum_params['type'] == 'constant':
-            pass
-        elif momentum_params['type'] == 'linear_monotone':
-            coef = init_coef
-            if start_epoch is not None and epoch >= start_epoch:
-                if saturate_epoch is not None and epoch <= saturate_epoch:
-                    if start_epoch == saturate_epoch:
-                        coef = saturated_coef
-                    else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
-                                           (saturate_epoch - start_epoch))
-                        coef = (init_proportion * init_coef +
-                                (1.0 - init_proportion) * saturated_coef)
-                elif saturate_epoch is not None and epoch > saturate_epoch:
-                    coef = saturated_coef
-            else:
-                coef = saturated_coef
-        elif momentum_params['type'] == 'nesterov':
-            raise NotImplementedError("TODO!")
-        else:
-            raise AttributeError("invalid momentum_params specified")
-        return coef
-
 
 class CPUDataDist(CPU):
-
-    '''
+    """
     helper sub-class for data parallel implementations
-    '''
-
+    """
     def update_fc_dot(self, deltas, inputs, out):
         super(CPUDataDist, self).update_fc_dot(deltas, inputs, out)
         # trivial implementation below
