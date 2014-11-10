@@ -50,14 +50,18 @@ class MNIST(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
-        self.dist_mode = 0  # halo/tower method
+        self.num_test_sample = 10000
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
                 from mpi4py import MPI
                 self.comm = MPI.COMM_WORLD
                 # for now require that comm.size be square and sqrt() divide 28
-                if self.comm.size not in [1, 4, 16]:
+                if (self.dist_mode in ['halopar', 'vecpar'] and
+                        self.comm.size not in [1, 4, 16]):
+                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
+                elif (self.dist_mode == 'datapar' and
+                        self.batch_size % self.comm.size):
                     raise AttributeError('MPI.COMM_WORLD.size not compatible')
             else:
                 raise AttributeError("dist_flag set but mpi4py not installed")
@@ -68,7 +72,7 @@ class MNIST(Dataset):
         img_width = 28
         img_size = img_width ** 2
 
-        if self.dist_mode == 0:
+        if self.dist_mode == 'halopar':
             # this requires comm_per_dim to be a square for now
             self.comm_per_dim = int(np.sqrt(self.comm.size))
             self.px_per_dim = img_width / self.comm_per_dim
@@ -83,7 +87,7 @@ class MNIST(Dataset):
                 self.dist_indices.extend(
                     [r * img_width + x for x in range(
                         c_i[comm_rank], c_i[comm_rank] + self.px_per_dim)])
-        elif self.dist_mode == 1:
+        elif self.dist_mode == 'vecpar':
             start_idx = 0
             for j in range(comm_rank):
                 start_idx += (img_size // self.comm.size +
@@ -91,6 +95,22 @@ class MNIST(Dataset):
             nin = (img_size // self.comm.size +
                    (img_size % self.comm.size > comm_rank))
             self.dist_indices.extend(range(start_idx, start_idx + nin))
+        elif self.dist_mode == 'datapar':
+            # split into nr_nodes and nr_procs_per_node
+            idcs_split = []
+            self.num_procs = self.comm.size
+            num_batches = len(self.train_idcs) / self.batch_size
+            split_batch_size = self.batch_size / self.num_procs
+            start_index = self.comm.rank * split_batch_size
+            for j in range(num_batches):
+                idcs_split.extend(self.train_idcs[start_index:start_index +
+                                                  split_batch_size])
+                start_index += self.batch_size
+            self.train_idcs = idcs_split
+            self.dist_indices = range(img_size)
+
+            if self.num_test_sample % self.batch_size != 0:
+                raise ValueError('num_test_sample mod dataset batch size != 0')
 
     def read_image_file(self, fname, dtype=None):
         """
@@ -100,8 +120,9 @@ class MNIST(Dataset):
             magic, num_images, rows, cols = struct.unpack('>iiii', f.read(16))
             if magic != 2051:
                 raise ValueError('invalid MNIST image file: ' + fname)
-            full_image = numpy.fromfile(f, dtype='uint8').reshape((num_images,
-                                                                   rows*cols))
+            full_image = numpy.fromfile(f,
+                                        dtype='uint8').reshape((num_images,
+                                                                rows * cols))
 
         if dtype is not None:
             dtype = numpy.dtype(dtype)
@@ -135,14 +156,15 @@ class MNIST(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(60000)
+            self.train_idcs = range(60000)
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0
                     logger.info('sampling pct: %0.2f' % self.sample_pct)
                 if self.sample_pct < 1.0:
-                    numpy.random.shuffle(train_idcs)
-                train_idcs = train_idcs[0:int(60000 * self.sample_pct)]
+                    numpy.random.shuffle(self.train_idcs)
+                self.train_idcs = self.train_idcs[0:int(
+                    60000 * self.sample_pct)]
             for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                         self.raw_test_input_gz, self.raw_test_target_gz):
                 name = os.path.basename(url).rstrip('.gz')
@@ -158,21 +180,22 @@ class MNIST(Dataset):
                 if 'images' in repo_file and 'train' in repo_file:
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
-                    indat = indat[train_idcs]
+                    indat = indat[self.train_idcs]
                     self.inputs['train'] = indat
                 elif 'images' in repo_file and 't10k' in repo_file:
                     indat = self.read_image_file(repo_file, 'float32')
-                    self.inputs['test'] = indat
+                    self.inputs['test'] = indat[0:self.num_test_sample]
                 elif 'labels' in repo_file and 'train' in repo_file:
-                    indat = self.read_label_file(repo_file)[train_idcs]
+                    indat = self.read_label_file(repo_file)[self.train_idcs]
                     # Prep a 1-hot label encoding
-                    tmp = numpy.zeros((len(train_idcs), 10))
+                    tmp = numpy.zeros((len(self.train_idcs), 10))
                     for col in range(10):
                         tmp[:, col] = indat == col
                     self.targets['train'] = tmp
                 elif 'labels' in repo_file and 't10k' in repo_file:
-                    indat = self.read_label_file(repo_file)
-                    tmp = numpy.zeros((10000, 10))
+                    indat = self.read_label_file(
+                        repo_file)[0:self.num_test_sample]
+                    tmp = numpy.zeros((self.num_test_sample, 10))
                     for col in range(10):
                         tmp[:, col] = indat == col
                     self.targets['test'] = tmp
