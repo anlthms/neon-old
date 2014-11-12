@@ -15,6 +15,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 1, # 100 for full, 10 subsample for speed
+      predict_offset: 6, # how many letters the targets are ahead of the training
     },
   ],
 
@@ -23,11 +24,11 @@
     backend: *be,
     num_epochs: 30,
     batch_size: &bs 100,
-    unrolls: 5,
+    unrolls: &ur 5,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       # recurrent layer
-      !obj:neon.models.layer.RecurrentLayer {
+      !obj:neon.models.layer.RecurrentHiddenLayer {
         name: recurrent,
         backend: *be,
         batch_size: *bs,
@@ -45,6 +46,7 @@
         },
         nin: 128, # and an implicit 64 rec weight.
         nout: 64,
+        unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: node_normalized,
@@ -58,7 +60,7 @@
         },
       },
       # output layer
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.RecurrentOutputLayer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -73,6 +75,7 @@
         },
         nin: 64, # previous nout + 1 for the bias
         nout: 128,
+        unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: node_normalized,
