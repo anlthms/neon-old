@@ -166,8 +166,6 @@ class LayerDist(Layer):
             else:
                 self.berror = self.backend.zeros((self.batch_size, self.nin))
 
-        logger.debug('rank %d, weightsz %s, nout: %d, nout_: %d', MPI.COMM_WORLD.rank, self.weights.shape, self.nout, self.nout_)
-
     def fprop(self, inputs):
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
             inputs = self.backend.append_bias(inputs)
@@ -290,7 +288,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.zeros((self.batch_size, self.nin))
-        logger.debug('rank %d, weightsz %s, nout: %d, nout_: %d', MPI.COMM_WORLD.rank, self.weights.shape, self.nout, self.nout_)
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
