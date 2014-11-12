@@ -17,12 +17,12 @@
       dist_flag: *df,
       dist_mode: &dm 'datapar', # data parallel
       backend: *be,
-      repo_path: '/usr/local/data',
+      repo_path: '/global/project/projectdirs/nervana/neon-data',
       sample_pct: 100,
       # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
       # datapar specific parameters:
-      batch_size: 300,
-      num_test_sample: 9900, #round down to a multiple of batch_size
+      batch_size: 800,
+      num_test_sample: 9600, #round down to a multiple of batch_size
       # todo: following are for when mini-batches are also pickled
       # num_nodes: 2,
       # num_procs_per_node: 3,
