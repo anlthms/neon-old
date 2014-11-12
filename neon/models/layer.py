@@ -249,47 +249,89 @@ class LayerWithNoBias(Layer):
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
-
-class RecurrentLayer(Layer):
+class RecurrentOutputLayer(Layer):
 
     """
-    Single RNN layer with no bias node
+    Derived from LayerWithNoBias. pre_act becomes pre_act_list, output becomes
+    output_list, which are indexed by [tau], the unrolling step. 
     """
-    def __init__(self, name, backend, batch_size, pos, nin, nout,
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
+                 activation, weight_init, learning_rule, weight_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
+        super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
+                                              pos, nin, nout, activation,
+                                              weight_init, learning_rule)
+        # NEW
+        self.pre_act_list = [self.backend.alloc(batch_size, self.nout, pre_act_dtype) for k in range(unrolls)]
+        self.output_list = [self.backend.alloc(batch_size, self.nout, output_dtype) for k in range(unrolls)]
+        #del self.pre_act # this is a bit hacky but helps to make sure we dont accidentially use this
+        #del self.output
+        if pos > 0:
+            self.berror = backend.alloc(batch_size, nin)
+
+    def fprop(self, inputs, tau):
+        #trace()
+        self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act_list[tau])
+        self.activation.apply_both(self.backend, self.pre_act_list[tau], self.output_list[tau]) # RATHER BIZARRE HACK WHERE g' IS WRITTEN TO pre_act!
+
+    def bprop(self, error, inputs, epoch):
+        pass
+        # comment if not using denominator term in cross_entropy
+        # self.backend.multiply(error, self.pre_act, out=self.delta)
+        # if self.pos > 0:
+        #     self.backend.bprop_fc_dot(self.delta, self.weights, out=self.berror)
+        # self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+
+        # self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+
+class RecurrentHiddenLayer(Layer):
+
+    """
+    Derived from LayerWithNoBias. In addition to the lists[tau] outlined for
+    RecurrentOutputLayer, the fprop is getting input from two weight matrices,
+    one connected to the input and one connected to the previous hidden state.
+    """
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
                  activation, weight_init, weight_init_rec, learning_rule, weight_dtype=None,
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         # super calls into Layer.__init__() for weight init. 
-        super(RecurrentLayer, self).__init__(name, backend, batch_size,
+        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                               pos, nin, nout, activation,
                                               weight_init, learning_rule)
         # but the extra weight matrix needs to be initialized here:
         self.weights_rec = self.backend.gen_weights((nout, nout), weight_init_rec,
                                                 weight_dtype)
-        # may need to also define extra self.delta self.pre_act 
+        # override preact, output
+        self.pre_act_list = [self.backend.alloc(batch_size, self.nout, pre_act_dtype) for k in range(unrolls)]
+        self.output_list = [self.backend.alloc(batch_size, self.nout, output_dtype) for k in range(unrolls)]
+        #del self.pre_act # this is a bit hacky but helps to make sure we dont accidentially use this
+        #del self.output
+        # FUCK: We should just have custom init and str functions for these layers. 
         if pos > 0:
             self.berror = backend.alloc(batch_size, nin)
 
-    def fprop(self, y, inputs):
-        #self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act)
-        #self.activation.apply_both(self.backend, self.pre_act, self.output)
-
-        # TODO: to use fc_dot here, need an extra buffer
-        z1 = np.dot(y, self.weights_rec)
-        z2 = np.dot(inputs, self.weights)
-        self.pre_act = z1 + z2
-        trace()
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+    def fprop(self, y, inputs, tau):
+        # TODO: to use fc_dot here, need an extra buffer. can't use dot on tensors, get true?!!
+        z1=z2=self.backend.zeros(self.pre_act_list[tau].shape)
+        self.backend.fprop_fc_dot(y, self.weights_rec, out=z1)
+        self.backend.fprop_fc_dot(inputs, self.weights, out=z2)
+        self.pre_act_list[tau] = z1 + z2 # 100,64 = batch_size,neurons
+        self.activation.apply_both(self.backend, self.pre_act_list[tau], self.output_list[tau]) # AGAIN pre_act STORES g'
 
     def bprop(self, error, inputs, epoch):
+        pass
         # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act, out=self.delta)
-        if self.pos > 0:
-            self.backend.bprop_fc_dot(self.delta, self.weights,
-                                      out=self.berror)
-        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+        # self.backend.multiply(error, self.pre_act, out=self.delta)
+        # if self.pos > 0:
+        #     self.backend.bprop_fc_dot(self.delta, self.weights,
+        #                               out=self.berror)
+        # self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
 
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        # self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class LayerWithNoBiasDist(LayerWithNoBias):
