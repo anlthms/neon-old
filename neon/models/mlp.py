@@ -132,17 +132,15 @@ class MLP(Model):
         i = self.nlayers - 1
         error = self.cost.apply_derivative(self.backend, self.layers[i].output,
                                            targets, self.temp)
+        batch_size = self.batch_size
         if self.dist_mode == 'datapar':
-            batch_size = MPI.COMM_WORLD.size * self.batch_size
-        else:
-            batch_size = targets.shape[targets.major_axis()]
+            batch_size *= MPI.COMM_WORLD.size
         self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+
         while i > 0:
             self.layers[i].bprop(error, self.layers[i - 1].output, epoch)
             error = self.layers[i].berror
             i -= 1
-
-        # Update the first layer.
         self.layers[i].bprop(error, inputs, epoch)
 
     # TODO: move out to separate config params and module.
