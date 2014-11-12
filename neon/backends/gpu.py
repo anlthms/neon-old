@@ -5,6 +5,9 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
+from neon.util.compat import MPI_INSTALLED
+if MPI_INSTALLED:
+    from mpi4py import MPI
 import math
 import cudanet
 
@@ -426,6 +429,9 @@ class GPUTensor(Tensor):
     def raw(self):
         self._tensor.copy_to_host()
         return self._tensor.numpy_array
+
+    def copy_to_device(self):
+        self._tensor.copy_to_device()
 
     def transpose(self):
         return TransposedGPUTensor(self._tensor, self._tensor.T)
@@ -1021,23 +1027,27 @@ class GPUDataDist(GPU):
     helper sub-class for data parallel implementations
     """
     def update_fc_dot(self, deltas, inputs, out):
-        raise NotImplementedError
-
-        # super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+        super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
         # For GPU version have to implement this without using reduce as cuda
         # aware MPI does not support collective reduction
-        # out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
-        # This division by comm.size corresponds to following line in mlp bprop
-        # self.backend.divide(error,
-        #                    self.backend.wrap(targets.shape[
-        #                                      targets.major_axis()]),
-        #                    out=error)
-        # out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+
+        out.raw()[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        out.raw()[:] = MPI.COMM_WORLD.bcast(out.raw())
+        out.copy_to_device()
 
     def update_conv(self, weights, inputs, error, updates, links, ifmshape,
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
-        raise NotImplementedError
+        super(GPUDataDist, self).update_conv(weights, inputs, error, updates,
+                                             links, ifmshape, ofmshape,
+                                             ofmlocs, padding, stride, nifm,
+                                             ngroups, fwidth, updatebuf)
+
+        updates.raw()[:] = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
+                                                root=0)
+        updates.raw()[:] = MPI.COMM_WORLD.bcast(updates.raw())
+        updates.copy_to_device()
+
