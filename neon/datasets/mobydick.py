@@ -84,13 +84,18 @@ class MOBYDICK(Dataset):
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             train_idcs = range(1000000) # 1M letters
+            predict_idcs = range(self.predict_offset, 1000000+self.predict_offset)
+            test_idcs = range(1000000, 1001000)
+            testtarget_idcs = range(1000000+self.predict_offset, 1001000+self.predict_offset)
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0
                     logger.info('sampling pct: %0.2f' % self.sample_pct)
                 if self.sample_pct < 1.0:
-                    numpy.random.shuffle(train_idcs)
+                    # numpy.random.shuffle(train_idcs) # [TODO] lets not do this for now
+                    pass
                 train_idcs = train_idcs[0:int(1000000 * self.sample_pct)]
+                predict_idcs = predict_idcs[0:int(1000000 * self.sample_pct)]
             url = self.raw_base_url
             name = os.path.basename(url).rstrip('.txt')
             repo_file = os.path.join(save_dir, name + '.txt')
@@ -100,7 +105,9 @@ class MOBYDICK(Dataset):
             indat = self.read_txt_file(repo_file, 'float32')
             #trace()
             self.inputs['train'] = indat[:, train_idcs].T
-            self.inputs['test'] = indat[:, range(1000000, 1001000)].T
+            self.targets['train'] = indat[:, predict_idcs].T 
+            self.inputs['test'] = indat[:, test_idcs].T
+            self.targets['test'] = indat[:, testtarget_idcs].T 
          
             self.format()
         else:
