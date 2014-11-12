@@ -342,6 +342,15 @@ class CPU(Backend):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
 
+    def alloc_by_tuple(self, nrows, ncols=None, dtype=None):
+        """
+        not sure if there is a policity against using something.shape to init?
+        """
+        if ncold is None:
+            nrows, ncols = nrows
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
+
     def ones(self, shape, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.ones(shape, dtype), dtype)
