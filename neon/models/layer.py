@@ -698,7 +698,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.nout = self.ofmsize * self.nofm
         self.output = self.backend.zeros((self.batch_size, self.nout))
         if self.activation is not None:
-            self.pre_act = backend.alloc(batch_size, self.nout)
+            self.pre_act = backend.alloc(self.batch_size, self.nout)
             raise NotImplementedError('TODO')
         else:
             self.pre_act = self.output
