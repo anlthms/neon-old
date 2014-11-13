@@ -524,6 +524,22 @@ class CudanetTensor(Tensor):
             logger.debug('major change in functionality of sum')
             return CudanetTensor(result)
 
+    def sumsq(self, axis=None):
+        """
+        Sum of squares of elements of a CudanetTensor. If axis is None, all elements are
+        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
+        axis and return a CudanetTensor.
+        """
+        if axis is None:
+            result = self._tensor.sumsq(axis=None)
+            logger.debug('Copying to host')
+            result.copy_to_host()
+            return result.numpy_array[0][0]
+        else:
+            result = self._tensor.sumsq(axis=axis)
+            logger.debug('major change in functionality of sum')
+            return CudanetTensor(result)
+
     def mean(self):
         result = self._tensor.mean(axis=0).mean(axis=1)
         logger.debug('Copying to host')
@@ -713,6 +729,12 @@ class Cudanet(Backend):
 
     def greater(self, a, b, out):
         a._tensor.greater_than(b._tensor, out._tensor)
+
+    def xcov(self, a, b, out):
+        cudanet.xcov(a._tensor, b._tensor, out._tensor)
+
+    def mean_norm(self, a, axis, out):
+        cudanet.mean_norm(a._tensor, axis, out._tensor)
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
