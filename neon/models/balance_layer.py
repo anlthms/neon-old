@@ -62,7 +62,8 @@ class NeuralLayer(Layer):
         W=None, b=None, max_norm=None, weight_clip=None,
         adadelta_eps=None, adadelta_rho=0.95,
         momentum=None, learning_rate=None,
-        init_alpha = .1, rng=np.random.RandomState(817), dtype=np.float32):
+        init_alpha = .1, rng=np.random.RandomState(817), dtype=np.float32,
+        learning_rule, lr_params):
         # Internal state variables for backward pass
         self.backend = backend
         self.X = None
