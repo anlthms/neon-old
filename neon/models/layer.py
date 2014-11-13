@@ -697,6 +697,11 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         super(ConvLayerDist, self).adjust_for_dist(self.ifmshape)
         self.nout = self.ofmsize * self.nofm
         self.output = self.backend.zeros((self.batch_size, self.nout))
+        if self.activation is not None:
+            self.pre_act = backend.alloc(batch_size, self.nout)
+            raise NotImplementedError('TODO')
+        else:
+            self.pre_act = self.output
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
