@@ -128,6 +128,13 @@ class GradientDescentMomentum(GradientDescent):
         self.backend.add(params, self.velocity_rec, out=params)
 
     def apply_rule(self, params, updates, epoch):
+        """
+        Steps for momentum:
+        1. velo = mu * velo    scale down old velocity
+        2. upda = eps * upda   scale down new updates
+        3. velo = velo - upda  combine old and new part
+        4. update the actual weights. 
+        """
         momentum_coef = self.get_momentum_coef(epoch)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
@@ -138,28 +145,43 @@ class GradientDescentMomentum(GradientDescent):
         self.backend.add(params, self.velocity, out=params)
 
     def get_momentum_coef(self, epoch):
+        """
+        TODO:
+        Need some explanation here what the different momentum parameters mean. 
+        initial_coef
+        saturated_coef
+        start_epoch
+        saturate_epoch
+        ...
+        """
+
         coef = 0.0
         if 'coef' in self.momentum_params:
             coef = self.momentum_params['coef']
+        
         if 'initial_coef' in self.momentum_params:
             init_coef = self.momentum_params['initial_coef']
         else:
             init_coef = coef
+        
         if 'saturated_coef' in self.momentum_params:
             saturated_coef = self.momentum_params['saturated_coef']
         else:
             saturated_coef = coef
+        
         if 'start_epoch' in self.momentum_params:
             start_epoch = self.momentum_params['start_epoch']
         else:
             start_epoch = None
+        
         if 'saturate_epoch' in self.momentum_params:
             saturate_epoch = self.momentum_params['saturate_epoch']
         else:
             saturate_epoch = None
 
         if self.momentum_params['type'] == 'constant':
-            pass
+            # was "pass", no coef will be set and 0 will be returned. That's stupid.
+            raise NotImplementedError("What is constant momentum? A JIRA ticket?")
         elif self.momentum_params['type'] == 'linear_monotone':
             coef = init_coef
             if start_epoch is not None and epoch >= start_epoch:
