@@ -117,20 +117,43 @@
         fshape: [2, 2],
         stride: 1,
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer.CrossMapPoolingLayer {
         name: layer6,
         backend: *be,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         batch_size: *bs,
         pos: 6,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer6lr,
+          name: rule,
           lr_params: {
             learning_rate: *lr,
             backend: *be,
             momentum_params: *mm,
           },
         },
-        nin: 677,
+        nifm: 4,
+        nofm: 2,
+        ifmshape: [13, 13],
+        weight_init: {
+          type: uniform,
+          low: 0.0,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.Layer {
+        name: layer7,
+        backend: *be,
+        batch_size: *bs,
+        pos: 7,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer7lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 339,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
@@ -143,7 +166,7 @@
         name: output,
         backend: *be,
         batch_size: *bs,
-        pos: 7,
+        pos: 8,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
