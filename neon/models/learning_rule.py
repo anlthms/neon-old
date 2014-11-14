@@ -102,12 +102,30 @@ class GradientDescentMomentum(GradientDescent):
         else:
             raise AttributeError("Missing required momentum parameters")
         self.velocity = None
+        self.velocity_rec = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
         if self.velocity is None or self.velocity.shape != params.shape:
             self.velocity = self.backend.zeros(params.shape,
                                                self.velocity_dtype)
+
+    def allocate_state_rec(self, params):
+        """HACK: For recurrent layer, need an extra velocity """
+        if self.velocity_rec is None or self.velocity_rec.shape != params.shape:
+            self.velocity_rec = self.backend.zeros(params.shape,
+                                               self.velocity_dtype)
+
+    def apply_rule_rec(self, params, updates, epoch):
+        """HACK: For recurrent layer, need an extra velocity """
+        momentum_coef = self.get_momentum_coef(epoch)
+        self.backend.multiply(self.velocity_rec, self.backend.wrap(momentum_coef),
+                              out=self.velocity_rec)
+        self.backend.multiply(updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=updates)
+        self.backend.subtract(self.velocity_rec, updates, out=self.velocity_rec)
+        self.backend.add(params, self.velocity_rec, out=params)
 
     def apply_rule(self, params, updates, epoch):
         momentum_coef = self.get_momentum_coef(epoch)
