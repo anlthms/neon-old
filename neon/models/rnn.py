@@ -48,8 +48,8 @@ class RNN(Model):
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
         viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / self.batch_size)) - 10
-        print "[DEBUG] Divide input", nrecs, "into batches of size", self.batch_size, "for", num_batches, "batches"
+        num_batches = int(math.floor((nrecs + 0.0) / self.batch_size /self.unrolls)) - 0 #  UNROLLS HERE????????????????????????????????
+        print "[DEBUG] Divide input", nrecs, "into batches of size", self.batch_size, "with", self.unrolls, "timesteps for", num_batches, "batches"
         noisyerror = self.backend.zeros(self.num_epochs*num_batches) # not nice to dynamically allocate so use zeros.
         logger.info('commencing model fitting')
         suberrorlist=[]
@@ -60,14 +60,15 @@ class RNN(Model):
             batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1), dtype=int) # initialize buffer
             hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
             for batch in xrange(num_batches):
-
+                #print "(",batch,")",
+                #if batch==497: print batch_inx
                 self.serve_batch(batch, batch_inx, num_batches) # get indices
                 self.fprop(inputs,batch_inx, hidden_init) # overwrites layers[].pre_act with g'
 
                 self.bprop(targets, inputs, batch_inx, epoch)
 
                 hidden_init = self.layers[0].output_list[-1] # use output from last hidden step
-
+                #trace()
                 suberror = self.cost.apply_function(
                     self.backend, self.layers[-1].output_list[-1],
                     targets[batch_inx[:,-1]], # not quite sure what the correct targets are here
@@ -80,8 +81,9 @@ class RNN(Model):
             viz.plot_weights(self.layers[0].weights.raw(), self.layers[0].weights_rec.raw(), self.layers[1].weights.raw())
             viz.plot_error(suberrorlist, errorlist)
             print "DEBUG"
-            print "input weight", self.layers[0].weights[0,0], "update", self.layers[0].updates[0,0], "velocity", self.layers[0].learning_rule.velocity[0,0]
+            print "input weight", self.layers[0].weights[2,10], "update", self.layers[0].updates[2,10], "velocity", self.layers[0].learning_rule.velocity[2,10]
             print "recurrent weight", self.layers[0].weights_rec[0,0], "update", self.layers[0].updates_rec[0,0], "velocity", self.layers[0].learning_rule.velocity_rec[0,0]
+            print "output weight", self.layers[1].weights[0,0], "update", self.layers[1].updates[0,0], "velocity", self.layers[1].learning_rule.velocity[0,0]
 
             # ----------------
             logger.info('epoch: %d, total training error: %0.5f' %
@@ -108,6 +110,7 @@ class RNN(Model):
         the minibatch directly. 
         This function returns the submatrix delimited by the --- and constructs
         it row by row. 
+        Wtih batch size 50 and 3 unrolls, constructing 1000 batches takes 150k data points.
 
         Inputs:
             batch: batch number 
@@ -119,6 +122,10 @@ class RNN(Model):
         
         for tau in range(self.unrolls+1):
             batch_inx[:, tau] = self.unrolls*batch + tau+num_batches* self.backend.tensor_cls(range(self.batch_size))
+
+        # was np.arange(3,5*10,10) == 3+10*np.arange(5)
+        #for i in range(nlayers+1):
+        #    batch_inx[:, i] = self.nlayers*batch + np.arange(i, self.batch_size*self.num_batches, self.num_batches, dtype=np.int)
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[inputs.major_axis()]
@@ -197,7 +204,7 @@ class RNN(Model):
             self.backend.bprop_fc_dot(self.layers[1].deltas_o[tau], self.layers[1].weights, out=cerror)   # pull out because weights_out are not availbe inside bprop.
             self.layers[0].bprop(cerror, inputs, tau, batch_inx)
 
-        # 3. done
+        # apply updates in bprop here, don't expose to the main loop.
         self.layers[1].update(epoch)
         self.layers[0].update(epoch)
 

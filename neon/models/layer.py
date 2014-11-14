@@ -333,11 +333,10 @@ class RecurrentHiddenLayer(Layer):
             self.backend.bprop_fc_dot(self.deltas[tau-layer-1], self.weights_rec, out = self.berror)                  # layers[0], bprop_fc_dot(delta_old, weights)
             self.deltas[tau-layer] = self.berror * self.pre_act_list[layer]                     # delta_new   = error * preact
             self.backend.update_fc_dot(self.deltas[tau-(layer+1)], self.output_list[layer], out=self.temp_rec)  # layers[0], update_fc_dot -- results_h=(z,y)=self.output_list
-            #print "IN BPROP mixing into updates_rec", self.temp_rec[0,0]
-            #trace()
             self.updates_rec += self.temp_rec
             self.backend.update_fc_dot(self.deltas[tau-layer], inputs[batch_inx[:,layer]], out=self.temp_in)  # layers[0], update_fc_dot
-            self.updates  += self.temp_in
+            #trace()
+            self.updates  += self.temp_in # THIS IS ZERO??? No.
 
     def update(self, epoch):
         # Problem: recurrent update is too big!

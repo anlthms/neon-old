@@ -14,7 +14,7 @@
     !obj:neon.datasets.mobydick.MOBYDICK {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 1, # 100 for full, 10 subsample for speed
+      sample_pct: 10, # 100 for full, 10 subsample for speed
       predict_offset: 6, # how many letters the targets are ahead of the training
     },
   ],
@@ -23,7 +23,7 @@
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
     num_epochs: 30,
-    batch_size: &bs 100,
+    batch_size: &bs 50,
     unrolls: &ur 5,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
@@ -36,11 +36,12 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.0001,
+            learning_rate: &lr 0.001,
             backend: *be,
             momentum_params: &mm {
-              type: constant, #constant, nesterov
+              type: linear_monotone, # constant, nesterov dont work
               initial_coef: 0.90,
+              saturated_coef: 0.90, # what is this
             },
           },
         },

@@ -19,13 +19,13 @@ class VisualizeRNN(object):
         plt.figure(2)
         plt.clf()
         plt.subplot(1,3,1); 
-        plt.imshow(weights_in, vmin=-1, vmax=1, interpolation='nearest');
+        plt.imshow(weights_in.T, vmin=-1, vmax=1, interpolation='nearest');
         plt.title('input.T')
         plt.subplot(1,3,2); 
         plt.imshow(weights_rec, vmin=-1, vmax=1, interpolation='nearest');
         plt.title('recurrent')
         plt.subplot(1,3,3); 
-        plt.imshow(weights_out.T, vmin=-1, vmax=1, interpolation='nearest');
+        plt.imshow(weights_out, vmin=-1, vmax=1, interpolation='nearest');
         plt.title('output')
         plt.colorbar()
         plt.draw(); plt.show()
@@ -36,4 +36,5 @@ class VisualizeRNN(object):
         #trace()
         plt.plot(np.arange(len(suberror_list))/np.float(len(suberror_list))*len(error_list), suberror_list)
         plt.plot(error_list, linewidth=2)
+        plt.ylim((0,.05))
         plt.draw(); plt.show()
