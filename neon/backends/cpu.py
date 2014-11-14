@@ -344,7 +344,7 @@ class CPU(Backend):
 
     def alloc_by_tuple(self, nrows, ncols=None, dtype=None):
         """
-        not sure if there is a policity against using something.shape to init?
+        TODO: make alloc consistent with zeros, ones, etc.?
         """
         if ncold is None:
             nrows, ncols = nrows
