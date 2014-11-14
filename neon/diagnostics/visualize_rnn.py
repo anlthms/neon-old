@@ -1,29 +1,39 @@
 import matplotlib.pyplot as plt
+plt.interactive(1)
 import numpy as np
 import os
-
+from ipdb import set_trace as trace
 
 class VisualizeRNN(object):
     """
     Visualzing weight matrices during training
     """
-    def __init__():
+    def __init__(self):
         pass
 
-    def visualize_training(self, ind, layer, output):
+    def plot_weights(self, weights_in, weights_rec, weights_out):
         """
-        W_in, W_rec, W_out
+        Visizualize the three weight matrices after every epoch. Serves to
+        check that weights are structured, not exploding, and get upated
         """
+        plt.figure(2)
+        plt.clf()
+        plt.subplot(1,3,1); 
+        plt.imshow(weights_in, vmin=-1, vmax=1, interpolation='nearest');
+        plt.title('input.T')
+        plt.subplot(1,3,2); 
+        plt.imshow(weights_rec, vmin=-1, vmax=1, interpolation='nearest');
+        plt.title('recurrent')
+        plt.subplot(1,3,3); 
+        plt.imshow(weights_out.T, vmin=-1, vmax=1, interpolation='nearest');
+        plt.title('output')
+        plt.colorbar()
+        plt.draw(); plt.show()
 
-        plt.figure(1); plt.clf()
-        plt.plot(self.cost_list); plt.legend(('recon', 'sparse', 'both'))
-        plt.draw()
-        plt.figure(2); plt.clf()
-        self.visual_filters(os.path.join('recon', 'filters'), ind, layer.nifm)
-        plt.draw()
-        plt.figure(3); plt.clf()
-        self.save_figs_all(layer.nifm, layer.ifmshape,
-                        [output, layer.defilter.output],
-                        [os.path.join('recon', 'input'),
-                        os.path.join('recon', 'output')], ind)
-
+    def plot_error(self, suberror_list, error_list):
+        plt.figure(1)
+        plt.clf()
+        #trace()
+        plt.plot(np.arange(len(suberror_list))/np.float(len(suberror_list))*len(error_list), suberror_list)
+        plt.plot(error_list, linewidth=2)
+        plt.draw(); plt.show()

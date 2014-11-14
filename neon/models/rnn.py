@@ -9,6 +9,7 @@ from ipdb import set_trace as trace
 import matplotlib.pyplot as plt
 
 from neon.models.model import Model
+from neon.diagnostics.visualize_rnn import VisualizeRNN
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+
 
     def fit(self, datasets):
         """
@@ -45,11 +47,13 @@ class RNN(Model):
         tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
-
+        viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / self.batch_size)) - 10
         print "[DEBUG] Divide input", nrecs, "into batches of size", self.batch_size, "for", num_batches, "batches"
         noisyerror = self.backend.zeros(self.num_epochs*num_batches) # not nice to dynamically allocate so use zeros.
         logger.info('commencing model fitting')
+        suberrorlist=[]
+        errorlist=[]
         for epoch in xrange(self.num_epochs):
             error = 0
             suberror = self.backend.zeros(num_batches)
@@ -64,15 +68,23 @@ class RNN(Model):
 
                 hidden_init = self.layers[0].output_list[-1] # use output from last hidden step
 
-                error += self.cost.apply_function(
+                suberror = self.cost.apply_function(
                     self.backend, self.layers[-1].output_list[-1],
                     targets[batch_inx[:,-1]], # not quite sure what the correct targets are here
                     self.temp)
+                suberrorlist.append(suberror)
+                error += suberror / num_batches
+            # --------------
             print "ERROR", error
+            errorlist.append(error)
+            viz.plot_weights(self.layers[0].weights.raw(), self.layers[0].weights_rec.raw(), self.layers[1].weights.raw())
+            viz.plot_error(suberrorlist, errorlist)
+            # ----------------
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
             for layer in self.layers:
                 logger.debug("%s", layer)
+        trace() # set a trace to prevent exiting
     
     def serve_batch(self, batch, batch_inx, num_batches):
         """ 
@@ -147,9 +159,6 @@ class RNN(Model):
         to keep track of all of these, so tell it which unroll we are in. 
         """
 
-        #results_h == layers[0].pre_act and layers[0].output
-        #results_o == layers[1].pre_act and layers[1].output
-        
         y = hidden_init
         for tau in range(0, self.unrolls):
             #print "FPROP unrolling step tau", tau, "of", self.unrolls
@@ -160,21 +169,9 @@ class RNN(Model):
             #y = self.layers[1].output # this is an o not a y
 
 
-        
-#--------------------
 
     def bprop(self, targets, inputs, batch_inx, epoch, debug=1):
         
-    #    updates = dict()
-    #    updates['in']=self.backend.zeros(self.layers[0].nout, self.layers[0].nin) #64, 128
-    #    updates['rec']=self.backend.zeros(self.layers[0].nout, self.layers[0].nout)  #64, 64
-    #    updates['out']=self.backend.zeros(self.layers[1].nout, self.layers[1].nin) #128, 64
-        
-        # self.layers[0].temp_rec *= 0.0
-        # self.layers[0].temp_in *= 0.0
-        # self.layers[1].temp_out *= 0.0
-
-
         full_unroll = True # Need to set False for num_grad_check
         if full_unroll:
             min_unroll = 1
@@ -199,37 +196,6 @@ class RNN(Model):
         # 3. done
         self.layers[1].update(epoch)
         self.layers[0].update(epoch)
-
-
-#cf bprop(error, inputs) steps from MLP:
-#        self.backend.multiply(error, self.pre_act, out=self.delta)           # delta   = error * preact
-#        self.backend.bprop_fc_dot(self.delta, self.weights, out=self.berror) # berror  = bprop_fc_dot(delta, weights) - injected back into later layers
-#        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)     # updates = update_fc_dot(self.delta, inputs)
-
-            # # 1) OUTPUT LAYER bprop
-            # y = self.layers[1].output_list[rollayers-1] # [1].output == result_o[1]
-            # error = self.cost.apply_derivative(self.backend, y, targets[batch_inx[:,rollayers]], self.temp)
-            # inpu = self.layers[0].output_list[rollayers - 1]
-            
-            # self.layers[1].bprop(error, inpu, epoch, rollayers) # performs updates immediately, problem? With enough momentum it should all be the same...
-            
-            # # 2) REC / INPUT LAYER
-            # berror = self.backend.alloc(self.batch_size, self.layers[1].nin)
-            # self.backend.bprop_fc_dot(self.layers[1].delta, self.layers[1].weights, out=berror) # layers[1] bprop dot
-            # inpu = inputs[batch_inx[:,rollayers-1]]
-            
-            # self.layers[0].bprop(berror, (inpu, None), epoch, rollayers, rollayers-1)
-
-            # # 2b) 
-            # for tau in range(0, rollayers - 1)[::-1]: # go one more!
-            #     self.backend.bprop_fc_dot(self.layers[0].deltas[rollayers-tau-1], self.layers[0].weights_rec, out=berror) # layers[0] bprop dot
-            #     inpu = (inputs[batch_inx[:,tau]], self.layers[0].output_list[tau]) # tupel
-                
-            #     self.layers[0].bprop(berror, inpu, epoch, rollayers, tau)
-            #     #print "recurrent analytic subupdate", np.dot(y.T, self.layers[0].deltas[tau])[10,2]
-
-
-
 
 
     # TODO: move out to separate config params and module.
