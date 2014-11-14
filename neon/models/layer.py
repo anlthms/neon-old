@@ -694,6 +694,11 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         super(ConvLayerDist, self).adjust_for_dist(self.ifmshape)
         self.nout = self.ofmsize * self.nofm
         self.output = self.backend.zeros((self.batch_size, self.nout))
+        if self.activation is not None:
+            self.pre_act = backend.alloc(self.batch_size, self.nout)
+            raise NotImplementedError('TODO')
+        else:
+            self.pre_act = self.output
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
@@ -1700,3 +1705,60 @@ class LCNLayerDist(LCNLayer):
 
             self.berror = (
                 self.input.get_bprop_view(self.berror))
+
+
+class CrossMapPoolingLayer(YAMLable):
+    """
+    Pool input feature maps by computing a weighted sum of
+    corresponding spatial locations across maps. This is
+    equivalent to a 1x1 convolution.
+    """
+
+    def __init__(self, name, backend, batch_size, pos, learning_rule,
+                 nifm, nofm, ifmshape, weight_init, activation=None):
+        self.name = name
+        self.backend = backend
+        self.batch_size = batch_size
+        self.pos = pos
+        self.learning_rule = learning_rule
+        self.nifm = nifm
+        self.nofm = nofm
+        self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmshape = ifmshape
+        self.activation = activation
+
+        self.ofmshape = self.ifmshape
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.ofmsize = self.ifmsize
+        self.nin = nifm * self.ifmsize
+        self.nout = nofm * self.ifmsize
+        if pos > 0:
+            self.berror = backend.alloc(batch_size, self.nin)
+
+        self.weights = backend.gen_weights((nifm, nofm),
+                                           weight_init)
+        assert (self.weights.raw() < 0).sum() == 0
+        self.updates = backend.zeros(self.weights.shape)
+        self.output = backend.alloc(batch_size, self.nout)
+        self.updatebuf = backend.zeros((1, 1))
+        self.learning_rule.allocate_state(self.updates)
+        if activation is not None:
+            self.pre_act = backend.alloc(batch_size, self.nout)
+        else:
+            self.pre_act = self.output
+
+    def fprop(self, inputs):
+        self.backend.fprop_cmpool(inputs, self.weights, self.ifmsize,
+                                  out=self.pre_act)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
+
+    def bprop(self, error, inputs, epoch):
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+        if self.pos > 0:
+            self.backend.bprop_cmpool(error, self.weights, self.ifmsize,
+                                      out=self.berror)
+        self.backend.update_cmpool(error, inputs, self.ifmsize,
+                                   self.updatebuf, out=self.updates)
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)

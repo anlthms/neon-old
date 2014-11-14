@@ -212,34 +212,29 @@ class ConvnetDist(MLP):
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-            lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.in_indices, axis=1),
-                            epoch)
-        else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        i -= 1
         while isinstance(self.layers[i], LayerWithNoBiasDist):
-            # extract self.layers[i].pre_act terms
-            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].in_indices, axis=1)
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].in_indices, axis=1),
                                      epoch)
             else:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output,
                                      epoch)
+            error = self.layers[i].berror
             i -= 1
+            if isinstance(self.layers[i], LayerWithNoBiasDist):
+                # extract self.layers[i].pre_act terms
+                self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                    self.layers[i + 1].in_indices, axis=1)
 
         # following code is difficult to refactor:
         # 1) MPL berror has no halos for top layer, but does for middle layers
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
         # Following is for top MPL layer
-        self.layers[i].bprop(self.layers[i + 1].berror,
+        self.layers[i].bprop(error,
                              self.layers[i - 1].output,
                              epoch)
         while i > 0:

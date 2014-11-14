@@ -1,4 +1,4 @@
-# Network in network 
+# Network in network implemented using 1x1 convolutions.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
