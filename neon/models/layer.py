@@ -46,7 +46,7 @@ class Layer(YAMLable):
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
-                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
@@ -57,7 +57,6 @@ class Layer(YAMLable):
         self.weight_dtype = weight_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        self.delta = self.backend.alloc(batch_size, nout, delta_dtype)
         self.updates = self.backend.zeros((nout, nin), updates_dtype)
         self.updates_dtype = updates_dtype
         self.pre_act = self.backend.alloc(batch_size, self.nout,
@@ -112,17 +111,17 @@ class Layer(YAMLable):
     def bprop(self, error, inputs, epoch):
         """
         # numpy pseudocode for the backprop:
-        # updates = dot(delta.transpose(), inputs)  # calculate new gradient
+        # updates = dot(error.transpose(), inputs)  # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act, out=self.delta)
+        self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
-            self.backend.bprop_fc_dot(self.delta, self.weights[:, 0:endcol],
+            self.backend.bprop_fc_dot(error, self.weights[:, 0:endcol],
                                       out=self.berror)
 
         inputs = self.backend.append_bias(inputs)
-        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+        self.backend.update_fc_dot(error, inputs, out=self.updates)
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
@@ -156,7 +155,6 @@ class LayerDist(Layer):
 
         self.updates = self.backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.delta = self.backend.zeros((self.batch_size, self.nout))
         self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
         self.delta_gather = self.backend.zeros(
             (self.batch_size * MPI.COMM_WORLD.size, self.nout))
@@ -189,17 +187,17 @@ class LayerDist(Layer):
     def bprop(self, error, inputs, epoch):
         """
         # numpy pseudocode for the backprop:
-        # updates  = dot(delta.T, inputs)        # calculate new gradient
+        # updates  = dot(error.T, inputs)        # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act_, out=self.delta)
+        self.backend.multiply(error, self.pre_act_, out=error)
         endcol = self.weights.shape[1]
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
             inputs = self.backend.append_bias(inputs)
             endcol = self.weights.shape[1] - 1
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
-                self.delta.raw(), self.delta_gather._tensor)
+                error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
@@ -210,10 +208,10 @@ class LayerDist(Layer):
             self.backend.update_fc_dot(self.delta_, inputs, out=self.updates)
         else:
             if self.pos > 0:
-                self.backend.bprop_fc_dot(self.delta,
+                self.backend.bprop_fc_dot(error,
                                           self.weights[:, 0:endcol],
                                           out=self.berror)
-            self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+            self.backend.update_fc_dot(error, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -226,7 +224,7 @@ class LayerWithNoBias(Layer):
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
-                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
                                               pos, nin, nout, activation,
@@ -240,11 +238,11 @@ class LayerWithNoBias(Layer):
 
     def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act, out=self.delta)
+        self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_fc_dot(self.delta, self.weights,
+            self.backend.bprop_fc_dot(error, self.weights,
                                       out=self.berror)
-        self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+        self.backend.update_fc_dot(error, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -284,7 +282,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
         self.updates = self.backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.delta = self.backend.zeros((self.batch_size, self.nout))
         self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
         self.delta_gather = self.backend.zeros(
             (self.batch_size * MPI.COMM_WORLD.size, self.nout))
@@ -311,10 +308,10 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act_, out=self.delta)
+        self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
-                self.delta.raw(), self.delta_gather._tensor)
+                error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
@@ -324,9 +321,9 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             self.backend.update_fc_dot(self.delta_, inputs, out=self.updates)
         else:
             if self.pos > 0:
-                self.backend.bprop_fc_dot(self.delta, self.weights,
+                self.backend.bprop_fc_dot(error, self.weights,
                                           out=self.berror)
-            self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+            self.backend.update_fc_dot(error, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -820,7 +817,6 @@ class LocalFilteringLayer(LocalLayer):
             self.output[:, self.ofmlocs[dst]] = self.prodbuf
 
     def bprop(self, error, inputs, epoch):
-        self.delta = error
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
@@ -829,7 +825,7 @@ class LocalFilteringLayer(LocalLayer):
                 # size-guide
                 # self.delta.take: # mbs x nofm
                 # self.weights.take: # (nofm x fsize )
-                self.backend.dot(self.delta.take(self.ofmlocs[dst], axis=1),
+                self.backend.dot(error.take(self.ofmlocs[dst], axis=1),
                                  self.weights.take(self.ofmlocs[dst], axis=0),
                                  self.bpropbuf)
                 rflinks = self.rlinks[dst]
@@ -840,7 +836,7 @@ class LocalFilteringLayer(LocalLayer):
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
-            delta_slice = self.delta.take(self.ofmlocs[dst], axis=1)
+            delta_slice = error.take(self.ofmlocs[dst], axis=1)
             self.backend.dot(delta_slice.transpose(),
                              inputs.take(rflinks, axis=1),
                              out=self.updatebuf)
