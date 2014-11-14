@@ -265,26 +265,23 @@ class RecurrentOutputLayer(Layer):
         # NEW
         self.pre_act_list = [self.backend.alloc(batch_size, self.nout, pre_act_dtype) for k in range(unrolls)]
         self.output_list = [self.backend.alloc(batch_size, self.nout, output_dtype) for k in range(unrolls)]
+        self.temp_out = self.backend.alloc(self.nout, self.nin)
         #del self.pre_act # this is a bit hacky but helps to make sure we dont accidentially use this
         #del self.output
         if pos > 0:
             self.berror = backend.alloc(batch_size, nin)
 
     def fprop(self, inputs, tau):
-        #trace()
         self.backend.fprop_fc_dot(inputs, self.weights, out=self.pre_act_list[tau])
         self.activation.apply_both(self.backend, self.pre_act_list[tau], self.output_list[tau]) # RATHER BIZARRE HACK WHERE g' IS WRITTEN TO pre_act!
 
-    def bprop(self, error, inputs, epoch):
-        pass
-        # comment if not using denominator term in cross_entropy
-        # self.backend.multiply(error, self.pre_act, out=self.delta)
-        # if self.pos > 0:
-        #     self.backend.bprop_fc_dot(self.delta, self.weights, out=self.berror)
-        # self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
-
-        # self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-
+    def bprop(self, error, inputs, tau):
+        self.deltas_o[tau] = error * self.pre_act_list[tau-1] ## gprime is stored in self.pre_act
+        self.backend.update_fc_dot(self.deltas_o[tau], inputs, out = self.temp_out) # layers[1], update_fc_dot(delta, inputs)
+        self.updates += self.temp_out
+    
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class RecurrentHiddenLayer(Layer):
@@ -308,11 +305,16 @@ class RecurrentHiddenLayer(Layer):
         # override preact, output
         self.pre_act_list = [self.backend.alloc(batch_size, self.nout, pre_act_dtype) for k in range(unrolls)]
         self.output_list = [self.backend.alloc(batch_size, self.nout, output_dtype) for k in range(unrolls)]
+        self.updates_rec = self.backend.alloc(self.nout, self.nout)
+        self.temp_rec = self.backend.alloc(self.nout, self.nout)
+        self.temp_in = self.backend.alloc(self.nout, self.nin)
+        self.learning_rule.allocate_state_rec(self.updates_rec)
         #del self.pre_act # this is a bit hacky but helps to make sure we dont accidentially use this
         #del self.output
         # FUCK: We should just have custom init and str functions for these layers. 
-        if pos > 0:
-            self.berror = backend.alloc(batch_size, nin)
+        
+        # buffer for backpropagated error, not using this?
+        self.berror = backend.alloc(batch_size, nout)
 
     def fprop(self, y, inputs, tau):
         # TODO: to use fc_dot here, need an extra buffer. can't use dot on tensors, get true?!!
@@ -322,16 +324,29 @@ class RecurrentHiddenLayer(Layer):
         self.pre_act_list[tau] = z1 + z2 # 100,64 = batch_size,neurons
         self.activation.apply_both(self.backend, self.pre_act_list[tau], self.output_list[tau]) # AGAIN pre_act STORES g'
 
-    def bprop(self, error, inputs, epoch):
-        pass
-        # comment if not using denominator term in cross_entropy
-        # self.backend.multiply(error, self.pre_act, out=self.delta)
-        # if self.pos > 0:
-        #     self.backend.bprop_fc_dot(self.delta, self.weights,
-        #                               out=self.berror)
-        # self.backend.update_fc_dot(self.delta, inputs, out=self.updates)
+    def bprop(self, error, inputs, tau, batch_inx):
+        self.deltas[1] = error * self.pre_act_list[tau-1]    # delta   = error * preact
+        self.backend.update_fc_dot(self.deltas[1], inputs[batch_inx[:,tau-1]], out=self.temp_in) # layers[0], update_fc_dot(delta, inputs)
+        self.updates += self.temp_in
+        # 1c) recurrent level
+        for layer in range(0, tau - 1)[::-1]:
+            self.backend.bprop_fc_dot(self.deltas[tau-layer-1], self.weights_rec, out = self.berror)                  # layers[0], bprop_fc_dot(delta_old, weights)
+            self.deltas[tau-layer] = self.berror * self.pre_act_list[layer]                     # delta_new   = error * preact
+            self.backend.update_fc_dot(self.deltas[tau-(layer+1)], self.output_list[layer], out=self.temp_rec)  # layers[0], update_fc_dot -- results_h=(z,y)=self.output_list
+            #print "IN BPROP mixing into updates_rec", self.temp_rec[0,0]
+            #trace()
+            self.updates_rec += self.temp_rec
+            self.backend.update_fc_dot(self.deltas[tau-layer], inputs[batch_inx[:,layer]], out=self.temp_in)  # layers[0], update_fc_dot
+            self.updates  += self.temp_in
 
-        # self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+    def update(self, epoch):
+        # Problem: recurrent update is too big!
+        #print "REC BPROP"
+        #print "input weight", self.weights[0,0], "update", self.updates[0,0], "velocity", self.learning_rule.velocity[0,0]
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        #print "recurrent weight", self.weights_rec[0,0], "update", self.updates_rec[0,0], "velocity", self.learning_rule.velocity_rec[0,0]
+        self.learning_rule.apply_rule_rec(self.weights_rec, self.updates_rec, epoch) # wrote a new apply, only good for SGD
+
 
 
 class LayerWithNoBiasDist(LayerWithNoBias):
