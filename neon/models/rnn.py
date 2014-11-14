@@ -79,6 +79,10 @@ class RNN(Model):
             errorlist.append(error)
             viz.plot_weights(self.layers[0].weights.raw(), self.layers[0].weights_rec.raw(), self.layers[1].weights.raw())
             viz.plot_error(suberrorlist, errorlist)
+            print "DEBUG"
+            print "input weight", self.layers[0].weights[0,0], "update", self.layers[0].updates[0,0], "velocity", self.layers[0].learning_rule.velocity[0,0]
+            print "recurrent weight", self.layers[0].weights_rec[0,0], "update", self.layers[0].updates_rec[0,0], "velocity", self.layers[0].learning_rule.velocity_rec[0,0]
+
             # ----------------
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / num_batches))
