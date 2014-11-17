@@ -10,6 +10,7 @@ if MPI_INSTALLED:
     from mpi4py import MPI
 import math
 import cudanet
+import os
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.error import TooSlowToImplementError
@@ -51,6 +52,9 @@ class GPUTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
+                if !(obj.dtype in (numpy.float32, numpy.int32)):
+                    logger.debug('Dtype %s is unsupported in GPU backend, defaulting float32', obj.dtype)
+                    obj = numpy.array(obj, dtype=float32)
                 self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
@@ -105,9 +109,9 @@ class GPUTensor(Tensor):
             complex to implement quickly).
         """
         res = self
-        fn = res._tensor.get_row_slice
+        fn = res._tensor.row_slice_view
         if dim == 1:
-            fn = res._tensor.get_col_slice
+            fn = res._tensor.col_slice_view
         if isinstance(_slice, int):
             _slice = slice(_slice, _slice + 1)
         if isinstance(_slice, slice):
@@ -426,8 +430,9 @@ class GPUTensor(Tensor):
     def copy(self):
         return GPUTensor(self._tensor.copy())
 
-    def raw(self):
-        self._tensor.copy_to_host()
+    def raw(self, doHostCopy=True):
+        if doHostCopy==True:
+            self._tensor.copy_to_host()
         return self._tensor.numpy_array
 
     def copy_to_device(self):
@@ -515,16 +520,20 @@ class GPUTensor(Tensor):
         return GPUTensor(target)
 
     def get_minor_slice(self, start, end):
-        return self.__class__(self[:, start:end]._tensor)
+        # return self.__class__(self[:, start:end]._tensor)
+        return GPUTensor(self._tensor.col_slice_view(start,end))
 
     def set_minor_slice(self, start, end, data):
-        self[:, start:end] = data
+        # self[:, start:end] = data
+        self._tensor.set_col_slice(start, end, data._tensor)
 
     def get_major_slice(self, start, end):
-        return self.__class__(self[start:end]._tensor)
+        # return self.__class__(self[start:end]._tensor)
+        return GPUTensor(self._tensor.row_slice_view(start,end))
 
     def set_major_slice(self, start, end, data):
-        self[start:end] = data
+        # self[start:end] = data
+        self._tensor.set_row_slice(start, end, data._tensor)
 
     def major_axis(self):
         return 1
@@ -565,6 +574,7 @@ class GPU(Backend):
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
+        numpy.set_printoptions(precision=4, linewidth=100)
 
     def __del__(self):
         pass
@@ -978,6 +988,9 @@ class GPU(Backend):
     def format(self, raw):
         return self.array(raw.transpose().copy())
 
+    def sync_stream(self):
+        cudanet.sync_stream()
+
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
         weights = None
@@ -1026,16 +1039,27 @@ class GPUDataDist(GPU):
     """
     helper sub-class for data parallel implementations
     """
+    def __init__(self, **kwargs):
+        local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+        num_devices = cudanet.get_num_devices()
+
+        if (local_size > num_devices):
+            print MPI.Get_processor_name(), local_size, num_devices
+            print 'Node %s: requested device_id: %d  max devices: %d'.format(MPI.Get_processor_name(), local_size, num_devices)
+            raise AttributeError("Asking for more gpu devices than are available on node")
+
+        cudanet.set_device_id(local_rank)
+        super(GPUDataDist, self).__init__(**kwargs)
+
     def update_fc_dot(self, deltas, inputs, out):
         super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        # For GPU version have to implement this without using reduce as cuda
-        # aware MPI does not support collective reduction
+        out.raw(doHostCopy=False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        out.raw(doHostCopy=False)[:] = MPI.COMM_WORLD.bcast(out.raw(doHostCopy=False))
 
-        out.raw()[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
-        out.raw()[:] = MPI.COMM_WORLD.bcast(out.raw())
         out.copy_to_device()
 
     def update_conv(self, weights, inputs, error, updates, links, ifmshape,
@@ -1046,8 +1070,9 @@ class GPUDataDist(GPU):
                                              ofmlocs, padding, stride, nifm,
                                              ngroups, fwidth, updatebuf)
 
-        updates.raw()[:] = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
+        updates.raw(doHostCopy=False)[:] = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
                                                 root=0)
-        updates.raw()[:] = MPI.COMM_WORLD.bcast(updates.raw())
+        updates.raw(doHostCopy=False)[:] = MPI.COMM_WORLD.bcast(updates.raw(doHostCopy=False))
+
         updates.copy_to_device()
 
