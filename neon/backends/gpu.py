@@ -52,9 +52,9 @@ class GPUTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
-                if !(obj.dtype in (numpy.float32, numpy.int32)):
-                    logger.debug('Dtype %s is unsupported in GPU backend, defaulting float32', obj.dtype)
-                    obj = numpy.array(obj, dtype=float32)
+                if (dtype not in (numpy.float32, numpy.int32) or dtype is None):
+                    logger.debug('Dtype %s is unsupported in GPU backend, defaulting float32', dtype)
+                    obj = numpy.array(obj, dtype=numpy.float32)
                 self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
@@ -574,7 +574,6 @@ class GPU(Backend):
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
-        numpy.set_printoptions(precision=4, linewidth=100)
 
     def __del__(self):
         pass
@@ -635,6 +634,8 @@ class GPU(Backend):
         Returns:
             GPUTensor: newly created data structure reference
         """
+        if dtype is None:
+            dtype=numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
@@ -652,10 +653,14 @@ class GPU(Backend):
         Returns:
             GPUTensor: newly created data structure reference
         """
+        if dtype is None:
+            dtype=numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
     def alloc(self, nrows, ncols, dtype=numpy.float32):
+        if dtype is None:
+            dtype=numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.zeros((ncols, nrows), dtype=dtype)))
 
@@ -1059,6 +1064,7 @@ class GPUDataDist(GPU):
             raise AttributeError("Asking for more gpu devices than are available on node")
 
         cudanet.set_device_id(local_rank)
+        print "Setting Device on %s to %d" % (MPI.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
     def update_fc_dot(self, deltas, inputs, out):
