@@ -19,8 +19,8 @@
       repo_path: '/usr/local/data',
       sample_pct: 10,
       # datapar specific parameters
-      batch_size: 200,
-      num_test_sample: 10000,
+      batch_size: 300,
+      num_test_sample: 9000,
     },
   ],
   
@@ -28,7 +28,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 10,
     dist_mode: *dm,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
