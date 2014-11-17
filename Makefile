@@ -39,11 +39,12 @@ uninstall:
 	pip uninstall -y neon
 
 test: build
+	@echo "Running unit tests..."
 ifeq ($(NO_CUDA_GPU),0)
-	nosetests -a '!slow' $(NOSE_FLAGS) neon
+	@nosetests -a '!slow' $(NOSE_FLAGS) neon
 else
 	@echo "No CUDA compatible GPU found, disabling GPU tests"
-	nosetests -a '!slow','!cuda' $(NOSE_FLAGS) neon
+	@nosetests -a '!slow','!cuda' $(NOSE_FLAGS) neon
 endif
 
 test_all: build

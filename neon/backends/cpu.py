@@ -786,6 +786,28 @@ class CPU(Backend):
     def update_fc_dot(self, deltas, inputs, out):
         np.dot(deltas.transpose()._tensor, inputs._tensor, out._tensor)
 
+    def fprop_cmpool(self, inputs, weights, fmsize, out):
+        for ofmind in range(weights.shape[1]):
+            ofm = out[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            self.fill(ofm, 0.0)
+            for ifmind in range(weights.shape[0]):
+                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ofm += ifm * weights[ifmind, ofmind]
+
+    def bprop_cmpool(self, deltas, weights, fmsize, out):
+        self.fprop_cmpool(deltas, weights.transpose(), fmsize, out)
+
+    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        self.fill(out, 0.0)
+        for ofmind in range(out.shape[1]):
+            ofmd = deltas[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            for ifmind in range(out.shape[0]):
+                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
+                ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
+                self.dot(ofmd, ifm, updatebuf)
+                out[ifmind, ofmind] = updatebuf
+
     def format(self, raw):
         return self.array(raw)
 

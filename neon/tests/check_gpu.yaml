@@ -60,7 +60,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: layer6,
         backend: *be,
         batch_size: *bs,
@@ -73,7 +73,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 3600,
+        nin: 3601,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
