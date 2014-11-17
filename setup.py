@@ -11,13 +11,12 @@ VERSION = '0.4.0'
 FULLVERSION = VERSION
 write_version = True
 
-git_rev = None
 try:
     pipe = subprocess.Popen(["git", "rev-parse", "--short", "HEAD"],
                             stdout=subprocess.PIPE)
     (so, serr) = pipe.communicate()
     if pipe.returncode == 0:
-        FULLVERSION += "+%s" % so.strip()
+        FULLVERSION += "+%s" % so.strip().decode("utf-8")
 except:
     pass
 
