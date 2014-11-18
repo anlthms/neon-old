@@ -433,9 +433,6 @@ class GPUTensor(Tensor):
     def reshape(self, shape):
         return GPUTensor(self._tensor.reshape(shape))
 
-    def argmax(self, axis):
-        return GPUTensor(self._tensor.argmax(axis))
-
     def take(self, indices, axis=None):
         """
         Take returns a subset of a tensor specified by indices.
@@ -699,9 +696,6 @@ class GPU(Backend):
         assert type(a) == GPUTensor
         return a.copy()
 
-    def argmax(self, x, axis=None):
-        return GPUTensor(x._tensor.argmax(axis))
-
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
@@ -831,6 +825,44 @@ class GPU(Backend):
                  out._tensor)
         return out
 
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the GPUTensor along the
+        specified axis.  The p-norm is defined on a vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (GPUTensor, optional): where to write the results to.  Must be
+                                       of the expected result shape.  If not
+                                       specified, a new buffer is created and
+                                       returned.
+
+        Returns:
+            GPUTensor: p-norm of tsr along the specified axis.
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = self.max(self.fabs(tsr), axis)
+        elif order == float('-Inf'):
+            res = self.min(self.fabs(tsr), axis)
+        elif order == 0:
+            tmp = self.zeros(tsr.shape)
+            self.not_equal(tsr, tmp, tmp)
+            res = tmp.sum(axis)
+        else:
+            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            out = res
+        return out
+
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
 
@@ -886,6 +918,48 @@ class GPU(Backend):
             res = cudanet.max(x._tensor, axis, out)
 
         return GPUTensor(res)
+
+    def argmin(self, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the minimum indices
+            axis (int): The dimension along which to find the minimum.  If set
+                        to None, find the overall minimum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmin(axis)
+        out.shape = out._tensor.shape
+        return out
+
+    def argmax(self, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the maximum indices
+            axis (int): The dimension along which to find the maximum.  If set
+                        to None, find the overall maximum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmax(axis)
+        out.shape = out._tensor.shape
+        return out
 
     def fabs(self, x, out=None):
         if out is not None:

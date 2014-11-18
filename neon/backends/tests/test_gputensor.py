@@ -17,7 +17,7 @@ class TestGPUTensor(object):
     @nottest  # TODO: fix the empty shape
     def test_empty_creation(self):
         tns = GPUTensor([])
-        assert tns.shape == (1, 1)
+        assert tns.shape == (0, )
 
     @attr('cuda')
     def test_1d_creation(self):
@@ -78,7 +78,7 @@ class TestGPUTensor(object):
         assert isinstance(res, np.ndarray)
         assert_tensor_equal(res, np.array([[1, 2], [3, 4]]))
 
-    # @attr('cuda')
+    @attr('cuda')
     @nottest  # TODO: fix this for GPUTensor
     def test_transpose(self):
         tns = GPUTensor([[1, 2], [3, 4]])

@@ -168,7 +168,7 @@ class GradientDescentMomentum(GradientDescent):
 # cleaner/faster
 class AdaDelta(LearningRule):
     """
-    Adadelta based learning rule updates.  See Zeiler2012 for isntance.
+    Adadelta based learning rule updates.  See Zeiler2012 for instance.
     """
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(AdaDelta, self).__init__(name, lr_params)

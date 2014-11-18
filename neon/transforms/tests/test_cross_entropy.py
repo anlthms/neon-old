@@ -21,7 +21,7 @@ def test_cross_entropy_cputensor():
 @attr('cuda')
 def test_cross_entropy_gputensor():
     # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import (Cudamat as GPU,  #flake8: noqa
+    from neon.backends.unsupported._cudamat import (Cudamat as GPU,  # flake8: noqa
                                                     CudamatTensor as GPUTensor)
     # with:
     # from neon.backends.gpu import GPU, GPUTensor
@@ -50,7 +50,7 @@ def test_cross_entropy_derivative_cputensor():
 @attr('cuda')
 def test_cross_entropy_derivative_gputensor():
     # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import (Cudamat as GPU,
+    from neon.backends.unsupported._cudamat import (Cudamat as GPU, # flake8: noqa
                                                     CudamatTensor as GPUTensor)
     # with:
     # from neon.backends.gpu import GPU, GPUTensor
