@@ -1,4 +1,7 @@
 #!/usr/bin/env/python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 from nose.plugins.attrib import attr
 from nose.tools import nottest

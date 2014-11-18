@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_

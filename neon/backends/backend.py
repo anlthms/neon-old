@@ -1,4 +1,7 @@
 # pylint: disable = R0904, R0913, C0103
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Houses low-level code for performing underlying data manipulation operations.
 """

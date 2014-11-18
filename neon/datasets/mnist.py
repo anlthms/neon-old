@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 MNIST is a handwritten digit image dataset.
 More info at: http://yann.lecun.com/exdb/mnist/

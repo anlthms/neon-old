@@ -81,3 +81,8 @@ See docs for full details.
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
+
+
+## License ##
+
+Copyright 2014 Nervana Systems Inc.

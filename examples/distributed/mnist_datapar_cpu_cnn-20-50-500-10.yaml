@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Data parallel version of convnet
 # Experiment settings to train/test a CNN on MNIST.
 # Run with 3 MPI-processes (num_procs) if using this yaml file
