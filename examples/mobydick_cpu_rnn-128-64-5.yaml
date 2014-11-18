@@ -14,17 +14,17 @@
     !obj:neon.datasets.mobydick.MOBYDICK {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10, # 100 for full, 10 subsample for speed
-      predict_offset: 6, # how many letters the targets are ahead of the training
+      sample_pct: 2.5, # 100 for full, 10 subsample for speed. 25% gives 1000 batches like we use in rnn2
+      unrolls: &ur 5, # how many letters the targets are ahead of the training
     },
   ],
 
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
-    num_epochs: 30,
+    num_epochs: 50,
     batch_size: &bs 50,
-    unrolls: &ur 5,
+    unrolls: *ur,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       # recurrent layer
@@ -36,23 +36,23 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.001,
+            learning_rate: &lr 0.000001,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, # constant, nesterov dont work
-              initial_coef: 0.90,
-              saturated_coef: 0.90, # what is this
+              initial_coef: 0.80,
+              saturated_coef: 0.80, # what is this
             },
           },
         },
         nin: 128, # and an implicit 64 rec weight.
         nout: 64,
         unrolls: *ur,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.tanh.Tanh {},
         weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
         },
         weight_init_rec: {
           type: sparse_eigenvalued,
@@ -79,9 +79,9 @@
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
         },
       },
     ],
