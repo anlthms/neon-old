@@ -9,6 +9,8 @@ def cross_entropy(backend, outputs, targets, temp):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
+    CE is per element, per datapoint (i.e. mean over mini-batch and vector size)
+
     Given that this is undefined for predicted outputs equal to exactly 0 or
     1.0, we first clip these outputs to epsilon (backend machine precision) and
     1.0 - epsilon respectively.
@@ -35,6 +37,7 @@ def cross_entropy(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
 
+    # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
     return backend.mean(temp[0])
 
