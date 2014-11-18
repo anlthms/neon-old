@@ -694,7 +694,7 @@ class CPU(Backend):
             # initialization for RNNS as in Sutskever 2013
             # After discussing with Scott, this will be a 
             # GPUBackend.numpyapply() call for the linalg.eig
-            sparseness = 12
+            sparseness = 15
             eigenvalue = 1.2
             if 'sparseness' in weight_params:
                 sparseness = weight_params['sparseness']
@@ -713,10 +713,13 @@ class CPU(Backend):
             if size[0] == size[1]:
                 temp = np.linalg.eig(weights)
                 max_eig = np.max(np.absolute(temp[0]))
+                print "cpu: dividing by max eigenvalue", max_eig
                 weights = self.tensor_cls(eigenvalue * weights / max_eig)
             else:
-                raise AttributeError("non-square weight matrix cannot be" +
-                                "initialized with the eigenvalue method")
+                print "Matrix is non-square, not normalizing by eigenvalue!"
+                weights = self.tensor_cls(weights)
+                #raise AttributeError("non-square weight matrix cannot be" +
+                #                "initialized with the eigenvalue method")
 
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
