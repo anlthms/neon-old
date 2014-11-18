@@ -37,6 +37,7 @@ class RNN(Model):
             logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
+        targets = inputs.copy() # override!
         nrecs = inputs.shape[inputs.major_axis()]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -63,12 +64,18 @@ class RNN(Model):
                 #print "(",batch,")",
                 #if batch==497: print batch_inx
                 self.serve_batch(batch, batch_inx, num_batches) # get indices
-                self.fprop(inputs,batch_inx, hidden_init) # overwrites layers[].pre_act with g'
-
-                self.bprop(targets, inputs, batch_inx, epoch)
+                self.fprop(inputs, batch_inx, hidden_init, debug = batch==100) # overwrites layers[].pre_act with g'
+                if batch==10:
+                    print "weights", self.layers[0].weights_rec[0:2,0:2].raw().flatten()
+                    print "updates", self.layers[0].updates_rec[0:2,0:2].raw().flatten()
+                    print "velocity", self.layers[0].learning_rule.velocity_rec[0:2,0:2].raw().flatten()
+                    print "pre-act", self.layers[0].pre_act_list[4][0:2,0:2].raw().flatten()
+                    print "activations", self.layers[0].output_list[4][0:2,0:2].raw().flatten() # strangely not huge.
+                    trace()
+                self.bprop(targets, inputs, batch_inx, epoch, debug = batch==100)
 
                 hidden_init = self.layers[0].output_list[-1] # use output from last hidden step
-                #trace()
+                # compute mean CE (mean over batch and data dimension)
                 suberror = self.cost.apply_function(
                     self.backend, self.layers[-1].output_list[-1],
                     targets[batch_inx[:,-1]], # not quite sure what the correct targets are here
@@ -80,17 +87,40 @@ class RNN(Model):
             errorlist.append(error)
             viz.plot_weights(self.layers[0].weights.raw(), self.layers[0].weights_rec.raw(), self.layers[1].weights.raw())
             viz.plot_error(suberrorlist, errorlist)
-            print "DEBUG"
-            print "input weight", self.layers[0].weights[2,10], "update", self.layers[0].updates[2,10], "velocity", self.layers[0].learning_rule.velocity[2,10]
-            print "recurrent weight", self.layers[0].weights_rec[0,0], "update", self.layers[0].updates_rec[0,0], "velocity", self.layers[0].learning_rule.velocity_rec[0,0]
-            print "output weight", self.layers[1].weights[0,0], "update", self.layers[1].updates[0,0], "velocity", self.layers[1].learning_rule.velocity[0,0]
+            viz.plot_activations(self.layers[0].pre_act_list, self.layers[0].output_list, self.layers[1].pre_act_list, self.layers[1].output_list, targets, batch_inx)
+            #print "DEBUG"
+            #print "input weight", self.layers[0].weights[2,10], "update", self.layers[0].updates[2,10], "velocity", self.layers[0].learning_rule.velocity[2,10]
+            #print "recurrent weight", self.layers[0].weights_rec[0,0], "update", self.layers[0].updates_rec[0,0], "velocity", self.layers[0].learning_rule.velocity_rec[0,0]
+            #print "output weight", self.layers[1].weights[0,0], "update", self.layers[1].updates[0,0], "velocity", self.layers[1].learning_rule.velocity[0,0]
 
             # ----------------
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / num_batches))
+            logger.info('epoch: %d, total training error per element: %0.5f' %
+                        (epoch, error))
             for layer in self.layers:
                 logger.debug("%s", layer)
+        
+        # ---------- faking some prediction ----------
+        # 1. get the test data
+        inputs = datasets[0].get_inputs(test=True)['test']
+        targets = datasets[0].get_targets(test=True)['test']
+        # 2. build a batch 
+        import numpy as np
+        batch_inx = np.zeros((self.batch_size, self.unrolls+1), dtype=np.int)
+        for i in range(self.unrolls+1):
+            batch_inx[:, i] = np.arange(i,i+self.batch_size, dtype=np.int)
+
+        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
+        self.fprop(inputs, self.backend.tensor_cls(batch_inx, dtype=np.int), hidden_init)
+        
+        #plt.figure(3)
+        #plt.imshow(self.layers[1].output_list[4].raw())
+        #plt.draw(); plt.show()
+        print "Prediction inputs"
+        print self.backend.argmax(inputs[0:50,:], 1).raw().astype(np.int8).view('c')
+        print "Prediction outputs"
+        print self.backend.argmax(self.layers[1].output_list[4], 1).raw().astype(np.int8).view('c')
         trace() # set a trace to prevent exiting
+        # --------------------------------------------
     
     def serve_batch(self, batch, batch_inx, num_batches):
         """ 
@@ -163,13 +193,15 @@ class RNN(Model):
             res.append(preds)
         return res
 
-    def fprop(self, inputs,batch_inx, hidden_init):
+    def fprop(self, inputs, batch_inx, hidden_init, debug=False):
         """
         need to think about how to structure the fprop: 
         have a pre_act and output for every unrolling step now. The layer needs
         to keep track of all of these, so tell it which unroll we are in. 
         """
-
+        if debug:
+            import numpy as np
+            print "in fprop, input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
         y = hidden_init
         for tau in range(0, self.unrolls):
             #print "FPROP unrolling step tau", tau, "of", self.unrolls
@@ -181,7 +213,7 @@ class RNN(Model):
 
 
 
-    def bprop(self, targets, inputs, batch_inx, epoch, debug=1):
+    def bprop(self, targets, inputs, batch_inx, epoch, debug=False):
         
         full_unroll = True # Need to set False for num_grad_check
         if full_unroll:
@@ -190,16 +222,21 @@ class RNN(Model):
             min_unroll = self.unrolls
 
         # 1. clear both
-        self.layers[0].deltas =   [self.backend.zeros((self.batch_size, self.layers[0].nout)) for k in range (self.nlayers+1)] # default alloc float32
-        self.layers[1].deltas_o = [self.backend.zeros((self.batch_size,self.layers[1].nout)) for k in range(self.nlayers+1)] # NEW: Init Deltas
+        self.layers[0].deltas =   [self.backend.zeros((self.batch_size, self.layers[0].nout)) for k in range (self.unrolls+1)] # default alloc float32
+        self.layers[1].deltas_o = [self.backend.zeros((self.batch_size,self.layers[1].nout)) for k in range(self.unrolls+1)] # NEW: Init Deltas
         
         # 2. fill both 
-        for tau in range(min_unroll, self.nlayers+1): 
+        for tau in range(min_unroll, self.unrolls+1): 
+            if debug:
+                import numpy as np
+                print "unrolling", tau, "of", self.unrolls
+                print "in bprop, input", np.nonzero(inputs[0:tau,:].raw())[1]
+                print "backprop target", np.flatnonzero(targets[tau,:].raw())
             error = self.cost.apply_derivative(self.backend, self.layers[1].output_list[tau-1], targets[batch_inx[:,tau]], self.temp) # results=(z,y)=layer.output
             self.layers[1].bprop(error, self.layers[0].output_list[tau - 1], tau)
 
         cerror = self.backend.zeros((self.batch_size,self.layers[0].nout))
-        for tau in range(min_unroll, self.nlayers+1): 
+        for tau in range(min_unroll, self.unrolls+1): 
             
             self.backend.bprop_fc_dot(self.layers[1].deltas_o[tau], self.layers[1].weights, out=cerror)   # pull out because weights_out are not availbe inside bprop.
             self.layers[0].bprop(cerror, inputs, tau, batch_inx)
