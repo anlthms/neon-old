@@ -4,6 +4,7 @@ from neon.transforms.logistic import Logistic as neonLogistic
 from neon.transforms.tanh import Tanh as neonTanh
 from neon.transforms.rectified import RectLin as neonRectlin
 from neon.transforms.linear import Identity and neonIdentity
+from neon.models.learning_rule import GradientDescent
 
 
 class Layer:
@@ -58,17 +59,16 @@ class NeuralLayer(Layer):
     dtype : numpy.dtype, optional
         Datatype of the layer (ex: np.float32)
     """
-    def __init__(self, n_input, n_output, backend
+    def __init__(self, n_input, n_output, backend,
+        W_learning_rule, b_learning_rule,
         W=None, b=None, max_norm=None, weight_clip=None,
-        adadelta_eps=None, adadelta_rho=0.95,
-        momentum=None, learning_rate=None,
-        init_alpha = .1, rng=np.random.RandomState(817), dtype=np.float32,
-        learning_rule, lr_params):
+        rng=np.random.RandomState(817), dtype=np.float32):
         # Internal state variables for backward pass
         self.backend = backend
         self.X = None
         self.prestate = None
         self.state = None
+        self.epoch = 0
 
         if W is None:
             self.W = backend.array(np.sqrt(init_alpha/(n_input+n_output))*
@@ -81,39 +81,19 @@ class NeuralLayer(Layer):
         else:
             # No recast to preserve reference (for tieing autoencoder biases)
             self.b = b
+        self.W_lr = W_learning_rule
+        self.W_lr.allocate_state(self.W)
+        self.b_lr = b_learning_rule
+        self.b_lr.allocate_state(self.b)
 
         self.max_norm = max_norm
         self.weight_clip = weight_clip
-
-        assert (adadelta_eps is None) or (momentum is None)
-        if adadelta_eps is not None:
-            self.adadelta_eps = backend.wrap(adadelta_eps)
-            assert adadelta_rho is not None
-            self.adadelta_rho = backend.wrap(adadelta_rho)
-        else:
-            self.adadelta_eps = None
-        if momentum is not None:
-            self.momentum = backend.wrap(momentum)
-        else:
-            self.momentum = None
-        if learning_rate is not None:
-            self.learning_rate = backend.wrap(learning_rate)
-        else:
-            self.learning_rate = None
 
         self.rng = rng
         self.dtype = dtype
 
         self.dlossdW = backend.zeros_like(self.W)
         self.dlossdb = backend.zeros_like(self.b)
-        # For momentum
-        self.velocitydW = backend.zeros_like(self.W)
-        self.velocitydb = backend.zeros_like(self.b)
-        # For adadelta
-        self.dlossdW2 = backend.zeros_like(self.W)
-        self.dlossdb2 = backend.zeros_like(self.b)
-        self.dW2 = backend.zeros_like(self.W)
-        self.db2 = backend.zeros_like(self.b)
 
     def forward(self, X):
         """Forward propagate a given input
@@ -168,54 +148,13 @@ class NeuralLayer(Layer):
     def update_b(self):
         """Update bias parameters
         """
-        if self.adadelta_eps is not None:
-            old = self.adadelta_rho*self.dlossdb2
-            new = (1.-self.adadelta_rho)*self.dlossdb*self.dlossdb
-            self.backend.add(old, new, self.dlossdb2)
-            rms_dlossdb2 = self.dlossdb2+self.adadelta_eps
-            self.backend.sqrt(rms_dlossdb2, rms_dlossdb2)
-            rms_db2 = self.db2+self.adadelta_eps
-            rms_db2 = self.backend.sqrt(rms_db2, rms_db2)
-            learning_rate_b = rms_db2/rms_dlossdb2
-        else:
-            learning_rate_b = self.learning_rate
-
-        if self.momentum is not None:
-            self.backend.subtract(self.momentum*self.velocitydb, learning_rate_b*self.dlossdb, self.velocitydb)
-            deltab = self.velocitydb
-        else:
-            deltab = -learning_rate_b*self.dlossdb
-
-        if self.adadelta_eps is not None:
-            self.backend.add(self.adadelta_rho*self.db2, (1.-self.adadelta_rho)*(deltab**2), self.db2)
-        
-        self.b += deltab
+        self.b_lr.apply_rule(self.b, self.dlossdb, self.epoch)
 
     def update_W(self):
         """Update weight parameters
         TODO : neon integration
         """
-        raise NotImplementedError
-        if self.adadelta_eps is not None:
-            # Fix dlossdW2 to initialize to first sample instead of zeros
-            self.dlossdW2 = self.adadelta_rho*self.dlossdW2 + (1.-self.adadelta_rho)*(self.dlossdW**2)
-            rms_dlossdW2 = np.sqrt(self.dlossdW2 + self.adadelta_eps)
-            rms_dW2 = np.sqrt(self.dW2 + self.adadelta_eps)
-            learning_rate_W = rms_dW2/rms_dlossdW2
-        else:
-            learning_rate_W = self.learning_rate
-
-        if self.momentum is not None:
-            self.velocitydW = self.momentum*self.velocitydW - learning_rate_W*self.dlossdW
-            deltaW = self.velocitydW
-        else:
-            deltaW = -learning_rate_W*self.dlossdW
-
-        if self.adadelta_eps is not None:
-            self.dW2 = self.adadelta_rho*self.dW2 + (1.-self.adadelta_rho)*(deltaW**2)
-
-        self.W += deltaW
-
+        self.W_lr.apply_rule(self.W, self.dlossdW, self.epoch)
         if self.max_norm is not None:
             w_norm = np.sqrt((self.W**2).sum(0,keepdims=True))
             w_norm[w_norm < self.max_norm] = self.max_norm
