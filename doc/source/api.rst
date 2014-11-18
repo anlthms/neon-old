@@ -32,8 +32,8 @@ GPU
 
    neon.backends.gpu.GPU
 
-Flexpoint
----------
+Flexpoint™
+----------
 
 .. autosummary::
    :toctree: generated/
@@ -41,7 +41,7 @@ Flexpoint
    neon.backends.flexpoint.Flexpoint
 
 Unsupported
-------------
+-----------
 
 .. autosummary::
    :toctree: generated/

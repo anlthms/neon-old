@@ -7,9 +7,9 @@ Our in-house developed python machine learning library.
     cd neon
     
     # build the package, install in your python package path via either:
-    make install
+    make install  # sudo make install
     # or:
-    pip install .
+    pip install .  # sudo pip install .
     
     # import neon into your app, and you are good to go
 
@@ -27,8 +27,7 @@ We want to strive to have as few of these as possible
 * [flake8](https://flake8.readthedocs.org/) for style checking
   * [pep8-naming](https://pypi.python.org/pypi/pep8-naming) plugin for variable
     name checking
-* [cudat-convnet2](https://code.google.com/p/cuda-convnet2/),
-  [cudamat](https://github.com/cudamat/cudamat) for GPU based backends
+* [cuda-convnet2](https://code.google.com/p/cuda-convnet2/),
 * [Cython](http://cython.org/) for fixedpoint backend compilation
 * [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
   calculations
