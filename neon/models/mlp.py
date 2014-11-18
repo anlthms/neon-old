@@ -6,6 +6,10 @@ import logging
 import math
 
 from neon.models.model import Model
+from neon.util.compat import MPI_INSTALLED
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -17,24 +21,13 @@ class MLP(Model):
     """
 
     def __init__(self, **kwargs):
+        self.dist_mode = None
         self.__dict__.update(kwargs)
         for req_param in ['layers']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-
-    def fit(self, datasets):
-        """
-        Learn model weights on the given datasets.
-        """
-        for layer in self.layers:
-            logger.info("%s" % str(layer))
-        inputs = datasets[0].get_inputs(train=True)['train']
-        targets = datasets[0].get_targets(train=True)['train']
-        nrecs = inputs.shape[inputs.major_axis()]
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
         if 'ada' not in self.__dict__:
@@ -42,6 +35,27 @@ class MLP(Model):
         tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
+        self.result = 0
+
+    def fit(self, datasets):
+        """
+        Learn model weights on the given datasets.
+        """
+        if self.dist_mode == 'datapar':
+            valid_batch_size = (self.batch_size != datasets[0].batch_size /
+                                datasets[0].num_procs)
+            if valid_batch_size:
+                raise ValueError('Dataset batch size must be Model batch '
+                                 'size * num_procs. Model batch size of %d '
+                                 'might work.' % (datasets[0].batch_size /
+                                                  datasets[0].num_procs))
+
+        for layer in self.layers:
+            logger.info("%s" % str(layer))
+        inputs = datasets[0].get_inputs(train=True)['train']
+        targets = datasets[0].get_targets(train=True)['train']
+        nrecs = inputs.shape[inputs.major_axis()]
+        assert 'batch_size' in self.__dict__
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -60,8 +74,15 @@ class MLP(Model):
                     self.backend, self.layers[-1].output,
                     targets.get_minor_slice(start_idx, end_idx),
                     self.temp)
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / num_batches))
+            if self.dist_mode == 'datapar':
+                error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
+                if MPI.COMM_WORLD.rank == 0:
+                    logger.info('epoch: %d, total training error: %0.5f' %
+                                (epoch, error / num_batches /
+                                    MPI.COMM_WORLD.size))
+            else:
+                logger.info('epoch: %d, total training error: %0.5f' %
+                            (epoch, error / num_batches))
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -86,16 +107,22 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['train'] = dataset.backend.empty((outputs.major_axis(),
+                                                        1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['train'])
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['test'] = dataset.backend.empty((outputs.major_axis(),
+                                                       1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['test'])
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                val_shape = (outputs.major_axis(), 1)
+                preds['validation'] = dataset.backend.empty(val_shape)
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -109,23 +136,18 @@ class MLP(Model):
 
     def bprop(self, targets, inputs, epoch):
         i = self.nlayers - 1
-        lastlayer = self.layers[i]
-        error = self.cost.apply_derivative(self.backend,
-                                           lastlayer.output, targets,
-                                           self.temp)
-        self.backend.divide(error,
-                            self.backend.wrap(targets.shape[
-                                              targets.major_axis()]),
-                            out=error)
-        # Update the output layer.
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        while i > 1:
+        error = self.cost.apply_derivative(self.backend, self.layers[i].output,
+                                           targets, self.temp)
+        batch_size = self.batch_size
+        if self.dist_mode == 'datapar':
+            batch_size *= MPI.COMM_WORLD.size
+        self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+
+        while i > 0:
+            self.layers[i].bprop(error, self.layers[i - 1].output, epoch)
+            error = self.layers[i].berror
             i -= 1
-            self.layers[i].bprop(self.layers[i + 1].berror,
-                                 self.layers[i - 1].output,
-                                 epoch)
-        # Update the first hidden layer.
-        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch)
+        self.layers[i].bprop(error, inputs, epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
@@ -144,12 +166,12 @@ class MLP(Model):
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    misclass = ds.backend.not_equal(
-                        preds[item],
-                        ds.backend.argmax(
-                            targets[item],
-                            axis=targets[item].minor_axis()))
-                    err = ds.backend.mean(misclass)
+                    misclass = ds.backend.empty(preds[item].shape)
+                    ds.backend.argmax(targets[item],
+                                      axis=targets[item].minor_axis(),
+                                      out=misclass)
+                    ds.backend.not_equal(preds[item], misclass, misclass)
+                    self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * err))
+                        item, 100 * self.result))
         # TODO: return values instead?

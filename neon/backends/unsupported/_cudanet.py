@@ -804,6 +804,14 @@ class Cudanet(Backend):
         res = cudanet.sqrt(x._tensor, out._tensor)
         return CudanetTensor(res)
 
+    def square(self, x, out):
+        res = cudanet.apply_pow(x._tensor, 2.0, out._tensor)
+        return CudanetTensor(res)
+
+    def cube(self, x, out):
+        res = cudanet.apply_pow(x._tensor, 3.0, out._tensor)
+        return CudanetTensor(res)
+
     def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))

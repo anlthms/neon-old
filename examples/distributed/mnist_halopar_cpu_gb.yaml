@@ -1,7 +1,5 @@
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
-# model on CIFAR10 using MPI.
-# Filter sizes are different from non-dist version so we can go up to
-# 4 x 4 = 16 processes of parallelism.
+# model in a distributed fashion on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
@@ -10,9 +8,10 @@
   },
 
   datasets: [
-    # CIFAR10 data
-    !obj:neon.datasets.cifar10.CIFAR10 {
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
       dist_flag: *df,
+      dist_mode: 'halopar', # halo/tower split
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
@@ -23,7 +22,7 @@
   model: !obj:neon.models.gb_dist.GBDist {
     backend: *be,
     num_epochs: 4,
-    num_pretrain_epochs: 1,
+    num_pretrain_epochs: 2,
     num_initial_epochs: 1,
     batch_size: &bs 100,
     pretraining: &pt True,
@@ -43,14 +42,14 @@
           name: layer0lr,
           lr_params: {
             learning_rate: &lr 0.1,
-            pretrain_learning_rate: &plr 0.001,
+            pretrain_learning_rate: &plr 0.01,
             backend: *be,
           },
         },
         tied_weights: &tw True,
-        nifm: 3,
-        nofm: 8,
-        ifmshape: [32, 32],
+        nifm: 1,
+        nofm: &nofm 8,
+        ifmshape: [28, 28],
         fshape: [4, 4],
         stride: 1,
         weight_init: {
@@ -64,8 +63,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nifm: 8,
-        ifmshape: [29, 29],
+        nifm: *nofm,
+        ifmshape: [25, 25],
         fshape: [3, 3],
         stride: 1,
       },
@@ -74,8 +73,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 2,
-        nifm: 8,
-        ifmshape: [27, 27],
+        nifm: *nofm,
+        ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
       },
@@ -95,9 +94,9 @@
           },
         },
         tied_weights: *tw,
-        nifm: 8,
-        nofm: 8,
-        ifmshape: [27, 27],
+        nifm: *nofm,
+        nofm: *nofm,
+        ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
         weight_init: {
@@ -111,8 +110,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 4,
-        nifm: 8,
-        ifmshape: [25, 25],
+        nifm: *nofm,
+        ifmshape: [21, 21],
         fshape: [3, 3],
         stride: 1,
       },
@@ -121,8 +120,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 5,
-        nifm: 8,
-        ifmshape: [23, 23],
+        nifm: *nofm,
+        ifmshape: [19, 19],
         fshape: [3, 3],
         stride: 1,
       },
@@ -142,9 +141,9 @@
           },
         },
         tied_weights: *tw,
-        nifm: 8,
-        nofm: 8,
-        ifmshape: [23, 23],
+        nifm: *nofm,
+        nofm: *nofm,
+        ifmshape: [19, 19],
         fshape: [3, 3],
         stride: 1,
         weight_init: {
@@ -158,8 +157,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 7,
-        nifm: 8,
-        ifmshape: [21, 21],
+        nifm: *nofm,
+        ifmshape: [17, 17],
         fshape: [3, 3],
         stride: 1,
       },
@@ -168,8 +167,8 @@
         backend: *be,
         batch_size: *bs,
         pos: 8,
-        nifm: 8,
-        ifmshape: [19, 19],
+        nifm: *nofm,
+        ifmshape: [15, 15],
         fshape: [3, 3],
         stride: 1,
       },
@@ -183,7 +182,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: &mm {
+            momentum_params: {
               type: linear_monotone, #constant, nesterov
               initial_coef: 0.99,
               start_epoch: 5,
@@ -192,21 +191,21 @@
             },
           },
         },
-        nin: 2888, # previous nout (nifm * ifmshape[0] * ifmshape[1])
+        nin: 1800, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -0.1,
           high: 0.1,
-        },
+      },
       },
     ],
   },
 
   # logging options that are passed to logging.basicConfig
   logging: {
-    level: 20,  #logging.DEBUG == 10
+    level: 20,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

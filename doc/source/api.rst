@@ -32,8 +32,8 @@ GPU
 
    neon.backends.gpu.GPU
 
-Flexpoint
----------
+Flexpoint™
+----------
 
 .. autosummary::
    :toctree: generated/
@@ -41,7 +41,7 @@ Flexpoint
    neon.backends.flexpoint.Flexpoint
 
 Unsupported
-------------
+-----------
 
 .. autosummary::
    :toctree: generated/
@@ -110,7 +110,6 @@ Activation Functions
 .. autosummary::
    :toctree: generated/
 
-   neon.transforms.linear.Identity
    neon.transforms.rectified.RectLin
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh

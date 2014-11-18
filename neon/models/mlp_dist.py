@@ -6,7 +6,7 @@ import logging
 import math
 
 from neon.models.mlp import MLP
-from neon.models.layer import LayerWithNoBiasDist
+from neon.models.layer import LayerWithNoBiasDist, LayerDist
 from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
@@ -20,44 +20,67 @@ else:
 class MLPDist(MLP):
 
     """
-    Fully connected, feed-forward, multi-layer perceptron model
+    MPI distributed fully connected, feed-forward, multi-layer perceptron model
     """
 
     def adjust_for_dist(self):
         # MPI: call adjust_for_dist for each layer
         for i in xrange(0, self.nlayers):
             layer = self.layers[i]
-            if isinstance(layer, LayerWithNoBiasDist):
+            layer_no_bias_dist = isinstance(layer, LayerWithNoBiasDist)
+            layer_dist = isinstance(layer, LayerDist)
+            if layer_no_bias_dist or layer_dist:
                 # fully connected layer: no halo transfers needed
+                # layer.nout_ stores the non-dist layer.nout value
                 layer.nout_ = layer.nout
                 if i < self.nlayers - 1:
-                    if layer.nout % MPI.COMM_WORLD.size != 0:
+                    # overwrite layer.nout with dist value
+                    if layer.nout % self.comm.size != 0:
                         raise ValueError('Unsupported layer.nout % '
-                                         'MPI.COMM_WORLD.size != 0')
-                    layer.nout = layer.nout / MPI.COMM_WORLD.size
-                is_prev_layer_with_no_bias_dist = (
+                                         'self.comm.size != 0')
+                    layer.nout = layer.nout / self.comm.size
+                    # when non-squared comm sizes are allowed
+                    # layer.nout = (layer.nout // self.comm.size +
+                    #     (layer.nout % self.comm.size >
+                    #        self.comm.rank))
+                prev_layer_no_bias_dist = (
                     isinstance(self.layers[i - 1], LayerWithNoBiasDist))
-                if i == 0 or is_prev_layer_with_no_bias_dist:
-                    # split the inputs nin across MPI.COMM_WORLD.size
-                    if layer.nin % MPI.COMM_WORLD.size != 0:
-                        raise ValueError('Unsupported layer.nin % '
-                                         'MPI.COMM_WORLD.size != 0')
-                    layer.nin = layer.nin / MPI.COMM_WORLD.size
-                    layer.out_indices = range(MPI.COMM_WORLD.rank * layer.nin,
-                                              (MPI.COMM_WORLD.rank + 1) *
-                                              layer.nin)
-                    layer.prev_layer = 'LayerWithNoBiasDist'
+                prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
+                if i == 0 or prev_layer_no_bias_dist or prev_layer_dist:
+                    # split the inputs nin across self.comm.size
+                    start_idx = 0
+                    nin = layer.nin
+                    if layer_dist:
+                        nin -= 1
+                    for j in range(self.comm.rank):
+                        start_idx += (nin // self.comm.size +
+                                      (nin % self.comm.size > j))
+                    layer.nin = (nin // self.comm.size +
+                                 (nin % self.comm.size > self.comm.rank))
+                    layer.in_indices = range(start_idx, start_idx + layer.nin)
+                    layer.out_indices = layer.in_indices
+                    is_last_rank = (self.comm.rank == self.comm.size-1)
+                    if layer_dist and is_last_rank:
+                        # add the bias term for the last rank process
+                        layer.in_indices = range(start_idx,
+                                                 start_idx + layer.nin + 1)
+                        layer.nin += 1
+                    if prev_layer_no_bias_dist:
+                        layer.prev_layer = 'LayerWithNoBiasDist'
+                    elif prev_layer_dist:
+                        layer.prev_layer = 'LayerDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
-                                     'LayerWithNoBiasDist')
+                                     'LayerWithNoBiasDist or LayerDist')
             layer.adjust_for_dist()
 
     def fit(self, datasets):
         """
         Learn model weights on the given datasets.
         """
-        # for layer in self.layers:
-        #    logger.info("%s" % str(layer))
+        for layer in self.layers:
+            logger.debug("%s" % str(layer))
+        self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
@@ -77,21 +100,21 @@ class MLPDist(MLP):
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
-                # if MPI.COMM_WORLD.rank == 0:
-                #    logger.info('batch = %d' % (batch))
+                if self.comm.rank == 0:
+                    logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
                 self.fprop(inputs[start_idx:end_idx])
                 self.bprop(targets[start_idx:end_idx],
                            inputs[start_idx:end_idx],
                            epoch)
-                if MPI.COMM_WORLD.rank == 0:
+                if self.comm.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
                                                       targets[
                                                           start_idx:end_idx],
                                                       self.temp)
-            if MPI.COMM_WORLD.rank == 0:
+            if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f' %
                             (epoch, error / num_batches))
             for layer in self.layers:
@@ -99,14 +122,14 @@ class MLPDist(MLP):
 
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]
-        if MPI.COMM_WORLD.rank == 0:
+        if self.comm.rank == 0:
             self.outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
             self.fprop(inputs[start_idx:end_idx])
-            if MPI.COMM_WORLD.rank == 0:
+            if self.comm.rank == 0:
                 self.outputs[start_idx:end_idx, :] = self.layers[-1].output
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -119,20 +142,26 @@ class MLPDist(MLP):
             preds = dict()
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
-                if MPI.COMM_WORLD.rank == 0:
-                    preds['train'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                if self.comm.rank == 0:
+                    train_shape = (self.outputs.major_axis(), 1)
+                    preds['train'] = dataset.backend.empty(train_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
-                if MPI.COMM_WORLD.rank == 0:
-                    preds['test'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                if self.comm.rank == 0:
+                    test_shape = (self.outputs.major_axis(), 1)
+                    preds['test'] = dataset.backend.empty(test_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
-                if MPI.COMM_WORLD.rank == 0:
-                    preds['validation'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
-            if MPI.COMM_WORLD.rank == 0:
+                if self.comm.rank == 0:
+                    val_shape = (self.outputs.major_axis(), 1)
+                    preds['validation'] = dataset.backend.empty(val_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['validation'])
+            if self.comm.rank == 0:
                 if len(preds) is 0:
                     logger.error(
                         "must specify >=1 of: train, test, validation")
@@ -146,7 +175,6 @@ class MLPDist(MLP):
         # handle FC-> FC connections
         y = inputs
         for layer in self.layers:
-            # print MPI.COMM_WORLD.rank, layer.pos, y.shape
             if layer.pos > 0:
                 y = y.take(layer.out_indices, axis=1)
             layer.fprop(y)
@@ -158,40 +186,38 @@ class MLPDist(MLP):
 
         error = self.backend.zeros((self.batch_size, self.layers[-1].nout))
         # apply derivative on root node's FC layer output
-        if MPI.COMM_WORLD.rank == 0:
+        if self.comm.rank == 0:
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
             self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                                 out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.raw())
+        error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-            lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.out_indices, axis=1),
-                            epoch)
-        else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        i -= 1
-        while i > 0 and isinstance(self.layers[i], LayerWithNoBiasDist):
-            # extract self.layers[i].pre_act terms
-            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].out_indices, axis=1)
-            if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-                self.layers[i].bprop(self.layers[i + 1].berror,
+        prev_layer_no_bias_dist = (
+            isinstance(self.layers[i - 1], LayerWithNoBiasDist))
+        prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
+        while i > 0:
+            prev_layer_no_bias_dist = (
+                isinstance(self.layers[i - 1], LayerWithNoBiasDist))
+            prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
+            if prev_layer_dist or prev_layer_no_bias_dist:
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].out_indices, axis=1),
                                      epoch)
             else:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output,
                                      epoch)
+            error = self.layers[i].berror
             i -= 1
+            # extract self.layers[i].pre_act terms
+            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                self.layers[i + 1].out_indices, axis=1)
 
         # first FC layer
-        self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-            self.layers[i + 1].out_indices, axis=1)
         self.layers[i].bprop(self.layers[i + 1].berror,
                              inputs,
                              epoch)

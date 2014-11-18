@@ -18,6 +18,7 @@ Contents
    :maxdepth: 2
 
    using_neon
+   quick_start
    developing_neon
    ml_operational_layer
    backends

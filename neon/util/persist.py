@@ -2,11 +2,16 @@
 Utility functions for saving various types of objects state.
 """
 
-import cPickle
 import logging
 import os
-
 import yaml
+
+from neon.util.compat import PY3
+
+if PY3:
+    import pickle
+else:
+    import cPickle as pickle
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +110,7 @@ def deserialize(load_path):
         return yaml.safe_load(load_path)
     else:
         try:
-            return cPickle.load(load_path)
+            return pickle.load(load_path)
         except AttributeError:
             msg = ("Problems deserializing: %s.  Its possible the interface "
                    "for this object has changed since being serialized.  You "
@@ -132,7 +137,7 @@ def serialize(obj, save_path):
     """
     logger.info("serializing %s to: %s" % (str(obj), save_path))
     ensure_dirs_exist(save_path)
-    cPickle.dump(obj, open(save_path, 'wb'), -1)
+    pickle.dump(obj, open(save_path, 'wb'), -1)
 
 
 class YAMLable(yaml.YAMLObject):

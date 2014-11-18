@@ -1,8 +1,10 @@
-# Experiment settings to train/test a small 1 hidden layer Neural Net on full
-# MNIST.
+# Data parallel version of settings to train/test a 1 hidden layer Neural Net on full
+# MNIST. Network archetecture matches Arjun's Matlab variant.
+# Make sure np = 3 when running this example with mpirun
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+  dist_flag: &df True,
+  backend: &be !obj:neon.backends.cpu.CPUDataDist {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
@@ -12,18 +14,30 @@
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
+      dist_flag: *df,
+      dist_mode: &dm 'datapar', # data parallel
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
+      # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+      # datapar specific parameters:
+      batch_size: 300,
+      num_test_sample: 9900, #round down to a multiple of batch_size
+      # todo: following are for when mini-batches are also pickled
+      # num_nodes: 2,
+      # num_procs_per_node: 3,
     },
   ],
 
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
+    dist_mode: *dm,
     num_epochs: 30,
-    batch_size: &bs 100,
+    batch_size: &bs 100, # this should be datasets.batch_size / num_procs
+    learning_rate: &lr 0.1,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -33,7 +47,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: &lr 0.1,
+            learning_rate: *lr,
             backend: *be,
             momentum_params: &mm {
               type: constant, #constant, nesterov
