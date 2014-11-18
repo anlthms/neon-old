@@ -260,9 +260,6 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
-    def norm(self, axis):
-        return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
-
     def repeat(self, repeats, axis):
         return self.__class__(self._tensor.repeat(repeats, axis))
 
@@ -478,9 +475,6 @@ class CPU(Backend):
     def copy(self, a):
         return self.tensor_cls(np.copy(a))
 
-    def argmax(self, x, axis=None):
-        return self.tensor_cls(np.argmax(x._tensor, axis))
-
     def dot(self, a, b, out):
         np.dot(a._tensor, b._tensor, out._tensor)
 
@@ -594,6 +588,46 @@ class CPU(Backend):
             CPUTensor: reference to out
         """
         return np.less_equal(left._tensor, right._tensor, out._tensor)
+
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the CPUTensor along the
+        specified axis.  The p-norm is defined on vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (CPUTensor): the CPUTensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (CPUTensor, optional): where to write the results to.  Must be
+                                       of the expected result shape.  If not
+                                       specified, a new buffer is created and
+                                       returned.
+
+        Returns:
+            CPUTensor: p-norm of tsr along the specified axis.
+
+        See Also:
+            `numpy.linalg.norm`
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = np.max(np.abs(tsr._tensor), axis)
+        elif order == float('-Inf'):
+            res = np.min(np.abs(tsr._tensor), axis)
+        elif order == 0:
+            res = np.sum(tsr._tensor != 0, axis)
+        else:
+            res = np.sum(np.abs(tsr._tensor)**order, axis)**(1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            out._tensor = res
+            out.shape = res.shape
+        return out
 
     def exp(self, x, out):
         np.exp(x._tensor, out=out._tensor)
@@ -796,7 +830,7 @@ class CPU(Backend):
         routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=1)
-            routputs[:, dst] = rf.norm(axis=1)
+            routputs[:, dst] = self.norm(rf, 2, axis=1)
 
     def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
                      ofmshape, fshape, padding, stride, nfm, prodbuf):
@@ -827,6 +861,28 @@ class CPU(Backend):
 
     def update_fc_dot(self, deltas, inputs, out):
         np.dot(deltas.transpose()._tensor, inputs._tensor, out._tensor)
+
+    def fprop_cmpool(self, inputs, weights, fmsize, out):
+        for ofmind in range(weights.shape[1]):
+            ofm = out[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            self.fill(ofm, 0.0)
+            for ifmind in range(weights.shape[0]):
+                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ofm += ifm * weights[ifmind, ofmind]
+
+    def bprop_cmpool(self, deltas, weights, fmsize, out):
+        self.fprop_cmpool(deltas, weights.transpose(), fmsize, out)
+
+    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        self.fill(out, 0.0)
+        for ofmind in range(out.shape[1]):
+            ofmd = deltas[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            for ifmind in range(out.shape[0]):
+                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
+                ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
+                self.dot(ofmd, ifm, updatebuf)
+                out[ifmind, ofmind] = updatebuf
 
     def format(self, raw):
         return self.array(raw)

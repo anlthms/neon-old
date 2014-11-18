@@ -191,7 +191,7 @@ class GB(MLP):
             self.train(inputs, targets)
 
     def normalize(self, data):
-        norms = data.norm(axis=1)
+        norms = self.backend.norm(data, 2, axis=1)
         self.backend.divide(data, norms.reshape((norms.shape[0], 1)),
                             out=data)
 

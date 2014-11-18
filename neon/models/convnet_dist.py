@@ -164,17 +164,24 @@ class ConvnetDist(MLP):
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
                 if MPI.COMM_WORLD.rank == 0:
+                    train_shape = (self.outputs.major_axis(), 1)
+                    preds['train'] = dataset.backend.empty(train_shape)
                     dataset.backend.argmax(self.outputs, axis=1,
-                                           preds['train'])
+                                           out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
                 if MPI.COMM_WORLD.rank == 0:
-                    dataset.backend.argmax(self.outputs, axis=1, preds['test'])
+                    test_shape = (self.outputs.major_axis(), 1)
+                    preds['test'] = dataset.backend.empty(test_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
                 if MPI.COMM_WORLD.rank == 0:
+                    val_shape = (self.outputs.major_axis(), 1)
+                    preds['validation'] = dataset.backend.empty(val_shape)
                     dataset.backend.argmax(self.outputs, axis=1,
-                                           preds['validation'])
+                                           out=preds['validation'])
             if MPI.COMM_WORLD.rank == 0:
                 if len(preds) is 0:
                     logger.error(
@@ -211,34 +218,29 @@ class ConvnetDist(MLP):
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-            lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.in_indices, axis=1),
-                            epoch)
-        else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        i -= 1
         while isinstance(self.layers[i], LayerWithNoBiasDist):
-            # extract self.layers[i].pre_act terms
-            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].in_indices, axis=1)
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].in_indices, axis=1),
                                      epoch)
             else:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output,
                                      epoch)
+            error = self.layers[i].berror
             i -= 1
+            if isinstance(self.layers[i], LayerWithNoBiasDist):
+                # extract self.layers[i].pre_act terms
+                self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                    self.layers[i + 1].in_indices, axis=1)
 
         # following code is difficult to refactor:
         # 1) MPL berror has no halos for top layer, but does for middle layers
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
         # Following is for top MPL layer
-        self.layers[i].bprop(self.layers[i + 1].berror,
+        self.layers[i].bprop(error,
                              self.layers[i - 1].output,
                              epoch)
         while i > 0:
