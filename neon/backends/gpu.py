@@ -1007,6 +1007,15 @@ class GPU(Backend):
     def update_fc_dot(self, deltas, inputs, out):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
+    def fprop_cmpool(self, inputs, weights, fmsize, out):
+        raise NotImplementedError("TODO!")
+
+    def bprop_cmpool(self, deltas, weights, fmsize, out):
+        raise NotImplementedError("TODO!")
+
+    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        raise NotImplementedError("TODO!")
+
     def format(self, raw):
         return self.array(raw.transpose().copy())
 

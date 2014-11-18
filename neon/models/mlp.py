@@ -130,29 +130,18 @@ class MLP(Model):
 
     def bprop(self, targets, inputs, epoch):
         i = self.nlayers - 1
-        lastlayer = self.layers[i]
-        error = self.cost.apply_derivative(self.backend,
-                                           lastlayer.output, targets,
-                                           self.temp)
+        error = self.cost.apply_derivative(self.backend, self.layers[i].output,
+                                           targets, self.temp)
+        batch_size = self.batch_size
         if self.dist_mode == 'datapar':
-            self.backend.divide(error,
-                                self.backend.wrap(MPI.COMM_WORLD.size *
-                                                  self.batch_size),
-                                out=error)
-        else:
-            self.backend.divide(error,
-                                self.backend.wrap(targets.shape[
-                                    targets.major_axis()]),
-                                out=error)
-        # Update the output layer.
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        while i > 1:
+            batch_size *= MPI.COMM_WORLD.size
+        self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+
+        while i > 0:
+            self.layers[i].bprop(error, self.layers[i - 1].output, epoch)
+            error = self.layers[i].berror
             i -= 1
-            self.layers[i].bprop(self.layers[i + 1].berror,
-                                 self.layers[i - 1].output,
-                                 epoch)
-        # Update the first hidden layer.
-        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch)
+        self.layers[i].bprop(error, inputs, epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,

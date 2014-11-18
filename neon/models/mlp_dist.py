@@ -192,36 +192,26 @@ class MLPDist(MLP):
         prev_layer_no_bias_dist = (
             isinstance(self.layers[i - 1], LayerWithNoBiasDist))
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
-        if prev_layer_no_bias_dist or prev_layer_dist:
-            lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.out_indices, axis=1),
-                            epoch)
-        else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        i -= 1
-        layer_no_bias_dist = isinstance(self.layers[i], LayerWithNoBiasDist)
-        layer_dist = isinstance(self.layers[i], LayerDist)
-        while i > 0 and (layer_no_bias_dist or layer_dist):
-            # extract self.layers[i].pre_act terms
-            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].out_indices, axis=1)
+        while i > 0:
             prev_layer_no_bias_dist = (
                 isinstance(self.layers[i - 1], LayerWithNoBiasDist))
             prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
             if prev_layer_dist or prev_layer_no_bias_dist:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].out_indices, axis=1),
                                      epoch)
             else:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output,
                                      epoch)
+            error = self.layers[i].berror
             i -= 1
+            # extract self.layers[i].pre_act terms
+            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                self.layers[i + 1].out_indices, axis=1)
 
         # first FC layer
-        self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-            self.layers[i + 1].out_indices, axis=1)
         self.layers[i].bprop(self.layers[i + 1].berror,
                              inputs,
                              epoch)
