@@ -560,21 +560,25 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def norm(self, tsr, order=None, axis=None):
+    def norm(self, tsr, order=None, axis=None, out=None):
         """
-        Calculates and returns the p-norm of the Tensor along the specified
-        axis.  The p-norm is defined on A as
+        Calculates and returns the vector p-norms of the Tensor along the
+        specified axis.  The p-norm is defined on vector A as
         :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
 
         Arguments:
-            tsr (Tensor): the Tensor on which to find the non-zero indices
-            order (int, optional): The order or p upon which the norm is
-                                   calculated.  Valid values include:
-                                   None, inf, -inf, 0, 1, -1, 2, -2, ...
-            axis (int, optional): The axis along which to compute the norm.
+            tsr (Tensor): the Tensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (Tensor, optional): where to write the results to.  Must be
+                                    of the expected result shape.  If not
+                                    specified, a new buffer is created and
+                                    returned.
 
         Returns:
-            Tensor: p-norm of tsr along the specified axis.
+            Tensor: p-norms of tsr along the specified axis.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.

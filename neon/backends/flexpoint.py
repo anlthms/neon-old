@@ -1,5 +1,6 @@
+# coding: utf-8
 """
-Custom flexible decimal point (flexpoint) backend and Tensor class.  Has
+Custom flexible decimal point (Flexpoint™) backend and Tensor class.  Has
 configurable integer and fraction bit width, rounding and overflow schemes.
 """
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class FlexpointTensor(CPUTensor):
     """
-    CPU based configurable flexpoint data structure.
+    CPU based configurable Flexpoint™ data structure.
 
     Arguments:
         obj (numpy.ndarray): the actual data values.  Python built-in
@@ -99,7 +100,7 @@ class FlexpointTensor(CPUTensor):
 
 class Flexpoint(CPU):
     """
-    Sets up a CPU based flexpoint backend for matrix ops.
+    Sets up a CPU based Flexpoint™ backend for matrix ops.
 
     We support the following attributes:
 
@@ -134,7 +135,7 @@ class Flexpoint(CPU):
 
         Arguments:
             shape (int or sequence of ints): Shape of the new array.
-            dtype (flexpt_dtype, optional): Specification of flexpoint
+            dtype (flexpt_dtype, optional): Specification of Flexpoint™
                                             parameters, passed through to the
                                             FlexpointTensor constructor.
                                             If None, we use the values
@@ -153,7 +154,7 @@ class Flexpoint(CPU):
             obj (array_like): input array object to construct from.  Can be
                               built-in python scalar or list (of lists), or a
                               numpy.ndarray
-            dtype (flexpt_dtype, optional): Specification of flexpoint
+            dtype (flexpt_dtype, optional): Specification of Flexpoint™
                                             parameters, passed through to the
                                             FlexpointTensor constructor.
                                             If None, we use the values
@@ -169,7 +170,7 @@ class Flexpoint(CPU):
 
         Arguments:
             shape (int or sequence of ints): Shape of the new array.
-            dtype (flexpt_dtype, optional): Specification of flexpoint
+            dtype (flexpt_dtype, optional): Specification of Flexpoint™
                                             parameters, passed through to the
                                             FlexpointTensor constructor.
                                             If None, we use the values
@@ -186,7 +187,7 @@ class Flexpoint(CPU):
 
         Arguments:
             shape (int or sequence of ints): Shape of the new array.
-            dtype (flexpt_dtype, optional): Specification of flexpoint
+            dtype (flexpt_dtype, optional): Specification of Flexpoint™
                                             parameters, passed through to the
                                             FlexpointTensor constructor.
                                             If None, we use the values
@@ -319,6 +320,52 @@ class Flexpoint(CPU):
         # rescale int64 0 or 1 value up to internal type
         fp_rescale_array(out._tensor, flexpt_dtype(True, 5, 0, 0, 0),
                          out.dtype)
+        return out
+
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the FlexpointTensor along
+        the specified axis.  The p-norm is defined on vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (FlexpointTensor): the FlexpointTensor on which to find the
+                                   norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (FlexpointTensor, optional): where to write the results to.
+                                             Must be of the expected result
+                                             shape.  If not specified, a new
+                                             buffer is created and returned.
+
+        Returns:
+            FlexpointTensor: p-norm of tsr along the specified axis.
+
+        See Also:
+            `numpy.linalg.norm`
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = np.max(np.abs(flex_to_float_array(tsr._tensor, tsr.dtype)),
+                         axis)
+        elif order == float('-Inf'):
+            res = np.min(np.abs(flex_to_float_array(tsr._tensor, tsr.dtype)),
+                         axis)
+        elif order == 0:
+            res = np.sum(tsr._tensor != 0, axis)
+        else:
+            res = np.sum(np.abs(flex_to_float_array(tsr._tensor, tsr.dtype))
+                         ** order, axis) ** (1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            res = self.array(res)
+            out._tensor = res
+            out.shape = res.shape
+            fp_rescale_array(out._tensor, res.dtype, out.dtype)
         return out
 
     def wrap(self, obj, dtype=None):
@@ -517,7 +564,7 @@ class Flexpoint(CPU):
         self.divide(self.wrap(1.0, out.dtype), a, out)
 
     def log(self, x, out):
-        # for the moment we punt on a flexpoint exponent, just do an
+        # for the moment we punt on a Flexpoint™ log, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
         tmp = flex_to_float_array(x._tensor, x.dtype)
@@ -525,7 +572,7 @@ class Flexpoint(CPU):
         out._tensor = flex_from_float_array(tmp, out.dtype)
 
     def exp(self, x, out):
-        # for the moment we punt on a flexpoint exponent, just do an
+        # for the moment we punt on a Flexpoint™ exponent, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
         tmp = flex_to_float_array(x._tensor, x.dtype)
@@ -533,7 +580,7 @@ class Flexpoint(CPU):
         out._tensor = flex_from_float_array(tmp, out.dtype)
 
     def logistic(self, x, out):
-        # for the moment we punt on a flexpoint exponent, just do an
+        # for the moment we punt on a Flexpoint™ logistic, just do an
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
         tmp = flex_to_float_array(x._tensor, x.dtype)

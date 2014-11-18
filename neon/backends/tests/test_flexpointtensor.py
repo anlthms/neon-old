@@ -29,7 +29,7 @@ class TestFlexpointTensor(object):
 
     def test_2d_ndarray_creation(self):
         tns = FlexpointTensor(np.array([[1.5, 2.5], [3.3, 9.2],
-                                  [0.111111, 5]]))
+                                        [0.111111, 5]]))
         assert tns.shape == (3, 2)
 
     @nottest  # TODO: support n-dimensional arrays

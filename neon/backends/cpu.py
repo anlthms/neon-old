@@ -260,9 +260,6 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
-    def norm(self, axis):
-        return self.__class__(np.sqrt((self._tensor * self._tensor).sum(axis)))
-
     def repeat(self, repeats, axis):
         return self.__class__(self._tensor.repeat(repeats, axis))
 
@@ -595,6 +592,46 @@ class CPU(Backend):
         """
         return np.less_equal(left._tensor, right._tensor, out._tensor)
 
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the CPUTensor along the
+        specified axis.  The p-norm is defined on vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (CPUTensor): the CPUTensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (CPUTensor, optional): where to write the results to.  Must be
+                                       of the expected result shape.  If not
+                                       specified, a new buffer is created and
+                                       returned.
+
+        Returns:
+            CPUTensor: p-norm of tsr along the specified axis.
+
+        See Also:
+            `numpy.linalg.norm`
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = np.max(np.abs(tsr._tensor), axis)
+        elif order == float('-Inf'):
+            res = np.min(np.abs(tsr._tensor), axis)
+        elif order == 0:
+            res = np.sum(tsr._tensor != 0, axis)
+        else:
+            res = np.sum(np.abs(tsr._tensor)**order, axis)**(1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            out._tensor = res
+            out.shape = res.shape
+        return out
+
     def exp(self, x, out):
         np.exp(x._tensor, out=out._tensor)
 
@@ -754,7 +791,7 @@ class CPU(Backend):
         routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=1)
-            routputs[:, dst] = rf.norm(axis=1)
+            routputs[:, dst] = self.norm(rf, 2, axis=1)
 
     def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
                      ofmshape, fshape, padding, stride, nfm, prodbuf):
