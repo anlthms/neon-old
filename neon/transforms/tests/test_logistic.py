@@ -17,7 +17,6 @@ def test_logistic_cputensor():
 
 @attr('cuda')
 def test_logistic_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
     from neon.backends.unsupported._cudamat import (Cudamat as GPU,  # flake8:noqa
                                                     CudamatTensor as GPUTensor)
     # with:

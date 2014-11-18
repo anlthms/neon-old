@@ -487,7 +487,7 @@ class LocalLayer(YAMLable):
         self.rlinks = self.links.raw()
 
     def normalize_weights(self, weights):
-        norms = weights.norm(axis=1)
+        norms = self.backend.norm(weights, order=2, axis=1)
         self.backend.divide(weights,
                             norms.reshape((norms.shape[0], 1)),
                             out=weights)

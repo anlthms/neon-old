@@ -107,16 +107,22 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['train'] = dataset.backend.empty((outputs.major_axis(),
+                                                        1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['train'])
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['test'] = dataset.backend.empty((outputs.major_axis(),
+                                                       1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['test'])
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                val_shape = (outputs.major_axis(), 1)
+                preds['validation'] = dataset.backend.empty(val_shape)
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -161,9 +167,10 @@ class MLP(Model):
             for item in items:
                 if item in targets and item in preds:
                     misclass = ds.backend.empty(preds[item].shape)
-                    ds.backend.not_equal(preds[item], ds.backend.argmax(
-                        targets[item], axis=targets[item].minor_axis()),
-                        misclass)
+                    ds.backend.argmax(targets[item],
+                                      axis=targets[item].minor_axis(),
+                                      out=misclass)
+                    ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))
