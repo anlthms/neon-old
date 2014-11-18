@@ -4,13 +4,12 @@ from neon.transforms.logistic import Logistic as neonLogistic
 from neon.transforms.tanh import Tanh as neonTanh
 from neon.transforms.rectified import RectLin as neonRectlin
 from neon.transforms.linear import Identity and neonIdentity
-from neon.models.learning_rule import GradientDescent
 
 
 class Layer:
     """Generic Layer class
 
-    Ensures inheriting class implement a
+    Ensures inheriting classes implement a
     forward() method.
     """
     def forward(self, X):
@@ -19,43 +18,28 @@ class Layer:
 class NeuralLayer(Layer):
     """Balance Network Layer
 
+    Parameters
+    ----------
     n_input : int
         Dimensionality if input
-
     n_output : int
         Dimensionality of output
-
     backend : Backend
         neon backend for computation
-
+    W_learning_rule : LearningRule
+        Object to update W.
+    b_learning_rule : LearningRule
+        Object to update b.
     W : array-like, shape (n_input, n_output), optional
         Pre-specified weight matrix
-
     b : array-like, shape (n_output), optional
         Pre-specified bias
-
     max_norm : float, optional
         Constrain the L2 norm of input weight vectors to not exceed this value
-
     weight_clip : float, optional
         Constrain individual weight values to not exceed this value
-
-    adadelta_eps : float, optional
-        Epsilon term in Adadelta, set to some small positive value
-        to turn on adadelta
-
-    adadelta_rho : float, optional
-        Rho term in Adadelta
-
-    momentum : float, optional
-        Momentum factor
-
-    learning_rate : float, optional
-        Learning rate parameter in gradient descent
-
     rng : numpy.random.RandomState, optional
         Random number generate to use
-
     dtype : numpy.dtype, optional
         Datatype of the layer (ex: np.float32)
     """
@@ -124,7 +108,6 @@ class NeuralLayer(Layer):
         ----------
         dlossdh : array-like, shape (n_samples, n_outputs)
             Derivative of the loss w.r.t the hidden state
-
         accumulate : boolean, optional
             Accumulate onto already existing derivative
 
@@ -155,6 +138,7 @@ class NeuralLayer(Layer):
         TODO : neon integration
         """
         self.W_lr.apply_rule(self.W, self.dlossdW, self.epoch)
+        raise NotImplementedError
         if self.max_norm is not None:
             w_norm = np.sqrt((self.W**2).sum(0,keepdims=True))
             w_norm[w_norm < self.max_norm] = self.max_norm
