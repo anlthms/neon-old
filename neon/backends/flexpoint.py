@@ -466,6 +466,51 @@ class Flexpoint(CPU):
         else:
             return FlexpointTensor(res, x.dtype)
 
+    def argmin(self, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (FlexpointTensor): The FlexpointTensor on which to find the
+                                   minimum indices
+            axis (int): The dimension along which to find the minimum.  If set
+                        to None, find the overall minimum index of a flattened
+                        representation of tsr.
+            out (FlexpointTensor): Where to store the result.  Should be of the
+                                   appropriate type and expected shape
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        out._tensor = flex_from_float_array(np.argmin(tsr._tensor, axis),
+                                            out.dtype)
+        out.shape = out._tensor.shape
+        return out
+
+    def argmax(self, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (CPUTensor): The CPUTensor on which to find the maximum indices
+            axis (int): The dimension along which to find the maximum.  If set
+                        to None, find the overall maximum index of a flattened
+                        representation of tsr.
+            out (CPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            FlexpointTensor: reference to out
+        """
+        out._tensor = flex_from_float_array(np.argmax(tsr._tensor, axis),
+                                            out.dtype)
+        out.shape = out._tensor.shape
+        return out
+
     def fabs(self, x, out=None):
         if out is not None:
             res = np.fabs(x._tensor, out._tensor)

@@ -311,18 +311,18 @@ class GBDist(GB):
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
                 if MPI.COMM_WORLD.rank == 0:
-                    preds['train'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
                 if MPI.COMM_WORLD.rank == 0:
-                    preds['test'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
                 if MPI.COMM_WORLD.rank == 0:
-                    preds['validation'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           preds['validation'])
             if MPI.COMM_WORLD.rank == 0:
                 if len(preds) is 0:
                     logger.error(

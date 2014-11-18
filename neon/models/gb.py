@@ -143,7 +143,9 @@ class GB(MLP):
                     auc[node] += metrics.roc_auc_score(
                         labels[start_idx:end_idx].raw(), pred.raw())
             auc /= num_batches
-            maxnode = self.backend.argmax(auc).raw()
+            maxnode = self.backend.empty((1, 1))
+            self.backend.argmax(auc, axis=None, out=maxnode)
+            maxnode = maxnode.raw()
             maxauc = auc[maxnode]
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,

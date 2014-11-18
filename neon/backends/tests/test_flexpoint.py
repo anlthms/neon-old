@@ -1,9 +1,10 @@
 #!/usr/bin/env/python
 
+from nose.tools import nottest
 import numpy as np
 
-from neon.backends.flexpoint import (FlexpointTensor, flexpt_dtype)
-# from neon.util.testing import assert_tensor_equal
+from neon.backends.flexpoint import (Flexpoint, FlexpointTensor, flexpt_dtype)
+from neon.util.testing import assert_tensor_equal
 
 
 class TestFlexpointTensor(object):
@@ -62,3 +63,51 @@ class TestFlexpointTensor(object):
                              overflow=0, rounding=0)
         tns = FlexpointTensor([[0.25, 0.15], [-0.25, -0.15]], dtype)
         assert str(tns) == ("[[ 0.25  0.  ]\n [-0.25  0.  ]]")
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmin_noaxis(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty([1, 1])
+        be.argmin(tsr, None, out)
+        assert_tensor_equal(out, FlexpointTensor([[0]]))
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmin_axis0(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty((2, ))
+        be.argmin(tsr, 0, out)
+        assert_tensor_equal(out, FlexpointTensor([0, 0]))
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmin_axis1(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 10], [11, 9]])
+        out = be.empty((2, ))
+        be.argmin(tsr, 1, out)
+        assert_tensor_equal(out, FlexpointTensor([0, 1]))
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmax_noaxis(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty([1, 1])
+        be.argmax(tsr, None, out)
+        assert_tensor_equal(out, FlexpointTensor(3))
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmax_axis0(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty((2, ))
+        be.argmax(tsr, 0, out)
+        assert_tensor_equal(out, FlexpointTensor([1, 1]))
+
+    @nottest  # TODO: fix dimension handling
+    def test_argmax_axis1(self):
+        be = Flexpoint()
+        tsr = be.array([[-1, 10], [11, 9]])
+        out = be.empty((2, ))
+        be.argmax(tsr, 1, out)
+        assert_tensor_equal(out, FlexpointTensor([1, 0]))

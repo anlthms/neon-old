@@ -107,16 +107,16 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['train'])
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['test'])
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)

@@ -433,9 +433,6 @@ class GPUTensor(Tensor):
     def reshape(self, shape):
         return GPUTensor(self._tensor.reshape(shape))
 
-    def argmax(self, axis):
-        return GPUTensor(self._tensor.argmax(axis))
-
     def take(self, indices, axis=None):
         """
         Take returns a subset of a tensor specified by indices.
@@ -699,9 +696,6 @@ class GPU(Backend):
         assert type(a) == GPUTensor
         return a.copy()
 
-    def argmax(self, x, axis=None):
-        return GPUTensor(x._tensor.argmax(axis))
-
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
@@ -886,6 +880,48 @@ class GPU(Backend):
             res = cudanet.max(x._tensor, axis, out)
 
         return GPUTensor(res)
+
+    def argmin(self, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the minimum indices
+            axis (int): The dimension along which to find the minimum.  If set
+                        to None, find the overall minimum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmin(axis)
+        out.shape = out._tensor.shape
+        return out
+
+    def argmax(self, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the maximum indices
+            axis (int): The dimension along which to find the maximum.  If set
+                        to None, find the overall maximum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmax(axis)
+        out.shape = out._tensor.shape
+        return out
 
     def fabs(self, x, out=None):
         if out is not None:

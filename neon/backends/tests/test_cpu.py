@@ -122,3 +122,45 @@ class TestCPU(object):
         be.less_equal(left, right, out)
         assert out.shape == (2, 2)
         assert_tensor_equal(out, CPUTensor([[1, 1], [1, 0]]))
+
+    def test_argmin_noaxis(self):
+        be = CPU()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty([1, 1])
+        be.argmin(tsr, None, out)
+        assert_tensor_equal(out, CPUTensor([[0]]))
+
+    def test_argmin_axis0(self):
+        be = CPU()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty((2, ))
+        be.argmin(tsr, 0, out)
+        assert_tensor_equal(out, CPUTensor([0, 0]))
+
+    def test_argmin_axis1(self):
+        be = CPU()
+        tsr = be.array([[-1, 10], [11, 9]])
+        out = be.empty((2, ))
+        be.argmin(tsr, 1, out)
+        assert_tensor_equal(out, CPUTensor([0, 1]))
+
+    def test_argmax_noaxis(self):
+        be = CPU()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty([1, 1])
+        be.argmax(tsr, None, out)
+        assert_tensor_equal(out, CPUTensor(3))
+
+    def test_argmax_axis0(self):
+        be = CPU()
+        tsr = be.array([[-1, 0], [1, 92]])
+        out = be.empty((2, ))
+        be.argmax(tsr, 0, out)
+        assert_tensor_equal(out, CPUTensor([1, 1]))
+
+    def test_argmax_axis1(self):
+        be = CPU()
+        tsr = be.array([[-1, 10], [11, 9]])
+        out = be.empty((2, ))
+        be.argmax(tsr, 1, out)
+        assert_tensor_equal(out, CPUTensor([1, 0]))

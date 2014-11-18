@@ -524,10 +524,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): the Tensor on which to find the minimum indices
-            axis (int, optional): the dimension along which to find the
-                                  minimum.  If set to None, we will
-                                  return the index relative to the 1-D
-                                  flattened version of the tensor.
+            axis (int): the dimension along which to find the minimum.  If set
+                        to None, we will return the index relative to the 1-D
+                        flattened version of the tensor.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -546,10 +545,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): the Tensor on which to find the maximum index
-            axis (int, optional): the dimension along which to find the
-                                  maximum.  If set to None, we will
-                                  return the index the relative to the 1-D
-                                  flattened version of the tensor.
+            axis (int): the dimension along which to find the maximum.  If set
+                        to None, we will return the index relative to the 1-D
+                        flattened version of the tensor.
             out (Tensor): where the result will be stored.
 
         Returns:
