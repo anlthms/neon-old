@@ -735,6 +735,10 @@ class CPU(Backend):
         return coef
 
 
+class CPUDist(CPU):
+    def bcast(buf, rank=0):
+        buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
+
 class CPUDataDist(CPU):
 
     '''
