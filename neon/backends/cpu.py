@@ -286,24 +286,6 @@ class CPUTensor(Tensor):
         else:
             return self.__class__(res)
 
-    def get_minor_slice(self, start, end):
-        return self.__class__(self[start:end]._tensor)
-
-    def set_minor_slice(self, start, end, data):
-        self[start:end] = data
-
-    def get_major_slice(self, start, end):
-        return self.__class__(self[:, start:end]._tensor)
-
-    def set_major_slice(self, start, end, data):
-        self[:, start:end] = data
-
-    def major_axis(self):
-        return 0
-
-    def minor_axis(self):
-        return 1
-
 
 class CPU(Backend):
 
@@ -404,10 +386,6 @@ class CPU(Backend):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.ones(shape, dtype), dtype)
 
-    def alloc(self, nrows, ncols, dtype=None):
-        dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
-
     def wrap(self, obj, dtype=None):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(obj, dtype)
@@ -467,13 +445,13 @@ class CPU(Backend):
 
     def append_bias(self, x, dtype=np.float32):
         """
-        Adds a bias column of ones to CPUTensor x,
+        Adds a bias row of ones to CPUTensor x,
         returning a new CPUTensor.
         """
         return self.tensor_cls(np.concatenate((x._tensor,
-                                               np.ones((x.shape[0], 1),
+                                               np.ones((1, x.shape[1]),
                                                        dtype)),
-                                              axis=1), dtype)
+                                              axis=0), dtype)
 
     def copy(self, a):
         return self.tensor_cls(np.copy(a))
@@ -671,8 +649,8 @@ class CPU(Backend):
     def squish(self, obj, n):
         """ reshape a tensor by increasing the first dimensions by factor n,
         and shrinking the the second dimension by factor n."""
-        assert obj.shape[1] % n == 0
-        return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+        assert obj.shape[0] % n == 0
+        return obj.reshape((obj.shape[0] / n, obj.shape[1] * n))
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
@@ -681,18 +659,18 @@ class CPU(Backend):
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
-            self.dot(inputs.take(rflinks, axis=1), weights, out=prodbuf)
-            outputs[:, ofmlocs[dst]] = prodbuf
+            self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
+                     out=prodbuf)
+            outputs[ofmlocs[dst], :] = prodbuf
 
     def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         self.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            self.dot(error.take(ofmlocs[dst], axis=1), weights.transpose(),
-                     bpropbuf)
+            self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
-            self.add(bpropbuf, berror.take(rflinks, axis=1), out=bpropbuf)
-            berror[:, rflinks] = bpropbuf
+            self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
+            berror[rflinks, :] = bpropbuf
 
     def update_conv(self, weights, inputs, error, updates, links, ifmshape,
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
@@ -702,8 +680,8 @@ class CPU(Backend):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
-            eslice = error.take(ofmlocs[dst], axis=1)
-            self.dot(inputs.take(rflinks, axis=1).transpose(), eslice,
+            eslice = error.take(ofmlocs[dst], axis=0)
+            self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
                      out=updatebuf)
             self.add(updates, updatebuf, out=updates)
 
@@ -714,12 +692,12 @@ class CPU(Backend):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
-            rf = rinputs.take(links[dst], axis=1)
+            rf = rinputs.take(links[dst], axis=0)
             # Save the index of the maximum value within the receptive fields.
-            maxinds[:, dst] = rf.argmax(axis=1)
+            maxinds[dst, :] = rf.argmax(axis=0)
             # Set the pre-activations to the maximum value.
-            maxvals = rf[range(rf.shape[0]), maxinds[:, dst]]
-            routputs[:, dst] = maxvals
+            maxvals = rf[maxinds[dst, :], range(rf.shape[1])]
+            routputs[dst, :] = maxvals
 
     def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
                     ofmshape, fshape, padding, stride, nfm, maxinds):
@@ -728,16 +706,16 @@ class CPU(Backend):
         rerror = self.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
-            inds = rflinks.take(maxinds[:, dst], axis=0)
-            rberror[range(rberror.shape[0]), inds] += rerror[:, dst]
+            inds = rflinks.take(maxinds[dst, :], axis=0)
+            rberror[inds, range(rberror.shape[1])] += rerror[dst, :]
 
     def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
         rinputs = self.squish(inputs, nfm)
         routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=1)
-            routputs[:, dst] = rf.mean(axis=1)
+            rf = rinputs.take(links[dst], axis=0)
+            routputs[dst, :] = rf.mean(axis=0)
 
     def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):
@@ -746,15 +724,15 @@ class CPU(Backend):
         rberror = self.squish(berror, nfm)
         rerror = self.squish(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rberror[:, links[dst]] += rerror[:, dst:(dst + 1)]
+            rberror[links[dst], :] += rerror[dst:(dst + 1), :]
 
     def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
                      fshape, padding, stride, nfm):
         rinputs = self.squish(inputs, nfm)
         routputs = self.squish(outputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=1)
-            routputs[:, dst] = rf.norm(axis=1)
+            rf = rinputs.take(links[dst], axis=0)
+            routputs[dst, :] = rf.norm(axis=0)
 
     def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
                      ofmshape, fshape, padding, stride, nfm, prodbuf):
@@ -765,33 +743,33 @@ class CPU(Backend):
         self.fill(berror, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
-            rf = rinputs.take(inds, axis=1)
-            denom = routputs[:, dst:(dst + 1)].copy()
+            rf = rinputs.take(inds, axis=0)
+            denom = routputs[dst:(dst + 1), :].copy()
             # If the L2 norm is zero, the entire receptive field must be
             # zeros. In that case, we set the L2 norm to 1 before using
             # it to normalize the receptive field.
             denom[denom.raw() == 0] = 1
             self.divide(rf, denom, out=rf)
             self.multiply(
-                rerror[:, dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=1),
+                rerror[dst:(dst + 1), :].repeat(fshape[0] * fshape[1], axis=0),
                 rf, out=prodbuf)
-            rberror[:, inds] += prodbuf
+            rberror[inds, :] += prodbuf
 
-    def fprop_fc_dot(self, inputs, weights, out):
-        np.dot(inputs._tensor, weights.transpose()._tensor, out._tensor)
+    def fprop_fc(self, inputs, weights, out):
+        self.dot(weights, inputs, out)
 
-    def bprop_fc_dot(self, deltas, weights, out):
-        np.dot(deltas._tensor, weights._tensor, out._tensor)
+    def bprop_fc(self, deltas, weights, out):
+        self.dot(weights.transpose(), deltas, out)
 
-    def update_fc_dot(self, deltas, inputs, out):
-        np.dot(deltas.transpose()._tensor, inputs._tensor, out._tensor)
+    def update_fc(self, deltas, inputs, out):
+        self.dot(deltas, inputs.transpose(), out)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         for ofmind in range(weights.shape[1]):
-            ofm = out[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize), :]
             self.fill(ofm, 0.0)
             for ifmind in range(weights.shape[0]):
-                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize), :]
                 ofm += ifm * weights[ifmind, ofmind]
 
     def bprop_cmpool(self, deltas, weights, fmsize, out):
@@ -800,16 +778,16 @@ class CPU(Backend):
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         self.fill(out, 0.0)
         for ofmind in range(out.shape[1]):
-            ofmd = deltas[:, (ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize), :]
             for ifmind in range(out.shape[0]):
-                ifm = inputs[:, (ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize), :]
                 ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
                 out[ifmind, ofmind] = updatebuf
 
     def format(self, raw):
-        return self.array(raw)
+        return self.array(raw.transpose())
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None
@@ -859,8 +837,8 @@ class CPUDataDist(CPU):
     """
     helper sub-class for data parallel implementations
     """
-    def update_fc_dot(self, deltas, inputs, out):
-        super(CPUDataDist, self).update_fc_dot(deltas, inputs, out)
+    def update_fc(self, deltas, inputs, out):
+        super(CPUDataDist, self).update_fc(deltas, inputs, out)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params

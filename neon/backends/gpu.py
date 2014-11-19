@@ -508,24 +508,6 @@ class GPUTensor(Tensor):
         cudanet.exp(self._tensor, target)
         return GPUTensor(target)
 
-    def get_minor_slice(self, start, end):
-        return self.__class__(self[:, start:end]._tensor)
-
-    def set_minor_slice(self, start, end, data):
-        self[:, start:end] = data
-
-    def get_major_slice(self, start, end):
-        return self.__class__(self[start:end]._tensor)
-
-    def set_major_slice(self, start, end, data):
-        self[start:end] = data
-
-    def major_axis(self):
-        return 1
-
-    def minor_axis(self):
-        return 0
-
 
 class TransposedGPUTensor(GPUTensor):
 
@@ -960,13 +942,13 @@ class GPU(Backend):
                      fshape, padding, stride, nfm, prodbuf):
         raise NotImplementedError("TODO!")
 
-    def fprop_fc_dot(self, inputs, weights, out):
+    def fprop_fc(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    def bprop_fc_dot(self, deltas, weights, out):
+    def bprop_fc(self, deltas, weights, out):
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
-    def update_fc_dot(self, deltas, inputs, out):
+    def update_fc(self, deltas, inputs, out):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
@@ -1029,10 +1011,10 @@ class GPUDataDist(GPU):
     """
     helper sub-class for data parallel implementations
     """
-    def update_fc_dot(self, deltas, inputs, out):
+    def update_fc(self, deltas, inputs, out):
         raise NotImplementedError
 
-        # super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+        # super(GPUDataDist, self).update_fc(deltas, inputs, out)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
