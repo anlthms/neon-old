@@ -688,12 +688,12 @@ class GPU(Backend):
             seed = self.rng_seed
         numpy.random.seed(seed)
         try:
-            cudanet.CUDAMatrix.init_random(seed)
+            cudanet.cudanet_init_random(seed)
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
                             "integer.  You specified: %s" % str(seed))
-            cudanet.CUDAMatrix.init_random(0)
+            cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
@@ -1134,7 +1134,7 @@ class GPUDataDist(GPU):
         num_devices = cudanet.get_num_devices()
 
         if (local_size > num_devices):
-            logger.info('Node %s: requested device_id: %d  max devices: %d' %
+            logger.warning('Node %s: requested device: %d  max devices: %d' %
                         (MPI.Get_processor_name(), local_size, num_devices))
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
