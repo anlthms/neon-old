@@ -1135,7 +1135,8 @@ class GPUDataDist(GPU):
 
         if (local_size > num_devices):
             logger.warning('Node %s: requested device: %d  max devices: %d' %
-                        (MPI.Get_processor_name(), local_size, num_devices))
+                           (MPI.Get_processor_name(), local_size,
+                            num_devices))
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
 
