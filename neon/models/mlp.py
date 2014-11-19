@@ -107,16 +107,22 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['train'] = dataset.backend.empty((outputs.major_axis(),
+                                                        1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['train'])
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                preds['test'] = dataset.backend.empty((outputs.major_axis(),
+                                                       1))
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['test'])
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
+                val_shape = (outputs.major_axis(), 1)
+                preds['validation'] = dataset.backend.empty(val_shape)
+                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                       out=preds['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -130,29 +136,18 @@ class MLP(Model):
 
     def bprop(self, targets, inputs, epoch):
         i = self.nlayers - 1
-        lastlayer = self.layers[i]
-        error = self.cost.apply_derivative(self.backend,
-                                           lastlayer.output, targets,
-                                           self.temp)
+        error = self.cost.apply_derivative(self.backend, self.layers[i].output,
+                                           targets, self.temp)
+        batch_size = self.batch_size
         if self.dist_mode == 'datapar':
-            self.backend.divide(error,
-                                self.backend.wrap(MPI.COMM_WORLD.size *
-                                                  self.batch_size),
-                                out=error)
-        else:
-            self.backend.divide(error,
-                                self.backend.wrap(targets.shape[
-                                    targets.major_axis()]),
-                                out=error)
-        # Update the output layer.
-        lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        while i > 1:
+            batch_size *= MPI.COMM_WORLD.size
+        self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+
+        while i > 0:
+            self.layers[i].bprop(error, self.layers[i - 1].output, epoch)
+            error = self.layers[i].berror
             i -= 1
-            self.layers[i].bprop(self.layers[i + 1].berror,
-                                 self.layers[i - 1].output,
-                                 epoch)
-        # Update the first hidden layer.
-        self.layers[i - 1].bprop(self.layers[i].berror, inputs, epoch)
+        self.layers[i].bprop(error, inputs, epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
@@ -171,11 +166,11 @@ class MLP(Model):
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    misclass = ds.backend.not_equal(
-                        preds[item],
-                        ds.backend.argmax(
-                            targets[item],
-                            axis=targets[item].minor_axis()))
+                    misclass = ds.backend.empty(preds[item].shape)
+                    ds.backend.argmax(targets[item],
+                                      axis=targets[item].minor_axis(),
+                                      out=misclass)
+                    ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))

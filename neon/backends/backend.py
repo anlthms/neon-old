@@ -17,8 +17,32 @@ class Backend(YAMLable):
         See the list of `implemented backends </backends.html>`_
     """
 
-    @classmethod
-    def array(cls, obj, dtype=None):
+    def empty(self, dtype=None):
+        """
+        Instantiate a new instance of this backend's Tensor class, without
+        initializing element values.  This is slightly faster than
+        :py:func:`~neon.backends.backend.Backend.array`,
+        :py:func:`~neon.backends.backend.Backend.ones`,
+        :py:func:`~neon.backends.backend.Backend.zero`, but the values will be
+        random.
+
+        Arguments:
+            dtype (data-type, optional): If present, specifies the underlying
+                                         type to employ for each element.
+        Returns:
+            Tensor: array object
+
+        Raises:
+            NotImplmentedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Backend.array`,
+            :py:func:`~neon.backends.backend.Backend.zeros`,
+            :py:func:`~neon.backends.backend.Backend.ones`
+        """
+        raise NotImplementedError()
+
+    def array(self, obj, dtype=None):
         """
         Instantiate a new instance of this backend's Tensor class, populating
         elements based on obj values.
@@ -36,13 +60,13 @@ class Backend(YAMLable):
             NotImplmentedError: Can't be instantiated directly.
 
         See Also:
+            :py:func:`~neon.backends.backend.Backend.empty`,
             :py:func:`~neon.backends.backend.Backend.zeros`,
             :py:func:`~neon.backends.backend.Backend.ones`
         """
         raise NotImplementedError()
 
-    @classmethod
-    def zeros(cls, shape, dtype=None):
+    def zeros(self, shape, dtype=None):
         """
         Instantiate a new instance of this backend's Tensor class, populating
         each element with a value of 0.
@@ -58,13 +82,13 @@ class Backend(YAMLable):
             NotImplmentedError: Can't be instantiated directly.
 
         See Also:
+            :py:func:`~neon.backends.backend.Backend.empty`,
             :py:func:`~neon.backends.backend.Backend.ones`,
             :py:func:`~neon.backends.backend.Backend.array`
         """
         raise NotImplementedError()
 
-    @classmethod
-    def ones(cls, shape, dtype=None):
+    def ones(self, shape, dtype=None):
         """
         Instantiate a new instance of this backend's Tensor class, populating
         each element with a value of 1.
@@ -80,13 +104,13 @@ class Backend(YAMLable):
             NotImplmentedError: Can't be instantiated directly.
 
         See Also:
+            :py:func:`~neon.backends.backend.Backend.empty`,
             :py:func:`~neon.backends.backend.Backend.zeros`,
             :py:func:`~neon.backends.backend.Backend.array`
         """
         raise NotImplementedError()
 
-    @classmethod
-    def copy(cls, tsr):
+    def copy(self, tsr):
         """
         Construct and return a deep copy of the Tensor passed.
 
@@ -146,8 +170,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError("Can't create direct instances of Backend")
 
-    @classmethod
-    def add(cls, left, right, out):
+    def add(self, left, right, out):
         """
         Perform element-wise addition on the Tensor operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
@@ -166,8 +189,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def subtract(cls, left, right, out):
+    def subtract(self, left, right, out):
         """
         Perform element-wise subtraction on the Tensor operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
@@ -186,8 +208,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def multiply(cls, left, right, out):
+    def multiply(self, left, right, out):
         """
         Perform element-wise multiplication on the Tensor operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
@@ -206,8 +227,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def divide(cls, left, right, out):
+    def divide(self, left, right, out):
         """
         Perform element-wise division on the Tensor operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
@@ -226,8 +246,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def log(cls, tsr, out):
+    def log(self, tsr, out):
         """
         Perform element-wise natural logarithm transformation on Tensor tsr,
         storing the result in Tensor out.  Both Tensor's should have identical
@@ -245,8 +264,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def exp(cls, tsr, out):
+    def exp(self, tsr, out):
         """
         Perform element-wise exponential transformation on Tensor tsr,
         storing the result in Tensor out.  Both Tensor's should have identical
@@ -284,8 +302,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def dot(cls, left, right, out):
+    def dot(self, left, right, out):
         """
         Perform sum product between the last axis of left and the second last
         axis of right, storing the result in out.  Note that this dot product
@@ -420,8 +437,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def sum(cls, tsr, axes, out):
+    def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
 
@@ -440,8 +456,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def mean(cls, tsr, axes, out):
+    def mean(self, tsr, axes, out):
         """
         Calculates the arithmetic mean of the elements along the specified
         axes.
@@ -461,8 +476,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def min(cls, tsr, axis, out):
+    def min(self, tsr, axis, out):
         """
         Calculates the minimal element value along the specified axis.
 
@@ -482,8 +496,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def max(cls, tsr, axis, out):
+    def max(self, tsr, axis, out):
         """
         Calculates the maximal element value along the specified axis.
 
@@ -503,8 +516,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def argmin(cls, tsr, axis, out):
+    def argmin(self, tsr, axis, out):
         """
         Calculates the indices of the minimal element value along the specified
         axis.  If multiple elements contain the minimum, only the indices of
@@ -512,10 +524,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): the Tensor on which to find the minimum indices
-            axis (int, optional): the dimension along which to find the
-                                  minimum.  If set to None, we will
-                                  return the index relative to the 1-D
-                                  flattened version of the tensor.
+            axis (int): the dimension along which to find the minimum.  If set
+                        to None, we will return the index relative to the 1-D
+                        flattened version of the tensor.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -526,8 +537,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    @classmethod
-    def argmax(cls, tsr, axis, out):
+    def argmax(self, tsr, axis, out):
         """
         Calculates the indices of the maximal element value along the specified
         axis.  If multiple elements contain the maximum, only the indices of
@@ -535,10 +545,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): the Tensor on which to find the maximum index
-            axis (int, optional): the dimension along which to find the
-                                  maximum.  If set to None, we will
-                                  return the index the relative to the 1-D
-                                  flattened version of the tensor.
+            axis (int): the dimension along which to find the maximum.  If set
+                        to None, we will return the index relative to the 1-D
+                        flattened version of the tensor.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -549,21 +558,25 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def norm(self, tsr, order=None, axis=None):
+    def norm(self, tsr, order=None, axis=None, out=None):
         """
-        Calculates and returns the p-norm of the Tensor along the specified
-        axis.  The p-norm is defined on A as
+        Calculates and returns the vector p-norms of the Tensor along the
+        specified axis.  The p-norm is defined on vector A as
         :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
 
         Arguments:
-            tsr (Tensor): the Tensor on which to find the non-zero indices
-            order (int, optional): The order or p upon which the norm is
-                                   calculated.  Valid values include:
-                                   None, inf, -inf, 0, 1, -1, 2, -2, ...
-            axis (int, optional): The axis along which to compute the norm.
+            tsr (Tensor): the Tensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (Tensor, optional): where to write the results to.  Must be
+                                    of the expected result shape.  If not
+                                    specified, a new buffer is created and
+                                    returned.
 
         Returns:
-            Tensor: p-norm of tsr along the specified axis.
+            Tensor: p-norms of tsr along the specified axis.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -638,6 +651,7 @@ class Tensor(object):
         See Also:
             :py:func:`~neon.backends.backend.Tensor.take`,
         """
+        raise NotImplementedError()
 
     def __setitem__(self, key, value):
         """
@@ -663,6 +677,17 @@ class Tensor(object):
         See Also:
             :py:func:`~neon.backends.backend.Tensor.take`,
         """
+        raise NotImplementedError()
+
+    def asnumpyarray(self):
+        """
+        Convert the tensor to an in host memory `numpy.ndarray`.  A copy of the
+        data may be made depending on where the Tensor normally resides.
+
+        Returns:
+            numpy.ndarray view or copy of the Tensor data.
+        """
+        raise NotImplementedError()
 
     def reshape(self, shape):
         """
@@ -696,6 +721,7 @@ class Tensor(object):
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
+        raise NotImplementedError()
 
     def transpose(self):
         """

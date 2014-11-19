@@ -33,6 +33,7 @@ access metadata.
 
 .. autosummary::
 
+   neon.backends.backend.Backend.empty
    neon.backends.backend.Backend.array
    neon.backends.backend.Backend.zeros
    neon.backends.backend.Backend.ones
@@ -45,6 +46,7 @@ access metadata.
 
 .. autosummary::
 
+   neon.backends.backend.Tensor.asnumpyarray
    neon.backends.backend.Tensor.take
    neon.backends.backend.Tensor.__getitem__
    neon.backends.backend.Tensor.__setitem__

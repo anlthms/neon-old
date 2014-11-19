@@ -17,7 +17,7 @@ def speed_check(conf_file, num_epochs):
 
 
 if __name__ == '__main__':
-    result_cpu = speed_check('check_cpu.yaml', 18)
+    result_cpu = speed_check('check_cpu.yaml', 19)
     result_gpu = speed_check('check_gpu.yaml', 225)
     print 'cpu time: %.1fs, gpu time: %.1fs, total: %.1fs' % (
         result_cpu, result_gpu, result_cpu + result_gpu)
