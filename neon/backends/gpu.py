@@ -897,6 +897,13 @@ class GPU(Backend):
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
 
+    def rectlin(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+        self.multiply(x, out, out=out)
+
+    def rectlin_derivative(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+
     def fill(self, x, val):
         x._tensor[:] = val
 
