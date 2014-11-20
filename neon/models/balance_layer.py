@@ -1,21 +1,12 @@
-#from neon.models.layer import Layer
+from neon.models.layer import Layer
 import numpy as np
-from neon.transforms.logistic import Logistic as neonLogistic
-from neon.transforms.tanh import Tanh as neonTanh
-from neon.transforms.rectified import RectLin as neonRectlin
-from neon.transforms.linear import Identity and neonIdentity
+from neon.transforms.logistic import Logistic
+from neon.transforms.tanh import Tanh
+from neon.transforms.rectified import RectLin
+from neon.transforms.linear import Identity
 
 
-class Layer:
-    """Generic Layer class
-
-    Ensures inheriting classes implement a
-    forward() method.
-    """
-    def forward(self, X):
-        raise NotImplementedError()
-
-class NeuralLayer(Layer):
+class BalanceLayer(Layer):
     """Balance Network Layer
 
     Parameters
@@ -49,10 +40,15 @@ class NeuralLayer(Layer):
         rng=np.random.RandomState(817), dtype=np.float32):
         # Internal state variables for backward pass
         self.backend = backend
+
+        # Need batch size info to preallocate these variables
+        raise NotImplementedError
         self.X = None
         self.prestate = None
         self.state = None
-        self.epoch = 0
+        self.deriv = None
+        self.dWupdate = None
+        self.dbupdate = None
 
         if W is None:
             self.W = backend.array(np.sqrt(init_alpha/(n_input+n_output))*
@@ -93,8 +89,9 @@ class NeuralLayer(Layer):
             Output state from the layer
         """
         self.X = X
-        inputs = self.backend.append_bias(self.b)
-        self.backend.dot(self.X, self.W, self.pre_state)
+        #inputs = self.backend.append_bias(self.b)
+        self.backend.fprop_fc_dot(self.X, self.W, self.pre_state)
+        self.backend.add(self.pre_state, self.b, self.pre_state)
         self.nonlinear.apply_function(self.backend, self.prestate, self.state)
         return self.state
 
@@ -116,63 +113,60 @@ class NeuralLayer(Layer):
         dlossdhb : array-like, shape (n_samples, n_inputs)
             Derivative of the loss w.r.t the hidden state below
         """
-        deriv = self.nonlinear.apply_derivative(self.backend, self.prestate)
-        dlossdz = dlossdh*deriv
-        dWupdate = self.backend.dot(self.X.T, dlossdz)
-        dbupdate = self.backend.sum(dlossdz, axis=0)
+        self.nonlinear.apply_derivative(self.backend, self.prestate, self.deriv)
+        self.backend.multiply(dlossdh, deriv, self.dlossdz)
+        self.backend.dot(self.X.T, self.dlossdz, self.dWupdate)
+        self.backend.sum(dlossdz, axis=0, self.dbupdate)
         if accumulate:
-            self.backend.add(self.dlossdW, dWupdate, self.dlossdW)
-            self.backend.add(self.dlossdb, dbupdate, self.dlossdb)
+            self.backend.add(self.dlossdW, self.dWupdate, self.dlossdW)
+            self.backend.add(self.dlossdb, self.dbupdate, self.dlossdb)
         else:
-            self.dlossdW = dWupdate
-            self.dlossdb = dbupdate
+            # Is there a better way to do this value set?
+            self.backend.add(self.dWupdate, 0., self.dlossdW)
+            self.backend.add(self.dbupdate, 0., self.dlossdb)
         return self.backend.dot(dlossdz, self.W.T)
 
-    def update_b(self):
-        """Update bias parameters
+    def update(self, epoch):
+        """Update layer parameters
         """
-        self.b_lr.apply_rule(self.b, self.dlossdb, self.epoch)
-
-    def update_W(self):
-        """Update weight parameters
-        TODO : neon integration
-        """
-        self.W_lr.apply_rule(self.W, self.dlossdW, self.epoch)
-        raise NotImplementedError
+        self.b_lr.apply_rule(self.b, self.dlossdb, epoch)
+        self.W_lr.apply_rule(self.W, self.dlossdW, epoch)
         if self.max_norm is not None:
+            raise NotImplementedError
             w_norm = np.sqrt((self.W**2).sum(0,keepdims=True))
             w_norm[w_norm < self.max_norm] = self.max_norm
             self.W *= self.max_norm/w_norm
         if self.weight_clip is not None:
+            raise NotImplementedError
             self.W[self.W > self.weight_clip] = self.weight_clip
 
-class Softmax(NeuralLayer):
+class SoftmaxLayer(BalanceLayer):
     def __init__(self, *args):
         raise NotImplementedError
-        self.nonlinear = neonSoftMax()
-        super(Softmax, self).__init__(*args)
+        self.nonlinear = SoftMax()
+        super(SoftmaxLayer, self).__init__(*args)
 
-class Relu(NeuralLayer):
+class ReluLayer(BalanceLayer):
     def __init__(self, *args):
-        self.nonlinear = neonRectLin()
-        super(Relu, self).__init__(*args)
+        self.nonlinear = RectLin()
+        super(ReluLayer, self).__init__(*args)
 
-class Sigmoid(NeuralLayer):
+class SigmoidLayer(BalanceLayer):
     def __init__(self, *args):
-        self.nonlinear = neonLogistic()
-        super(Sigmoid, self).__init__(*args)
+        self.nonlinear = Logistic()
+        super(SigmoidLayer, self).__init__(*args)
 
-class Tanh(NeuralLayer):
+class TanhLayer(BalanceLayer):
     def __init__(self, *args):
-        self.nonlinear = neonTanh()
-        super(Tahn, self).__init__(*args)
+        self.nonlinear = Tanh()
+        super(TahnLayer, self).__init__(*args)
 
-class Linear(NeuralLayer):
+class LinearLayer(BalanceLayer):
     def __init__(self, *args):
-        self.nonlinear = neonIdentity()
-        super(Tahn, self).__init__(*args)
+        self.nonlinear = Identity()
+        super(LinearLayer, self).__init__(*args)
 
-class RankOut(NeuralLayer):
+class RankOut(BalanceLayer):
     def __init__(self, *args):
         raise NotImplementedError
     def nonlinear(self,X):
