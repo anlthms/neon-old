@@ -1,4 +1,7 @@
 #!/usr/bin/env/python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 from neon.backends.cpu import CPU, CPUTensor
 from neon.util.testing import assert_tensor_equal, assert_tensor_near_equal

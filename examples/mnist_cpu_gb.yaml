@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
 # model on MNIST.
 

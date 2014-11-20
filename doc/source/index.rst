@@ -1,3 +1,6 @@
+.. ---------------------------------------------------------------------------
+.. Copyright 2014 Nervana Systems Inc.  All rights reserved.
+.. ---------------------------------------------------------------------------
 .. neon documentation master file
 
 neon: A highly configurable ML library

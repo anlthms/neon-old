@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Top-level control of the building/installation/cleaning of various targets
 
 DOC_DIR=doc
@@ -99,7 +102,7 @@ dist:
 
 publish_doc: doc
 	-cd $(DOC_DIR)/build/html && \
-		rsync -avz -essh . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)
+		rsync -avz -essh --perms --chmod=ugo+rX . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)
 
 release: publish_doc
 	gitchangelog > ChangeLog

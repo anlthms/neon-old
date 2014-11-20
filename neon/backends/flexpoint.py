@@ -1,4 +1,7 @@
 # coding: utf-8
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Custom flexible decimal point (Flexpoint™) backend and Tensor class.  Has
 configurable integer and fraction bit width, rounding and overflow schemes.

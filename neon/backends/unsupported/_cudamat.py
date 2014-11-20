@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 A `cudamat <https://github.com/cudamat/cudamat>`_ GPU based backend.
 """

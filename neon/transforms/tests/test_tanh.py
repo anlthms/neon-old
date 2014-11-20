@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 from math import tanh as true_tanh
 
 from nose.plugins.attrib import attr
@@ -21,11 +24,8 @@ def test_tanh_cputensor():
 
 
 @attr('cuda')
-def test_tanh_cudamattensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
-    # with:
-    # from neon.backends.gpu import GPUTensor
+def test_tanh_gputensor():
+    from neon.backends.gpu import GPUTensor
     assert_tensor_near_equal(GPUTensor([true_tanh(0), true_tanh(1),
                                         true_tanh(-2)]),
                              tanh(GPUTensor([0, 1, -2])))
@@ -47,10 +47,7 @@ def test_tanh_derivative_cputensor():
 
 @attr('cuda')
 def test_tanh_derivative_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
-    # with:
-    # from neon.backends.gpu import GPUTensor
+    from neon.backends.gpu import GPUTensor
     assert_tensor_near_equal(GPUTensor([1 - true_tanh(0) ** 2,
                                         1 - true_tanh(1) ** 2,
                                         1 - true_tanh(-2) ** 2]),
