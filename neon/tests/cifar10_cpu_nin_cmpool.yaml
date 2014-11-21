@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Network in network implemented using cross-channel pooling. 
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {

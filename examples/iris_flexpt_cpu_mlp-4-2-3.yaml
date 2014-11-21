@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset, using flexpoint instead of float.
 # Simple network meant more as a sanity check.

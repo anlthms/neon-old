@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 from nose.plugins.attrib import attr
 import numpy as np
 
@@ -29,12 +32,11 @@ def test_rectlin_cputensor():
 
 @attr('cuda')
 def test_rectlin_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
-    # with:
-    # from neon.backends.gpu import GPUTensor
-    assert_tensor_equal(GPUTensor([[4, 0], [0, 9]]),
-                        rectlin(GPUTensor([[4, 0], [-2, 9]])))
+    from neon.backends.gpu import GPU, GPUTensor
+    be = GPU()
+    temp = be.zeros((2, 2))
+    be.rectlin(GPUTensor([[4, 0], [0, 9]]), temp)
+    assert_tensor_equal(GPUTensor([[4, 0], [0, 9]]), temp)
 
 
 def test_rectlin_derivative_positives():
@@ -61,9 +63,8 @@ def test_rectlin_derivative_cputensor():
 
 @attr('cuda')
 def test_rectlin_derivative_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import CudamatTensor as GPUTensor
-    # with:
-    # from neon.backends.gpu import GPUTensor
-    assert_tensor_equal(GPUTensor([[1, 0], [0, 1]]),
-                        rectlin_derivative(GPUTensor([[4, 0], [-2, 9]])))
+    from neon.backends.gpu import GPU, GPUTensor
+    be = GPU()
+    temp = be.zeros((2, 2))
+    be.rectlin_derivative(GPUTensor([[4, 0], [-2, 9]]), temp)
+    assert_tensor_equal(GPUTensor([[1, 0], [0, 1]]), temp)

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 This directory contains some sample neon experiment configuration files.
 
 The general process for running these is to first install neon into your

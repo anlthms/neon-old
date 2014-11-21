@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Simple multi-layer perceptron model.
 """
@@ -143,18 +146,24 @@ class MLPDist(MLP):
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
                 if self.comm.rank == 0:
-                    preds['train'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    train_shape = (self.outputs.major_axis(), 1)
+                    preds['train'] = dataset.backend.empty(train_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
                 if self.comm.rank == 0:
-                    preds['test'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    test_shape = (self.outputs.major_axis(), 1)
+                    preds['test'] = dataset.backend.empty(test_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
                 if self.comm.rank == 0:
-                    preds['validation'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    val_shape = (self.outputs.major_axis(), 1)
+                    preds['validation'] = dataset.backend.empty(val_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['validation'])
             if self.comm.rank == 0:
                 if len(preds) is 0:
                     logger.error(

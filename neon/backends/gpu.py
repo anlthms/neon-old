@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
@@ -5,8 +8,12 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
+from neon.util.compat import MPI_INSTALLED
+if MPI_INSTALLED:
+    from mpi4py import MPI
 import math
 import cudanet
+import os
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.error import TooSlowToImplementError
@@ -48,6 +55,10 @@ class GPUTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
+                if dtype not in (numpy.float32, numpy.int32) or dtype is None:
+                    logger.debug('Dtype %s is unsupported in GPU '
+                                 'backend, defaulting float32', dtype)
+                    obj = numpy.array(obj, dtype=numpy.float32)
                 self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
@@ -102,9 +113,9 @@ class GPUTensor(Tensor):
             complex to implement quickly).
         """
         res = self
-        fn = res._tensor.get_row_slice
+        fn = res._tensor.row_slice_view
         if dim == 1:
-            fn = res._tensor.get_col_slice
+            fn = res._tensor.col_slice_view
         if isinstance(_slice, int):
             _slice = slice(_slice, _slice + 1)
         if isinstance(_slice, slice):
@@ -423,18 +434,19 @@ class GPUTensor(Tensor):
     def copy(self):
         return GPUTensor(self._tensor.copy())
 
-    def raw(self):
-        self._tensor.copy_to_host()
+    def raw(self, dohostcopy=True):
+        if dohostcopy:
+            self._tensor.copy_to_host()
         return self._tensor.numpy_array
+
+    def copy_to_device(self):
+        self._tensor.copy_to_device()
 
     def transpose(self):
         return TransposedGPUTensor(self._tensor, self._tensor.T)
 
     def reshape(self, shape):
         return GPUTensor(self._tensor.reshape(shape))
-
-    def argmax(self, axis):
-        return GPUTensor(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
         """
@@ -601,6 +613,8 @@ class GPU(Backend):
         Returns:
             GPUTensor: newly created data structure reference
         """
+        if dtype is None:
+            dtype = numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.zeros(shape, dtype=dtype)))
 
@@ -618,10 +632,14 @@ class GPU(Backend):
         Returns:
             GPUTensor: newly created data structure reference
         """
+        if dtype is None:
+            dtype = numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
     def alloc(self, nrows, ncols, dtype=numpy.float32):
+        if dtype is None:
+            dtype = numpy.float32
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.zeros((ncols, nrows), dtype=dtype)))
 
@@ -651,12 +669,12 @@ class GPU(Backend):
             seed = self.rng_seed
         numpy.random.seed(seed)
         try:
-            cudanet.CUDAMatrix.init_random(seed)
+            cudanet.cudanet_init_random(seed)
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
                             "integer.  You specified: %s" % str(seed))
-            cudanet.CUDAMatrix.init_random(0)
+            cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
@@ -680,9 +698,6 @@ class GPU(Backend):
     def copy(self, a):
         assert type(a) == GPUTensor
         return a.copy()
-
-    def argmax(self, x, axis=None):
-        return GPUTensor(x._tensor.argmax(axis))
 
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
@@ -813,6 +828,44 @@ class GPU(Backend):
                  out._tensor)
         return out
 
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the GPUTensor along the
+        specified axis.  The p-norm is defined on a vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (GPUTensor, optional): where to write the results to.  Must be
+                                       of the expected result shape.  If not
+                                       specified, a new buffer is created and
+                                       returned.
+
+        Returns:
+            GPUTensor: p-norm of tsr along the specified axis.
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = self.max(self.fabs(tsr), axis)
+        elif order == float('-Inf'):
+            res = self.min(self.fabs(tsr), axis)
+        elif order == 0:
+            tmp = self.zeros(tsr.shape)
+            self.not_equal(tsr, tmp, tmp)
+            res = tmp.sum(axis)
+        else:
+            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            out = res
+        return out
+
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
 
@@ -821,6 +874,13 @@ class GPU(Backend):
 
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
+
+    def rectlin(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+        self.multiply(x, out, out=out)
+
+    def rectlin_derivative(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
         x._tensor[:] = val
@@ -868,6 +928,48 @@ class GPU(Backend):
             res = cudanet.max(x._tensor, axis, out)
 
         return GPUTensor(res)
+
+    def argmin(self, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the minimum indices
+            axis (int): The dimension along which to find the minimum.  If set
+                        to None, find the overall minimum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmin(axis)
+        out.shape = out._tensor.shape
+        return out
+
+    def argmax(self, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the maximum indices
+            axis (int): The dimension along which to find the maximum.  If set
+                        to None, find the overall maximum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmax(axis)
+        out.shape = out._tensor.shape
+        return out
 
     def fabs(self, x, out=None):
         if out is not None:
@@ -960,6 +1062,9 @@ class GPU(Backend):
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         raise NotImplementedError("TODO!")
 
+    def sync_stream(self):
+        cudanet.sync_stream()
+
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
         weights = None
@@ -1008,24 +1113,44 @@ class GPUDataDist(GPU):
     """
     helper sub-class for data parallel implementations
     """
-    def update_fc(self, deltas, inputs, out):
-        raise NotImplementedError
+    def __init__(self, **kwargs):
+        local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+        num_devices = cudanet.get_num_devices()
 
-        # super(GPUDataDist, self).update_fc(deltas, inputs, out)
+        if (local_size > num_devices):
+            logger.warning('Node %s: requested device: %d  max devices: %d' %
+                           (MPI.Get_processor_name(), local_size,
+                            num_devices))
+            raise AttributeError("Asking for more gpu devices than are "
+                                 "available on node")
+
+        cudanet.set_device_id(local_rank)
+        logger.info('Setting Device on %s to %d' %
+                    (MPI.Get_processor_name(), local_rank))
+        super(GPUDataDist, self).__init__(**kwargs)
+
+    def update_fc_dot(self, deltas, inputs, out):
+        super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        # For GPU version have to implement this without using reduce as cuda
-        # aware MPI does not support collective reduction
-        # out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
-        # This division by comm.size corresponds to following line in mlp bprop
-        # self.backend.divide(error,
-        #                    self.backend.wrap(targets.shape[
-        #                                      targets.major_axis()]),
-        #                    out=error)
-        # out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
+                                                  root=0)
+        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
+
+        out.copy_to_device()
 
     def update_conv(self, weights, inputs, error, updates, links, ifmshape,
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
-        raise NotImplementedError
+        super(GPUDataDist, self).update_conv(weights, inputs, error, updates,
+                                             links, ifmshape, ofmshape,
+                                             ofmlocs, padding, stride, nifm,
+                                             ngroups, fwidth, updatebuf)
+
+        updates.raw(False)[:] = MPI.COMM_WORLD.reduce(updates.raw(),
+                                                      op=MPI.SUM, root=0)
+        updates.raw(False)[:] = MPI.COMM_WORLD.bcast(updates.raw(False))
+
+        updates.copy_to_device()

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Simple multi-layer perceptron model.
 """
@@ -86,7 +89,7 @@ class MLP(Model):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
-            preds[batch:(batch+1)] = self.backend.argmax(outputs, axis=0)
+            self.backend.argmax(outputs, axis=0, out=preds[batch:(batch+1)])
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -151,8 +154,8 @@ class MLP(Model):
                                                 self.batch_size))
                     for batch in xrange(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
-                        labels[batch:(batch + 1)] = (
-                            self.backend.argmax(targets_batch, axis=0))
+                        self.backend.argmax(targets_batch, axis=0,
+                                            out=labels[batch:(batch + 1)])
                     misclass = ds.backend.empty(preds[item].shape)
                     ds.backend.not_equal(preds[item], labels, misclass)
                     self.result = ds.backend.mean(misclass)

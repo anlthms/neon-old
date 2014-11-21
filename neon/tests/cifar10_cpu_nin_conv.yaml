@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Network in network implemented using 1x1 convolutions.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {

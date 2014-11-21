@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 from nose.plugins.attrib import attr
 import numpy as np
 
@@ -20,11 +23,7 @@ def test_cross_entropy_cputensor():
 
 @attr('cuda')
 def test_cross_entropy_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import (Cudamat as GPU,  #flake8: noqa
-                                                    CudamatTensor as GPUTensor)
-    # with:
-    # from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.gpu import GPU, GPUTensor
     be = GPU(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = GPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = GPUTensor([0.5, 0.99, 0.01, 0.2])
@@ -49,11 +48,7 @@ def test_cross_entropy_derivative_cputensor():
 
 @attr('cuda')
 def test_cross_entropy_derivative_gputensor():
-    # TODO: fix cudanet init/shutdown then replace
-    from neon.backends.unsupported._cudamat import (Cudamat as GPU,
-                                                    CudamatTensor as GPUTensor)
-    # with:
-    # from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.gpu import GPU, GPUTensor
     be = GPU(rng_seed=0)
     outputs = GPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = GPUTensor([0.5, 0.99, 0.01, 0.2])

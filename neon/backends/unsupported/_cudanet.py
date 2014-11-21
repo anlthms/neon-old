@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 A `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_ GPU based backend.
 """

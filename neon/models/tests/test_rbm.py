@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Tests for restricted boltzmann machine (RBM)
 
@@ -21,16 +24,16 @@ from neon.util.compat import CUDA_GPU
 
 if CUDA_GPU:
     from neon.backends.gpu import GPU, GPUTensor
-    # TODO: fix be instantiation.  Currently can only do once over entire make
-    # test, otherwise we segfault!
-    be = GPU(rng_seed=0)
 
 
 class TestCudaRBM:
 
     @attr('cuda')
-    @nottest  # TODO: remove randomness
     def setup(self):
+
+        # TODO: remove randomness from expected target results
+        self.be = GPU(rng_seed=0)
+
         # reusable fake data
         self.inputs = GPUTensor(np.ones((2, 100)))
 
@@ -38,10 +41,10 @@ class TestCudaRBM:
         nin = 2
         conf = {'name': 'testlayer', 'num_nodes': 2,
                 'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
-        lr_params = {'learning_rate': 0.01, 'backend': be}
+        lr_params = {'learning_rate': 0.01, 'backend': self.be}
         thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], backend=be, batch_size=100,
+        self.layer = RBMLayer(conf['name'], backend=self.be, batch_size=100,
                               pos=0, learning_rule=thislr,
                               nin=nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
@@ -51,18 +54,18 @@ class TestCudaRBM:
         self.cost = SumSquaredDiffs()
 
     @attr('cuda')
-    @nottest  # TODO: remove randomness
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
-        target = [0.49962261,  0.481651,  0.49418432]
+        target = np.array([0.50785673,  0.50782728,  0.50173879],
+                          dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
     @attr('cuda')
-    @nottest  # TODO: remove randomness
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        target = [0.5003587,  0.50139761,  0.49878648]
+        target = np.array([0.50395203,  0.50397301,  0.50088155],
+                          dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 
     @attr('cuda')
@@ -70,8 +73,8 @@ class TestCudaRBM:
     def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        temp = [be.zeros(self.inputs.shape)]
-        thecost = self.cost.apply_function(be, self.inputs,
+        temp = [self.be.zeros(self.inputs.shape)]
+        thecost = self.cost.apply_function(self.be, self.inputs,
                                            self.layer.x_minus.take(range(
                                                self.layer.x_minus.shape[0] -
                                                1), axis=0), temp)
