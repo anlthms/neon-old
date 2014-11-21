@@ -94,6 +94,7 @@ class GradientChecker(Experiment):
                                              self.model.batch_size,
                                              self.model.layers[0].nin,
                                              self.model.layers[-1].nout)
+            self.datasets[0].set_batch_size(self.model.batch_size)
             self.datasets[0].backend = self.model.backend
             self.datasets[0].load()
 

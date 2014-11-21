@@ -154,6 +154,9 @@ class Dataset(object):
         return res
 
     def transpose_batches(self, data):
+        """
+        Transpose each minibatch within the dataset.
+        """
         bs = self.batch_size
         nbatches = (data.shape[0] + bs - 1) / bs
         nrows = data.shape[1]
@@ -183,3 +186,6 @@ class Dataset(object):
             item = self.targets[key]
             if item is not None:
                 self.targets[key] = self.transpose_batches(item)
+
+    def get_batch(self, data, batch):
+        return data[batch * data.nrows:(batch + 1) * data.nrows]

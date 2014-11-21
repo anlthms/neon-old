@@ -286,9 +286,6 @@ class CPUTensor(Tensor):
         else:
             return self.__class__(res)
 
-    def get_batch(self, batch):
-        return self[batch * self.nrows:(batch + 1) * self.nrows]
-
 
 class CPU(Backend):
 

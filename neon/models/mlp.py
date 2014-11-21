@@ -51,16 +51,17 @@ class MLP(Model):
 
         for layer in self.layers:
             logger.info("%s" % str(layer))
-        inputs = datasets[0].get_inputs(train=True)['train']
-        targets = datasets[0].get_targets(train=True)['train']
+        ds = datasets[0]
+        inputs = ds.get_inputs(train=True)['train']
+        targets = ds.get_targets(train=True)['train']
         assert 'batch_size' in self.__dict__
 
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(inputs.nbatches):
-                inputs_batch = inputs.get_batch(batch)
-                targets_batch = targets.get_batch(batch)
+                inputs_batch = ds.get_batch(inputs, batch)
+                targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
                 self.bprop(targets_batch, inputs_batch, epoch)
                 error += self.cost.apply_function(
@@ -79,13 +80,13 @@ class MLP(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def predict_set(self, inputs):
+    def predict_set(self, ds, inputs):
         preds = self.backend.empty((inputs.nbatches, self.batch_size))
         for batch in xrange(inputs.nbatches):
-            inputs_batch = inputs.get_batch(batch)
+            inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
-            preds[batch:(batch+1)] = self.backend.argmax(
-                self.layers[-1].output, axis=0)
+            outputs = self.layers[-1].output
+            preds[batch:(batch+1)] = self.backend.argmax(outputs, axis=0)
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -93,15 +94,16 @@ class MLP(Model):
         Generate and return predictions on the given datasets.
         """
         res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
+        for ds in datasets:
+            inputs = ds.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                preds['train'] = self.predict_set(inputs['train'])
+                preds['train'] = self.predict_set(ds, inputs['train'])
             if test and 'test' in inputs:
-                preds['test'] = self.predict_set(inputs['test'])
+                preds['test'] = self.predict_set(ds, inputs['test'])
             if validation and 'validation' in inputs:
-                preds['validation'] = self.predict_set(inputs['validation'])
+                preds['validation'] = self.predict_set(ds,
+                                                       inputs['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -148,7 +150,7 @@ class MLP(Model):
                     labels = self.backend.empty((targets[item].nbatches,
                                                 self.batch_size))
                     for batch in xrange(targets[item].nbatches):
-                        targets_batch = targets[item].get_batch(batch)
+                        targets_batch = ds.get_batch(targets[item], batch)
                         labels[batch:(batch + 1)] = (
                             self.backend.argmax(targets_batch, axis=0))
                     misclass = ds.backend.empty(preds[item].shape)

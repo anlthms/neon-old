@@ -508,9 +508,6 @@ class GPUTensor(Tensor):
         cudanet.exp(self._tensor, target)
         return GPUTensor(target)
 
-    def get_batch(self, batch):
-        return self[batch * self.nrows:(batch + 1) * self.nrows]
-
 
 class TransposedGPUTensor(GPUTensor):
 
