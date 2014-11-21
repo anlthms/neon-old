@@ -286,6 +286,9 @@ class CPUTensor(Tensor):
         else:
             return self.__class__(res)
 
+    def get_batch(self, batch):
+        return self[batch * self.nrows:(batch + 1) * self.nrows]
+
 
 class CPU(Backend):
 
@@ -785,9 +788,6 @@ class CPU(Backend):
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
                 out[ifmind, ofmind] = updatebuf
-
-    def format(self, raw):
-        return self.array(raw.transpose())
 
     def gen_weights(self, size, weight_params, dtype=None):
         weights = None

@@ -1428,7 +1428,8 @@ class LCNLayer(YAMLable):
                 rflinks = self.conv.rlinks[dst]
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc, :], filt.transpose(), out=self.prodbuf)
+                self.backend.multiply(error[loc, :], filt.transpose(),
+                                      out=self.prodbuf)
                 self.exerror[rflinks, :] -= self.prodbuf
         self.reshape_error()
 
@@ -1458,7 +1459,8 @@ class LCNLayer(YAMLable):
                 rrexinputs = self.rexinputs.reshape(
                     (self.nifm * self.exifmsize, self.batch_size))
                 frame = rrexinputs.take(rflinks, axis=0)
-                self.backend.multiply(frame, self.filters.transpose(), out=frame)
+                self.backend.multiply(frame, self.filters.transpose(),
+                                      out=frame)
                 self.backend.multiply(frame, self.diverror[loc, :], out=frame)
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))

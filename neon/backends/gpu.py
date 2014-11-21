@@ -508,6 +508,9 @@ class GPUTensor(Tensor):
         cudanet.exp(self._tensor, target)
         return GPUTensor(target)
 
+    def get_batch(self, batch):
+        return self[batch * self.nrows:(batch + 1) * self.nrows]
+
 
 class TransposedGPUTensor(GPUTensor):
 
@@ -959,9 +962,6 @@ class GPU(Backend):
 
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         raise NotImplementedError("TODO!")
-
-    def format(self, raw):
-        return self.array(raw.transpose().copy())
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.

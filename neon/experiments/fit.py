@@ -43,6 +43,7 @@ class FitExperiment(Experiment):
         # load and/or deserialize any unloaded datasets
         for ds_idx in range(len(self.datasets)):
             ds = self.datasets[ds_idx]
+            ds.set_batch_size(self.model.batch_size)
             if not hasattr(ds, 'backend'):
                 ds.backend = self.backend
             if hasattr(ds, 'serialized_path'):

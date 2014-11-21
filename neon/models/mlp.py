@@ -3,7 +3,6 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import math
 
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED
@@ -54,48 +53,40 @@ class MLP(Model):
             logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
-        nrecs = inputs.shape[1]
         assert 'batch_size' in self.__dict__
 
-        # we may include 1 smaller-sized partial batch if num recs is not an
-        # exact multiple of batch size.
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[:, start_idx:end_idx])
-                self.bprop(targets[:, start_idx:end_idx],
-                           inputs[:, start_idx:end_idx],
-                           epoch)
+            for batch in xrange(inputs.nbatches):
+                inputs_batch = inputs.get_batch(batch)
+                targets_batch = targets.get_batch(batch)
+                self.fprop(inputs_batch)
+                self.bprop(targets_batch, inputs_batch, epoch)
                 error += self.cost.apply_function(
                     self.backend, self.layers[-1].output,
-                    targets[:, start_idx:end_idx],
+                    targets_batch,
                     self.temp)
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f' %
-                                (epoch, error / num_batches /
+                                (epoch, error / inputs.nbatches /
                                     MPI.COMM_WORLD.size))
             else:
                 logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))
+                            (epoch, error / inputs.nbatches))
             for layer in self.layers:
                 logger.debug("%s", layer)
 
     def predict_set(self, inputs):
-        nrecs = inputs.shape[1]
-        outputs = self.backend.empty((self.layers[-1].nout, nrecs))
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for batch in xrange(num_batches):
-            start_idx = batch * self.batch_size
-            end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs[:, start_idx:end_idx])
-            outputs[:, start_idx:end_idx] = self.layers[-1].output
-        return outputs
+        preds = self.backend.empty((inputs.nbatches, self.batch_size))
+        for batch in xrange(inputs.nbatches):
+            inputs_batch = inputs.get_batch(batch)
+            self.fprop(inputs_batch)
+            preds[batch:(batch+1)] = self.backend.argmax(
+                self.layers[-1].output, axis=0)
+        return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -106,17 +97,11 @@ class MLP(Model):
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=0)
+                preds['train'] = self.predict_set(inputs['train'])
             if test and 'test' in inputs:
-                outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=0)
+                preds['test'] = self.predict_set(inputs['test'])
             if validation and 'validation' in inputs:
-                outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=0)
+                preds['validation'] = self.predict_set(inputs['validation'])
             if len(preds) is 0:
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
@@ -160,10 +145,14 @@ class MLP(Model):
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
+                    labels = self.backend.empty((targets[item].nbatches,
+                                                self.batch_size))
+                    for batch in xrange(targets[item].nbatches):
+                        targets_batch = targets[item].get_batch(batch)
+                        labels[batch:(batch + 1)] = (
+                            self.backend.argmax(targets_batch, axis=0))
                     misclass = ds.backend.empty(preds[item].shape)
-                    ds.backend.not_equal(preds[item], ds.backend.argmax(
-                        targets[item], axis=0),
-                        misclass)
+                    ds.backend.not_equal(preds[item], labels, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))
