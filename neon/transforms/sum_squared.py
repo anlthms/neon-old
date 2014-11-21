@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Sum of squares transform functions and classes.
 """

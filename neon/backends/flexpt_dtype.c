@@ -1,3 +1,8 @@
+/*
+ * ---------------------------------------------------------------------------
+ * Copyright 2014 Nervana Systems Inc.  All rights reserved.
+ * ---------------------------------------------------------------------------
+ */
 /* Flexpoint decimal number type for use within Numpy */
 
 #define NPY_NO_DEPRECATED_API NPY_API_VERSION

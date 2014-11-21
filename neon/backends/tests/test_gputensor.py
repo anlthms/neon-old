@@ -1,4 +1,7 @@
 #!/usr/bin/env/python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 from nose.plugins.attrib import attr
 from nose.tools import nottest
@@ -46,7 +49,7 @@ class TestGPUTensor(object):
     @attr('cuda')
     def test_str(self):
         tns = GPUTensor([[1, 2], [3, 4]])
-        assert str(tns) == "[[1 2]\n [3 4]]"
+        assert str(tns) == "[[ 1.  2.]\n [ 3.  4.]]"
 
     @attr('cuda')
     @nottest  # TODO: fix this comparison

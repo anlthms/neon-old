@@ -1,19 +1,26 @@
-# ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
-# ----------------------------------------------------------------------------
+# Data parallel version of convnet
 # Experiment settings to train/test a CNN on MNIST.
+# Run with 3 MPI-processes (num_procs) if using this yaml file
+# change batch-size accordingly if running with diff num_procs.
+# model batch size should be datasets.batch_size / num_procs
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
+  dist_flag: &df True,
+  backend: &be !obj:neon.backends.gpu.GPUDataDist {
     rng_seed: 0,
   },
 
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
+      dist_flag: *df,
+      dist_mode: &dm 'datapar', # data parallel
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
+      # datapar specific parameters
+      batch_size: 300,
+      num_test_sample: 9000,
     },
   ],
   
@@ -21,31 +28,26 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 5,
-    batch_size: &bs 100,
+    num_epochs: 10,
+    dist_mode: *dm,
+    batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    # serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer1lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: l1lr,
           lr_params: {
             learning_rate: &lr 0.01,
             backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
           },
         },
         nifm: 1,
-        nofm: 16,
+        nofm: 32,
         ifmshape: [28, 28],
         fshape: [5, 5],
         stride: 1,
@@ -60,7 +62,7 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nifm: 16,
+        nifm: 32,
         ifmshape: [24, 24],
         fshape: [2, 2],
         stride: 2,
@@ -70,16 +72,15 @@
         backend: *be,
         batch_size: *bs,
         pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: l3lr,
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: *mm,
           },
         },
-        nifm: 16,
-        nofm: 32,
+        nifm: 32,
+        nofm: 64,
         ifmshape: [12, 12],
         fshape: [5, 5],
         stride: 1,
@@ -94,7 +95,7 @@
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        nifm: 32,
+        nifm: 64,
         ifmshape: [8, 8],
         fshape: [2, 2],
         stride: 2,
@@ -105,14 +106,20 @@
         batch_size: *bs,
         pos: 4,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
+          name: l4lr,
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: *mm,
+            momentum_params: &mm {
+              type: linear_monotone, #constant, nesterov
+              initial_coef: 0.99,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0.90,
+            },
           },
         },
-        nin: 512, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 1024, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
@@ -127,10 +134,10 @@
         batch_size: *bs,
         pos: 5,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
+          name: l5lr,
           lr_params: {
-            learning_rate: *lr,
             backend: *be,
+            learning_rate: *lr,
             momentum_params: *mm,
           },
         },

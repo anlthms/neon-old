@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 import numpy as np
 import os
@@ -21,7 +24,10 @@ except:
     pass
 
 if write_version:
-    txt = "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
+    txt = "# " + ("-" * 78) + "\n"
+    txt += "# " + "Copyright 2014 Nervana Systems Inc. All rights reserved.\n"
+    txt += "# " + ("-" * 78) + "\n"
+    txt += "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
     fname = os.path.join(os.path.dirname(__file__), 'neon', 'version.py')
     a = open(fname, 'w')
     try:

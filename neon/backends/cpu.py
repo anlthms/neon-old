@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Our CPU based backend interface and tensor data structure.  Our implementation
 wraps :mod:`numpy` ndarray and related operations

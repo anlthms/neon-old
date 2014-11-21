@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Tests for restricted boltzmann machine (RBM)
 
@@ -53,14 +56,16 @@ class TestCudaRBM:
     @attr('cuda')
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
-        target = [0.50244683,  0.49755681,  0.49974191]
+        target = np.array([0.50785673,  0.50782728,  0.50173879],
+                          dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
     @attr('cuda')
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        target = [0.50395203,  0.50397301,  0.50088155]
+        target = np.array([0.50395203,  0.50397301,  0.50088155],
+                          dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 
     @attr('cuda')

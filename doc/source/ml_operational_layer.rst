@@ -1,3 +1,6 @@
+.. ---------------------------------------------------------------------------
+.. Copyright 2014 Nervana Systems Inc.  All rights reserved.
+.. ---------------------------------------------------------------------------
 .. currentmodule:: neon
 
 .. |Tensor| replace:: :py:class:`~neon.backends.backend.Tensor`

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Experiment in which a model is trained (parameters learned), then performance
 is evaluated on the predictions made.

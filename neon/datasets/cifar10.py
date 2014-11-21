@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 CIFAR-10 contains color images of 10 classes.
 More info at: http://www.cs.toronto.edu/~kriz/cifar.html
