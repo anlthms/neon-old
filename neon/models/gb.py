@@ -23,10 +23,9 @@ class GB(MLP):
     Google Brain class
     """
 
-    def pretrain(self, inputs):
+    def pretrain(self, ds, inputs):
         start_time = time.time()
         logger.debug('commencing unsupervised pretraining')
-        num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
@@ -35,11 +34,9 @@ class GB(MLP):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in xrange(num_batches):
+                for batch in xrange(inputs.nbatches):
                     logger.debug('batch = %d' % (batch))
-                    start_idx = batch * self.batch_size
-                    end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                    output = inputs[start_idx:end_idx]
+                    output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in xrange(self.trainable_layers[ind]):
@@ -53,9 +50,9 @@ class GB(MLP):
                 tcost = trcost + tspcost
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
                             ' %0.2f' % (self.trainable_layers[ind], epoch,
-                                        trcost / num_batches, tspcost /
-                                        num_batches,
-                                        tcost / num_batches))
+                                        trcost / inputs.nbatches,
+                                        tspcost / inputs.nbatches,
+                                        tcost / inputs.nbatches))
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
@@ -69,36 +66,31 @@ class GB(MLP):
             if isinstance(layer, LocalFilteringLayer):
                 layer.train_mode()
 
-    def train(self, inputs, targets):
+    def train(self, ds, inputs, targets):
         """
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
+        tempbuf = self.backend.empty((targets.nrows, self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
-        num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
+            for batch in xrange(inputs.nbatches):
                 logger.debug('batch = %d' % (batch))
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                self.fprop(inputs[start_idx:end_idx])
+                inputs_batch = ds.get_batch(inputs, batch)
+                targets_batch = ds.get_batch(targets, batch)
+                self.fprop(inputs_batch)
                 if epoch < self.num_initial_epochs:
-                    self.bprop_last(targets[start_idx:end_idx],
-                                    inputs[start_idx:end_idx],
-                                    epoch)
+                    self.bprop_last(targets_batch, inputs_batch, epoch)
                 else:
-                    self.bprop(targets[start_idx:end_idx],
-                               inputs[start_idx:end_idx],
-                               epoch)
+                    self.bprop_last(targets_batch, inputs_batch, epoch)
                 error += self.cost.apply_function(self.backend,
                                                   self.layers[-1].output,
-                                                  targets[start_idx:end_idx],
+                                                  targets_batch,
                                                   self.temp)
             logger.info('epoch: %d, training error: %0.5f' %
-                        (epoch, error / num_batches))
+                        (epoch, error / inputs.nbatches))
         end_time = time.time()
         logger.info('Time taken: %0.2f' % (end_time - start_time))
 
@@ -169,11 +161,11 @@ class GB(MLP):
         self.layers[-1].bprop(error, self.layers[-2].output, epoch)
 
     def fit(self, datasets):
-        inputs = datasets[0].get_inputs(train=True)['train']
-        self.nrecs, self.nin = inputs.shape
+        ds = datasets[0]
+        inputs = ds.get_inputs(train=True)['train']
+        self.nin, self.nrecs = inputs.shape
         self.nlayers = len(self.layers)
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = self.nrecs
+        assert 'batch_size' in self.__dict__
         self.trainable_layers = []
         for ind in xrange(self.nlayers):
             layer = self.layers[ind]
@@ -181,17 +173,17 @@ class GB(MLP):
                 self.trainable_layers.append(ind)
             logger.info('created layer:\n\t%s' % str(layer))
 
-        targets = datasets[0].get_targets(train=True)['train']
+        targets = ds.get_targets(train=True)['train']
         if self.pretraining:
-            self.pretrain(inputs)
+            self.pretrain(ds, inputs)
             if self.visualize:
                 self.compute_optimal_stimulus()
         if self.spot_check:
-            test_inputs = datasets[0].get_inputs(test=True)['test']
-            test_targets = datasets[0].get_targets(test=True)['test']
+            test_inputs = ds.get_inputs(test=True)['test']
+            test_targets = ds.get_targets(test=True)['test']
             self.check_predictions(inputs, targets, test_inputs, test_targets)
         if self.num_epochs > 0:
-            self.train(inputs, targets)
+            self.train(ds, inputs, targets)
 
     def normalize(self, data):
         norms = self.backend.norm(data, 2, axis=1)

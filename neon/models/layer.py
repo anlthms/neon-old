@@ -832,9 +832,9 @@ class LocalFilteringLayer(LocalLayer):
                 # size-guide
                 # self.delta.take: # mbs x nofm
                 # self.weights.take: # (nofm x fsize )
-                self.backend.dot(self.weights.take(self.ofmlocs[dst], axis=0),
-                                 error.take(self.ofmlocs[dst], axis=0),
-                                 self.bpropbuf)
+                self.backend.dot(
+                    self.weights.take(self.ofmlocs[dst], axis=0).transpose(),
+                    error.take(self.ofmlocs[dst], axis=0), self.bpropbuf)
                 rflinks = self.rlinks[dst]
                 self.backend.add(self.bpropbuf,
                                  self.berror.take(rflinks, axis=0),
@@ -844,8 +844,8 @@ class LocalFilteringLayer(LocalLayer):
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
             delta_slice = error.take(self.ofmlocs[dst], axis=0)
-            self.backend.dot(inputs.take(rflinks, axis=0),
-                             delta_slice.transpose(),
+            self.backend.dot(delta_slice,
+                             inputs.take(rflinks, axis=0).transpose(),
                              out=self.updatebuf)
             self.updates[self.ofmlocs[dst]] = self.updatebuf
 
@@ -998,17 +998,17 @@ class LocalDeFilteringLayer(object):
     """
 
     def __init__(self, prev, tied_weights):
-        self.output = prev.backend.zeros((prev.batch_size, prev.nin))
+        self.output = prev.backend.zeros((prev.nin, prev.batch_size))
         if tied_weights is True:
             # Share the weights with the previous layer.
             self.weights = prev.weights
         else:
             self.weights = prev.weights.copy()
         self.updates = prev.backend.zeros(self.weights.shape)
-        self.prodbuf = prev.backend.zeros((prev.batch_size, prev.fsize))
-        self.bpropbuf = prev.backend.zeros((prev.batch_size, prev.nofm))
+        self.prodbuf = prev.backend.zeros((prev.fsize, prev.batch_size))
+        self.bpropbuf = prev.backend.zeros((prev.nofm, prev.batch_size))
         self.updatebuf = prev.backend.zeros((prev.nofm, prev.fsize))
-        self.berror = prev.backend.zeros((prev.batch_size, prev.nout))
+        self.berror = prev.backend.zeros((prev.nout, prev.batch_size))
         self.temp = [prev.backend.zeros(self.output.shape)]
         self.learning_rule = prev.learning_rule
         self.learning_rule.set_pretrain_mode(True)
@@ -1023,28 +1023,27 @@ class LocalDeFilteringLayer(object):
             # size guide:
             # inputs[:, self.prev.ofmlocs[dst]]: mbs x nout -> mbs x nofm
             # self.weights.take: nofm x ifmsize
-            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]],
-                             self.weights.take(self.prev.ofmlocs[dst],
-                                               axis=0),
+            self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
+                                               axis=0).transpose(),
+                             inputs[self.prev.ofmlocs[dst], :],
                              out=self.prodbuf)
-            self.output[:, rflinks] += self.prodbuf
+            self.output[rflinks, :] += self.prodbuf
 
     def bprop(self, error, inputs, epoch):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
-            self.backend.dot(error[:, rflinks],
-                             self.weights.take(self.prev.ofmlocs[dst],
-                                               axis=0).transpose(),
+            self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
+                                               axis=0),
+                             error[rflinks, :],
                              out=self.bpropbuf)
-            self.berror[:, self.prev.ofmlocs[dst]] = self.bpropbuf
-            delta_slice = error[:, rflinks]
-            self.backend.dot(inputs[:, self.prev.ofmlocs[dst]].transpose(),
-                             delta_slice,
+            self.berror[self.prev.ofmlocs[dst], :] = self.bpropbuf
+            delta_slice = error[rflinks, :]
+            self.backend.dot(inputs[self.prev.ofmlocs[dst], :],
+                             delta_slice.transpose(),
                              out=self.updatebuf)
             self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-
         self.prev.normalize_weights(self.weights)
 
 
