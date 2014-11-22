@@ -678,12 +678,8 @@ class CPU(Backend):
                         representation of tsr.
             out (CPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
-
-        Returns:
-            CPUTensor: reference to out
         """
         out._tensor[:] = np.argmin(tsr._tensor, axis)
-        return out
 
     def argmax(self, tsr, axis, out):
         """
@@ -698,12 +694,8 @@ class CPU(Backend):
                         representation of tsr.
             out (CPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
-
-        Returns:
-            CPUTensor: reference to out
         """
         out._tensor[:] = np.argmax(tsr._tensor, axis)
-        return out
 
     def fabs(self, x, out=None):
         if out is not None:

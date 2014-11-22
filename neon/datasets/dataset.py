@@ -10,6 +10,7 @@ import os
 
 from neon.backends.cpu import CPU
 from neon.util.compat import PY3
+import neon.backends.gpu
 
 if PY3:
     import urllib.request as urllib
@@ -165,8 +166,10 @@ class Dataset(object):
         nrows = data.shape[1]
         batchwise = self.backend.zeros((nbatches * nrows, bs))
         for batch in xrange(nbatches):
-            batchdata = self.backend.array(
-                data[batch * bs:(batch + 1) * bs].transpose())
+            rawbatchdata = data[batch * bs:(batch + 1) * bs].transpose()
+            if type(self.backend) == neon.backends.gpu.GPU:
+                rawbatchdata = rawbatchdata.copy()
+            batchdata = self.backend.array(rawbatchdata)
             ncols = batchdata.shape[1]
             assert ncols == bs
             batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = batchdata

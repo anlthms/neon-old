@@ -942,13 +942,8 @@ class GPU(Backend):
                         representation of tsr.
             out (GPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
-
-        Returns:
-            GPUTensor: reference to out
         """
-        out._tensor = tsr._tensor.argmin(axis)
-        out.shape = out._tensor.shape
-        return out
+        tsr._tensor.argmin(axis, target=out._tensor)
 
     def argmax(self, tsr, axis, out):
         """
@@ -963,13 +958,8 @@ class GPU(Backend):
                         representation of tsr.
             out (GPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
-
-        Returns:
-            GPUTensor: reference to out
         """
-        out._tensor = tsr._tensor.argmax(axis)
-        out.shape = out._tensor.shape
-        return out
+        tsr._tensor.argmax(axis, target=out._tensor)
 
     def fabs(self, x, out=None):
         if out is not None:
