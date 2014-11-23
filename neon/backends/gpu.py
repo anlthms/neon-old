@@ -1006,32 +1006,33 @@ class GPU(Backend):
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
 
-    def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
+    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool(
             inputs._tensor, outputs._tensor, nfm, fshape[1],
             padding, stride, ofmshape[1])
 
-    def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
-                    ofmshape, fshape, padding, stride, nfm, maxinds):
+    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+    def fprop_apool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm):
+    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def bprop_l2pool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm, prodbuf):
+    def bprop_l2pool(self, outputs, error, berror, berrorbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride,
+                     nfm, prodbuf):
         raise NotImplementedError("TODO!")
 
     def fprop_fc(self, inputs, weights, out):

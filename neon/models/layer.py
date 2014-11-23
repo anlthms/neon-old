@@ -1149,15 +1149,15 @@ class L2PoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_l2pool(
-            inputs, self.output, self.links,
+            inputs, self.output, self.outputbuf, self.links,
             self.ifmshape, self.ofmshape, self.fshape,
             0, self.stride, self.nifm)
 
     def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             self.backend.bprop_l2pool(
-                inputs, self.output, error, self.berror, self.links,
-                self.ifmshape, self.ofmshape, self.fshape,
+                inputs, self.output, error, self.berror, self.berrorbuf,
+                self.links, self.ifmshape, self.ofmshape, self.fshape,
                 0, self.stride, self.nifm, self.prodbuf)
 
 
@@ -1217,14 +1217,14 @@ class AveragePoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_apool(
-            inputs, self.output, self.links,
+            inputs, self.output, self.outputbuf, self.links,
             self.ifmshape, self.ofmshape, self.fshape,
             0, self.stride, self.nifm)
 
     def bprop(self, error, inputs, epoch):
         if self.pos > 0:
             self.backend.bprop_apool(
-                self.output, error, self.berror, self.links,
+                self.output, error, self.berror, self.berrorbuf, self.links,
                 self.ifmshape, self.ofmshape, self.fshape,
                 0, self.stride, self.nifm)
 

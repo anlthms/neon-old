@@ -247,10 +247,6 @@ class CPUTensor(Tensor):
                               dtype=self._tensor.dtype)
 
     def reshape(self, shape):
-        # TODO: Some layer code (ex. PoolingLayer) currently depends
-        # on squish/reshape always returning a view of the existing
-        # data, but numpy.reshape does not guarantee this.  We should remove
-        # reliance on this dependency.
         return self.__class__(self._tensor.reshape(shape),
                               dtype=self._tensor.dtype)
 
@@ -822,38 +818,38 @@ class CPU(Backend):
                 inds = rflinks.take(maxfm[dst, :], axis=0)
                 ifm[inds, range(ifm.shape[1])] += ofm[dst, :]
 
-    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        rinputs = self.squish(inputs, nfm)
-        routputs = self.squish(outputs, nfm)
+    def fprop_apool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
+        rinputs = self.hstack_maps(inputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
-            routputs[dst, :] = rf.mean(axis=0)
+            outputsbuf[dst, :] = rf.mean(axis=0)
+        outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
-    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        self.fill(berror, 0.0)
+    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
+        self.fill(berrorbuf, 0.0)
         error /= fshape[0] * fshape[1]
-        rberror = self.squish(berror, nfm)
-        rerror = self.squish(error, nfm)
+        rerror = self.hstack_maps(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            rberror[links[dst], :] += rerror[dst:(dst + 1), :]
+            berrorbuf[links[dst], :] += rerror[dst:(dst + 1), :]
+        berror[:] = self.vstack_maps(berrorbuf, nfm)
 
-    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm):
-        rinputs = self.squish(inputs, nfm)
-        routputs = self.squish(outputs, nfm)
+    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride, nfm):
+        rinputs = self.hstack_maps(inputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
-            routputs[dst, :] = self.norm(rf, 2, axis=0)
+            outputsbuf[dst, :] = self.norm(rf, 2, axis=0)
+        outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
-    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
-                     ofmshape, fshape, padding, stride, nfm, prodbuf):
-        rinputs = self.squish(inputs, nfm)
-        routputs = self.squish(outputs, nfm)
-        rberror = self.squish(berror, nfm)
-        rerror = self.squish(error, nfm)
-        self.fill(berror, 0.0)
+    def bprop_l2pool(self, inputs, outputs, error, berror, berrorbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride,
+                     nfm, prodbuf):
+        rinputs = self.hstack_maps(inputs, nfm)
+        routputs = self.hstack_maps(outputs, nfm)
+        rerror = self.hstack_maps(error, nfm)
+        self.fill(berrorbuf, 0.0)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=0)
@@ -866,7 +862,8 @@ class CPU(Backend):
             self.multiply(
                 rerror[dst:(dst + 1), :].repeat(fshape[0] * fshape[1], axis=0),
                 rf, out=prodbuf)
-            rberror[inds, :] += prodbuf
+            berrorbuf[inds, :] += prodbuf
+        berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_fc(self, inputs, weights, out):
         self.dot(weights, inputs, out)
