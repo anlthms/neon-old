@@ -60,7 +60,7 @@ class Layer(YAMLable):
         self.weight_dtype = weight_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        self.updates = self.backend.zeros((nout, nin), updates_dtype)
+        self.updates = self.backend.zeros(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
         self.pre_act = self.backend.empty((self.nout, batch_size),
                                           pre_act_dtype)

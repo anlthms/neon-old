@@ -166,13 +166,13 @@ class Dataset(object):
         nrows = data.shape[1]
         batchwise = self.backend.zeros((nbatches * nrows, bs))
         for batch in xrange(nbatches):
-            rawbatchdata = data[batch * bs:(batch + 1) * bs].transpose()
+            batchdata = data[batch * bs:(batch + 1) * bs].transpose()
             if type(self.backend) == neon.backends.gpu.GPU:
-                rawbatchdata = rawbatchdata.copy()
-            batchdata = self.backend.array(rawbatchdata)
+                batchdata = batchdata.copy()
             ncols = batchdata.shape[1]
             assert ncols == bs
-            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = batchdata
+            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = (
+                self.backend.array(batchdata))
         batchwise.nbatches = nbatches
         batchwise.nrows = nrows
         return batchwise
