@@ -715,11 +715,21 @@ class CPU(Backend):
         np.multiply(x._tensor, x._tensor, out._tensor)
         np.multiply(out._tensor, x._tensor, out._tensor)
 
-    def squish(self, obj, n):
-        """ reshape a tensor by increasing the first dimensions by factor n,
-        and shrinking the the second dimension by factor n."""
-        assert obj.shape[0] % n == 0
-        return obj.reshape((obj.shape[0] / n, obj.shape[1] * n))
+    # Not part of the API - can be moved to a utility class.
+    def hstack_maps(self, obj, nfm):
+        """
+        Stack the feature maps horizontally.
+        """
+        assert obj.shape[0] % nfm == 0
+        return self.tensor_cls(np.hstack(np.vsplit(obj._tensor, nfm)))
+
+    # Not part of the API - can be moved to a utility class.
+    def vstack_maps(self, obj, nfm):
+        """
+        Stack the feature maps vertically.
+        """
+        assert obj.shape[1] % nfm == 0
+        return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
@@ -754,10 +764,9 @@ class CPU(Backend):
                      out=updatebuf)
             self.add(updates, updatebuf, out=updates)
 
-    def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
-        rinputs = self.squish(inputs, nfm)
-        routputs = self.squish(outputs, nfm)
+    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        rinputs = self.hstack_maps(inputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
@@ -766,17 +775,52 @@ class CPU(Backend):
             maxinds[dst, :] = rf.argmax(axis=0)
             # Set the pre-activations to the maximum value.
             maxvals = rf[maxinds[dst, :], range(rf.shape[1])]
-            routputs[dst, :] = maxvals
+            outputsbuf[dst, :] = maxvals
+        outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
-    def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
-                    ofmshape, fshape, padding, stride, nfm, maxinds):
-        self.fill(berror, 0.0)
-        rberror = self.squish(berror, nfm)
-        rerror = self.squish(error, nfm)
+    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        self.fill(berrorbuf, 0.0)
+        rerror = self.hstack_maps(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[dst, :], axis=0)
-            rberror[inds, range(rberror.shape[1])] += rerror[dst, :]
+            berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst, :]
+        berror[:] = self.vstack_maps(berrorbuf, nfm)
+
+    # Alternate implementation of max pooling fprop. To be deleted.
+    def fprop_mpool2(self, inputs, outputs, links, ifmshape, ofmshape,
+                     fshape, padding, stride, nfm, maxinds):
+        ifmsize = ifmshape[0] * ifmshape[1]
+        ofmsize = ofmshape[0] * ofmshape[1]
+        for fmind in xrange(nfm):
+            ifm = inputs[fmind * ifmsize:(fmind + 1) * ifmsize]
+            ofm = outputs[fmind * ofmsize:(fmind + 1) * ofmsize]
+            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
+            for dst in xrange(ofmsize):
+                # For this output unit, get the corresponding receptive field
+                # within the input feature map.
+                rf = ifm.take(links[dst], axis=0)
+                # Save the index of the maximum value.
+                maxfm[dst, :] = rf.argmax(axis=0)
+                # Set the pre-activations to the maximum value.
+                maxvals = rf[maxinds[dst, :], range(rf.shape[1])]
+                ofm[dst, :] = maxvals
+
+    # Alternate implementation of max pooling bprop. To be deleted.
+    def bprop_mpool2(self, inputs, outputs, error, berror, links, ifmshape,
+                     ofmshape, fshape, padding, stride, nfm, maxinds):
+        self.fill(berror, 0.0)
+        ifmsize = ifmshape[0] * ifmshape[1]
+        ofmsize = ofmshape[0] * ofmshape[1]
+        for fmind in xrange(nfm):
+            ifm = berror[fmind * ifmsize:(fmind + 1) * ifmsize]
+            ofm = error[fmind * ofmsize:(fmind + 1) * ofmsize]
+            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
+            for dst in xrange(ofmsize):
+                rflinks = links[dst]
+                inds = rflinks.take(maxfm[dst, :], axis=0)
+                ifm[inds, range(ifm.shape[1])] += ofm[dst, :]
 
     def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
                     fshape, padding, stride, nfm):

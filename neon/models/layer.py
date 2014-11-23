@@ -448,6 +448,7 @@ class LocalLayer(YAMLable):
         self.nin = nifm * self.ifmsize
         if pos > 0:
             self.berror = backend.empty((self.nin, batch_size))
+            self.berrorbuf = backend.empty((self.ifmsize, batch_size * nifm))
 
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
@@ -460,6 +461,10 @@ class LocalLayer(YAMLable):
         if pooling is True:
             self.links = backend.zeros(
                 (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+            self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
+            if pos > 0:
+                self.berrorbuf = backend.empty((self.ifmsize,
+                                               batch_size * nifm))
         else:
             self.links = backend.zeros(
                 (self.ofmsize, self.fsize), dtype='i32')
@@ -1079,7 +1084,7 @@ class MaxPoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_mpool(
-            inputs, self.output, self.links,
+            inputs, self.output, self.outputbuf, self.links,
             self.ifmshape, self.ofmshape, self.fshape, 0,
             self.stride, self.nifm, self.maxinds)
 
@@ -1087,8 +1092,9 @@ class MaxPoolingLayer(LocalLayer):
         if self.pos > 0:
             self.backend.bprop_mpool(
                 inputs, self.output,
-                error, self.berror, self.links, self.ifmshape, self.ofmshape,
-                self.fshape, 0, self.stride, self.nifm, self.maxinds)
+                error, self.berror, self.berrorbuf, self.links,
+                self.ifmshape, self.ofmshape, self.fshape, 0, self.stride,
+                self.nifm, self.maxinds)
 
 
 class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
