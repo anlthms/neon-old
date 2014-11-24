@@ -1064,7 +1064,7 @@ class MaxPoolingLayer(LocalLayer):
             name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
             fshape, stride, pooling=True)
         self.maxinds = backend.empty((self.ofmsize, batch_size * nifm),
-                                     dtype='i32')
+                                     dtype='i16')
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
 
@@ -1109,7 +1109,7 @@ class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
             name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
             fshape, stride, pooling=True)
         self.maxinds = backend.empty((self.ofmsize, batch_size * nifm),
-                                     dtype='i32')
+                                     dtype='i16')
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
 
