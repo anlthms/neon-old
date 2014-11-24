@@ -680,6 +680,27 @@ class GPU(Backend):
         seq = numpy.random.uniform(low, high, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
 
+    def fill_uniform_thresh(self, a, keepthresh=0.5, dtype=None):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            a (dtype): GPUTensor to fill with zeros or ones based on whether
+                       sample from uniform distribution is > keepthresh
+            keepthresh (float, optional): Minimal sample value that can be
+                                          returned. Defaults to 0.5
+        Returns:
+            Tensor: Of specified size filled with these random numbers.
+        """
+        # This is the slow version for checking via cpu generated randoms
+        a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
+            size=a._tensor.shape) < keepthresh) / keepthresh,
+            dtype=numpy.float32)
+        a.copy_to_device()
+
+        # This is the fast version using device generated random matrix
+        # a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))

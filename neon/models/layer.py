@@ -330,6 +330,48 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
+class DropOutLayer(YAMLable):
+
+    """
+    Dropout layer randomly kills activations from being passed on at each
+    fprop call.
+    Uses parameter 'keep' as the threshhold above which to retain activation.
+    During training, the mask is applied, but during inference, we switch
+    off the random dropping.
+    Make sure to set train mode to False during inference.
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nin, keep,
+                 output_dtype=None, berror_dtype=None):
+        self.name = name
+        self.backend = backend
+        self.activation = None
+        self.nin = nin
+        self.nout = nin
+        self.keep = keep
+        self.keepmask = backend.alloc(batch_size, nin)
+        self.train_mode = True
+        self.output = self.backend.alloc(batch_size, self.nout, output_dtype)
+        self.pos = pos
+        if pos > 0:
+            self.berror = backend.alloc(batch_size, nin)
+
+    def fprop(self, inputs):
+        if (self.train_mode):
+            self.backend.fill_uniform_thresh(self.keepmask, self.keep)
+            self.backend.multiply(self.keepmask, inputs, out=self.output)
+        else:
+            self.backend.multiply(self.backend.wrap(self.keep), inputs,
+                                  out=self.output)
+
+    def bprop(self, error, inputs, epoch):
+        if self.pos > 0:
+            self.backend.multiply(error, self.keepmask, out=self.berror)
+
+    def set_train_mode(self, mode):
+        self.train_mode = False
+
+
 class RBMLayer(Layer):
 
     """

@@ -85,6 +85,8 @@ class MLP(Model):
 
     def predict_set(self, ds, inputs):
         preds = self.backend.empty((inputs.nbatches, self.batch_size))
+        for layer in self.layers:
+            layer.set_train_mode(False)
         for batch in xrange(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
