@@ -8,6 +8,7 @@ Simple multi-layer perceptron model.
 import logging
 
 from neon.models.model import Model
+from neon.models.layer import DropOutLayer
 from neon.util.compat import MPI_INSTALLED
 
 if MPI_INSTALLED:
@@ -86,7 +87,8 @@ class MLP(Model):
     def predict_set(self, ds, inputs):
         preds = self.backend.empty((inputs.nbatches, self.batch_size))
         for layer in self.layers:
-            layer.set_train_mode(False)
+            if isinstance(layer, DropOutLayer):
+                layer.set_train_mode(False)
         for batch in xrange(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
