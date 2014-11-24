@@ -1109,6 +1109,7 @@ class MaxPoolingLayer(LocalLayer):
                                      dtype='i16')
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
+        assert fshape[0] * fshape[1] <= 2**15
 
     def __str__(self):
         return ("MaxPoolingLayer %s: %d nin, %d nout, "

@@ -39,6 +39,7 @@ class MLP(Model):
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
         self.result = 0
+        assert self.layers[-1].nout <= 2**15
 
     def fit(self, datasets):
         """
