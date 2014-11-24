@@ -8,9 +8,9 @@ Local View of the Data
 
 import numpy as np
 
-import gdist_consts as gc
 import logging
 from neon.util.compat import MPI_INSTALLED
+from neon.util.distarray import gdist_consts as gc
 
 logger = logging.getLogger(__name__)
 
