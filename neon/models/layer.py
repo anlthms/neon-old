@@ -60,7 +60,7 @@ class Layer(YAMLable):
         self.weight_dtype = weight_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        self.updates = self.backend.zeros(self.weights.shape, updates_dtype)
+        self.updates = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
         self.pre_act = self.backend.empty((self.nout, batch_size),
                                           pre_act_dtype)
@@ -156,7 +156,7 @@ class LayerDist(Layer):
 
         self.weights = self.weights.take(in_indices, axis=1)
 
-        self.updates = self.backend.zeros(self.weights.shape)
+        self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
         self.delta_gather = self.backend.zeros(
@@ -344,9 +344,9 @@ class RBMLayer(Layer):
         self.p_hid_plus = backend.empty((self.nout, batch_size))
         self.s_hid_plus = backend.empty((self.nout, batch_size))
         self.p_hid_minus = backend.empty((self.nout, batch_size))
-        self.p_plus = backend.zeros((self.nout, nin))
-        self.p_minus = backend.zeros((self.nout, nin))
-        self.diff = backend.zeros((self.nout, nin))
+        self.p_plus = backend.empty((self.nout, nin))
+        self.p_minus = backend.empty((self.nout, nin))
+        self.diff = backend.empty((self.nout, nin))
         self.learning_rule = learning_rule
         self.learning_rule.allocate_state(self.diff)
         self.neg_pre_act = backend.empty((self.nin, batch_size))
@@ -453,20 +453,20 @@ class LocalLayer(YAMLable):
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
                                         self.ofmsize)).raw()
-        self.ofmlocs = backend.zeros((self.ofmsize, nofm), dtype='i32')
+        self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
             self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
         if pooling is True:
-            self.links = backend.zeros(
+            self.links = backend.empty(
                 (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
             self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
             if pos > 0:
                 self.berrorbuf = backend.empty((self.ifmsize,
                                                batch_size * nifm))
         else:
-            self.links = backend.zeros(
+            self.links = backend.empty(
                 (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
@@ -626,10 +626,10 @@ class ConvLayer(LocalLayer):
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
         self.output = backend.empty((self.nout, batch_size))
-        self.updates = backend.zeros(self.weights.shape)
+        self.updates = backend.empty(self.weights.shape)
         self.prodbuf = backend.empty((nofm, batch_size))
         self.bpropbuf = backend.empty((self.fsize, batch_size))
-        self.updatebuf = backend.zeros(self.weights.shape)
+        self.updatebuf = backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
@@ -754,10 +754,10 @@ class LocalFilteringLayer(LocalLayer):
                                                 weight_init)
 
         self.normalize_weights(self.weights)
-        self.updates = backend.zeros(self.weights.shape)
+        self.updates = backend.empty(self.weights.shape)
         self.prodbuf = backend.empty((nofm, batch_size))
         self.bpropbuf = backend.empty((self.fsize, batch_size))
-        self.updatebuf = backend.zeros((nofm, self.fsize))
+        self.updatebuf = backend.empty((nofm, self.fsize))
         self.learning_rule = learning_rule
 
         self.learning_rule.allocate_state(self.updates)
@@ -1003,18 +1003,18 @@ class LocalDeFilteringLayer(object):
     """
 
     def __init__(self, prev, tied_weights):
-        self.output = prev.backend.zeros((prev.nin, prev.batch_size))
+        self.output = prev.backend.empty((prev.nin, prev.batch_size))
         if tied_weights is True:
             # Share the weights with the previous layer.
             self.weights = prev.weights
         else:
             self.weights = prev.weights.copy()
-        self.updates = prev.backend.zeros(self.weights.shape)
-        self.prodbuf = prev.backend.zeros((prev.fsize, prev.batch_size))
-        self.bpropbuf = prev.backend.zeros((prev.nofm, prev.batch_size))
-        self.updatebuf = prev.backend.zeros((prev.nofm, prev.fsize))
-        self.berror = prev.backend.zeros((prev.nout, prev.batch_size))
-        self.temp = [prev.backend.zeros(self.output.shape)]
+        self.updates = prev.backend.empty(self.weights.shape)
+        self.prodbuf = prev.backend.empty((prev.fsize, prev.batch_size))
+        self.bpropbuf = prev.backend.empty((prev.nofm, prev.batch_size))
+        self.updatebuf = prev.backend.empty((prev.nofm, prev.fsize))
+        self.berror = prev.backend.empty((prev.nout, prev.batch_size))
+        self.temp = [prev.backend.empty(self.output.shape)]
         self.learning_rule = prev.learning_rule
         self.learning_rule.set_pretrain_mode(True)
         self.backend = prev.backend
@@ -1345,9 +1345,9 @@ class LCNLayer(YAMLable):
                                             self.ifmheight,
                                             self.ifmwidth,
                                             batch_size))
-        self.subout = backend.zeros(self.output.shape)
+        self.subout = backend.empty(self.output.shape)
         self.rsubout = self.subout.reshape(self.routput.shape)
-        self.subtemp = backend.zeros(self.output.shape)
+        self.subtemp = backend.empty(self.output.shape)
         self.rsubtemp = self.subtemp.reshape(self.routput.shape)
         if pos > 0:
             self.diverror = backend.empty((self.nin, batch_size))
@@ -1358,10 +1358,10 @@ class LCNLayer(YAMLable):
                                                   self.exifmwidth,
                                                   batch_size))
             self.prodbuf = self.backend.empty((self.fsize, batch_size))
-            self.bprop_filters = self.backend.zeros((nifm,
+            self.bprop_filters = self.backend.empty((nifm,
                                                      self.filters.shape[0],
                                                      self.filters.shape[1]))
-            self.sqtemp = backend.zeros(self.output.shape)
+            self.sqtemp = backend.empty(self.output.shape)
             for fm in xrange(nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
@@ -1384,7 +1384,7 @@ class LCNLayer(YAMLable):
         single /= (count * single.sum())
         assert shape[0] % 2 == 1
         assert shape[1] % 2 == 1
-        filters = self.backend.zeros((count, shape[0], shape[1]))
+        filters = self.backend.empty((count, shape[0], shape[1]))
         filters[:] = single
 
         filters = filters.reshape((1, count * shape[0] * shape[1]))
@@ -1751,9 +1751,9 @@ class CrossMapPoolingLayer(YAMLable):
         self.weights = backend.gen_weights((nifm, nofm),
                                            weight_init)
         assert (self.weights.raw() < 0).sum() == 0
-        self.updates = backend.zeros(self.weights.shape)
+        self.updates = backend.empty(self.weights.shape)
         self.output = backend.empty((self.nout, batch_size))
-        self.updatebuf = backend.zeros((1, 1))
+        self.updatebuf = backend.empty((1, 1))
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
