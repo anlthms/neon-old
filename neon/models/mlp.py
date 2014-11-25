@@ -9,6 +9,7 @@ import logging
 import math
 
 from neon.models.model import Model
+from neon.models.layer import DropOutLayer
 from neon.util.compat import MPI_INSTALLED
 
 if MPI_INSTALLED:
@@ -94,7 +95,8 @@ class MLP(Model):
         outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         for layer in self.layers:
-            layer.set_train_mode(False)
+            if isinstance(layer, DropOutLayer):
+                layer.set_train_mode(False)
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
