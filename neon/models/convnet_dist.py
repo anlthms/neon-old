@@ -97,7 +97,7 @@ class ConvnetDist(MLP):
             self.agg_output = self.backend.zeros(
                 self.layers[-1].output.shape, 'float32')
             self.error = self.backend.zeros(
-                (self.batch_size, self.layers[-1].nout))
+                (self.layers[-1].nout, self.batch_size))
 
     def fit(self, datasets):
         """
@@ -113,7 +113,7 @@ class ConvnetDist(MLP):
             self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
-        tempbuf = self.backend.zeros((self.batch_size, self.layers[-1].nout),
+        tempbuf = self.backend.zeros((self.layers[-1].nout, self.batch_size),
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
 
@@ -210,7 +210,7 @@ class ConvnetDist(MLP):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
-        error = self.backend.zeros((self.batch_size, self.layers[-1].nout))
+        error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if MPI.COMM_WORLD.rank == 0:
             error = self.cost.apply_derivative(self.backend,

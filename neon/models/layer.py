@@ -158,16 +158,16 @@ class LayerDist(Layer):
 
         self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
+        self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.zeros(
-            (self.batch_size * MPI.COMM_WORLD.size, self.nout))
+            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
-                self.berror = self.backend.zeros((self.batch_size,
-                                                  self.nin - 1))
+                self.berror = self.backend.zeros((self.nin - 1,
+                                                  self.batch_size))
             else:
-                self.berror = self.backend.zeros((self.batch_size, self.nin))
+                self.berror = self.backend.zeros((self.nin, self.batch_size))
 
     def fprop(self, inputs):
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
@@ -284,12 +284,12 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
         self.updates = self.backend.zeros(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.delta_ = self.backend.zeros((self.batch_size, self.nout_))
+        self.delta_ = self.backend.zeros((self.nout_, self.batch_size))
         self.delta_gather = self.backend.zeros(
-            (self.batch_size * MPI.COMM_WORLD.size, self.nout))
+            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.zeros((self.batch_size, self.nin))
+            self.berror = self.backend.zeros((self.nin, self.batch_size))
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
