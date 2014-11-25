@@ -110,20 +110,23 @@ class MLP(Model):
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.empty((outputs.major_axis(),
-                                                        1))
+                preds_shape = list(outputs.shape)
+                preds_shape[outputs.minor_axis()] = 1
+                preds['train'] = dataset.backend.empty(preds_shape)
                 dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
                                        out=preds['train'])
             if test and 'test' in inputs:
                 outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.empty((outputs.major_axis(),
-                                                       1))
+                preds_shape = list(outputs.shape)
+                preds_shape[outputs.minor_axis()] = 1
+                preds['test'] = dataset.backend.empty(preds_shape)
                 dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
                                        out=preds['test'])
             if validation and 'validation' in inputs:
                 outputs = self.predict_set(inputs['validation'])
-                val_shape = (outputs.major_axis(), 1)
-                preds['validation'] = dataset.backend.empty(val_shape)
+                preds_shape = list(outputs.shape)
+                preds_shape[outputs.minor_axis()] = 1
+                preds['validation'] = dataset.backend.empty(preds_shape)
                 dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
                                        out=preds['validation'])
             if len(preds) is 0:
