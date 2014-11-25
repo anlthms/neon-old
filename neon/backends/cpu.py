@@ -450,6 +450,23 @@ class CPU(Backend):
         """
         return self.tensor_cls(np.random.uniform(low, high, size), dtype)
 
+    def fill_uniform_thresh(self, a, keepthresh=0.5, dtype=None):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            a (dtype): CPUTensor to fill with zeros or ones based on whether
+                       sample from uniform distribution is < keepthresh
+            keepthresh (float, optional): Minimal sample value that can be
+                                          returned. Defaults to 0.5
+        Returns:
+            Tensor: Of specified size filled with these random numbers.
+        """
+        a._tensor[:] = np.array(
+            np.random.uniform(size=a._tensor.shape) < keepthresh,
+            dtype=a._tensor.dtype)
+        a._tensor[:] = a._tensor[:] / keepthresh
+
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation

@@ -93,6 +93,8 @@ class MLP(Model):
         nrecs = inputs.shape[inputs.major_axis()]
         outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        for layer in self.layers:
+            layer.set_train_mode(False)
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
