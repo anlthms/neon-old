@@ -117,12 +117,11 @@ class GradientDescentMomentum(GradientDescent):
                                                self.velocity_dtype)
 
     def apply_rule_rec(self, params, updates, epoch):
-        """HACK: For recurrent layer, need an extra velocity """
+        """ For recurrent layer, need an extra velocity """
         momentum_coef = self.get_momentum_coef(epoch)
-        self.backend.multiply(self.velocity_rec, self.backend.wrap(momentum_coef),
-                              out=self.velocity_rec)
-        self.backend.multiply(updates,
-                              self.backend.wrap(self.learning_rate),
+        self.backend.multiply(self.velocity_rec,
+                        self.backend.wrap(momentum_coef), out=self.velocity_rec)
+        self.backend.multiply(updates, self.backend.wrap(self.learning_rate),
                               out=updates)
         self.backend.subtract(self.velocity_rec, updates, out=self.velocity_rec)
         self.backend.add(params, self.velocity_rec, out=params)
@@ -154,7 +153,6 @@ class GradientDescentMomentum(GradientDescent):
         saturate_epoch
         ...
         """
-
         coef = 0.0
         if 'coef' in self.momentum_params:
             coef = self.momentum_params['coef']
@@ -180,8 +178,8 @@ class GradientDescentMomentum(GradientDescent):
             saturate_epoch = None
 
         if self.momentum_params['type'] == 'constant':
-            # was "pass", no coef will be set and 0 will be returned. That's stupid.
-            raise NotImplementedError("What is constant momentum? A JIRA ticket?")
+            if 'coef' not in self.momentum_params:
+                raise AttributeError("Please specify momentum coefficient")
         elif self.momentum_params['type'] == 'linear_monotone':
             coef = init_coef
             if start_epoch is not None and epoch >= start_epoch:
@@ -189,7 +187,7 @@ class GradientDescentMomentum(GradientDescent):
                     if start_epoch == saturate_epoch:
                         coef = saturated_coef
                     else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
+                        init_proportion = 1 - ((epoch - start_epoch + 0.0) /
                                            (saturate_epoch - start_epoch))
                         coef = (init_proportion * init_coef +
                                 (1.0 - init_proportion) * saturated_coef)
