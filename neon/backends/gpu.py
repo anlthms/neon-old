@@ -494,9 +494,9 @@ class GPUTensor(Tensor):
 
     def sumsq(self, axis=None):
         """
-        Sum of squares of elements of a CudanetTensor. If axis is None, all elements are
-        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
-        axis and return a CudanetTensor.
+        Sum of squares of elements of a CudanetTensor. If axis is None,
+        all elements are summed and a numpy scalar returned. If axis is 1
+        or 2, sum along that axis and return a CudanetTensor.
         """
         if axis is None:
             result = self._tensor.sumsq(axis=None)
@@ -507,7 +507,6 @@ class GPUTensor(Tensor):
             result = self._tensor.sumsq(axis=axis)
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
-
 
     def mean(self):
         result = self._tensor.mean(axis=0).mean(axis=1)
@@ -920,6 +919,9 @@ class GPU(Backend):
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
 
+    def tanh(self, x, out):
+        cudanet.tanh(x._tensor, out._tensor)
+
     def rectlin(self, x, out):
         self.greater(x, self.wrap(0), out=out)
         self.multiply(x, out, out=out)
@@ -1031,6 +1033,17 @@ class GPU(Backend):
     def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
+
+    def softmax(self, x, out, axdim=1):
+        if axdim != 1:
+            raise NotImplementedError("Shouldn't be taking sofmax!")
+        else:
+            cudanet.softmax(x._tensor, out._tensor, axis=axdim)
+
+    def softmax_gradient(self, y, err, out, axdim=1):
+        if axdim != 1:
+            raise NotImplemented("axdim ignored")
+        cudanet.softmax_grad(y._tensor, err._tensor, out._tensor)
 
     def nonzero(self, x):
         res = x._tensor.copy()

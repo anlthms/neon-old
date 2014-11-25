@@ -4,6 +4,7 @@ from neon.transforms.logistic import Logistic
 from neon.transforms.tanh import Tanh
 from neon.transforms.rectified import RectLin
 from neon.transforms.linear import Identity
+from neon.transforms.softmax import SoftMax
 
 
 class BalanceLayer(Layer):
@@ -17,7 +18,7 @@ class BalanceLayer(Layer):
         Dimensionality of output
     backend : Backend
         neon backend for computation
-    W_learning_rule : LearningRule
+    w_learning_rule : LearningRule
         Object to update W.
     b_learning_rule : LearningRule
         Object to update b.
@@ -35,9 +36,9 @@ class BalanceLayer(Layer):
         Datatype of the layer (ex: np.float32)
     """
     def __init__(self, n_input, n_output, backend,
-        W_learning_rule, b_learning_rule,
-        W=None, b=None, max_norm=None, weight_clip=None,
-        rng=np.random.RandomState(817), dtype=np.float32):
+                 w_learning_rule, b_learning_rule, w=None, b=None,
+                 max_norm=None, weight_clip=None,
+                 rng=np.random.RandomState(817), dtype=np.float32):
         # Internal state variables for backward pass
         self.backend = backend
 
@@ -49,19 +50,20 @@ class BalanceLayer(Layer):
         self.deriv = None
         self.dWupdate = None
         self.dbupdate = None
+        init_alpha = 0.1
 
-        if W is None:
-            self.W = backend.array(np.sqrt(init_alpha/(n_input+n_output))*
-                                   rng.randn(n_input,n_output).astype(dtype))
+        if w is None:
+            self.W = backend.array(np.sqrt(init_alpha / (n_input + n_output)) *
+                                   rng.randn(n_input, n_output).astype(dtype))
         else:
             # No recast to preserve reference (for tieing autoencoder weights)
-            self.W = W
+            self.W = w
         if b is None:
             self.b = backend.zeros(n_output, dtype)
         else:
             # No recast to preserve reference (for tieing autoencoder biases)
             self.b = b
-        self.W_lr = W_learning_rule
+        self.W_lr = w_learning_rule
         self.W_lr.allocate_state(self.W)
         self.b_lr = b_learning_rule
         self.b_lr.allocate_state(self.b)
@@ -75,12 +77,12 @@ class BalanceLayer(Layer):
         self.dlossdW = backend.zeros_like(self.W)
         self.dlossdb = backend.zeros_like(self.b)
 
-    def forward(self, X):
+    def forward(self, x):
         """Forward propagate a given input
 
         Parameters
         ----------
-        X : array-like, shape (n_samples, n_inputs)
+        x : array-like, shape (n_samples, n_inputs)
             Input from the layer below
 
         Returns
@@ -88,7 +90,7 @@ class BalanceLayer(Layer):
         hidden_state : array-like, shape (n_samples, n_outputs)
             Output state from the layer
         """
-        self.X = X
+        self.X = x
         #inputs = self.backend.append_bias(self.b)
         self.backend.fprop_fc_dot(self.X, self.W, self.pre_state)
         self.backend.add(self.pre_state, self.b, self.pre_state)
@@ -104,19 +106,20 @@ class BalanceLayer(Layer):
         Parameters
         ----------
         dlossdh : array-like, shape (n_samples, n_outputs)
-            Derivative of the loss w.r.t the hidden state
+        Derivative of the loss w.r.t the hidden state
         accumulate : boolean, optional
-            Accumulate onto already existing derivative
+        Accumulate onto already existing derivative
 
         Returns
         -------
         dlossdhb : array-like, shape (n_samples, n_inputs)
-            Derivative of the loss w.r.t the hidden state below
+        Derivative of the loss w.r.t the hidden state below
         """
-        self.nonlinear.apply_derivative(self.backend, self.prestate, self.deriv)
-        self.backend.multiply(dlossdh, deriv, self.dlossdz)
+        self.nonlinear.apply_derivative(self.backend,
+                                        self.prestate, self.deriv)
+        self.backend.multiply(dlossdh, self.deriv, self.dlossdz)
         self.backend.dot(self.X.T, self.dlossdz, self.dWupdate)
-        self.backend.sum(dlossdz, axis=0, self.dbupdate)
+        self.backend.sum(self.dlossdz, self.dbupdate, axis=0)
         if accumulate:
             self.backend.add(self.dlossdW, self.dWupdate, self.dlossdW)
             self.backend.add(self.dlossdb, self.dbupdate, self.dlossdb)
@@ -124,7 +127,7 @@ class BalanceLayer(Layer):
             # Is there a better way to do this value set?
             self.backend.add(self.dWupdate, 0., self.dlossdW)
             self.backend.add(self.dbupdate, 0., self.dlossdb)
-        return self.backend.dot(dlossdz, self.W.T)
+        return self.backend.dot(self.dlossdz, self.W.T)
 
     def update(self, epoch):
         """Update layer parameters
@@ -133,12 +136,13 @@ class BalanceLayer(Layer):
         self.W_lr.apply_rule(self.W, self.dlossdW, epoch)
         if self.max_norm is not None:
             raise NotImplementedError
-            w_norm = np.sqrt((self.W**2).sum(0,keepdims=True))
+            w_norm = np.sqrt((self.W**2).sum(0, keepdims=True))
             w_norm[w_norm < self.max_norm] = self.max_norm
             self.W *= self.max_norm/w_norm
         if self.weight_clip is not None:
             raise NotImplementedError
             self.W[self.W > self.weight_clip] = self.weight_clip
+
 
 class SoftmaxLayer(BalanceLayer):
     def __init__(self, *args):
@@ -146,51 +150,63 @@ class SoftmaxLayer(BalanceLayer):
         self.nonlinear = SoftMax()
         super(SoftmaxLayer, self).__init__(*args)
 
+
 class ReluLayer(BalanceLayer):
     def __init__(self, *args):
         self.nonlinear = RectLin()
         super(ReluLayer, self).__init__(*args)
+
 
 class SigmoidLayer(BalanceLayer):
     def __init__(self, *args):
         self.nonlinear = Logistic()
         super(SigmoidLayer, self).__init__(*args)
 
+
 class TanhLayer(BalanceLayer):
     def __init__(self, *args):
         self.nonlinear = Tanh()
-        super(TahnLayer, self).__init__(*args)
+        super(TanhLayer, self).__init__(*args)
+
 
 class LinearLayer(BalanceLayer):
     def __init__(self, *args):
         self.nonlinear = Identity()
         super(LinearLayer, self).__init__(*args)
 
+
 class RankOut(BalanceLayer):
     def __init__(self, *args):
         raise NotImplementedError
-    def nonlinear(self,X):
-        z = np.zeros_like(X)
-        z[np.arange(X.shape[0]),np.argmax(X,axis=1)] = 1.
-        return X*z
 
-    def dnonlinear(self,X):
+    def nonlinear(self, x):
+        z = np.zeros_like(x)
+        z[np.arange(x.shape[0]), np.argmax(x, axis=1)] = 1.
+        return x*z
+
+    def dnonlinear(self, x):
         return 1.
 
-class LazyRelu(Relu):
-    def __init__(self, *args):
-        raise NotImplementedError
-    def dnonlinear(self,X):
-        return 1.
 
-class LazySigmoid(Sigmoid):
-    def __init__(self, *args):
-        raise NotImplementedError
-    def dnonlinear(self,X):
-        return 1.
+# class LazyRelu(Relu):
+#     def __init__(self, *args):
+#         raise NotImplementedError
 
-class ReluSigmoid(Sigmoid):
-    def __init__(self, *args):
-        raise NotImplementedError
-    def nonlinear(self,X):
-        return X*(X>0.)
+#     def dnonlinear(self, x):
+#         return 1.
+
+
+# class LazySigmoid(Sigmoid):
+#     def __init__(self, *args):
+#         raise NotImplementedError
+
+#     def dnonlinear(self, x):
+#         return 1.
+
+
+# class ReluSigmoid(Sigmoid):
+#     def __init__(self, *args):
+#         raise NotImplementedError
+
+#     def nonlinear(self, x):
+#         return x*(x > 0.)

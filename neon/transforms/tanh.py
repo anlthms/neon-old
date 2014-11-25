@@ -5,43 +5,7 @@
 Hyperbolic tangent transform functions and classes.
 """
 
-import numpy
-
 from neon.transforms.activation import Activation
-
-
-def tanh(dataset):
-    """
-    Applies the hyperbolic tangent transform to the dataset passed.
-
-    Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
-    """
-    if isinstance(dataset, (int, float, numpy.ndarray)):
-        exp_ds = numpy.exp(-2 * dataset)
-    else:
-        exp_ds = (-2 * dataset).exp()
-    return (1.0 - exp_ds) / (1.0 + exp_ds)
-
-
-def tanh_derivative(dataset):
-    """
-    Applies derivative of the hyperbolic tangent transform to the dataset
-    passed.
-
-    Arguments:
-        dataset (array_like): Input data to be transformed
-
-    Returns:
-        array_like: Transformed copy of the dataset.  Will be in the same
-                    format as the input dataset.
-    """
-    res = tanh(dataset)
-    return 1.0 - res * res
 
 
 class Tanh(Activation):
@@ -49,16 +13,36 @@ class Tanh(Activation):
     Embodiment of a hyperbolic tangent activation function.
     """
 
-    @staticmethod
-    def apply_function(dataset):
+    def apply_function(self, backend, inputs, outputs):
         """
-        Apply the hyperbolic tangent activation function.
-        """
-        return tanh(dataset)
+        Applies the hyperbolic tangent transform to the dataset passed.
 
-    @staticmethod
-    def apply_derivative(dataset):
+        Arguments:
+            inputs (array_like): Input data to be transformed
+
+        Returns:
+            array_like: Transformed copy of the inputs.  Will be in the same
+                        format as the input inputs.
         """
-        Apply the hyperbolic tangent activation function derivative.
+        backend.tanh(inputs, outputs)
+
+    def apply_derivative(self, backend, inputs, outputs):
         """
-        return tanh_derivative(dataset)
+        Applies derivative of the hyperbolic tangent transform to the inputs
+        passed.
+
+        Arguments:
+            inputs (array_like): Input data to be transformed
+
+        Returns:
+            array_like: Transformed copy of the inputs.  Will be in the same
+                        format as the input inputs.
+        """
+        backend.tanh(inputs, outputs)
+        backend.multiply(outputs, outputs, outputs)
+        backend.subtract(backend.wrap(1.0), outputs, outputs)
+
+    def apply_both(self, backend, inputs, outputs):
+        backend.tanh(inputs, outputs)
+        backend.multiply(outputs, outputs, inputs)
+        backend.subtract(backend.wrap(1.0), inputs, inputs)

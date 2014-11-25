@@ -15,8 +15,7 @@ class Activation(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    @staticmethod
-    def apply_function(dataset):
+    def apply_function(self, backend, inputs, outputs):
         """
         Computes the activation function value by applying it to each element
         of the dataset passed.
@@ -34,8 +33,7 @@ class Activation(object):
         """
         raise NotImplementedError("Should be overridden in child class.")
 
-    @staticmethod
-    def apply_derivative(dataset):
+    def apply_derivative(self, backend, inputs, outputs):
         """
         Computes the activation function derivative value by applying it to
         each element of the dataset passed.
@@ -53,8 +51,7 @@ class Activation(object):
         """
         raise NotImplementedError("Should be overridden in child class.")
 
-    @staticmethod
-    def apply_both(backend, inputs, outputs):
+    def apply_both(self, backend, inputs, outputs):
         """
         Computes the activation function and its derivative by applying it to
         each element of the dataset passed.

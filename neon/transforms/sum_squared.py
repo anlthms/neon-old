@@ -52,16 +52,14 @@ class SumSquaredDiffs(Cost):
     Embodiment of a sum of squared differences cost function.
     """
 
-    @staticmethod
-    def apply_function(backend, outputs, targets, temp):
+    def apply_function(self, backend, outputs, targets, temp):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
         return sum_squared_diffs(backend, outputs, targets, temp)
 
-    @staticmethod
-    def apply_derivative(backend, outputs, targets, temp):
+    def apply_derivative(self, backend, outputs, targets, temp):
         """
         Apply the derivative of the sum of squared differences cost function
         to the datasets passed.

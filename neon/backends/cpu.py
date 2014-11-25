@@ -646,7 +646,7 @@ class CPU(Backend):
         CPU.divide(out, CPU.wrap(a.shape[0]), out=out)
 
     def mean_norm(self, a, axis, out):
-        if (axis=-1 or axis=None):
+        if (axis == -1 or not axis):
             out._tensor = a._tensor - a._tensor.mean()
         else:
             out._tensor = a._tensor - a._tensor.mean(axis, keepdims=True)
@@ -662,6 +662,10 @@ class CPU(Backend):
         self.exp(out, out=out)
         self.add(out, self.wrap(1.0), out=out)
         self.reciprocal(out, out=out)
+
+    def tanh(self, x, out):
+        np.exp(-2.0 * x._tensor, out=out._tensor)
+        np.divide(1. - out._tensor, 1. + out._tensor, out=out._tensor)
 
     def rectlin(self, x, out):
         self.greater(x, self.wrap(0), out=out)
@@ -771,6 +775,29 @@ class CPU(Backend):
         and shrinking the the second dimension by factor n."""
         assert obj.shape[1] % n == 0
         return obj.reshape((obj.shape[0] * n, obj.shape[1] / n))
+
+    def softmax(self, x, out, axdim=1):
+        if axdim == 0:
+            np.max(x._tensor, out._tensor[0, :], axis=axdim)
+            np.subtract(x._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
+        else:
+            np.max(x._tensor, out._tensor[:, 0], axis=axdim)
+            np.subtract(x._tensor, out._tensor[:, 0, np.newaxis], out._tensor)
+        np.exp(out._tensor, out._tensor)
+        # This uses some temporary storage, but might be ok?
+        np.divide(out._tensor, np.sum(out._tensor, axis=axdim, keepdims=True),
+                  out._tensor)
+
+    def softmax_gradient(self, y, err, out, axdim=1):
+        if axdim == 0:
+            np.einsum('ij,ji->i', err._tensor.T, y._tensor, out._tensor[0, :])
+            np.subtract(err._tensor, out._tensor[np.newaxis, 0, :],
+                        out._tensor)
+        else:
+            np.einsum('ij,ji->i', err._tensor, y._tensor.T, out._tensor[:, 0])
+            np.subtract(err._tensor, out._tensor[:, 0, np.newaxis],
+                        out._tensor)
+        np.multiply(out._tensor, y._tensor, out._tensor)
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):

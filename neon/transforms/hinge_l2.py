@@ -29,8 +29,9 @@ def hinge_l2(backend, outputs, targets, temp, subidx=None):
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
     backend.multiply(temp[0], temp[0], out=temp[0])
 
-    if (subidx != None and subidx < temp[0].shape[temp[0].major_axis()]):
-        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()], backend.wrap(0.0))
+    if (subidx is not None and subidx < temp[0].shape[temp[0].major_axis()]):
+        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()],
+                                backend.wrap(0.0))
 
     backend.multiply(temp[0], backend.wrap(0.5), out=temp[0])
 
@@ -56,8 +57,9 @@ def hinge_l2_derivative(backend, outputs, targets, temp, subidx=None):
     backend.multiply(targets, outputs, out=temp[0])
     backend.subtract(backend.wrap(1.0), temp[0], out=temp[0])
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
-    if (subidx != None and subidx < temp[0].shape[temp[0].major_axis()]):
-        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()], backend.wrap(0.0))
+    if (subidx is not None and subidx < temp[0].shape[temp[0].major_axis()]):
+        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()],
+                                backend.wrap(0.0))
     backend.multiply(temp[0], targets, out=temp[0])
 
     backend.multiply(temp[0], backend.wrap(-1.0), out=temp[0])
@@ -65,47 +67,24 @@ def hinge_l2_derivative(backend, outputs, targets, temp, subidx=None):
     return temp[0]
 
 
-
 class HingeL2(Cost):
 
     """
     Embodiment of a Hinge L2 cost function.
     """
+    def __init__(self, stopidx=None):
+        self.stopidx = stopidx
 
-    @staticmethod
-    def apply_function(backend, outputs, targets, temp):
-        """
-        Apply the cross entropy cost function to the datasets passed.
-        """
-        return hinge_l2(backend, outputs, targets, temp)
-
-    @staticmethod
-    def apply_derivative(backend, outputs, targets, temp):
-        """
-        Apply the derivative of the cross entropy cost function to the datasets
-        passed.
-        """
-        return hinge_l2_derivative(backend, outputs, targets, temp)
-
-
-class PartialHingeL2(Cost):
-
-    """
-    Embodiment of a Partial Hinge L2 cost function.
-    """
-
-    @staticmethod
-    def apply_function(backend, outputs, targets, temp):
+    def apply_function(self, backend, outputs, targets, temp):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
         return hinge_l2(backend, outputs, targets, temp, subidx=self.stopidx)
 
-    @staticmethod
-    def apply_derivative(backend, outputs, targets, temp):
+    def apply_derivative(self, backend, outputs, targets, temp):
         """
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
-        return hinge_l2_derivative(backend, outputs, targets, temp, subidx=self.stopidx)
-
+        return hinge_l2_derivative(backend, outputs, targets, temp,
+                                   subidx=self.stopidx)

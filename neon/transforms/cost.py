@@ -15,8 +15,7 @@ class Cost(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    @staticmethod
-    def apply_function(outputs, targets):
+    def apply_function(self, outputs, targets):
         """
         Computes the cost function value by applying it pairwise against
         correspondsing elements of the outputs and targets datasets passed.
@@ -35,8 +34,7 @@ class Cost(object):
         """
         raise NotImplementedError("Should be overridden in child class.")
 
-    @staticmethod
-    def apply_derivative(outputs, targets, temp):
+    def apply_derivative(self, outputs, targets, temp):
         """
         Computes the cost function derivative value by applying it to
         each corresponding element of the predicted outputs and known
