@@ -194,7 +194,7 @@ class GradientDescentMomentum(GradientDescent):
                 elif saturate_epoch is not None and epoch > saturate_epoch:
                     coef = saturated_coef
             else:
-                coef = saturated_coef
+                pass
         elif self.momentum_params['type'] == 'nesterov':
             raise NotImplementedError("TODO!")
         else:
