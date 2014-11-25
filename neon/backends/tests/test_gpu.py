@@ -119,7 +119,7 @@ class TestGPU(object):
         assert out.shape == (2, 2)
         assert_tensor_equal(out, self.gpt([[1, 1], [1, 0]]))
 
-    @nottest # TODO: cudanet doesn't currently support noaxis argmin
+    @nottest  # TODO: cudanet doesn't currently support noaxis argmin
     def test_argmin_noaxis(self):
         tsr = self.be.array([[-1, 0], [1, 92]])
         out = self.be.empty([1, 1])
@@ -138,7 +138,7 @@ class TestGPU(object):
         self.be.argmin(tsr, 1, out)
         assert_tensor_equal(out, self.gpt([[0], [1]]))
 
-    @nottest # TODO: cudanet doesn't currently support noaxis argmax
+    @nottest  # TODO: cudanet doesn't currently support noaxis argmax
     def test_argmax_noaxis(self):
         tsr = self.be.array([[-1, 0], [1, 92]])
         out = self.be.empty([1, 1])
