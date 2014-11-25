@@ -5,7 +5,7 @@
 
 import numpy as np
 import os
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages, Command
 import subprocess
 
 
@@ -35,6 +35,39 @@ if write_version:
     finally:
         a.close()
 
+# Define dependencies
+dependency_links = []
+required_packages = ['numpy>=1.8.1', 'PyYAML>=3.11']
+
+
+class NeonCommand(Command):
+    description = "Passes additional build type options to subsequent commands"
+    user_options = [('cpu=', None, 'Add CPU backend related dependencies'),
+                    ('gpu=', None, 'Add GPU backend related dependencies'),
+                    ('dist=', None, 'Add distributed related dependencies'),
+                    ('dev=', None, 'Add development related dependencies')]
+
+    def initialize_options(self):
+        self.cpu = "0"
+        self.gpu = "0"
+        self.dist = "0"
+        self.dev = "0"
+
+    def run(self):
+        if self.dev == "1":
+            self.distribution.install_requires += ['nose>=1.3.0',
+                                                   'cython>=0.19.1']
+        if self.gpu == "1":
+            self.distribution.install_requires += ['cudanet']
+            self.distribution.dependency_links += ['http://gitlab.localdomain'
+                                                   '/algorithms/cuda-convnet2'
+                                                   '.git#egg=cudanet']
+        if self.dist == "1":
+            self.distribution.install_requires += ['mpi4py>=1.3.1']
+
+    def finalize_options(self):
+        pass
+
 use_cython = True
 suffix = "pyx"
 try:
@@ -58,20 +91,24 @@ setup(name='neon',
       author='Nervana Systems',
       author_email='info@nervanasys.com',
       url='http://www.nervanasys.com',
-      packages=['neon',
-                'neon.backends',
-                'neon.datasets',
-                'neon.experiments',
-                'neon.models',
-                'neon.transforms',
-                'neon.util',
-                'neon.util.distarray',
-                'neon.tests',
-                'neon.backends.tests',
-                'neon.datasets.tests',
-                'neon.experiments.tests',
-                'neon.models.tests',
-                'neon.transforms.tests',
-                'neon.util.tests', ],
+      license='License :: Other/Proprietary License',
       scripts=['bin/neon'],
-      ext_modules=extensions)
+      ext_modules=extensions,
+      packages=find_packages(),
+      install_requires=required_packages,
+      cmdclass={'neon': NeonCommand},
+      classifiers=['Development Status :: 2 - Pre-Alpha',
+                   'Environment :: Console',
+                   'Environment :: Console :: Curses',
+                   'Environment :: Web Environment',
+                   'Intended Audience :: End Users/Desktop',
+                   'Intended Audience :: Developers',
+                   'Intended Audience :: Science/Research',
+                   'License :: Other/Proprietary License',
+                   'Operating System :: POSIX',
+                   'Operating System :: MacOS :: MacOS X',
+                   'Programming Language :: Python',
+                   'Topic :: Scientific/Engineering :: ' +
+                   'Artificial Intelligence',
+                   'Topic :: Scientific/Engineering :: Information Analysis',
+                   'Topic :: System :: Distributed Computing'])
