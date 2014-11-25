@@ -61,11 +61,11 @@ class MOBYDICK(Dataset):
         Carries out the actual reading
         """
         with open(fname, 'r') as f:
-            text =  f.read() # a really long string
+            text =  f.read()
             numbers = np.fromstring(text, dtype='int8')
             onehots = np.zeros((128, numbers.shape[0])); 
             for i in range(numbers.shape[0]): 
-                onehots[numbers[i],i]=1 # for 1M !! 
+                onehots[numbers[i],i]=1
 
         if self.dist_flag:
             # leaving the container but no idea what to do here. 
@@ -92,7 +92,7 @@ class MOBYDICK(Dataset):
                     self.sample_pct /= 100.0
                     logger.info('sampling pct: %0.2f' % self.sample_pct)
                 if self.sample_pct < 1.0:
-                    # numpy.random.shuffle(train_idcs) # [TODO] lets not do this for now
+                    # numpy.random.shuffle(train_idcs) 
                     pass
                 train_idcs = train_idcs[0:int(1000000 * self.sample_pct)]
                 predict_idcs = predict_idcs[0:int(1000000 * self.sample_pct)]
@@ -103,7 +103,6 @@ class MOBYDICK(Dataset):
                 self.download_to_repo(url, save_dir)
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
-            #trace()
             self.inputs['train'] = indat[:, train_idcs].T
             self.targets['train'] = indat[:, predict_idcs].T 
             self.inputs['test'] = indat[:, test_idcs].T
