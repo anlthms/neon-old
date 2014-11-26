@@ -90,6 +90,7 @@ class MNIST(Dataset):
                 self.dist_indices.extend(
                     [r * img_width + x for x in range(
                         c_i[comm_rank], c_i[comm_rank] + self.px_per_dim)])
+            print self.dist_indices
         elif self.dist_mode == 'vecpar':
             start_idx = 0
             for j in range(comm_rank):

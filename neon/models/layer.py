@@ -286,9 +286,9 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.zeros((self.nout_, self.batch_size))
         self.delta_gather = self.backend.zeros(
-            (self.nout * MPI.COMM_WORLD.size, self.batch_size))
-        if (MPI.COMM_WORLD.rank==0):
-            print self.delta_.shape, self.delta_gather.shape
+            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
+        # if (MPI.COMM_WORLD.rank==0):
+        #     print self.delta_.shape, self.delta_gather.shape
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.zeros((self.nin, self.batch_size))
@@ -317,10 +317,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
-            if (MPI.COMM_WORLD.rank==0):
-                print self.delta_.shape, self.delta_gather.shape
-            self.delta_._tensor = np.hstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            self.delta_._tensor = np.vstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=1))
             if self.pos > 0:
                 self.backend.bprop_fc(self.delta_, self.weights,
                                       out=self.berror)

@@ -106,9 +106,10 @@ class ConvnetDist(MLP):
         # for layer in self.layers:
         #    logger.info("%s" % str(layer))
         self.adjust_for_dist()
-        inputs = datasets[0].get_inputs(train=True)['train']
-        targets = datasets[0].get_targets(train=True)['train']
-        print targets.shape
+        ds = datasets[0]
+        inputs = ds.get_inputs(train=True)['train']
+        targets = ds.get_targets(train=True)['train']
+        print inputs.shape, self.layers[-1].output.shape, inputs.nbatches
         nrecs = inputs.shape[0]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -120,40 +121,36 @@ class ConvnetDist(MLP):
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
+            for batch in xrange(inputs.nbatches):
                 if MPI.COMM_WORLD.rank == 0:
                     logger.debug('batch = %d' % (batch))
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[:, start_idx:end_idx])
-                self.bprop(targets[:, start_idx:end_idx],
-                           inputs[:, start_idx:end_idx],
-                           epoch)
+                inputs_batch = ds.get_batch(inputs, batch)
+                targets_batch = ds.get_batch(targets, batch)
+                self.fprop(inputs_batch)
+                self.bprop(targets_batch, inputs_batch, epoch)
                 if MPI.COMM_WORLD.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
-                                                      targets[:,
-                                                          start_idx:end_idx],
+                                                      targets_batch,
                                                       self.temp)
             if MPI.COMM_WORLD.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))
+                            (epoch, error / inputs.nbatches))
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def predict_set(self, inputs):
+    def predict_set(self, ds, inputs):
         nrecs = inputs.shape[0]
         if MPI.COMM_WORLD.rank == 0:
-            self.outputs = self.backend.zeros((self.layers[-1].nout, nout))
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for batch in xrange(num_batches):
+            self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
+        for batch in xrange(inputs.nbatches):
+            inputs_batch = ds.get_batch(inputs, batch)
+            self.fprop(inputs_batch)
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs[:, start_idx:end_idx])
             if MPI.COMM_WORLD.rank == 0:
                 self.outputs[:, start_idx:end_idx] = self.layers[-1].output
 
@@ -166,21 +163,21 @@ class ConvnetDist(MLP):
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                self.predict_set(inputs['train'])
+                self.predict_set(dataset, inputs['train'])
                 if MPI.COMM_WORLD.rank == 0:
                     train_shape = (1, self.outputs.shape[0])
                     preds['train'] = dataset.backend.empty(train_shape)
                     dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['train'])
             if test and 'test' in inputs:
-                self.predict_set(inputs['test'])
+                self.predict_set(dataset, inputs['test'])
                 if MPI.COMM_WORLD.rank == 0:
                     test_shape = (1, self.outputs.shape[0])
                     preds['test'] = dataset.backend.empty(test_shape)
                     dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['test'])
             if validation and 'validation' in inputs:
-                self.predict_set(inputs['validation'])
+                self.predict_set(dataset, inputs['validation'])
                 if MPI.COMM_WORLD.rank == 0:
                     val_shape = (1, self.outputs.shape[0])
                     preds['validation'] = dataset.backend.empty(val_shape)
@@ -214,7 +211,6 @@ class ConvnetDist(MLP):
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if MPI.COMM_WORLD.rank == 0:
-            print lastlayer.output.shape, targets.shape
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
