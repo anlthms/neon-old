@@ -89,5 +89,14 @@ class VisualizeRNN(object):
                                                       interpolation='nearest');
             if i==0: plt.title('target')
         plt.draw(); plt.show()
+    
+    def print_text(self, inputs, outputs):
+        """
+        Moved this here so it's legal to use numpy. 
+        """
+        print "Prediction inputs"
+        print np.argmax(inputs, 1).raw().astype(np.int8).view('c')
+        print "Prediction outputs"
+        print np.argmax(outputs, 1).raw().astype(np.int8).view('c')
 
 
