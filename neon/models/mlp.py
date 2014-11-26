@@ -110,7 +110,8 @@ class MLP(Model):
         """
         res = []
         for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
+            inputs = dataset.get_inputs(train=train, test=test,
+                                        validation=validation)
             preds = dict()
             if train and 'train' in inputs:
                 outputs = self.predict_set(inputs['train'])
