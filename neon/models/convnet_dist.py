@@ -109,7 +109,6 @@ class ConvnetDist(MLP):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_targets(train=True)['train']
-        print inputs.shape, self.layers[-1].output.shape, inputs.nbatches
         nrecs = inputs.shape[0]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs

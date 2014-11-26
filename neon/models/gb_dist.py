@@ -89,7 +89,7 @@ class GBDist(GB):
             self.agg_output = self.backend.zeros(
                 self.layers[-1].output.shape, 'float32')
             self.error = self.backend.zeros(
-                (self.batch_size, self.layers[-1].nout))
+                (self.layers[-1].nout, self.batch_size))
 
     def fit(self, datasets):
         inputs = datasets[0].get_inputs(train=True)['train']
@@ -110,7 +110,7 @@ class GBDist(GB):
         self.adjust_for_dist()
 
         if self.pretraining:
-            self.pretrain(inputs)
+            self.pretrain(inputs, datasets[0])
             if self.visualize:
                 self.compute_optimal_stimulus()
         if self.spot_check:
@@ -118,12 +118,12 @@ class GBDist(GB):
             test_targets = datasets[0].get_targets(test=True)['test']
             self.check_predictions(inputs, targets, test_inputs, test_targets)
         if self.num_epochs > 0:
-            self.train(inputs, targets)
+            self.train(inputs, targets, datasets[0])
 
-    def pretrain(self, inputs):
+    def pretrain(self, inputs, ds):
         start_time = time.time()
         logger.info('commencing unsupervised pretraining')
-        num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
+        num_batches = inputs.nbatches
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
@@ -137,9 +137,8 @@ class GBDist(GB):
                 for batch in xrange(num_batches):
                     if MPI.COMM_WORLD.rank == 0:
                         logger.debug('batch = %d' % (batch))
-                    start_idx = batch * self.batch_size
-                    end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                    output = inputs[start_idx:end_idx]
+                    inputs_batch = ds.get_batch(inputs, batch)
+                    output = inputs_batch
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in xrange(self.trainable_layers[ind]):
@@ -178,38 +177,38 @@ class GBDist(GB):
             if isinstance(layer, LocalFilteringLayerDist):
                 layer.train_mode()
 
-    def train(self, inputs, targets):
+    def train(self, inputs, targets, ds):
         """
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((self.batch_size, targets.shape[1]))
+        tempbuf = self.backend.zeros((targets.shape[1], self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
-        num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
+        num_batches = inputs.nbatches
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
                     logger.debug('batch = %d' % (batch))
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, self.nrecs)
-                self.fprop(inputs[start_idx:end_idx])
+                inputs_batch = ds.get_batch(inputs, batch)
+                targets_batch = ds.get_batch(targets, batch)
+
+                self.fprop(inputs_batch)
                 if epoch < self.num_initial_epochs:
                     # only bprop on FC layers
-                    self.bprop_last(targets[start_idx:end_idx],
-                                    inputs[start_idx:end_idx],
+                    self.bprop_last(targets_batch,
+                                    inputs_batch,
                                     epoch)
                 else:
                     # bprop through full stack
-                    self.bprop(targets[start_idx:end_idx],
-                               inputs[start_idx:end_idx],
+                    self.bprop(targets_batch,
+                               inputs_batch,
                                epoch)
                 if MPI.COMM_WORLD.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
-                                                      targets[
-                                                          start_idx:end_idx],
+                                                      targets_batch,
                                                       self.temp)
             if MPI.COMM_WORLD.rank == 0:
                 logger.info('epoch: %d, training error: %0.5f' %
@@ -291,17 +290,18 @@ class GBDist(GB):
                     self.layers[i].input.local_array.chunk,
                     epoch)
 
-    def predict_set(self, inputs):
-        nrecs = inputs.shape[0]
+    def predict_set(self, ds, inputs):
+        nrecs = inputs.nbatches * self.batch_size
         if MPI.COMM_WORLD.rank == 0:
-            self.outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+            self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
+        num_batches = inputs.nbatches
         for batch in xrange(num_batches):
+            inputs_batch = ds.get_batch(inputs, batch)
+            self.fprop(inputs_batch)
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs[start_idx:end_idx])
             if MPI.COMM_WORLD.rank == 0:
-                self.outputs[start_idx:end_idx, :] = self.layers[-1].output
+                self.outputs[:, start_idx:end_idx] = self.layers[-1].output
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -312,25 +312,25 @@ class GBDist(GB):
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
-                self.predict_set(inputs['train'])
+                self.predict_set(dataset, inputs['train'])
                 if MPI.COMM_WORLD.rank == 0:
-                    train_shape = (self.outputs.major_axis(), 1)
+                    train_shape = (1, self.outputs.shape[0])
                     preds['train'] = dataset.backend.empty(train_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['train'])
             if test and 'test' in inputs:
-                self.predict_set(inputs['test'])
+                self.predict_set(dataset, inputs['test'])
                 if MPI.COMM_WORLD.rank == 0:
-                    test_shape = (self.outputs.major_axis(), 1)
+                    test_shape = (1, self.outputs.shape[0])
                     preds['test'] = dataset.backend.empty(test_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['test'])
             if validation and 'validation' in inputs:
-                self.predict_set(inputs['validation'])
+                self.predict_set(dataset, inputs['validation'])
                 if MPI.COMM_WORLD.rank == 0:
-                    val_shape = (self.outputs.major_axis(), 1)
+                    val_shape = (1, self.outputs.shape[0])
                     preds['validation'] = dataset.backend.empty(val_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['validation'])
             if MPI.COMM_WORLD.rank == 0:
                 if len(preds) is 0:
