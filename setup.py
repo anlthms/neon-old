@@ -3,9 +3,9 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 
-import numpy as np
 import os
 from setuptools import setup, Extension, find_packages, Command
+from setuptools.command.install import install
 import subprocess
 
 
@@ -40,6 +40,7 @@ dependency_links = []
 required_packages = ['numpy>=1.8.1', 'PyYAML>=3.11']
 
 
+# class NeonCommand(install):
 class NeonCommand(Command):
     description = "Passes additional build type options to subsequent commands"
     user_options = [('cpu=', None, 'Add CPU backend related dependencies'),
@@ -68,6 +69,7 @@ class NeonCommand(Command):
     def finalize_options(self):
         pass
 
+# use cython to compile extension to .c if installed
 use_cython = True
 suffix = "pyx"
 try:
@@ -75,12 +77,17 @@ try:
 except ImportError:
     use_cython = False
     suffix = "c"
+try:
+    import numpy
+    np_include_dir = numpy.get_include()
+except ImportError:
+    np_include_dir = ''
 extensions = [Extension('neon.backends.flexpt_dtype',
                         sources=['neon/backends/flexpt_dtype.c'],
-                        include_dirs=[np.get_include()]),
+                        include_dirs=[np_include_dir]),
               Extension('neon.backends.flexpt_cython',
                         ['neon/backends/flexpt_cython.' + suffix],
-                        include_dirs=[np.get_include()])]
+                        include_dirs=[np_include_dir])]
 if use_cython:
     extensions = cythonize(extensions)
 
@@ -97,6 +104,7 @@ setup(name='neon',
       packages=find_packages(),
       install_requires=required_packages,
       cmdclass={'neon': NeonCommand},
+      #cmdclass={'install': NeonCommand},
       classifiers=['Development Status :: 2 - Pre-Alpha',
                    'Environment :: Console',
                    'Environment :: Console :: Curses',

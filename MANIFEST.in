@@ -8,5 +8,3 @@ include LICENSE
 graft neon
 graft doc
 prune doc/build
-
-global-exclude *.pyc
