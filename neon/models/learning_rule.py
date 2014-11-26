@@ -153,12 +153,11 @@ class GradientDescentMomentum(GradientDescent):
 
     def get_momentum_coef(self, epoch):
         """
-        TODO:
-        Need some explanation here what the different momentum parameters mean.
-        initial_coef
-        saturated_coef
-        start_epoch
-        saturate_epoch
+        Explanation here what the different momentum parameters mean.
+        initial_coef:   momentum coefficient used from first epoch on
+        saturated_coef: momentum after saturate_epoch is reached
+        start_epoch:    start increasing momentum at this epoch
+        saturate_epoch: saturated_coef is reached and held
         ...
         """
         coef = 0.0

@@ -1,3 +1,10 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+"""
+Visualization for recurrent neural networks
+"""
+
 import matplotlib.pyplot as plt
 plt.interactive(1)
 import numpy as np

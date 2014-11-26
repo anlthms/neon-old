@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 mobydick is a typewriterwritten book dataset.
 More info at: http://www.gutenberg.org/ebooks/2701
