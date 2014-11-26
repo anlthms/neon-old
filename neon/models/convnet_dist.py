@@ -8,7 +8,7 @@ Simple multi-layer perceptron model.
 import logging
 import math
 
-from neon.models.mlp import MLP
+from neon.models.mlp_dist import MLPDist
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
 from neon.models.layer import LayerWithNoBiasDist
 from neon.util.compat import MPI_INSTALLED
@@ -22,7 +22,7 @@ else:
     logger.error('mpi4py not found')
 
 
-class ConvnetDist(MLP):
+class ConvnetDist(MLPDist):
 
     """
     Halo/tower distributed convolutional network
@@ -105,6 +105,7 @@ class ConvnetDist(MLP):
         """
         # for layer in self.layers:
         #    logger.info("%s" % str(layer))
+        self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
@@ -140,55 +141,6 @@ class ConvnetDist(MLP):
                             (epoch, error / inputs.nbatches))
             for layer in self.layers:
                 logger.debug("%s", layer)
-
-    def predict_set(self, ds, inputs):
-        nrecs = inputs.nbatches * self.batch_size
-        if MPI.COMM_WORLD.rank == 0:
-            self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
-        for batch in xrange(inputs.nbatches):
-            inputs_batch = ds.get_batch(inputs, batch)
-            self.fprop(inputs_batch)
-            start_idx = batch * self.batch_size
-            end_idx = min((batch + 1) * self.batch_size, nrecs)
-            if MPI.COMM_WORLD.rank == 0:
-                self.outputs[:, start_idx:end_idx] = self.layers[-1].output
-
-    def predict(self, datasets, train=True, test=True, validation=True):
-        """
-        Generate and return predictions on the given datasets.
-        """
-        res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
-            preds = dict()
-            if train and 'train' in inputs:
-                self.predict_set(dataset, inputs['train'])
-                if MPI.COMM_WORLD.rank == 0:
-                    train_shape = (1, self.outputs.shape[0])
-                    preds['train'] = dataset.backend.empty(train_shape)
-                    dataset.backend.argmax(self.outputs, axis=0,
-                                           out=preds['train'])
-            if test and 'test' in inputs:
-                self.predict_set(dataset, inputs['test'])
-                if MPI.COMM_WORLD.rank == 0:
-                    test_shape = (1, self.outputs.shape[0])
-                    preds['test'] = dataset.backend.empty(test_shape)
-                    dataset.backend.argmax(self.outputs, axis=0,
-                                           out=preds['test'])
-            if validation and 'validation' in inputs:
-                self.predict_set(dataset, inputs['validation'])
-                if MPI.COMM_WORLD.rank == 0:
-                    val_shape = (1, self.outputs.shape[0])
-                    preds['validation'] = dataset.backend.empty(val_shape)
-                    dataset.backend.argmax(self.outputs, axis=0,
-                                           out=preds['validation'])
-            if MPI.COMM_WORLD.rank == 0:
-                if len(preds) is 0:
-                    logger.error(
-                        "must specify >=1 of: train, test, validation")
-                res.append(preds)
-
-        return res
 
     def fprop(self, inputs):
         # call MLP's fprop: doesn't work for FC->FC connections
