@@ -5,7 +5,6 @@
 
 import os
 from setuptools import setup, Extension, find_packages, Command
-from setuptools.command.install import install
 import subprocess
 
 
@@ -104,7 +103,6 @@ setup(name='neon',
       packages=find_packages(),
       install_requires=required_packages,
       cmdclass={'neon': NeonCommand},
-      #cmdclass={'install': NeonCommand},
       classifiers=['Development Status :: 2 - Pre-Alpha',
                    'Environment :: Console',
                    'Environment :: Console :: Curses',
