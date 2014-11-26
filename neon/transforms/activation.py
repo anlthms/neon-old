@@ -29,7 +29,8 @@ class Activation(object):
         Raises:
             NotImplementedError: Must be implemented in a child class.
         """
-        raise NotImplementedError("apply_function should be overridden in child class.")
+        raise NotImplementedError("apply_function should be" +
+                                  "overridden in child class.")
 
     @staticmethod
     def apply_derivative(dataset):
@@ -48,7 +49,8 @@ class Activation(object):
         Raises:
             NotImplementedError: Must be implemented in a child class.
         """
-        raise NotImplementedError("apply_derivative should be overridden in child class.")
+        raise NotImplementedError("apply_derivative should be" +
+                                  "overridden in child class.")
 
     @staticmethod
     def apply_both(backend, inputs, outputs):
@@ -66,4 +68,5 @@ class Activation(object):
         Raises:
             NotImplementedError: Must be implemented in a child class.
         """
-        raise NotImplementedError("apply_both should be overridden in child class.")
+        raise NotImplementedError("apply_both should be" +
+                                  "overridden in child class.")

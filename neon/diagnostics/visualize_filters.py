@@ -16,17 +16,23 @@ class Visual(object):
         pretraining and showing the filters as well as the reconstucted digits.
         """
 
-        plt.figure(1); plt.clf()
-        plt.plot(self.cost_list); plt.legend(('recon', 'sparse', 'both'))
+        plt.figure(1)
+        plt.clf()
+        plt.plot(self.cost_list)
+        plt.legend(('recon', 'sparse', 'both'))
         plt.draw()
-        plt.figure(2); plt.clf()
+
+        plt.figure(2)
+        plt.clf()
         self.visual_filters(os.path.join('recon', 'filters'), ind, layer.nifm)
         plt.draw()
-        plt.figure(3); plt.clf()
+
+        plt.figure(3)
+        plt.clf()
         self.save_figs_all(layer.nifm, layer.ifmshape,
-                        [output, layer.defilter.output],
-                        [os.path.join('recon', 'input'),
-                        os.path.join('recon', 'output')], ind)
+                           [output, layer.defilter.output],
+                           [os.path.join('recon', 'input'),
+                            os.path.join('recon', 'output')], ind)
 
     def save_figs_all(self, nfm, fmshape, imgs, names, ind):
         """
@@ -45,7 +51,7 @@ class Visual(object):
             saves png to recon/ folder
         """
         assert len(names) == len(imgs)
-        height, width = fmshape
+        hght, wdth = fmshape
         # loop over input / output
         for i in range(len(names)):
             # samples in the mini-batch
@@ -55,8 +61,10 @@ class Visual(object):
 
             for j in range(grd):
                 for k in range(grd):
-                    patch = imgs[i].raw()[grd*j+k].reshape((nfm, height, width))
-                    img[:, j*(win+1):j*(win+1)+win, k*(win+1):k*(win+1)+win] = patch
+                    patch = imgs[i].raw()[grd*j+k].reshape((nfm, hght, wdth))
+                    img[:,
+                        j*(win+1):j*(win+1)+win,
+                        k*(win+1):k*(win+1)+win] = patch
 
             if nfm == 3:
                 # Plot in color.
@@ -64,7 +72,8 @@ class Visual(object):
             else:
                 # Save the first feature map.
                 plt.imshow(img[0].reshape(((win+1)*grd, (win+1)*grd)),
-                           interpolation='nearest', cmap='gray', vmin=-1.1, vmax=1.1)
+                           interpolation='nearest', cmap='gray',
+                           vmin=-1.1, vmax=1.1)
             plt.show()
             plt.savefig(ensure_dirs_exist(names[i] + str(ind)))
 
@@ -94,25 +103,31 @@ class Visual(object):
                 canvas = np.zeros((n*(n+m), n*(n+m)))+1
                 for i in range(n):
                     for j in range(n):
-                        canvas[(n+m)*i+0:(n+m)*i+n+m-1, (n+m)*j+0:(n+m)*j+n+m-1] = 0
-                        canvas[(n+m)*i+i:(n+m)*i+i+m, (n+m)*j+j:(n+m)*j+j+m] = w[n*i+j, :].reshape(m, m)
+                        block = w[n*i+j, :].reshape(m, m)
+                        canvas[(n+m)*i+0:(n+m)*i+n+m-1,
+                               (n+m)*j+0:(n+m)*j+n+m-1] = 0
+                        canvas[(n+m)*i+i:(n+m)*i+i+m,
+                               (n+m)*j+j:(n+m)*j+j+m] = block
                 plt.imshow(canvas, interpolation='nearest', vmin=-0.5,
                            vmax=0.5, cmap=plt.cm.gray)
                 plt.show()
                 plt.imsave(ensure_dirs_exist(names + 'grayscale' +
-                                str(ind) + str(k)), canvas,
-                                vmin=-0.5, vmax=0.5, cmap=plt.cm.gray)
+                           str(ind) + str(k)), canvas,
+                           vmin=-0.5, vmax=0.5, cmap=plt.cm.gray)
             "this plots the filters as an RGB color image"
             if nifm == 3:
                 canvas = np.zeros((n*(n+m), n*(n+m), 3))+1
                 for i in range(n):
                     for j in range(n):
-                        canvas[(n+m)*i+0:(n+m)*i+n+m-1, (n+m)*j+0:(n+m)*j+n+m-1, :] = 0
-                        canvas[(n+m)*i+i:(n+m)*i+i+m, (n+m)*j+j:(n+m)*j+j+m, :] = w[n*i+j, :].reshape(3, m, m).transpose(1, 2, 0)
+                        block = w[n*i+j, :].reshape(3, m, m).transpose(1, 2, 0)
+                        canvas[(n+m)*i+0:(n+m)*i+n+m-1,
+                               (n+m)*j+0:(n+m)*j+n+m-1, :] = 0
+                        canvas[(n+m)*i+i:(n+m)*i+i+m,
+                               (n+m)*j+j:(n+m)*j+j+m, :] = block
                 plt.imshow(canvas*2.+.5, interpolation='nearest')
                 plt.show()
-                plt.imsave(ensure_dirs_exist(names + 'color'
-                                + str(ind) + str(k)), canvas*2.+.5)
+                plt.imsave(ensure_dirs_exist(names + 'color' + str(ind)
+                                             + str(k)), canvas*2.+.5)
 
         def showme_dense(w, n, m, k, nifm):
             "this places the individual filters on a canvas and plots it"
@@ -120,7 +135,8 @@ class Visual(object):
                 canvas = np.zeros((n*(m+1), n*(m+1)))
                 for i in range(n):
                     for j in range(n):
-                        canvas[(m+1)*i:(m+1)*i+m, (m+1)*j:(m+1)*j+m] = w[n*i+j, :].reshape(m, m)
+                        canvas[(m+1)*i:(m+1)*i+m,
+                               (m+1)*j:(m+1)*j+m] = w[n*i+j, :].reshape(m, m)
                 plt.imshow(canvas, interpolation='nearest',
                            vmin=-0.5, vmax=0.5, cmap=plt.cm.gray)
                 plt.show()
@@ -128,8 +144,8 @@ class Visual(object):
                 canvas = np.zeros((n*(m+1), n*(m+1), 3))
                 for i in range(n):
                     for j in range(n):
-                        canvas[(m+1)*i:(m+1)*i+m, (m+1)*j:(m+1)*j+m, :] = w[
-                            n*i+j, :].reshape(3, m, m).transpose(1, 2, 0)
+                        block = w[n*i+j, :].reshape(3, m, m).transpose(1, 2, 0)
+                        canvas[(m+1)*i:(m+1)*i+m, (m+1)*j:(m+1)*j+m, :] = block
                 plt.imshow(canvas*2.+.5)
                 plt.show()
 
@@ -137,6 +153,10 @@ class Visual(object):
             plt.subplot(k, k, i)
             showme_sparse(w[i*n**2:(i+1)*n**2], n, m, i, nifm)
             showme_dense(w[i*n**2:(i+1)*n**2], n, m, i, nifm)
+
+
+def ensure_dirs_exist():
+    raise NotImplementedError
 
 # I don't think this will be used but I want to keep it around for now.
     # def save_state(self):

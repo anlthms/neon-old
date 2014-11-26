@@ -346,7 +346,7 @@ class CPU(Backend):
         """
         TODO: make alloc consistent with zeros, ones, etc.?
         """
-        if ncold is None:
+        if ncols is None:
             nrows, ncols = nrows
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
@@ -654,8 +654,8 @@ class CPU(Backend):
         """
         Different types of weight initializations:
         uniform - uniform distribution
-        sparse_eigenvalued - each weight has 15 nonzero inputs and the 
-                maximum eigenvalue of the weight matrix is scaled to 1.2 
+        sparse_eigenvalued - each weight has 15 nonzero inputs and the
+                maximum eigenvalue of the weight matrix is scaled to 1.2
         normal or gaussian - normal distribution
         node_normalized - initialization is as discussed in Glorot2010
 
@@ -692,7 +692,7 @@ class CPU(Backend):
             weights = self.normal(loc, scale, size, dtype)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
-            # After discussing with Scott, this will be a 
+            # After discussing with @scott, this will be a
             # GPUBackend.numpyapply() call for the linalg.eig
             sparseness = 15
             eigenvalue = 1.2
@@ -704,22 +704,18 @@ class CPU(Backend):
                         (str(size), sparseness, eigenvalue))
             elements = size[0]*size[1]
             nonzeros = size[0] * sparseness
-            
             weights = np.zeros(size).flatten()
             nonzeroindex = np.random.permutation(elements)[0:nonzeros]
-            weights[nonzeroindex] = 0.3  * np.random.randn(nonzeros) # small in, out
+            weights[nonzeroindex] = 0.3 * np.random.randn(nonzeros)
             weights = weights.reshape(size)
-            # eig for square hidden matrices
             if size[0] == size[1]:
                 temp = np.linalg.eig(weights)
                 max_eig = np.max(np.absolute(temp[0]))
-                print "cpu: dividing by max eigenvalue", max_eig
+                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
                 weights = self.tensor_cls(eigenvalue * weights / max_eig)
             else:
-                print "Matrix is non-square, not normalizing by eigenvalue!"
+                logger.info('Matrix is non-square, no eigenvalue scaling.')
                 weights = self.tensor_cls(weights)
-                #raise AttributeError("non-square weight matrix cannot be" +
-                #                "initialized with the eigenvalue method")
 
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010

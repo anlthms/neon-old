@@ -16,13 +16,12 @@ def tanh(backend, inputs, outputs):
         outputs (array_like): Storage for the transformed output.
     """
 
-
     tmp = backend.zeros(inputs.shape)
     backend.multiply(inputs, backend.wrap(-2.0), out=tmp)
     backend.exp(tmp, out=tmp)
     backend.subtract(backend.wrap(1.0), tmp, out=outputs)
     backend.add(backend.wrap(1.0), tmp, out=tmp)
-    backend.divide(outputs,tmp, out=outputs)
+    backend.divide(outputs, tmp, out=outputs)
 
 
 def tanh_derivative(backend, tanh, outputs):
@@ -35,7 +34,7 @@ def tanh_derivative(backend, tanh, outputs):
         inputs (array_like): Input data to be transformed
         outputs (array_like): Storage for the transformed output.
     """
-    #tanh(backend, inputs, outputs)
+
     backend.square(tanh, out=outputs)
     backend.subtract(backend.wrap(1.0), outputs, out=outputs)
 
@@ -50,12 +49,9 @@ def tanh_and_derivative(backend, inputs, outputs):
                              storage for the output of the derivative function.
         outputs (array_like): Storage for the transformed output.
     """
-    # Apply the tanh function.
-    tanh(backend, inputs, outputs)
 
-    # Apply the derivative of the tanh function, storing the result in
-    # inputs
-    tanh_derivative(backend, outputs, inputs) # input input does bad things! 
+    tanh(backend, inputs, outputs)
+    tanh_derivative(backend, outputs, inputs)
 
 
 class Tanh(Activation):

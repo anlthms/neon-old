@@ -6,18 +6,9 @@ More info at: http://www.gutenberg.org/ebooks/2701
 import logging
 import numpy
 import os
-import struct
-import numpy as np
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import PY3, MPI_INSTALLED
-
-from ipdb import set_trace as trace
-
-if PY3:
-    from urllib.parse import urljoin as basejoin
-else:
-    from urllib import basejoin
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +32,6 @@ class MOBYDICK(Dataset):
     """
     raw_base_url = 'http://www.gutenberg.org/cache/epub/2701/pg2701.txt'
 
-
     def __init__(self, **kwargs):
         self.dist_flag = False
         self.dist_mode = 0  # halo/tower method
@@ -61,14 +51,14 @@ class MOBYDICK(Dataset):
         Carries out the actual reading
         """
         with open(fname, 'r') as f:
-            text =  f.read()
-            numbers = np.fromstring(text, dtype='int8')
-            onehots = np.zeros((128, numbers.shape[0])); 
-            for i in range(numbers.shape[0]): 
-                onehots[numbers[i],i]=1
+            text = f.read()
+            numbers = numpy.fromstring(text, dtype='int8')
+            onehots = numpy.zeros((128, numbers.shape[0]))
+            for i in range(numbers.shape[0]):
+                onehots[numbers[i], i] = 1
 
         if self.dist_flag:
-            # leaving the container but no idea what to do here. 
+            # leaving the container but no idea what to do here.
             pass
         else:
             array = onehots
@@ -83,7 +73,7 @@ class MOBYDICK(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(1000000) # 1M letters
+            train_idcs = range(1000000)  # 1M letters
             predict_idcs = range(self.unrolls, 1000000+self.unrolls)
             test_idcs = range(1000000, 1001000)
             testtarget_idcs = range(1000000+self.unrolls, 1001000+self.unrolls)
@@ -92,7 +82,7 @@ class MOBYDICK(Dataset):
                     self.sample_pct /= 100.0
                     logger.info('sampling pct: %0.2f' % self.sample_pct)
                 if self.sample_pct < 1.0:
-                    # numpy.random.shuffle(train_idcs) 
+                    # numpy.random.shuffle(train_idcs)
                     pass
                 train_idcs = train_idcs[0:int(1000000 * self.sample_pct)]
                 predict_idcs = predict_idcs[0:int(1000000 * self.sample_pct)]
@@ -104,10 +94,10 @@ class MOBYDICK(Dataset):
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
             self.inputs['train'] = indat[:, train_idcs].T
-            self.targets['train'] = indat[:, predict_idcs].T 
+            self.targets['train'] = indat[:, predict_idcs].T
             self.inputs['test'] = indat[:, test_idcs].T
-            self.targets['test'] = indat[:, testtarget_idcs].T 
-         
+            self.targets['test'] = indat[:, testtarget_idcs].T
+
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')
