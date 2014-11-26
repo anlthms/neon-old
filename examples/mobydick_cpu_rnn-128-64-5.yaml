@@ -14,7 +14,7 @@
     !obj:neon.datasets.mobydick.MOBYDICK {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 2.5, # 100 for full, 10 subsample for speed. 25% gives 1000 batches like we use in rnn2
+      sample_pct: 10, # 10% gives 400 batches like in rnn2
       unrolls: &ur 5, # how many letters the targets are ahead of the training
     },
   ],
@@ -22,9 +22,10 @@
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
-    num_epochs: 50,
+    num_epochs: 3,
     batch_size: &bs 50,
     unrolls: *ur,
+    make_plots: True,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       # recurrent layer
@@ -36,12 +37,14 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.000001,
+            learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, # constant, nesterov dont work
-              initial_coef: 0.80,
-              saturated_coef: 0.80, # what is this
+              initial_coef: 0.9,
+              saturated_coef: 0.99,
+              start_epoch: 10,
+              saturate_epoch: 100,
             },
           },
         },
