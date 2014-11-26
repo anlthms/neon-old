@@ -159,15 +159,15 @@ class LayerDist(Layer):
         self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
-        self.delta_gather = self.backend.zeros(
+        self.delta_gather = self.backend.empty(
             (self.nout, self.batch_size * MPI.COMM_WORLD.size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
-                self.berror = self.backend.zeros((self.nin - 1,
+                self.berror = self.backend.empty((self.nin - 1,
                                                   self.batch_size))
             else:
-                self.berror = self.backend.zeros((self.nin, self.batch_size))
+                self.berror = self.backend.empty((self.nin, self.batch_size))
 
     def fprop(self, inputs):
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
@@ -282,16 +282,16 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
         self.weights = self.weights.take(in_indices, axis=1)
 
-        self.updates = self.backend.zeros(self.weights.shape)
+        self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.delta_ = self.backend.zeros((self.nout_, self.batch_size))
-        self.delta_gather = self.backend.zeros(
+        self.delta_ = self.backend.empty((self.nout_, self.batch_size))
+        self.delta_gather = self.backend.empty(
             (self.nout, self.batch_size * MPI.COMM_WORLD.size))
         # if (MPI.COMM_WORLD.rank==0):
         #     print self.delta_.shape, self.delta_gather.shape
         if self.pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.zeros((self.nin, self.batch_size))
+            self.berror = self.backend.empty((self.nin, self.batch_size))
 
     def fprop(self, inputs):
         # dot product is distributed across nodes
@@ -575,12 +575,12 @@ class LocalLayerDist(LocalLayer):
         self.nin = self.nifm * self.ifmsize
 
         if self.pos > 0:
-            self.berror = self.backend.zeros((self.nin, self.batch_size))
+            self.berror = self.backend.empty((self.nin, self.batch_size))
 
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                              self.ofmsize))
 
-        self.ofmlocs = self.backend.zeros((self.ofmsize, self.nofm),
+        self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
                                           dtype='i32')
         for dst in xrange(self.ofmsize):
             self.ofmlocs[dst, :] = ofmstarts + dst
@@ -589,7 +589,7 @@ class LocalLayerDist(LocalLayer):
 
         # Figure out the connections with the previous layer.
         if self.pooling is True:
-            self.links = self.backend.zeros(
+            self.links = self.backend.empty(
                 (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
             self.outputbuf = self.backend.empty((self.ofmsize,
                                                  self.batch_size * self.nifm))
@@ -597,7 +597,7 @@ class LocalLayerDist(LocalLayer):
                 self.berrorbuf = self.backend.empty((self.ifmsize,
                                                  self.batch_size * self.nifm))
         else:
-            self.links = self.backend.zeros(
+            self.links = self.backend.empty(
                 (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
@@ -626,7 +626,7 @@ class LocalLayerDist(LocalLayer):
         self.rlinks = self.links.raw()
 
         self.nout = self.nifm * self.ofmsize
-        self.output = self.backend.zeros((self.nout, self.batch_size))
+        self.output = self.backend.empty((self.nout, self.batch_size))
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
@@ -650,7 +650,7 @@ class LocalLayerDist(LocalLayer):
         self.ofmsize = self.ofmheight * self.ofmwidth
         self.nin = nifm * self.ifmsize
         # if pos > 0:
-        #    self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
+        #    self.berror = backend.empty((batch_size, self.nin), dtype=dtype)
 
         self.nifm = nifm
         self.nofm = nofm
@@ -733,11 +733,11 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
-        self.output = backend.zeros((self.nout, batch_size))
-        self.updates = backend.zeros(self.weights.shape)
-        self.prodbuf = backend.zeros((nofm, batch_size))
-        self.bpropbuf = backend.zeros((self.fsize, batch_size))
-        self.updatebuf = backend.zeros((self.fsize, nofm))
+        self.output = backend.empty((self.nout, batch_size))
+        self.updates = backend.empty(self.weights.shape)
+        self.prodbuf = backend.empty((nofm, batch_size))
+        self.bpropbuf = backend.empty((self.fsize, batch_size))
+        self.updatebuf = backend.empty((self.fsize, nofm))
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
@@ -749,7 +749,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.ifmshape = self.input.local_array.ifmshape
         super(ConvLayerDist, self).adjust_for_dist(self.ifmshape)
         self.nout = self.ofmsize * self.nofm
-        self.output = self.backend.zeros((self.nout, self.batch_size))
+        self.output = self.backend.empty((self.nout, self.batch_size))
         if self.activation is not None:
             self.pre_act = self.backend.empty((self.nout, self.batch_size))
             raise NotImplementedError('TODO')
@@ -947,7 +947,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         self.autoencoder.local_image_indices = (
             self.input.local_array.local_image_indices)
 
-        self.output = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.empty((self.batch_size, self.nout))
 
         # if initializing the weights from scratch
         # self.weights = self.backend.gen_weights((self.nout, self.fsize),
@@ -967,11 +967,11 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         self.weights = self.weights.take(out_indices, axis=0)
 
         self.normalize_weights(self.weights)
-        self.updates = self.backend.zeros(self.weights.shape)
+        self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.prodbuf = self.backend.zeros((self.batch_size, self.nofm))
-        self.bpropbuf = self.backend.zeros((self.batch_size, self.fsize))
-        self.updatebuf = self.backend.zeros((self.nofm, self.fsize))
+        self.prodbuf = self.backend.empty((self.batch_size, self.nofm))
+        self.bpropbuf = self.backend.empty((self.batch_size, self.fsize))
+        self.updatebuf = self.backend.empty((self.nofm, self.fsize))
 
     def __init__(self, name, backend, batch_size, pos, learning_rule,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
@@ -993,7 +993,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
     def pretrain_mode(self, pooling):
         super(LocalFilteringLayerDist, self).pretrain_mode(pooling)
         # temp1 stores a temp buffer without the chunk
-        self.defilter.temp1 = [self.backend.zeros(
+        self.defilter.temp1 = [self.backend.empty(
             (self.batch_size, self.input.local_array.local_array_size))]
         self.learning_rule.set_pretrain_mode(True)
 
@@ -1166,7 +1166,7 @@ class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
     def adjust_for_dist(self):
         self.ifmshape = self.input.local_array.ifmshape
         super(MaxPoolingLayerDist, self).adjust_for_dist(self.ifmshape)
-        self.prodbuf = self.backend.zeros(
+        self.prodbuf = self.backend.empty(
             (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
@@ -1223,7 +1223,7 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
         super(L2PoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
             ifmshape, fshape, stride, pooling=True)
-        self.prodbuf = self.backend.zeros((batch_size * nifm,
+        self.prodbuf = self.backend.empty((batch_size * nifm,
                                            self.fshape[0] * self.fshape[1]))
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
@@ -1232,7 +1232,7 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
         # shape with halos
         ifmshape = self.input.local_array.ifmshape
         super(L2PoolingLayerDist, self).adjust_for_dist(ifmshape)
-        self.prodbuf = self.backend.zeros(
+        self.prodbuf = self.backend.empty(
             (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
@@ -1290,7 +1290,7 @@ class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
         super(AveragePoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
             ifmshape, fshape, stride, pooling=True)
-        self.prodbuf = self.backend.zeros((batch_size * nifm,
+        self.prodbuf = self.backend.empty((batch_size * nifm,
                                            self.fshape[0] * self.fshape[1]))
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
@@ -1299,7 +1299,7 @@ class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
         # shape with halos
         ifmshape = self.input.local_array.ifmshape
         super(AveragePoolingLayerDist, self).adjust_for_dist(ifmshape)
-        self.prodbuf = self.backend.zeros(
+        self.prodbuf = self.backend.empty(
             (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
 
     def fprop(self, inputs_):
@@ -1609,7 +1609,7 @@ class LCNLayerDist(LCNLayer):
         self.exifmsize = self.exifmheight * self.exifmwidth
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
-        self.exinputs = self.backend.zeros((self.batch_size,
+        self.exinputs = self.backend.empty((self.batch_size,
                                             self.nifm * self.exifmsize))
         self.rexinputs = self.exinputs.reshape((self.batch_size, self.nifm,
                                                 self.exifmheight,
@@ -1630,38 +1630,38 @@ class LCNLayerDist(LCNLayer):
         self.rmeanfm = self.meanfm.reshape((self.batch_size, 1,
                                             output_height, output_width))
 
-        self.output = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.empty((self.batch_size, self.nout))
         self.routput = self.output.reshape((self.batch_size, self.nifm,
                                             output_height, output_width))
 
-        self.temp1 = self.backend.zeros(self.output.shape)
+        self.temp1 = self.backend.empty(self.output.shape)
         self.rtemp1 = self.temp1.reshape(self.routput.shape)
-        self.temp2 = self.backend.zeros(self.output.shape)
+        self.temp2 = self.backend.empty(self.output.shape)
         self.rtemp2 = self.temp2.reshape(self.routput.shape)
-        self.subout = self.backend.zeros(self.output.shape)
+        self.subout = self.backend.empty(self.output.shape)
         self.rsubout = self.subout.reshape(self.routput.shape)
-        self.subtemp = self.backend.zeros(self.output.shape)
+        self.subtemp = self.backend.empty(self.output.shape)
         self.rsubtemp = self.subtemp.reshape(self.routput.shape)
-        self.subtemp2 = self.backend.zeros((self.batch_size, self.nin))
+        self.subtemp2 = self.backend.empty((self.batch_size, self.nin))
         self.rsubtemp2 = self.subtemp2.reshape((self.batch_size, self.nifm,
                                                 self.ifmheight, self.ifmwidth))
 
         if self.pos > 0:
             # changed to nout for bprop in dist version, compared to nin in
             # non-dist version
-            self.diverror = self.backend.zeros(
+            self.diverror = self.backend.empty(
                 (self.batch_size, self.nout))
-            self.exerror = self.backend.zeros((self.batch_size,
+            self.exerror = self.backend.empty((self.batch_size,
                                                self.nifm * self.exifmsize))
             self.rexerror = self.exerror.reshape((self.batch_size, self.nifm,
                                                   self.exifmheight,
                                                   self.exifmwidth))
-            self.prodbuf = self.backend.zeros(
+            self.prodbuf = self.backend.empty(
                 (self.batch_size, self.fsize))
-            self.bprop_filters = self.backend.zeros((self.nifm,
+            self.bprop_filters = self.backend.empty((self.nifm,
                                                      self.filters.shape[0],
                                                      self.filters.shape[1]))
-            self.sqtemp = self.backend.zeros(self.output.shape)
+            self.sqtemp = self.backend.empty(self.output.shape)
             for fm in xrange(self.nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
