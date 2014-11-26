@@ -143,7 +143,7 @@ class ConvnetDist(MLP):
                 logger.debug("%s", layer)
 
     def predict_set(self, ds, inputs):
-        nrecs = inputs.shape[0]
+        nrecs = inputs.nbatches * self.batch_size
         if MPI.COMM_WORLD.rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
         for batch in xrange(inputs.nbatches):
