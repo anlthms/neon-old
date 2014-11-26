@@ -594,8 +594,8 @@ class LocalLayerDist(LocalLayer):
             self.outputbuf = self.backend.empty((self.ofmsize,
                                                  self.batch_size * self.nifm))
             if self.pos > 0:
-                self.berrorbuf = self.backend.empty((self.ifmsize,
-                                                 self.batch_size * self.nifm))
+                self.berrorbuf = self.backend.empty(
+                    (self.ifmsize, self.batch_size * self.nifm))
         else:
             self.links = self.backend.empty(
                 (self.ofmsize, self.fsize), dtype='i32')

@@ -849,7 +849,7 @@ class CPU(Backend):
         error /= fshape[0] * fshape[1]
         rerror = self.hstack_maps(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            berrorbuf[links[dst], :] += rerror[dst:(dst + 1), :]
+            berrorbuf[links[dst], :] += rerror[dst, :]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
@@ -870,7 +870,7 @@ class CPU(Backend):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=0)
-            denom = routputs[dst:(dst + 1), :].copy()
+            denom = routputs[dst, :].copy()
             # If the L2 norm is zero, the entire receptive field must be
             # zeros. In that case, we set the L2 norm to 1 before using
             # it to normalize the receptive field.

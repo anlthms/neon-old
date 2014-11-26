@@ -196,10 +196,11 @@ class LocalArray(object):
                 gc.pos_offsets[k][1] + self.global_col_index]
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
-            if (self.local_image.shape[0]==0):
+            if (self.local_image.shape[0] == 0):
                 import traceback
                 print "\n*****\n"
-                print k, self.local_image.shape, self.send_halos[k].halo_indices
+                print (
+                    k, self.local_image.shape, self.send_halos[k].halo_indices)
                 traceback.print_stack()
 
             comm.Sendrecv(sendbuf=self.local_image.take(
@@ -429,7 +430,7 @@ class LocalArray(object):
 
         recvhalo_indices = []
         sendhalo_indices = []
-        # hsr = 
+        # hsr =
         # nw/nh/nc = neighbor width/height/channel
         # n_hsr = neighbor halosize row
         # n_hsc = neighbor halosize column
