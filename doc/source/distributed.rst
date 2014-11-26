@@ -1,3 +1,7 @@
+.. ---------------------------------------------------------------------------
+.. Copyright 2014 Nervana Systems Inc.  All rights reserved.
+.. ---------------------------------------------------------------------------
+
 Distributed Implementations using MPI
 =====================================
 
@@ -10,8 +14,30 @@ Available Models
 
    neon.models.convnet_dist.ConvnetDist
    neon.models.gb_dist.GBDist
+   neon.models.mlp_dist.MLPDist
 
-Existing Models and Datasets can be tweaked by changing the \*_distarray_\*.yaml examples. Currently, we are using the halo/tower approach for distributing the convnet and the sparse autoencoder. For distributing a new Model, Layer or Dataset follow the recipe below:
+Existing Models and Datasets can be tweaked by changing the distributed/\*_distarray_\*.yaml examples. 
+
+We support 3 typical ways in which the dataset can be parallelized to be fed into the input layer of a deep neural network (parameter: dist_mode). 
+
+1. Halo/tower approach (halopar): Most relevant for images or other 2-D data with convolutional style features. Inspired by the Coates et al. "Deep Learning with COTS HPC" paper. We are using the halo/tower approach for distributing the convnet and the sparse autoencoder (gb). 
+2. Treat as a 1-d vector split amongst nodes (vecpar): Most relevant for fully connected MLP layers, but applicable to flattened images or 2-D datasets also.
+3. Data parallel (datapar): Send a different micro-batch to each process. Useful for completely data parallel implementations. 
+4. Combination of halo/tower parallel (each node gets a different 'quad'-rant of the image), and data parallel (each process within the node gets a different micro-batch, but micro-batches are aligned across nodes) (halodatapar). 
+
+There is an interaction between the strategy used to parallelize the dataset and the corresponding Layer type used.
+
+1. halopar for dataset can be used with:
+	a. ConvLayerDist as input layer (and MaxPoolingLayerDist as higher-level layer)
+	b. LocalFilteringLayerDist as input layer (and L2PoolingLayerDist and LCNLayerDist as higher-level layers) 
+2. vecpar for dataset can be used with LayerDist and LayerWithNoBiasDist
+3. datapar can be used with any layer, as long as the model or layer bprop supports a dist_mode='datapar'. For MLP (incl. CNN) this is implemented by subclassing the CPU backend in the CPUDataDist backend and extending the update_fc_dot() function.
+
+Halopar and vecpar are recommended when working with large images or feature vectors that can be split across processes. ConvnetDist and GBDist use halopar for the convolutional-style layers and vecpar for the fully connected layers. MLPDist uses vecpar. Datapar is recommended when working with large mini-batch sizes that can be split across processes. Datapar for MLP can be enabled by setting dist_flag=True in the YAML file and setting dist_mode='datapar'. 
+
+Parameter server based asynchronous SGD is not yet implemented, but please contact us if this is something you need for your use case.
+
+For distributing a new Model, Layer or Dataset using **halopar** follow the recipe below:
 
 Distributing a new Model
 ------------------------

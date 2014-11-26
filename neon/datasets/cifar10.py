@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 CIFAR-10 contains color images of 10 classes.
 More info at: http://www.cs.toronto.edu/~kriz/cifar.html
@@ -36,7 +39,6 @@ class CIFAR10(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
-        self.dist_mode = 0  # halo/tower method
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
@@ -82,7 +84,7 @@ class CIFAR10(Dataset):
         img_2d_size = img_width ** 2
         img_size = img_2d_size * 3
 
-        if self.dist_mode == 0:
+        if self.dist_mode == 'halopar':
             # todo: will change for different x/y dims for comm_per_dim
             self.comm_per_dim = int(np.sqrt(self.comm.size))
             px_per_dim = img_width / self.comm_per_dim
@@ -98,7 +100,7 @@ class CIFAR10(Dataset):
                     self.dist_indices.extend(
                         [ch * img_2d_size + r * img_width + x for x in range(
                             c_i[comm_rank], c_i[comm_rank] + px_per_dim)])
-        elif self.dist_mode == 1:
+        elif self.dist_mode == 'vecpar':
             start_idx = 0
             for j in range(comm_rank):
                 start_idx += (img_size // self.comm.size +
@@ -106,6 +108,8 @@ class CIFAR10(Dataset):
             nin = (img_size // self.comm.size +
                    (img_size % self.comm.size > comm_rank))
             self.dist_indices.extend(range(start_idx, start_idx + nin))
+        elif self.dist_mode == 'datapar':
+            raise NotImplementedError('support for datapar not implemented')
 
     def load_file(self, filename, nclasses):
         logger.info('loading: %s' % filename)

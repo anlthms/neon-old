@@ -1,8 +1,12 @@
-# Experiment settings to train/test a distributed CNN on MNIST using MPI.
+# Data parallel version of convnet
+# Experiment settings to train/test a CNN on MNIST.
+# Run with 3 MPI-processes (num_procs) if using this yaml file
+# change batch-size accordingly if running with diff num_procs.
+# model batch size should be datasets.batch_size / num_procs
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
-  backend: &be !obj:neon.backends.cpu.CPU {
+  backend: &be !obj:neon.backends.gpu.GPUDataDist {
     rng_seed: 0,
   },
 
@@ -10,21 +14,27 @@
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
       dist_flag: *df,
+      dist_mode: &dm 'datapar', # data parallel
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
+      # datapar specific parameters
+      batch_size: 300,
+      num_test_sample: 9000,
     },
   ],
-
+  
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.convnet_dist.ConvnetDist {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 2,
-    batch_size: &bs 100,
+    num_epochs: 10,
+    dist_mode: *dm,
+    batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    # serialized_path: './cnn-small.pkl',
     layers: [
-      !obj:neon.models.layer.ConvLayerDist {
+      !obj:neon.models.layer.ConvLayer {
         name: layer1,
         backend: *be,
         batch_size: *bs,
@@ -37,7 +47,7 @@
           },
         },
         nifm: 1,
-        nofm: 20,
+        nofm: 32,
         ifmshape: [28, 28],
         fshape: [5, 5],
         stride: 1,
@@ -47,17 +57,17 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayerDist {
+      !obj:neon.models.layer.MaxPoolingLayer {
         name: layer2,
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        nifm: 20,
+        nifm: 32,
         ifmshape: [24, 24],
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.ConvLayerDist {
+      !obj:neon.models.layer.ConvLayer {
         name: layer3,
         backend: *be,
         batch_size: *bs,
@@ -69,8 +79,8 @@
             backend: *be,
           },
         },
-        nifm: 20,
-        nofm: 50,
+        nifm: 32,
+        nofm: 64,
         ifmshape: [12, 12],
         fshape: [5, 5],
         stride: 1,
@@ -80,18 +90,17 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayerDist {
+      !obj:neon.models.layer.MaxPoolingLayer {
         name: layer4,
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        nifm: 50,
+        nifm: 64,
         ifmshape: [8, 8],
         fshape: [2, 2],
         stride: 2,
       },
-      # todo: support FC-> FC connections
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -110,7 +119,7 @@
             },
           },
         },
-        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
+        nin: 1024, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
@@ -119,7 +128,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -143,7 +152,7 @@
       },
     ],
   },
-
+  
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

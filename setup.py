@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 import numpy as np
 import os
@@ -11,18 +14,20 @@ VERSION = '0.4.0'
 FULLVERSION = VERSION
 write_version = True
 
-git_rev = None
 try:
     pipe = subprocess.Popen(["git", "rev-parse", "--short", "HEAD"],
                             stdout=subprocess.PIPE)
     (so, serr) = pipe.communicate()
     if pipe.returncode == 0:
-        FULLVERSION += "+%s" % so.strip()
+        FULLVERSION += "+%s" % so.strip().decode("utf-8")
 except:
     pass
 
 if write_version:
-    txt = "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
+    txt = "# " + ("-" * 78) + "\n"
+    txt += "# " + "Copyright 2014 Nervana Systems Inc. All rights reserved.\n"
+    txt += "# " + ("-" * 78) + "\n"
+    txt += "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
     fname = os.path.join(os.path.dirname(__file__), 'neon', 'version.py')
     a = open(fname, 'w')
     try:

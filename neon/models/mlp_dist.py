@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Simple multi-layer perceptron model.
 """
@@ -20,7 +23,7 @@ else:
 class MLPDist(MLP):
 
     """
-    Fully connected, feed-forward, multi-layer perceptron model
+    MPI distributed fully connected, feed-forward, multi-layer perceptron model
     """
 
     def adjust_for_dist(self):
@@ -143,18 +146,24 @@ class MLPDist(MLP):
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
                 if self.comm.rank == 0:
-                    preds['train'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    train_shape = (self.outputs.major_axis(), 1)
+                    preds['train'] = dataset.backend.empty(train_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
                 if self.comm.rank == 0:
-                    preds['test'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    test_shape = (self.outputs.major_axis(), 1)
+                    preds['test'] = dataset.backend.empty(test_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
                 if self.comm.rank == 0:
-                    preds['validation'] = dataset.backend.argmax(
-                        self.outputs, axis=1)
+                    val_shape = (self.outputs.major_axis(), 1)
+                    preds['validation'] = dataset.backend.empty(val_shape)
+                    dataset.backend.argmax(self.outputs, axis=1,
+                                           out=preds['validation'])
             if self.comm.rank == 0:
                 if len(preds) is 0:
                     logger.error(
@@ -192,36 +201,26 @@ class MLPDist(MLP):
         prev_layer_no_bias_dist = (
             isinstance(self.layers[i - 1], LayerWithNoBiasDist))
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
-        if prev_layer_no_bias_dist or prev_layer_dist:
-            lastlayer.bprop(error, self.layers[
-                            i - 1].output.take(lastlayer.out_indices, axis=1),
-                            epoch)
-        else:
-            lastlayer.bprop(error, self.layers[i - 1].output, epoch)
-        i -= 1
-        layer_no_bias_dist = isinstance(self.layers[i], LayerWithNoBiasDist)
-        layer_dist = isinstance(self.layers[i], LayerDist)
-        while i > 0 and (layer_no_bias_dist or layer_dist):
-            # extract self.layers[i].pre_act terms
-            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].out_indices, axis=1)
+        while i > 0:
             prev_layer_no_bias_dist = (
                 isinstance(self.layers[i - 1], LayerWithNoBiasDist))
             prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
             if prev_layer_dist or prev_layer_no_bias_dist:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].out_indices, axis=1),
                                      epoch)
             else:
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                self.layers[i].bprop(error,
                                      self.layers[i - 1].output,
                                      epoch)
+            error = self.layers[i].berror
             i -= 1
+            # extract self.layers[i].pre_act terms
+            self.layers[i].pre_act_ = self.layers[i].pre_act.take(
+                self.layers[i + 1].out_indices, axis=1)
 
         # first FC layer
-        self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-            self.layers[i + 1].out_indices, axis=1)
         self.layers[i].bprop(self.layers[i + 1].berror,
                              inputs,
                              epoch)

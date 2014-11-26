@@ -1,30 +1,36 @@
-# Distributed MLP on CIFAR-10
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test logistic regression on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  dist_flag: &df True,
-  backend: &be !obj:neon.backends.cpu.CPU { 
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
+    # set which numpy issues raise exceptions, warnings, etc.
+    # see: numpy.seterr()
+    seterr_handling: {
+      all: 'warn',
+    },
   },
 
   datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 1, # FC split
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      # serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Cpu_{rank}.pkl',
+      sample_pct: 100,
     },
   ],
 
   # simple MLP model specification
-  model: !obj:neon.models.mlp_dist.MLPDist {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 100,
+    num_epochs: 10,
     batch_size: &bs 100,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    serialized_path: './logreg.pkl',
     layers: [
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -35,7 +41,7 @@
             learning_rate: &lr 0.01,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
+              type: linear_monotone,
               initial_coef: 0.99,
               start_epoch: 5,
               saturate_epoch: 5,
@@ -43,35 +49,13 @@
             },
           },
         },
-        nin: 3072,
-        nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
-      },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
-        name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 200,
+        nin: 785, # input layer + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
+          type: normal,
+          loc: 0.0,
+          scale: 0.01,
         },
       },
     ],

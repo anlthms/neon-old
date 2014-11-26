@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Contains various functions and wrappers to make code python 2 and python 3
 compatible, as well as indicate the presence of a CUDA compatible GPU (or at

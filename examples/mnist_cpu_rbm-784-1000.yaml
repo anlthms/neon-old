@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a Restricted Boltzmann Machine (RBM) on
 # MNIST.  Can serve as a template for Deep Belief Network (DBN) layers.
 

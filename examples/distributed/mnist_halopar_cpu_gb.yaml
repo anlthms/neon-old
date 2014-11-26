@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
 # model in a distributed fashion on MNIST.
 
@@ -11,6 +14,7 @@
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
       dist_flag: *df,
+      dist_mode: 'halopar', # halo/tower split
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,

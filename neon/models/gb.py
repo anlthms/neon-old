@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Contains code to train Google Brain models and run inference.
 """
@@ -143,7 +146,9 @@ class GB(MLP):
                     auc[node] += metrics.roc_auc_score(
                         labels[start_idx:end_idx].raw(), pred.raw())
             auc /= num_batches
-            maxnode = self.backend.argmax(auc).raw()
+            maxnode = self.backend.empty((1, 1))
+            self.backend.argmax(auc, axis=None, out=maxnode)
+            maxnode = maxnode.raw()
             maxauc = auc[maxnode]
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,
@@ -189,7 +194,7 @@ class GB(MLP):
             self.train(inputs, targets)
 
     def normalize(self, data):
-        norms = data.norm(axis=1)
+        norms = self.backend.norm(data, 2, axis=1)
         self.backend.divide(data, norms.reshape((norms.shape[0], 1)),
                             out=data)
 
@@ -206,6 +211,10 @@ class GB(MLP):
         self.fprop(inputs)
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
+        maxinds = self.backend.empty((self.batch_size, self.batch_size),
+                                     dtype="i32")
+        notinds = self.backend.empty((self.batch_size, self.batch_size),
+                                     dtype="i32")
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
         inc = 0.1
         # Do a greedy search to find input data that maximizes the output
@@ -220,8 +229,8 @@ class GB(MLP):
                 self.fprop(inputs)
                 output = lastlayer.output[range(self.batch_size),
                                           range(self.batch_size)]
-                maxinds = output > outmax
-                notinds = output < outmax
+                self.backend.greater(output, outmax, out=maxinds)
+                self.backend.less(output, outmax, out=notinds)
                 outmax[maxinds] = output[maxinds]
                 inputs[notinds, :] = saved[notinds, :]
                 count += maxinds.sum()

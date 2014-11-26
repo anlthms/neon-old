@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 A `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_ GPU based backend.
 """
@@ -780,6 +783,14 @@ class Cudanet(Backend):
 
     def sqrt(self, x, out):
         res = cudanet.sqrt(x._tensor, out._tensor)
+        return CudanetTensor(res)
+
+    def square(self, x, out):
+        res = cudanet.apply_pow(x._tensor, 2.0, out._tensor)
+        return CudanetTensor(res)
+
+    def cube(self, x, out):
+        res = cudanet.apply_pow(x._tensor, 3.0, out._tensor)
         return CudanetTensor(res)
 
     def squish(self, obj, n):

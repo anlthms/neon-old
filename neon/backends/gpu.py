@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
@@ -5,8 +8,12 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
+from neon.util.compat import MPI_INSTALLED
+if MPI_INSTALLED:
+    from mpi4py import MPI
 import math
 import cudanet
+import os
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.error import TooSlowToImplementError
@@ -15,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class GPUTensor(Tensor):
+
     """
     Our n-dimensional array data structure that can reside on host or on GPU
     device.  Our implementation is a wrapped `cudanet.CUDAMatrix` tensor, where
@@ -47,6 +55,10 @@ class GPUTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
+                if dtype not in (numpy.float32, numpy.int32) or dtype is None:
+                    logger.debug('Dtype %s is unsupported in GPU '
+                                 'backend, defaulting float32', dtype)
+                    obj = numpy.array(obj, dtype=numpy.float32)
                 self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
@@ -101,9 +113,9 @@ class GPUTensor(Tensor):
             complex to implement quickly).
         """
         res = self
-        fn = res._tensor.get_row_slice
+        fn = res._tensor.row_slice_view
         if dim == 1:
-            fn = res._tensor.get_col_slice
+            fn = res._tensor.col_slice_view
         if isinstance(_slice, int):
             _slice = slice(_slice, _slice + 1)
         if isinstance(_slice, slice):
@@ -223,49 +235,15 @@ class GPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def asnumpyarray(self):
+        self._tensor.copy_to_host()
+        return self._tensor.numpy_array
+
     def __float__(self):
         raise NotImplementedError()
 
     def __neg__(self):
         return -1 * self
-
-    def __lt__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.less_than(other._tensor, target)
-        else:
-            self._tensor.less_than(other, target)
-        return GPUTensor(target)
-
-    def __le__(self, other):
-        # call __lt__ and __eq__ and iterate?
-        raise NotImplementedError()
-
-    def __eq__(self, other):
-        if other is None:
-            return False
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.equals(other._tensor, target)
-        else:
-            self._tensor.equals(other, target)
-        return GPUTensor(target)
-
-    def __ne__(self, other):
-        # go through results of __eq__ and negate
-        raise NotImplementedError()
-
-    def __gt__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.greater_than(other._tensor, target)
-        else:
-            self._tensor.greater_than(other, target)
-        return GPUTensor(target)
-
-    def __ge__(self, other):
-        # call __gt__ and __eq__ and iterate?
-        raise NotImplementedError()
 
     def __add__(self, other):
         """
@@ -456,18 +434,19 @@ class GPUTensor(Tensor):
     def copy(self):
         return GPUTensor(self._tensor.copy())
 
-    def raw(self):
-        self._tensor.copy_to_host()
+    def raw(self, dohostcopy=True):
+        if dohostcopy:
+            self._tensor.copy_to_host()
         return self._tensor.numpy_array
+
+    def copy_to_device(self):
+        self._tensor.copy_to_device()
 
     def transpose(self):
         return TransposedGPUTensor(self._tensor, self._tensor.T)
 
     def reshape(self, shape):
         return GPUTensor(self._tensor.reshape(shape))
-
-    def argmax(self, axis):
-        return GPUTensor(self._tensor.argmax(axis))
 
     def take(self, indices, axis=None):
         """
@@ -496,12 +475,6 @@ class GPUTensor(Tensor):
         else:
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
-
-    def add(self, obj):
-        self._tensor.add(obj._tensor)
-
-    def sub(self, obj):
-        self._tensor.subtract(obj._tensor)
 
     def sum(self, axis=None):
         """
@@ -548,16 +521,20 @@ class GPUTensor(Tensor):
         return GPUTensor(target)
 
     def get_minor_slice(self, start, end):
-        return self.__class__(self[:, start:end]._tensor)
+        # return self.__class__(self[:, start:end]._tensor)
+        return GPUTensor(self._tensor.col_slice_view(start, end))
 
     def set_minor_slice(self, start, end, data):
-        self[:, start:end] = data
+        # self[:, start:end] = data
+        self._tensor.set_col_slice(start, end, data._tensor)
 
     def get_major_slice(self, start, end):
-        return self.__class__(self[start:end]._tensor)
+        # return self.__class__(self[start:end]._tensor)
+        return GPUTensor(self._tensor.row_slice_view(start, end))
 
     def set_major_slice(self, start, end, data):
-        self[start:end] = data
+        # self[start:end] = data
+        self._tensor.set_row_slice(start, end, data._tensor)
 
     def major_axis(self):
         return 1
@@ -567,9 +544,11 @@ class GPUTensor(Tensor):
 
 
 class TransposedGPUTensor(GPUTensor):
+
     """
     Transposed CUDAMatrix tensor
     """
+
     def __init__(self, obj, transposed):
         assert type(obj) == cudanet.CUDAMatrix
         self._tensor = transposed
@@ -577,6 +556,7 @@ class TransposedGPUTensor(GPUTensor):
 
 
 class GPU(Backend):
+
     """
     Sets up a `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
     based backend for matrix operations.
@@ -604,25 +584,86 @@ class GPU(Backend):
         # https://github.com/cudanet/cudanet/issues/19
 
     def empty(self, shape, dtype=None):
+        """
+        Instantiate a new instance of the GPUTensor class without initializing
+        each element's value.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
         return GPUTensor(cudanet.empty(shape))
 
-    def zeros(self, shape, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros(shape, dtype=dtype)))
-
-    def alloc(self, nrows, ncols, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros((ncols, nrows), dtype=dtype)))
-
-    def ones(self, shape, dtype=numpy.float32):
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.ones(shape, dtype=dtype)))
-
     def array(self, obj, dtype=None):
+        """
+        Instantiate a new instance of the GPUTensor class based on the values
+        and shape of obj passed.
+
+        Arguments:
+            obj (numpy.ndarray): The n-dimensional array of values to use in
+                                 initializing the values of this Tensor.  Note
+                                 that python built-in types like scalar
+                                 integers and lists are supported.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
         ndarray = numpy.array(obj, dtype=numpy.float32)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return GPUTensor(ndarray)
+
+    def zeros(self, shape, dtype=numpy.float32):
+        """
+        Instantiate a new instance of the GPUTensor class setting each element
+        value to 0.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
+        if dtype is None:
+            dtype = numpy.float32
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.zeros(shape, dtype=dtype)))
+
+    def ones(self, shape, dtype=numpy.float32):
+        """
+        Instantiate a new instance of the GPUTensor class setting each element
+        value to 1.
+
+        Arguments:
+            shape (list of ints): The size of each dimension of the Tensor.
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value (np.float32
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: newly created data structure reference
+        """
+        if dtype is None:
+            dtype = numpy.float32
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.ones(shape, dtype=dtype)))
+
+    def alloc(self, nrows, ncols, dtype=numpy.float32):
+        if dtype is None:
+            dtype = numpy.float32
+        return GPUTensor(cudanet.CUDAMatrix(
+            numpy.zeros((ncols, nrows), dtype=dtype)))
 
     def wrap(self, obj):
         return GPUTensor(obj)
@@ -650,16 +691,37 @@ class GPU(Backend):
             seed = self.rng_seed
         numpy.random.seed(seed)
         try:
-            cudanet.CUDAMatrix.init_random(seed)
+            cudanet.cudanet_init_random(seed)
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
                             "integer.  You specified: %s" % str(seed))
-            cudanet.CUDAMatrix.init_random(0)
+            cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
+
+    def fill_uniform_thresh(self, a, keepthresh=0.5, dtype=None):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            a (dtype): GPUTensor to fill with zeros or ones based on whether
+                       sample from uniform distribution is > keepthresh
+            keepthresh (float, optional): Minimal sample value that can be
+                                          returned. Defaults to 0.5
+        Returns:
+            Tensor: Of specified size filled with these random numbers.
+        """
+        # This is the slow version for checking via cpu generated randoms
+        a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
+            size=a._tensor.shape) < keepthresh) / keepthresh,
+            dtype=numpy.float32)
+        a.copy_to_device()
+
+        # This is the fast version using device generated random matrix
+        # a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
@@ -673,15 +735,12 @@ class GPU(Backend):
         result.set_row_slice(0, x.shape[0], x._tensor)
         result.set_row_slice(x.shape[0], (x.shape[0] + 1),
                              cudanet.CUDAMatrix.ones.slice(
-                             0, x.shape[1]).reshape((1, x.shape[1])))
+                                 0, x.shape[1]).reshape((1, x.shape[1])))
         return GPUTensor(result)
 
     def copy(self, a):
         assert type(a) == GPUTensor
         return a.copy()
-
-    def argmax(self, x, axis=None):
-        return GPUTensor(x._tensor.argmax(axis))
 
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
@@ -705,8 +764,150 @@ class GPU(Backend):
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
 
-    def greater(self, a, b, out):
-        a._tensor.greater_than(b._tensor, out._tensor)
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.equals(right._tensor, out._tensor)
+        return out
+
+    def not_equal(self, left, right, out):
+        """
+        Performs element-wise non-equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.equal(left, right, out)
+        out._tensor.equals(0, out._tensor)
+        return out
+
+    def greater(self, left, right, out):
+        """
+        Performs element-wise greater than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.greater_than(right._tensor, out._tensor)
+        return out
+
+    def greater_equal(self, left, right, out):
+        """
+        Performs element-wise greater than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.add(left._tensor.greater_than(right._tensor),
+                 left._tensor.equals(right._tensor),
+                 out._tensor)
+        return out
+
+    def less(self, left, right, out):
+        """
+        Performs element-wise less than testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        left._tensor.less_than(right._tensor, out._tensor)
+        return out
+
+    def less_equal(self, left, right, out):
+        """
+        Performs element-wise less than or equal testing on each element of
+        left and right, storing the result in out.  Each operand is assumed to
+        be the same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.add(left._tensor.less_than(right._tensor),
+                 left._tensor.equals(right._tensor),
+                 out._tensor)
+        return out
+
+    def norm(self, tsr, order=None, axis=None, out=None):
+        """
+        Calculates and returns the vector p-norms of the GPUTensor along the
+        specified axis.  The p-norm is defined on a vector A as
+        :math:`||A||_p = \sum_i(|A_i|^p)^{1/p}`.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to find the norms
+            order (int): The order or p upon which the norm is calculated.
+                         Valid values include:
+                         None, inf, -inf, 0, 1, -1, 2, -2, ...
+            axis (int): The axis along which to compute vector norms.
+            out (GPUTensor, optional): where to write the results to.  Must be
+                                       of the expected result shape.  If not
+                                       specified, a new buffer is created and
+                                       returned.
+
+        Returns:
+            GPUTensor: p-norm of tsr along the specified axis.
+        """
+        if not isinstance(axis, int):
+            raise AttributeError("invalid axis value: %s", axis)
+        if order == float('Inf'):
+            res = self.max(self.fabs(tsr), axis)
+        elif order == float('-Inf'):
+            res = self.min(self.fabs(tsr), axis)
+        elif order == 0:
+            tmp = self.zeros(tsr.shape)
+            self.not_equal(tsr, tmp, tmp)
+            res = tmp.sum(axis)
+        else:
+            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+        if out is None:
+            out = self.array(res)
+        else:
+            out = res
+        return out
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -716,6 +917,13 @@ class GPU(Backend):
 
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
+
+    def rectlin(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
+        self.multiply(x, out, out=out)
+
+    def rectlin_derivative(self, x, out):
+        self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
         x._tensor[:] = val
@@ -764,6 +972,48 @@ class GPU(Backend):
 
         return GPUTensor(res)
 
+    def argmin(self, tsr, axis, out):
+        """
+        Calculates the indices of the minimal element value along the specified
+        axis.  If multiple elements contain the minimum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the minimum indices
+            axis (int): The dimension along which to find the minimum.  If set
+                        to None, find the overall minimum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmin(axis)
+        out.shape = out._tensor.shape
+        return out
+
+    def argmax(self, tsr, axis, out):
+        """
+        Calculates the indices of the maximal element value along the specified
+        axis.  If multiple elements contain the maximum, only the elements of
+        the first are returned.
+
+        Arguments:
+            tsr (GPUTensor): The GPUTensor on which to find the maximum indices
+            axis (int): The dimension along which to find the maximum.  If set
+                        to None, find the overall maximum index of a flattened
+                        representation of tsr.
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        out._tensor = tsr._tensor.argmax(axis)
+        out.shape = out._tensor.shape
+        return out
+
     def fabs(self, x, out=None):
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
@@ -779,12 +1029,6 @@ class GPU(Backend):
     def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
-
-    def not_equal(self, x, y):
-        res = x._tensor.copy()
-        res.equals(y._tensor)
-        res.equals(0)
-        return GPUTensor(res)
 
     def nonzero(self, x):
         res = x._tensor.copy()
@@ -852,8 +1096,20 @@ class GPU(Backend):
     def update_fc_dot(self, deltas, inputs, out):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
+    def fprop_cmpool(self, inputs, weights, fmsize, out):
+        raise NotImplementedError("TODO!")
+
+    def bprop_cmpool(self, deltas, weights, fmsize, out):
+        raise NotImplementedError("TODO!")
+
+    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        raise NotImplementedError("TODO!")
+
     def format(self, raw):
         return self.array(raw.transpose().copy())
+
+    def sync_stream(self):
+        cudanet.sync_stream()
 
     def gen_weights(self, size, weight_params, dtype=None):
         # FIXME: Get rid of duplication.
@@ -898,47 +1154,49 @@ class GPU(Backend):
 
         return GPUTensor(numpy.array(weights, numpy.float32))
 
-    def get_momentum_coef(self, epoch, momentum_params):
-        # FIXME: Get rid of duplication.
-        coef = 0.0
-        if 'coef' in momentum_params:
-            coef = momentum_params['coef']
-        if 'initial_coef' in momentum_params:
-            init_coef = momentum_params['initial_coef']
-        else:
-            init_coef = coef
-        if 'saturated_coef' in momentum_params:
-            saturated_coef = momentum_params['saturated_coef']
-        else:
-            saturated_coef = coef
-        if 'start_epoch' in momentum_params:
-            start_epoch = momentum_params['start_epoch']
-        else:
-            start_epoch = None
-        if 'saturate_epoch' in momentum_params:
-            saturate_epoch = momentum_params['saturate_epoch']
-        else:
-            saturate_epoch = None
 
-        if momentum_params['type'] == 'constant':
-            pass
-        elif momentum_params['type'] == 'linear_monotone':
-            coef = init_coef
-            if start_epoch is not None and epoch >= start_epoch:
-                if saturate_epoch is not None and epoch <= saturate_epoch:
-                    if start_epoch == saturate_epoch:
-                        coef = saturated_coef
-                    else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
-                                           (saturate_epoch - start_epoch))
-                        coef = (init_proportion * init_coef +
-                                (1.0 - init_proportion) * saturated_coef)
-                elif saturate_epoch is not None and epoch > saturate_epoch:
-                    coef = saturated_coef
-            else:
-                coef = saturated_coef
-        elif momentum_params['type'] == 'nesterov':
-            raise NotImplementedError("TODO!")
-        else:
-            raise AttributeError("invalid momentum_params specified")
-        return coef
+class GPUDataDist(GPU):
+    """
+    helper sub-class for data parallel implementations
+    """
+    def __init__(self, **kwargs):
+        local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+        num_devices = cudanet.get_num_devices()
+
+        if (local_size > num_devices):
+            logger.warning('Node %s: requested device: %d  max devices: %d' %
+                           (MPI.Get_processor_name(), local_size,
+                            num_devices))
+            raise AttributeError("Asking for more gpu devices than are "
+                                 "available on node")
+
+        cudanet.set_device_id(local_rank)
+        logger.info('Setting Device on %s to %d' %
+                    (MPI.Get_processor_name(), local_rank))
+        super(GPUDataDist, self).__init__(**kwargs)
+
+    def update_fc_dot(self, deltas, inputs, out):
+        super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+        # trivial implementation below
+        # could optimize by making each proc responsible for #params/comm.size
+        # of the params
+        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
+                                                  root=0)
+        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
+
+        out.copy_to_device()
+
+    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
+                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+                    updatebuf):
+        super(GPUDataDist, self).update_conv(weights, inputs, error, updates,
+                                             links, ifmshape, ofmshape,
+                                             ofmlocs, padding, stride, nifm,
+                                             ngroups, fwidth, updatebuf)
+
+        updates.raw(False)[:] = MPI.COMM_WORLD.reduce(updates.raw(),
+                                                      op=MPI.SUM, root=0)
+        updates.raw(False)[:] = MPI.COMM_WORLD.bcast(updates.raw(False))
+
+        updates.copy_to_device()

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Numerical gradient checking to validate backprop code.
 """
@@ -5,9 +8,8 @@ Numerical gradient checking to validate backprop code.
 import logging
 import numpy as np
 
-from neon.experiments.experiment import Experiment
 from neon.datasets.synthetic import UniformRandom
-from neon.backends.cpu import CPU
+from neon.experiments.experiment import Experiment
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,7 @@ class GradientChecker(Experiment):
 
     def check_layer(self, layer, inputs, targets):
         # Check up to this many weights.
-        nmax = 10
+        nmax = 30
         updates = layer.updates.raw().ravel()
         weights = layer.weights.raw().ravel()
         grads = np.zeros(weights.shape)
@@ -59,12 +61,12 @@ class GradientChecker(Experiment):
                 targets, self.model.temp)
 
             grads[ind] = ((cost1 - cost2) * self.model.layers[-1].nout *
-                          layer.learning_rate / (2 * self.eps))
+                          layer.learning_rule.learning_rate / (2 * self.eps))
             weights[ind] = saved
 
         grads -= updates
-        diff = np.linalg.norm(grads[inds])
-        if diff < self.eps * 10:
+        diff = np.linalg.norm(grads[inds]) / nmax
+        if diff < 0.0002:
             logger.info('diff %g. layer %s OK.' % (diff, layer.name))
             return True
 
@@ -80,12 +82,7 @@ class GradientChecker(Experiment):
             logger.error('Config file not compatible.')
             return
 
-        backend_type = type(self.model.backend)
-        if backend_type != CPU:
-            logger.error('%s backend is not supported.' % backend_type)
-            return
-
-        self.eps = 1e-6
+        self.eps = 1e-4
         self.weights = []
         self.trainable_layers = []
         for ind in xrange(len(self.model.layers)):
@@ -107,11 +104,11 @@ class GradientChecker(Experiment):
         targets = self.datasets[0].get_targets(train=True)['train']
 
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, self.model.momentum)
+        self.model.bprop(targets, inputs, 0)
 
         self.save_state()
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0, self.model.momentum)
+        self.model.bprop(targets, inputs, 0)
         self.load_state()
 
         for ind in self.trainable_layers[::-1]:

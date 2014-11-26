@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # neon configuration files are written in YAML (a human readable markup
 # language that supports key/value pairs).  We actually make use of pyyaml and
 # customize things slightly to support arbitrary python objects as values and
@@ -45,13 +48,15 @@
   # backend - Controls how data will be constructed and operated on
   #           during the experiment.  Key parameter allowing the following types:
   #           CPU - 32-bit float numpy wrapped CPU based data
-  #           FixedPoint - fixed decimal point wrapped CPU based data
+  #           Flexpoint - fixed decimal point wrapped CPU based data
   #           GPU - 32-bit float cuda-convnet2 wrapped GPU based data
   # datasets - list containing the input data to train/test against.  types:
   #            MNIST - handwritten digit image dataset
   #            CIFAR10 - 10 class object image dataset
+  #            SPARSENET - small natural image dataset (Olshausen and Field)
   #            Iris - RA Fisher's 3 class flower dataset
   #            UniformRandom - synthetic random data
+  #            ToyImages - synthetic image classification dataset
   # model - the type of machine learning algorithm to employ.  types:
   #         MLP - feed-forward multi-layer perceptron neural network
   #         RBM - restricted Boltzmann machine
@@ -99,25 +104,6 @@
     #              be no larger than the size of the training dataset.
     # num_epochs - the number of iterations through the entire training set
     #              to make in training the model
-    # learning_rate - fraction of backpropagated gradient values to add to the
-    #                 weights during each update (should be <= 1.0)
-    # momentum - dictionary containing several parameters that can be used to
-    #            adjust the learning rate over time based on the curvature of
-    #            gradient directions.  These parameters are:
-    #            type - should be one of: constant, linear_monotone, nesterov
-    #            initial_coef - initial momentum coefficient value.  0 disables
-    #                           momentum, but a positive value gives portion of
-    #                           previous iteration velocity to apply initially
-    #            saturated_coef - final momentum coefficient value to apply
-    #                             once we reach the saturation epoch and
-    #                             beyond.  Only applies to linear_monotone
-    #            start_epoch - specify a number indicating at which epoch we
-    #                          begin applying momentum based updates
-    #            saturate_epoch - specify a number (>= start_epoch) at which
-    #                             we will saturate momentum based updates.
-    #                             For linear_monotone momentum, we interpolate
-    #                             between initial and saturate momentum coef
-    #                             values until we reach the saturate_epoch.
     # cost - the objective function transform.  Current types are:
     #        CrossEntropy - typically used to measure the difference between two
     #                       probability distributions
@@ -127,16 +113,8 @@
     #                   subsequent use of this model for inference purposes.
     # layers - list of one or more neural network layer objects.
     backend: *be,
-    batch_size: 30,
     num_epochs: 2500,
-    learning_rate: &lr 0.1,
-    momentum: {
-      type: constant, #constant, nesterov
-      initial_coef: 0,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0,
-    },
+    batch_size: &bs 30,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './iris-mlp-simple.pkl',
     layers: [
@@ -148,15 +126,24 @@
         # batch_size - number of training instances in each mini-batch.  Should
         #              be no larger than the size of the training dataset.
         # pos - 0-based index of this layer
-        # learning_rate - fraction of backpropagated gradient values to add to
-        #                 this layer's the weights during each update (should
-        #                 be <= 1.0)
+        # learning_rule - How updates get applied to the weights.  There are
+        #                 various possible approaches, each with type specific
+        #                 parameters.  We currently support:
+        #                 GradientDescent - vanilla gradient descent with
+        #                                   weight decay
+        #                 GradientDescentPretrain - as above but with optional
+        #                                           separate learning rate to
+        #                                           use during pre-training
+        #                 GradientDescentMomentum - gradient descent with
+        #                                           the ability to apply
+        #                                           different types of momentum
+        #                                           (constant, nesterov, etc.)
+        #                 AdaDelta - Zeiler2012 style updates
         # nin - number of connections input to this layer (from the layer
         #       before). Should include bias if present
         # nout - number of connections output by this layer
         # activation - (non-linear) transformation function to apply to the
         #              connections in this layer.  types are:
-        #              Identity - no transformation applied
         #              Logistic - sigmoidal squashing transform
         #              RectLin - ReLU (rectified linear unit) transform
         #              Tanh - hyperbolic tangent squashing transform
@@ -175,7 +162,47 @@
         backend: *be,
         batch_size: 30,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          # GradientDescentMomentum learning rule parameters
+          # ------------------------------------------------
+          # name - how this learning rule is identified during logging
+          # lr_params - type specfic parameters.  In this case includes:
+          #   learning_rate - fraction of backpropagated gradient values to
+          #                   add to this layers weights during each update
+          #                   (should be <= 1.0)
+          #   backend - backend to use to store data constructed for these
+          #             layer updates
+          #   momentum_params - dictionary containing several parameters that
+          #                     can be used to adjust the learning rate over
+          #                     time based on the curvature of gradient
+          #                     directions.  These parameters are:
+          #     type - should be one of: constant, linear_monotone, nesterov
+          #     initial_coef - initial momentum coefficient value.  0 disables
+          #                    momentum, but a positive value gives portion of
+          #                    previous iteration velocity to apply initially
+          #     saturated_coef - final momentum coefficient value to apply
+          #                      once we reach the saturation epoch and
+          #                      beyond.  Only applies to linear_monotone
+          #     start_epoch - specify a number indicating at which epoch we
+          #                   begin applying momentum based updates
+          #     saturate_epoch - specify a number (>= start_epoch) at which
+          #                      we will saturate momentum based updates.
+          #                      For linear_monotone momentum, we interpolate
+          #                      between initial and saturate momentum coef
+          #                      values until we reach the saturate_epoch.
+          name: h0lr,
+          lr_params: {
+            learning_rate: &lr 0.1,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant,
+              initial_coef: 0,
+              start_epoch: 5,
+              saturate_epoch: 5,
+              saturated_coef: 0,
+            },
+          },
+        },
         nin: 5, # input layer + 1 for the bias
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
@@ -188,9 +215,16 @@
       !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
-        batch_size: 30,
+        batch_size: *bs,
         pos: 1,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
         nin: 3, # previous nout + 1 for the bias
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a "Google Brain" style sparse autoencoder
 # model on CIFAR10 using MPI.
 # Filter sizes are different from non-dist version so we can go up to
@@ -13,6 +16,7 @@
     # CIFAR10 data
     !obj:neon.datasets.cifar10.CIFAR10 {
       dist_flag: *df,
+      dist_mode: 'halopar', # halo/tower split
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
