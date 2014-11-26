@@ -648,7 +648,7 @@ class LocalLayerDist(LocalLayer):
         self.ofmshape = (self.ofmheight, self.ofmwidth)
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ofmheight * self.ofmwidth
-        # self.nin = nifm * self.ifmsize
+        self.nin = nifm * self.ifmsize
         # if pos > 0:
         #    self.berror = backend.zeros((batch_size, self.nin), dtype=dtype)
 

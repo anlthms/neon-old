@@ -99,49 +99,6 @@ class ConvnetDist(MLPDist):
             self.error = self.backend.zeros(
                 (self.layers[-1].nout, self.batch_size))
 
-    def fit(self, datasets):
-        """
-        Learn model weights on the given datasets.
-        """
-        # for layer in self.layers:
-        #    logger.info("%s" % str(layer))
-        self.comm = MPI.COMM_WORLD
-        self.adjust_for_dist()
-        ds = datasets[0]
-        inputs = ds.get_inputs(train=True)['train']
-        targets = ds.get_targets(train=True)['train']
-        nrecs = inputs.shape[0]
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
-        if 'temp_dtype' not in self.__dict__:
-            self.temp_dtype = None
-        tempbuf = self.backend.zeros((self.layers[-1].nout, self.batch_size),
-                                     self.temp_dtype)
-        self.temp = [tempbuf, tempbuf.copy()]
-
-        # we may include 1 smaller-sized partial batch if num recs is not an
-        # exact multiple of batch size.
-        logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
-            error = 0.0
-            for batch in xrange(inputs.nbatches):
-                if MPI.COMM_WORLD.rank == 0:
-                    logger.debug('batch = %d' % (batch))
-                inputs_batch = ds.get_batch(inputs, batch)
-                targets_batch = ds.get_batch(targets, batch)
-                self.fprop(inputs_batch)
-                self.bprop(targets_batch, inputs_batch, epoch)
-                if MPI.COMM_WORLD.rank == 0:
-                    error += self.cost.apply_function(self.backend,
-                                                      self.layers[-1].output,
-                                                      targets_batch,
-                                                      self.temp)
-            if MPI.COMM_WORLD.rank == 0:
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / inputs.nbatches))
-            for layer in self.layers:
-                logger.debug("%s", layer)
-
     def fprop(self, inputs):
         # call MLP's fprop: doesn't work for FC->FC connections
         # super(ConvnetDist, self).fprop(inputs)
