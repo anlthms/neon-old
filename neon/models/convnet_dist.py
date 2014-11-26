@@ -165,7 +165,7 @@ class ConvnetDist(MLPDist):
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
-            self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.

@@ -176,7 +176,7 @@ class MLPDist(MLP):
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
-            self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.
