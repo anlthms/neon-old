@@ -108,6 +108,7 @@ class ConvnetDist(MLP):
         self.adjust_for_dist()
         inputs = datasets[0].get_inputs(train=True)['train']
         targets = datasets[0].get_targets(train=True)['train']
+        print targets.shape
         nrecs = inputs.shape[0]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -128,14 +129,14 @@ class ConvnetDist(MLP):
                     logger.debug('batch = %d' % (batch))
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[start_idx:end_idx])
-                self.bprop(targets[start_idx:end_idx],
-                           inputs[start_idx:end_idx],
+                self.fprop(inputs[:, start_idx:end_idx])
+                self.bprop(targets[:, start_idx:end_idx],
+                           inputs[:, start_idx:end_idx],
                            epoch)
                 if MPI.COMM_WORLD.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
-                                                      targets[
+                                                      targets[:,
                                                           start_idx:end_idx],
                                                       self.temp)
             if MPI.COMM_WORLD.rank == 0:
@@ -147,14 +148,14 @@ class ConvnetDist(MLP):
     def predict_set(self, inputs):
         nrecs = inputs.shape[0]
         if MPI.COMM_WORLD.rank == 0:
-            self.outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
+            self.outputs = self.backend.zeros((self.layers[-1].nout, nout))
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         for batch in xrange(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs[start_idx:end_idx])
+            self.fprop(inputs[:, start_idx:end_idx])
             if MPI.COMM_WORLD.rank == 0:
-                self.outputs[start_idx:end_idx, :] = self.layers[-1].output
+                self.outputs[:, start_idx:end_idx] = self.layers[-1].output
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -167,23 +168,23 @@ class ConvnetDist(MLP):
             if train and 'train' in inputs:
                 self.predict_set(inputs['train'])
                 if MPI.COMM_WORLD.rank == 0:
-                    train_shape = (self.outputs.major_axis(), 1)
+                    train_shape = (1, self.outputs.shape[0])
                     preds['train'] = dataset.backend.empty(train_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(inputs['test'])
                 if MPI.COMM_WORLD.rank == 0:
-                    test_shape = (self.outputs.major_axis(), 1)
+                    test_shape = (1, self.outputs.shape[0])
                     preds['test'] = dataset.backend.empty(test_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(inputs['validation'])
                 if MPI.COMM_WORLD.rank == 0:
-                    val_shape = (self.outputs.major_axis(), 1)
+                    val_shape = (1, self.outputs.shape[0])
                     preds['validation'] = dataset.backend.empty(val_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
+                    dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['validation'])
             if MPI.COMM_WORLD.rank == 0:
                 if len(preds) is 0:
@@ -202,7 +203,7 @@ class ConvnetDist(MLP):
             if (isinstance(layer, LayerWithNoBiasDist) and
                 isinstance(self.layers[layer.pos - 1],
                            LayerWithNoBiasDist)):
-                y = y.take(layer.in_indices, axis=1)
+                y = y.take(layer.in_indices, axis=0)
             layer.fprop(y)
             y = layer.output
 
@@ -213,6 +214,7 @@ class ConvnetDist(MLP):
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if MPI.COMM_WORLD.rank == 0:
+            print lastlayer.output.shape, targets.shape
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
@@ -225,7 +227,7 @@ class ConvnetDist(MLP):
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
-                                     take(self.layers[i].in_indices, axis=1),
+                                     take(self.layers[i].in_indices, axis=0),
                                      epoch)
             else:
                 self.layers[i].bprop(error,
@@ -236,7 +238,7 @@ class ConvnetDist(MLP):
             if isinstance(self.layers[i], LayerWithNoBiasDist):
                 # extract self.layers[i].pre_act terms
                 self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                    self.layers[i + 1].in_indices, axis=1)
+                    self.layers[i + 1].in_indices, axis=0)
 
         # following code is difficult to refactor:
         # 1) MPL berror has no halos for top layer, but does for middle layers

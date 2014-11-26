@@ -30,10 +30,10 @@ class RecvHalo(object):
         self.halo_insert_indices = []
         # initialize a temporary buffer space if we need it
         if backend is None:
-            self.halo_data = np.empty((mb_size, halo_size), dtype='float32')
+            self.halo_data = np.empty((halo_size, mb_size), dtype='float32')
         else:
             self.halo_data = backend.zeros(
-                (mb_size, halo_size), dtype='float32')
+                (halo_size, mb_size), dtype='float32')
 
 
 class SendHalo(object):
@@ -46,10 +46,10 @@ class SendHalo(object):
         # space to store received defiltered data
         if backend is None:
             self.halo_data_defiltering = np.empty(
-                (mb_size, len(halo_indices)), dtype='float32')
+                (len(halo_indices), mb_size), dtype='float32')
         else:
             self.halo_data_defiltering = backend.zeros(
-                (mb_size, len(halo_indices)), dtype='float32')
+                (len(halo_indices), mb_size), dtype='float32')
 
 
 class LocalArray(object):
@@ -93,12 +93,12 @@ class LocalArray(object):
 
         if backend is None:
             self.local_image = np.empty(
-                (batch_size, self.local_array_size), dtype='float32')
+                (self.local_array_size, batch_size), dtype='float32')
             self.defiltering_local_image = np.empty_like(self.local_image)
         else:
             self.backend = backend
             self.local_image = backend.zeros(
-                (batch_size, self.local_array_size), dtype='float32')
+                (self.local_array_size, batch_size), dtype='float32')
             # this is the local image with accumulated gradients
             # (bprop or defiltering)
             self.defiltering_local_image = backend.zeros(
@@ -149,12 +149,12 @@ class LocalArray(object):
             if backend is None:
                 # chunk is local_image with halo
                 self.chunk = np.empty(
-                    (batch_size, self.local_array_size_with_halo),
+                    (self.local_array_size_with_halo, batch_size),
                     dtype='float32')
                 self.defiltering_chunk = np.empty_like(self.chunk)
             else:
                 self.chunk = backend.zeros(
-                    (batch_size, self.local_array_size_with_halo),
+                    (self.local_array_size_with_halo, batch_size),
                     dtype='float32')
                 self.defiltering_chunk = backend.zeros(
                     self.chunk.shape,
@@ -196,9 +196,10 @@ class LocalArray(object):
                 gc.pos_offsets[k][1] + self.global_col_index]
             neighbor_comm_index = neighbor_array_index[
                 0] * self.comm_per_dim + neighbor_array_index[1]
-
+            # print "\n*****\n"
+            # print k, self.local_image.shape, self.send_halos[k].halo_indices
             comm.Sendrecv(sendbuf=self.local_image.take(
-                self.send_halos[k].halo_indices, axis=1).raw(),
+                self.send_halos[k].halo_indices, axis=0).raw(),
                 dest=neighbor_comm_index, sendtag=0,
                 recvbuf=self.recv_halos[k].halo_data.raw(),
                 source=neighbor_comm_index,
@@ -219,7 +220,7 @@ class LocalArray(object):
             # /receiving (e.g. 2x2 filters)
             comm.Sendrecv(sendbuf=self.defiltering_chunk.take(
                 self.recv_halos[k].halo_insert_indices,
-                axis=1).raw().astype('float32'),
+                axis=0).raw().astype('float32'),
                 dest=neighbor_comm_index,
                 sendtag=0,
                 recvbuf=self.send_halos[k].halo_data_defiltering.raw(),
@@ -325,23 +326,23 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
                     if halo == gc.NORTH:
-                        self.chunk[:, c_ptr:c_ptr + self.width] = (
+                        self.chunk[c_ptr:c_ptr + self.width, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[halo] + self.width])
+                                d_ptrs[halo]:d_ptrs[halo] + self.width, :])
                         c_ptr += self.width
                         d_ptrs[halo] += self.width
                     elif halo == gc.NORTHWEST:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_west] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_west, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_west])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_west, :])
                         c_ptr += self.hsc_west
                         d_ptrs[halo] += self.hsc_west
                     elif halo == gc.NORTHEAST:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_east] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_east, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_east])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_east, :])
                         c_ptr += self.hsc_east
                         d_ptrs[halo] += self.hsc_east
 
@@ -349,23 +350,23 @@ class LocalArray(object):
             for r in range(self.height):
                 for halo in neighbor_traverse_order2:
                     if halo == gc.CENTER:
-                        self.chunk[:, c_ptr:c_ptr + self.width] = (
+                        self.chunk[c_ptr:c_ptr + self.width, :] = (
                             self.local_image[
-                                :, d_ptrs[halo]:d_ptrs[halo] + self.width])
+                                d_ptrs[halo]:d_ptrs[halo] + self.width, :])
                         c_ptr += self.width
                         d_ptrs[halo] += self.width
                     elif halo == gc.WEST and halo in self.halo_ids:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_west] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_west, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_west])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_west, :])
                         c_ptr += self.hsc_west
                         d_ptrs[halo] += self.hsc_west
                     elif halo == gc.EAST and halo in self.halo_ids:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_east] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_east, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_east])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_east, :])
                         c_ptr += self.hsc_east
                         d_ptrs[halo] += self.hsc_east
 
@@ -375,23 +376,23 @@ class LocalArray(object):
                     if halo not in self.halo_ids:
                         continue
                     if halo == gc.SOUTH:
-                        self.chunk[:, c_ptr:c_ptr + self.width] = (
+                        self.chunk[c_ptr:c_ptr + self.width, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[halo] + self.width])
+                                d_ptrs[halo]:d_ptrs[halo] + self.width, :])
                         c_ptr += self.width
                         d_ptrs[halo] += self.width
                     elif halo == gc.SOUTHWEST:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_west] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_west, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_west])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_west, :])
                         c_ptr += self.hsc_west
                         d_ptrs[halo] += self.hsc_west
                     elif halo == gc.SOUTHEAST:
-                        self.chunk[:, c_ptr:c_ptr + self.hsc_east] = (
+                        self.chunk[c_ptr:c_ptr + self.hsc_east, :] = (
                             self.recv_halos[halo].halo_data[
-                                :, d_ptrs[halo]:d_ptrs[
-                                    halo] + self.hsc_east])
+                                d_ptrs[halo]:d_ptrs[
+                                    halo] + self.hsc_east, :])
                         c_ptr += self.hsc_east
                         d_ptrs[halo] += self.hsc_east
 
@@ -405,11 +406,11 @@ class LocalArray(object):
             d_ptrs[n_id] = 0
 
         self.defiltering_local_image = self.defiltering_chunk.take(
-            self.local_image_indices, axis=1)
+            self.local_image_indices, axis=0)
 
         for halo in self.halo_ids:
             self.defiltering_local_image[
-                :, self.send_halos[halo].halo_indices] += (
+                self.send_halos[halo].halo_indices, :] += (
                 self.send_halos[halo].halo_data_defiltering)
         MPI.COMM_WORLD.barrier()
 
@@ -424,11 +425,20 @@ class LocalArray(object):
 
         recvhalo_indices = []
         sendhalo_indices = []
-
+        # hsr = 
+        # nw/nh/nc = neighbor width/height/channel
+        # n_hsr = neighbor halosize row
+        # n_hsc = neighbor halosize column
+        # sw/sh/sc = self width/height/channels
         nw, nh, nc, n_hsr_north, n_hsr_south, n_hsc_west, n_hsc_east = (
             self.neighbor_dims[neighbor_direction])
         nlocal2d_size = nh * nw
-
+        # if MPI.COMM_WORLD.rank == 0:
+        #     print neighbor_array_index, neighbor_direction#, sendhalo_indices
+        #     print nh, nw, nlocal2d_size
+        #     print self.width, self.height, self.act_channels
+        #     print self.neighbor_dims[neighbor_direction]
+        #     print "\n"
         sw, sh, sc = self.width, self.height, self.act_channels
         slocal2d_size = sh * sw
 
@@ -554,6 +564,9 @@ class LocalArray(object):
                                                        len(recvhalo_indices),
                                                        self.batch_size,
                                                        self.backend)
+        # if MPI.COMM_WORLD.rank == 0:
+        #     print neighbor_direction, sendhalo_indices, recvhalo_indices
+
         self.send_halos[neighbor_direction] = SendHalo(neighbor_array_index,
                                                        sendhalo_indices,
                                                        self.batch_size,

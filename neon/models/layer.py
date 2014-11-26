@@ -286,7 +286,9 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.zeros((self.nout_, self.batch_size))
         self.delta_gather = self.backend.zeros(
-            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
+            (self.nout * MPI.COMM_WORLD.size, self.batch_size))
+        if (MPI.COMM_WORLD.rank==0):
+            print self.delta_.shape, self.delta_gather.shape
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.zeros((self.nin, self.batch_size))
@@ -315,6 +317,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
+            if (MPI.COMM_WORLD.rank==0):
+                print self.delta_.shape, self.delta_gather.shape
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
             if self.pos > 0:
@@ -349,12 +353,12 @@ class DropOutLayer(YAMLable):
         self.nin = nin
         self.nout = nin
         self.keep = keep
-        self.keepmask = backend.alloc(batch_size, nin)
+        self.keepmask = backend.empty((nin, batch_size))
         self.train_mode = True
-        self.output = self.backend.alloc(batch_size, self.nout, output_dtype)
+        self.output = self.backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
         if pos > 0:
-            self.berror = backend.alloc(batch_size, nin)
+            self.berror = backend.empty((nin, batch_size))
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -573,7 +577,7 @@ class LocalLayerDist(LocalLayer):
         self.nin = self.nifm * self.ifmsize
 
         if self.pos > 0:
-            self.berror = self.backend.zeros((self.batch_size, self.nin))
+            self.berror = self.backend.zeros((self.nin, self.batch_size))
 
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                              self.ofmsize))
@@ -589,6 +593,11 @@ class LocalLayerDist(LocalLayer):
         if self.pooling is True:
             self.links = self.backend.zeros(
                 (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
+            self.outputbuf = self.backend.empty((self.ofmsize,
+                                                 self.batch_size * self.nifm))
+            if self.pos > 0:
+                self.berrorbuf = self.backend.empty((self.ifmsize,
+                                                 self.batch_size * self.nifm))
         else:
             self.links = self.backend.zeros(
                 (self.ofmsize, self.fsize), dtype='i32')
@@ -619,7 +628,7 @@ class LocalLayerDist(LocalLayer):
         self.rlinks = self.links.raw()
 
         self.nout = self.nifm * self.ofmsize
-        self.output = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.zeros((self.nout, self.batch_size))
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
@@ -726,10 +735,10 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
-        self.output = backend.zeros((batch_size, self.nout))
+        self.output = backend.zeros((self.nout, batch_size))
         self.updates = backend.zeros(self.weights.shape)
-        self.prodbuf = backend.zeros((batch_size, nofm))
-        self.bpropbuf = backend.zeros((batch_size, self.fsize))
+        self.prodbuf = backend.zeros((nofm, batch_size))
+        self.bpropbuf = backend.zeros((self.fsize, batch_size))
         self.updatebuf = backend.zeros((self.fsize, nofm))
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
@@ -742,7 +751,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         self.ifmshape = self.input.local_array.ifmshape
         super(ConvLayerDist, self).adjust_for_dist(self.ifmshape)
         self.nout = self.ofmsize * self.nofm
-        self.output = self.backend.zeros((self.batch_size, self.nout))
+        self.output = self.backend.zeros((self.nout, self.batch_size))
         if self.activation is not None:
             self.pre_act = self.backend.empty((self.nout, self.batch_size))
             raise NotImplementedError('TODO')
