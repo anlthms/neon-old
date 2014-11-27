@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # useful for tracking down overflows and NaNs:
 # import numpy as np
 # np.seterr(over='raise')
+# from ipdb import set_trace as trace
 
 
 class RNN(Model):
@@ -53,7 +54,7 @@ class RNN(Model):
         self.temp = [tempbuf, tempbuf.copy()]
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / self.batch_size
-                                                   / self.unrolls))
+                                                   / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -70,10 +71,10 @@ class RNN(Model):
                                              self.layers[1].nin))
             for batch in xrange(num_batches):
                 self.serve_batch(batch, batch_inx, num_batches)  # get indices
-                self.fprop(inputs, batch_inx,
-                           hidden_init, debug=batch == -1)
+                self.fprop(inputs, batch_inx, hidden_init,
+                           debug=(True if batch == -1 else False))
                 self.bprop(targets, inputs,
-                           batch_inx, epoch, debug=batch == -1)
+                           batch_inx, epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.batch_size,
@@ -100,21 +101,8 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-        # prediction
-        inputs = datasets[0].get_inputs(test=True)['test']
-        targets = datasets[0].get_targets(test=True)['test']
-        batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1),
-                                       dtype=int)
-        for i in range(self.unrolls+1):
-            batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
-                                                 dtype=int)
-        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
-        self.fprop(inputs, batch_inx, hidden_init)
-
-        viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
-                       self.layers[1].output_list[4])
-        import ipdb
-        ipdb.set_trace()  # set a trace to prevent exiting to view figures
+        # print the prediction
+        self.visualize(datasets, viz)
 
     def serve_batch(self, batch, batch_inx, num_batches):
         """
@@ -145,55 +133,39 @@ class RNN(Model):
         """
 
         for tau in range(self.unrolls+1):
-            batch_inx[:, tau] = self.unrolls*batch + tau \
-                + num_batches * self.backend.array(range(self.batch_size))
+            batch_inx[:, tau] = (self.unrolls*batch + tau
+                                 + self.unrolls*num_batches
+                                 * self.backend.array(range(self.batch_size)))
 
-    def predict_set(self, inputs):
-        nrecs = inputs.shape[inputs.major_axis()]
-        outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for batch in xrange(num_batches):
-            start_idx = batch * self.batch_size
-            end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs.get_minor_slice(start_idx, end_idx))
-            outputs.set_minor_slice(start_idx, end_idx, self.layers[-1].output)
-        return outputs
-
-    def predict(self, datasets, train=True, test=True, validation=True):
+    def visualize(self, datasets, viz):
         """
-        Generate and return predictions on the given datasets.
+        Generate and print predictions on the given datasets.
         """
-        res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
-            preds = dict()
-            if train and 'train' in inputs:
-                outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
-            if test and 'test' in inputs:
-                outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
-            if validation and 'validation' in inputs:
-                outputs = self.predict_set(inputs['validation'])
-                preds['validation'] = dataset.backend.argmax(
-                    outputs, axis=outputs.minor_axis())
-            if len(preds) is 0:
-                logger.error("must specify >=1 of: train, test, validation")
-            res.append(preds)
-        return res
+        inputs = datasets[0].get_inputs(test=True)['test']
+        # targets = datasets[0].get_targets(test=True)['test']
+        batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1),
+                                       dtype=int)
+        for i in range(self.unrolls+1):
+            batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
+                                                 dtype=int)
+        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
+        self.fprop(inputs, batch_inx, hidden_init)
 
-    def fprop(self, inputs, batch_inx, hidden_init, debug=False):
+        viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
+                       self.layers[1].output_list[self.unrolls-1])
+
+    def fprop(self, inputs, batch_inx, hidden_init, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
         """
+        if unrolls is None:
+            unrolls = self.unrolls
         if debug:
             import numpy as np
             print "fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
         y = hidden_init
-        for tau in range(0, self.unrolls):
+        for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[batch_inx[:, tau], :], tau)
             y = self.layers[0].output_list[tau]
             self.layers[1].fprop(y, tau)
@@ -219,7 +191,8 @@ class RNN(Model):
                 print "in bprop, input", np.nonzero(inputs[0:tau, :].raw())[1]
                 print "backprop target", np.flatnonzero(targets[tau, :].raw())
             error = self.cost.apply_derivative(self.backend,
-                                               self.layers[1].output_list[tau-1],
+                                               self.layers[1].output_list[tau
+                                                                          - 1],
                                                targets[batch_inx[:, tau]],
                                                self.temp)
             error /= float(error.shape[0] * error.shape[1])
@@ -238,10 +211,71 @@ class RNN(Model):
         self.layers[1].update(epoch)
         self.layers[0].update(epoch)
 
-    # TODO: move out to separate config params and module.
+    def predict_set(self, inputs):
+        """
+        compute predictions for a set of inputs. This does the actual work.
+        The tricky bit is that with how batches are sliced, we have a block of
+        predictions that needs to be shaped back into a long vector. This
+        is done by having a for loop over batches load a matrix, that is
+        flattened at the end (each batch has a non-contigous access pattern
+        with respect to the full dataset.)
+        """
+        nrecs = inputs.shape[inputs.major_axis()]
+        num_batches = int(math.floor((nrecs) / self.batch_size
+                                             / self.unrolls)) - 1
+        outputs = self.backend.zeros((num_batches*(self.unrolls),
+                                      self.batch_size))
+        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
+        batch_inx = self.backend.zeros((self.batch_size,
+                                        self.unrolls+1), dtype=int)
+        for batch in xrange(num_batches):
+            self.serve_batch(batch, batch_inx, num_batches)
+            self.fprop(inputs, batch_inx, hidden_init, unrolls=self.unrolls)
+            hidden_init = self.layers[0].output_list[-1]
+            if batch % 20 is 0:
+                    hidden_init = self.backend.zeros((self.batch_size,
+                                                     self.layers[1].nin))
+            for tau in range(self.unrolls):
+                letters = self.backend.empty(50, dtype=int)
+                self.backend.argmax(self.layers[1].output_list[tau],
+                                    axis=outputs.minor_axis(), out=letters)
+                idx = (self.unrolls)*batch + tau
+                outputs[idx, :] = letters
+        return_buffer = self.backend.empty(nrecs)
+        nrecs_eff = num_batches*self.unrolls*self.batch_size
+        return_buffer[0:nrecs_eff] = outputs.transpose().reshape((-1,))
+        return return_buffer
+
+    def predict(self, datasets, train=True, test=True, validation=False):
+        """
+        Iterate over data sets and call predict_set for each.
+        This is called directly from the fit_predict_err experiment.
+
+        Returns:
+            res: a list of (key,value) pairs, e.g. res[0]['train'] is a tensor
+                 of class labels
+        """
+        res = []
+        for dataset in datasets:
+            inputs = dataset.get_inputs(train=train, test=test)
+            preds = dict()
+            if train and 'train' in inputs:
+                preds['train'] = self.predict_set(inputs['train'])
+            if test and 'test' in inputs:
+                preds['test'] = self.predict_set(inputs['test'])
+            if validation and 'validation' in inputs:
+                preds['validation'] = self.predict_set(inputs['validation'])
+            if len(preds) is 0:
+                logger.error("must specify >=1 of: train, test, validation")
+            res.append(preds)
+        return res
+
     def error_metrics(self, datasets, predictions, train=True, test=True,
-                      validation=True):
-        # simple misclassification error
+                      validation=False):
+        """
+        Iterate over predictions from predict() and compare to the targets.
+        Targets come from dataset. [Why in a separate function?]
+        """
         items = []
         if train:
             items.append('train')
@@ -252,15 +286,16 @@ class RNN(Model):
         for idx in xrange(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
-            targets = ds.get_targets(train=True, test=True, validation=True)
+            targets = ds.get_targets(train=True, test=True, validation=False)
             for item in items:
+                print "item:", item
                 if item in targets and item in preds:
-                    misclass = ds.backend.not_equal(
-                        preds[item],
-                        ds.backend.argmax(
-                            targets[item],
-                            axis=targets[item].minor_axis()))
-                    err = ds.backend.mean(misclass)
+                    misclass = ds.backend.empty(preds[item].shape)
+                    ds.backend.argmax(targets[item],
+                                      axis=targets[item].minor_axis(),
+                                      out=misclass)
+                    ds.backend.not_equal(preds[item], misclass, misclass)
+                    self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * err))
+                        item, 100 * self.result))
         # TODO: return values instead?
