@@ -103,9 +103,9 @@ class MLP(Model):
         Generate and return predictions on the given datasets.
         """
         res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train=train, test=test,
-                                        validation=validation)
+        for ds in datasets:
+            inputs = ds.get_inputs(train=train, test=test,
+                                   validation=validation)
             preds = dict()
             if train and 'train' in inputs:
                 preds['train'] = self.predict_set(ds, inputs['train'])
