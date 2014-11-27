@@ -6,7 +6,6 @@ Contains code to train distributed Google Brain models and run inference.
 """
 
 import logging
-import math
 import os
 import time
 

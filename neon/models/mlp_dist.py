@@ -6,7 +6,6 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import math
 
 from neon.models.mlp import MLP
 from neon.models.layer import LayerWithNoBiasDist, LayerDist
