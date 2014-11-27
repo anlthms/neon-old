@@ -182,7 +182,7 @@ class GBDist(GB):
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((targets.shape[1], self.batch_size))
+        tempbuf = self.backend.zeros((targets.nrows, self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
         num_batches = inputs.nbatches
@@ -228,7 +228,7 @@ class GBDist(GB):
                                                         -1].output, targets,
                                                     self.temp)
             self.backend.divide(
-                self.error, self.backend.wrap(targets.shape[0]),
+                self.error, self.backend.wrap(targets.shape[1]),
                 out=self.error)
         # MPI: broadcast the error matrix
         self.error._tensor = MPI.COMM_WORLD.bcast(self.error.raw())
@@ -246,7 +246,7 @@ class GBDist(GB):
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
-            self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.

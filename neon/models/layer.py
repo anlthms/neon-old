@@ -846,12 +846,12 @@ class LocalFilteringLayer(LocalLayer):
         # through the defiltering layer.
         error = cost.apply_derivative(self.backend, self.defilter.output,
                                       inputs, self.defilter.temp)
-        self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
+        self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
                             out=error)
         self.defilter.bprop(error, self.output, epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
-        error = ((self.sparsity / inputs.shape[0]) *
+        error = ((self.sparsity / inputs.shape[1]) *
                  (self.backend.ones(self.pooling.output.shape)))
         self.pooling.bprop(error, self.output, epoch)
         # Aggregate the errors from both layers before back propagating
@@ -947,7 +947,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         self.autoencoder.local_image_indices = (
             self.input.local_array.local_image_indices)
 
-        self.output = self.backend.empty((self.batch_size, self.nout))
+        self.output = self.backend.empty((self.nout, self.batch_size))
 
         # if initializing the weights from scratch
         # self.weights = self.backend.gen_weights((self.nout, self.fsize),
@@ -969,8 +969,8 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         self.normalize_weights(self.weights)
         self.updates = self.backend.empty(self.weights.shape)
         self.learning_rule.allocate_state(self.updates)
-        self.prodbuf = self.backend.empty((self.batch_size, self.nofm))
-        self.bpropbuf = self.backend.empty((self.batch_size, self.fsize))
+        self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
+        self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
         self.updatebuf = self.backend.empty((self.nofm, self.fsize))
 
     def __init__(self, name, backend, batch_size, pos, learning_rule,
@@ -994,7 +994,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         super(LocalFilteringLayerDist, self).pretrain_mode(pooling)
         # temp1 stores a temp buffer without the chunk
         self.defilter.temp1 = [self.backend.empty(
-            (self.batch_size, self.input.local_array.local_array_size))]
+            (self.input.local_array.local_array_size, self.batch_size))]
         self.learning_rule.set_pretrain_mode(True)
 
     def pretrain(self, inputs_, cost, epoch):
@@ -1020,12 +1020,12 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                       self.autoencoder.chunk,
                                       inputs,
                                       self.defilter.temp)
-        self.backend.divide(error, self.backend.wrap(inputs.shape[0]),
+        self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
                             out=error)
         self.defilter.bprop(error, self.output, epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
-        error = ((self.sparsity / inputs.shape[0]) *
+        error = ((self.sparsity / inputs.shape[1]) *
                  (self.backend.ones(self.pooling.output.shape)))
         self.pooling.bprop(error, self.output, epoch)
         berror = self.defilter.berror + (
@@ -1223,8 +1223,8 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
         super(L2PoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
             ifmshape, fshape, stride, pooling=True)
-        self.prodbuf = self.backend.empty((batch_size * nifm,
-                                           self.fshape[0] * self.fshape[1]))
+        self.prodbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
+                                          batch_size * nifm))
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
 
@@ -1233,7 +1233,7 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
         ifmshape = self.input.local_array.ifmshape
         super(L2PoolingLayerDist, self).adjust_for_dist(ifmshape)
         self.prodbuf = self.backend.empty(
-            (self.batch_size * self.nifm, self.fshape[0] * self.fshape[1]))
+            (self.fshape[0] * self.fshape[1], self.batch_size * self.nifm))
 
     def fprop(self, inputs_):
         inputs = self.input.get_fprop_view(inputs_)
@@ -1609,11 +1609,12 @@ class LCNLayerDist(LCNLayer):
         self.exifmsize = self.exifmheight * self.exifmwidth
         self.exifmshape = (self.exifmheight, self.exifmwidth)
 
-        self.exinputs = self.backend.empty((self.batch_size,
-                                            self.nifm * self.exifmsize))
-        self.rexinputs = self.exinputs.reshape((self.batch_size, self.nifm,
+        self.exinputs = self.backend.empty((self.nifm * self.exifmsize,
+                                           self.batch_size,))
+        self.rexinputs = self.exinputs.reshape((self.nifm,
                                                 self.exifmheight,
-                                                self.exifmwidth))
+                                                self.exifmwidth,
+                                                self.batch_size))
         self.conv = Convolver(self.backend, self.batch_size, self.nifm, 1,
                               self.exifmshape, self.fshape, self.stride,
                               self.filters)
@@ -1627,12 +1628,13 @@ class LCNLayerDist(LCNLayer):
         self.start_col2 = self.wdiff / 2
 
         self.meanfm = self.conv.output
-        self.rmeanfm = self.meanfm.reshape((self.batch_size, 1,
-                                            output_height, output_width))
+        self.rmeanfm = self.meanfm.reshape((1, output_height, output_width,
+                                            self.batch_size, ))
 
-        self.output = self.backend.empty((self.batch_size, self.nout))
-        self.routput = self.output.reshape((self.batch_size, self.nifm,
-                                            output_height, output_width))
+        self.output = self.backend.empty((self.nout, self.batch_size))
+        self.routput = self.output.reshape((self.nifm,
+                                            output_height, output_width,
+                                            self.batch_size))
 
         self.temp1 = self.backend.empty(self.output.shape)
         self.rtemp1 = self.temp1.reshape(self.routput.shape)
@@ -1642,22 +1644,24 @@ class LCNLayerDist(LCNLayer):
         self.rsubout = self.subout.reshape(self.routput.shape)
         self.subtemp = self.backend.empty(self.output.shape)
         self.rsubtemp = self.subtemp.reshape(self.routput.shape)
-        self.subtemp2 = self.backend.empty((self.batch_size, self.nin))
-        self.rsubtemp2 = self.subtemp2.reshape((self.batch_size, self.nifm,
-                                                self.ifmheight, self.ifmwidth))
+        self.subtemp2 = self.backend.empty((self.nin, self.batch_size))
+        self.rsubtemp2 = self.subtemp2.reshape((self.nifm,
+                                                self.ifmheight, self.ifmwidth,
+                                                self.batch_size))
 
         if self.pos > 0:
             # changed to nout for bprop in dist version, compared to nin in
             # non-dist version
             self.diverror = self.backend.empty(
-                (self.batch_size, self.nout))
-            self.exerror = self.backend.empty((self.batch_size,
-                                               self.nifm * self.exifmsize))
-            self.rexerror = self.exerror.reshape((self.batch_size, self.nifm,
+                (self.nout, self.batch_size))
+            self.exerror = self.backend.empty((self.nifm * self.exifmsize,
+                                               self.batch_size))
+            self.rexerror = self.exerror.reshape((self.nifm,
                                                   self.exifmheight,
-                                                  self.exifmwidth))
+                                                  self.exifmwidth,
+                                                  self.batch_size))
             self.prodbuf = self.backend.empty(
-                (self.batch_size, self.fsize))
+                (self.fsize, self.batch_size))
             self.bprop_filters = self.backend.empty((self.nifm,
                                                      self.filters.shape[0],
                                                      self.filters.shape[1]))
@@ -1669,27 +1673,28 @@ class LCNLayerDist(LCNLayer):
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
-        canvas[:, :, start_row:start_row + inset.shape[2],
-               start_col:start_col + inset.shape[3]] = inset
+        canvas[:, start_row:start_row + inset.shape[1],
+               start_col:start_col + inset.shape[2], :] = inset
 
     def copy_from_inset(self, canvas, start_row, start_col):
-        return canvas[:, :, start_row:start_row + self.ifmheight,
-                      start_col:start_col + self.ifmwidth]
+        return canvas[:, start_row:start_row + self.ifmheight,
+                      start_col:start_col + self.ifmwidth, :]
 
     def fprop_sub_normalize(self, inputs):
-        rinputs = inputs.reshape((self.batch_size, self.nifm,
-                                  self.ifmheight, self.ifmwidth))
+        rinputs = inputs.reshape((self.nifm,
+                                  self.ifmheight, self.ifmwidth,
+                                  self.batch_size))
         self.copy_to_inset(self.rexinputs, rinputs,
                            self.start_row, self.start_col)
         # Convolve with gaussian filters to obtain a "mean" feature map.
         self.conv.fprop(self.exinputs)
         # rinputs includes halos but not padding
         self.backend.subtract(
-            self.rexinputs[:, :,
+            self.rexinputs[:,
                            self.start_row2:(
-                               self.rexinputs.shape[2] - self.start_row2),
+                               self.rexinputs.shape[1] - self.start_row2),
                            self.start_col2:(
-                               self.rexinputs.shape[3] - self.start_col2)],
+                               self.rexinputs.shape[2] - self.start_col2), :],
             self.rmeanfm,
             out=self.rsubout)
 
@@ -1733,8 +1738,8 @@ class LCNLayerDist(LCNLayer):
             for dst in xrange(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
-                divout = self.output.take(loc, axis=1)
-                subout = self.subout.take(loc, axis=1)
+                divout = self.output.take(loc, axis=0)
+                subout = self.subout.take(loc, axis=0)
                 assert divout[subout.raw() == 0].sum() == 0
                 subout[subout.raw() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
@@ -1743,18 +1748,20 @@ class LCNLayerDist(LCNLayer):
                 self.copy_to_inset(self.rexinputs, self.rsubtemp2,
                                    self.start_row, self.start_col)
                 rrexinputs = self.rexinputs.reshape(
-                    (self.batch_size, self.nifm * self.exifmsize))
-                frame = rrexinputs.take(rflinks, axis=1)
-                self.backend.multiply(frame, self.filters, out=frame)
-                self.backend.multiply(frame, self.diverror[:, loc], out=frame)
-                rframe = frame.reshape((self.batch_size, self.nifm,
-                                        self.fheight, self.fwidth))
+                    (self.nifm * self.exifmsize, self.batch_size))
+                frame = rrexinputs.take(rflinks, axis=0)
+                self.backend.multiply(frame, self.filters.transpose(),
+                                      out=frame)
+                self.backend.multiply(frame, self.diverror[loc, :], out=frame)
+                rframe = frame.reshape((self.nifm,
+                                        self.fheight, self.fwidth,
+                                        self.batch_size))
                 # this is working on the g2/y2 term
-                rframe[:, fm:(fm + 1),
-                       self.fheight / 2, self.fwidth / 2] -= divout
-                self.backend.multiply(error[:, loc].repeat(self.fsize, axis=1),
+                rframe[fm:(fm + 1),
+                       self.fheight / 2, self.fwidth / 2, :] -= divout
+                self.backend.multiply(error[loc, :].repeat(self.fsize, axis=0),
                                       frame, out=frame)
-                self.exerror[:, rflinks] -= frame
+                self.exerror[rflinks, :] -= frame
         self.reshape_error()
 
     def bprop(self, error, inputs, epoch):
