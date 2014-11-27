@@ -438,12 +438,7 @@ class LocalArray(object):
         nw, nh, nc, n_hsr_north, n_hsr_south, n_hsc_west, n_hsc_east = (
             self.neighbor_dims[neighbor_direction])
         nlocal2d_size = nh * nw
-        # if MPI.COMM_WORLD.rank == 0:
-        #     print neighbor_array_index, neighbor_direction#, sendhalo_indices
-        #     print nh, nw, nlocal2d_size
-        #     print self.width, self.height, self.act_channels
-        #     print self.neighbor_dims[neighbor_direction]
-        #     print "\n"
+
         sw, sh, sc = self.width, self.height, self.act_channels
         slocal2d_size = sh * sw
 
@@ -569,8 +564,6 @@ class LocalArray(object):
                                                        len(recvhalo_indices),
                                                        self.batch_size,
                                                        self.backend)
-        # if MPI.COMM_WORLD.rank == 0:
-        #     print neighbor_direction, sendhalo_indices, recvhalo_indices
 
         self.send_halos[neighbor_direction] = SendHalo(neighbor_array_index,
                                                        sendhalo_indices,
