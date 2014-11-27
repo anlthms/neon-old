@@ -77,9 +77,10 @@ class MOBYDICK(Dataset):
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             train_idcs = range(1000000)  # 1M letters
-            predict_idcs = range(self.unrolls, 1000000+self.unrolls)
-            test_idcs = range(1000000, 1001000)
-            testtarget_idcs = range(1000000+self.unrolls, 1001000+self.unrolls)
+            predict_idcs = range(1, 1000000+1)
+            test_idcs = range(1000000, 1010000)
+            testtarget_idcs = range(1000000+self.unrolls, 1010000+self.unrolls)
+            testtarget_idcs = range(1000000+1, 1010000+1)
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0
