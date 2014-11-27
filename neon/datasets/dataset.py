@@ -10,6 +10,7 @@ import os
 
 from neon.backends.cpu import CPU
 from neon.util.compat import PY3
+import neon.backends.gpu
 
 if PY3:
     import urllib.request as urllib
@@ -55,6 +56,9 @@ class Dataset(object):
         if self.backend is None:
             # use CPU as a default backend
             self.backend = CPU()
+
+    def set_batch_size(self, batch_size):
+        self.batch_size = batch_size
 
     def load(self, backend=None):
         """
@@ -153,6 +157,26 @@ class Dataset(object):
             res['validation'] = self.targets['validation']
         return res
 
+    def transpose_batches(self, data):
+        """
+        Transpose each minibatch within the dataset.
+        """
+        bs = self.batch_size
+        nbatches = (data.shape[0] + bs - 1) / bs
+        nrows = data.shape[1]
+        batchwise = self.backend.zeros((nbatches * nrows, bs))
+        for batch in xrange(nbatches):
+            batchdata = data[batch * bs:(batch + 1) * bs].transpose()
+            if type(self.backend) == neon.backends.gpu.GPU:
+                batchdata = batchdata.copy()
+            ncols = batchdata.shape[1]
+            assert ncols == bs
+            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = (
+                self.backend.array(batchdata))
+        batchwise.nbatches = nbatches
+        batchwise.nrows = nrows
+        return batchwise
+
     def format(self):
         """
         Transforms the loaded data into the format expected by the
@@ -163,8 +187,11 @@ class Dataset(object):
         for key in self.inputs:
             item = self.inputs[key]
             if item is not None:
-                self.inputs[key] = self.backend.format(item)
+                self.inputs[key] = self.transpose_batches(item)
         for key in self.targets:
             item = self.targets[key]
             if item is not None:
-                self.targets[key] = self.backend.format(item)
+                self.targets[key] = self.transpose_batches(item)
+
+    def get_batch(self, data, batch):
+        return data[batch * data.nrows:(batch + 1) * data.nrows]
