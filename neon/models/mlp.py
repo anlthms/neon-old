@@ -90,6 +90,7 @@ class MLP(Model):
         for layer in self.layers:
             if isinstance(layer, DropOutLayer):
                 layer.set_train_mode(False)
+
         for batch in xrange(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
