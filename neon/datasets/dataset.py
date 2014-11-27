@@ -9,13 +9,15 @@ import logging
 import os
 
 from neon.backends.cpu import CPU
-from neon.util.compat import PY3
-import neon.backends.gpu
+from neon.util.compat import PY3, CUDA_GPU
 
 if PY3:
     import urllib.request as urllib
 else:
     import urllib
+
+if CUDA_GPU:
+    import neon.backends.gpu
 
 
 logger = logging.getLogger(__name__)
@@ -167,7 +169,7 @@ class Dataset(object):
         batchwise = self.backend.zeros((nbatches * nrows, bs))
         for batch in xrange(nbatches):
             batchdata = data[batch * bs:(batch + 1) * bs].transpose()
-            if type(self.backend) == neon.backends.gpu.GPU:
+            if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
                 batchdata = batchdata.copy()
             ncols = batchdata.shape[1]
             assert ncols == bs
