@@ -23,9 +23,9 @@ except:
     pass
 
 if write_version:
-    txt = "# " + ("-" * 78) + "\n"
+    txt = "# " + ("-" * 77) + "\n"
     txt += "# " + "Copyright 2014 Nervana Systems Inc. All rights reserved.\n"
-    txt += "# " + ("-" * 78) + "\n"
+    txt += "# " + ("-" * 77) + "\n"
     txt += "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
     fname = os.path.join(os.path.dirname(__file__), 'neon', 'version.py')
     a = open(fname, 'w')
