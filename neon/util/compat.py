@@ -20,6 +20,12 @@ if sys.platform.startswith("linux"):
     CUDA_GPU = (os.system("nvidia-smi > /dev/null 2>&1") == 0)
 elif sys.platform.startswith("darwin"):
     CUDA_GPU = (os.system("kextstat | grep -i cuda > /dev/null 2>&1") == 0)
+if CUDA_GPU:
+    try:
+        import cudanet
+    except ImportError:
+        logger.warning("cudanet not found, can't set CUDA_GPU")
+        CUDA_GPU = False
 
 MPI_INSTALLED = False
 try:
