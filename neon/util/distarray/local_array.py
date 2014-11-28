@@ -198,9 +198,9 @@ class LocalArray(object):
                 0] * self.comm_per_dim + neighbor_array_index[1]
             if (self.local_image.shape[0] == 0):
                 import traceback
-                print "\n*****\n"
-                print (
-                    k, self.local_image.shape, self.send_halos[k].halo_indices)
+                print("\n*****\n")
+                print(k, self.local_image.shape,
+                      self.send_halos[k].halo_indices)
                 traceback.print_stack()
 
             comm.Sendrecv(sendbuf=self.local_image.take(
