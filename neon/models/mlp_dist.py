@@ -6,7 +6,6 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import math
 
 from neon.models.mlp import MLP
 from neon.models.layer import LayerWithNoBiasDist, LayerDist
@@ -85,91 +84,74 @@ class MLPDist(MLP):
             logger.debug("%s" % str(layer))
         self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
-        inputs = datasets[0].get_inputs(train=True)['train']
-        targets = datasets[0].get_targets(train=True)['train']
+        ds = datasets[0]
+        inputs = ds.get_inputs(train=True)['train']
+        targets = ds.get_targets(train=True)['train']
         nrecs = inputs.shape[0]
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
-        tempbuf = self.backend.zeros((self.batch_size, self.layers[-1].nout),
+        tempbuf = self.backend.zeros((self.layers[-1].nout, self.batch_size),
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
+            for batch in xrange(inputs.nbatches):
                 if self.comm.rank == 0:
                     logger.debug('batch = %d' % (batch))
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs[start_idx:end_idx])
-                self.bprop(targets[start_idx:end_idx],
-                           inputs[start_idx:end_idx],
-                           epoch)
+                inputs_batch = ds.get_batch(inputs, batch)
+                targets_batch = ds.get_batch(targets, batch)
+                self.fprop(inputs_batch)
+                self.bprop(targets_batch, inputs_batch, epoch)
                 if self.comm.rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
-                                                      targets[
-                                                          start_idx:end_idx],
+                                                      targets_batch,
                                                       self.temp)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))
+                            (epoch, error / inputs.nbatches))
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def predict_set(self, inputs):
-        nrecs = inputs.shape[0]
+    def predict_set(self, ds, inputs, predsdict, setname):
         if self.comm.rank == 0:
-            self.outputs = self.backend.zeros((nrecs, self.layers[-1].nout))
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        for batch in xrange(num_batches):
-            start_idx = batch * self.batch_size
-            end_idx = min((batch + 1) * self.batch_size, nrecs)
-            self.fprop(inputs[start_idx:end_idx])
+            preds = self.backend.empty((inputs[setname].nbatches,
+                                       self.batch_size))
+            predsdict[setname] = preds
+
+        for batch in xrange(inputs[setname].nbatches):
+            inputs_batch = ds.get_batch(inputs[setname], batch)
+            self.fprop(inputs_batch)
             if self.comm.rank == 0:
-                self.outputs[start_idx:end_idx, :] = self.layers[-1].output
+                outputs = self.layers[-1].output
+                self.backend.argmax(outputs, axis=0,
+                                    out=preds[batch:(batch+1)])
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
         Generate and return predictions on the given datasets.
         """
         res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
-            preds = dict()
+        for ds in datasets:
+            inputs = ds.get_inputs(train, test, validation)
+            predsdict = dict()
             if train and 'train' in inputs:
-                self.predict_set(inputs['train'])
-                if self.comm.rank == 0:
-                    train_shape = (self.outputs.major_axis(), 1)
-                    preds['train'] = dataset.backend.empty(train_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
-                                           out=preds['train'])
+                self.predict_set(ds, inputs, predsdict, 'train')
             if test and 'test' in inputs:
-                self.predict_set(inputs['test'])
-                if self.comm.rank == 0:
-                    test_shape = (self.outputs.major_axis(), 1)
-                    preds['test'] = dataset.backend.empty(test_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
-                                           out=preds['test'])
+                self.predict_set(ds, inputs, predsdict, 'test')
             if validation and 'validation' in inputs:
-                self.predict_set(inputs['validation'])
-                if self.comm.rank == 0:
-                    val_shape = (self.outputs.major_axis(), 1)
-                    preds['validation'] = dataset.backend.empty(val_shape)
-                    dataset.backend.argmax(self.outputs, axis=1,
-                                           out=preds['validation'])
+                self.predict_set(ds, inputs, predsdict, 'validation')
             if self.comm.rank == 0:
-                if len(preds) is 0:
+                if len(predsdict) is 0:
                     logger.error(
                         "must specify >=1 of: train, test, validation")
-                res.append(preds)
-
+                res.append(predsdict)
         return res
 
     def fprop(self, inputs):
@@ -179,7 +161,7 @@ class MLPDist(MLP):
         y = inputs
         for layer in self.layers:
             if layer.pos > 0:
-                y = y.take(layer.out_indices, axis=1)
+                y = y.take(layer.out_indices, axis=0)
             layer.fprop(y)
             y = layer.output
 
@@ -187,13 +169,13 @@ class MLPDist(MLP):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
-        error = self.backend.zeros((self.batch_size, self.layers[-1].nout))
+        error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if self.comm.rank == 0:
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
-            self.backend.divide(error, self.backend.wrap(targets.shape[0]),
+            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.
@@ -208,7 +190,7 @@ class MLPDist(MLP):
             if prev_layer_dist or prev_layer_no_bias_dist:
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
-                                     take(self.layers[i].out_indices, axis=1),
+                                     take(self.layers[i].out_indices, axis=0),
                                      epoch)
             else:
                 self.layers[i].bprop(error,
@@ -218,7 +200,7 @@ class MLPDist(MLP):
             i -= 1
             # extract self.layers[i].pre_act terms
             self.layers[i].pre_act_ = self.layers[i].pre_act.take(
-                self.layers[i + 1].out_indices, axis=1)
+                self.layers[i + 1].out_indices, axis=0)
 
         # first FC layer
         self.layers[i].bprop(self.layers[i + 1].berror,
