@@ -36,7 +36,7 @@ if __name__ == '__main__':
         print('OK')
     if args.gpu == 1:
         print('GPU check '),
-        sanity_check('check_gpu.yaml', 0.5625)
+        sanity_check('check_gpu.yaml', 0.5546875)
         print('OK')
     if args.dist == 1:
         print('DIST check '),
