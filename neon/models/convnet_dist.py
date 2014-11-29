@@ -69,9 +69,8 @@ class ConvnetDist(MLPDist):
                         self.layers[i - 1].stride) + 1
                     layer.global_size = (layer.global_height *
                                          layer.global_width)
-                    logger.debug(
-                        'global_size=%d, global_width=%d', layer.global_size,
-                        layer.global_width)
+                    logger.debug('global_size=%d, global_width=%d',
+                                 layer.global_size, layer.global_width)
                     layer.nin = mp_layer.nout
                     layer.ifmshape = mp_layer.ofmshape
                     layer.nifm = mp_layer.nifm

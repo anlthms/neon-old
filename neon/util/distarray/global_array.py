@@ -107,8 +107,8 @@ class GlobalArray():
         filter_size = self.filter_size
         # comm cart needs to only be created the first time (first layer)
         if self.__class__.create_comm:
-            logger.info("MPI proc: %d: Creating a %d x %d processor grid..." %
-                        (comm.rank, comm_per_dim, comm_per_dim))
+            logger.info("MPI proc: %d: Creating a %d x %d processor grid...",
+                        comm.rank, comm_per_dim, comm_per_dim)
             self.__class__.ccomm = comm.Create_cart(
                 (comm_per_dim, comm_per_dim))
             i, j = self.__class__.ccomm.Get_coords(self.__class__.ccomm.rank)

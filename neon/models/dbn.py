@@ -31,7 +31,7 @@ class DBN(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         nrecs, nin = inputs.shape
         self.nlayers = len(self.layers)
@@ -45,7 +45,7 @@ class DBN(Model):
         for i in xrange(self.nlayers):
             if i > 0:
                 logger.info('layer %d: setting inputs to output of previous '
-                            'layer' % i)
+                            'layer', i)
                 # transform all inputs to generate data for next layer
                 out_shape = (inputs.shape[0],
                              self.layers[i - 1].s_hid_plus.shape[1] - 1)
@@ -58,10 +58,9 @@ class DBN(Model):
                     outputs[start_idx:end_idx] = (self.layers[i -
                                                   1].s_hid_plus[:, 0:prev_end])
                 inputs = outputs
-                logger.info('inputs (%d, %d) weights (%d,%d)' %
-                            (inputs.shape[0], inputs.shape[1],
-                             self.layers[i].weights.shape[0],
-                             self.layers[i].weights.shape[1]))
+                logger.info('inputs (%d, %d) weights (%d,%d)', inputs.shape[0],
+                            inputs.shape[1], self.layers[i].weights.shape[0],
+                            self.layers[i].weights.shape[1])
                 # If we are in the penultimate layer, append labels to the
                 # visibles ...
             for epoch in xrange(self.num_epochs):
@@ -81,8 +80,8 @@ class DBN(Model):
                                                       batch_in,
                                                       batch_out,
                                                       self.temp)
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))
+                logger.info('epoch: %d, total training error: %0.5f',
+                            epoch, error / num_batches)
         # Part 2: up-down finetuning ... [not implemented yet]
 
     def positive(self, inputs, i):

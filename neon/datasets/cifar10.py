@@ -60,7 +60,7 @@ class CIFAR10(Dataset):
 
         data_file = os.path.join(save_dir, 'cifar-10-batches-py', 'test_batch')
         if not os.path.exists(data_file):
-            logger.info('untarring: %s' % repo_gz_file)
+            logger.info('untarring: %s', repo_gz_file)
             infile = tarfile.open(repo_gz_file)
             infile.extractall(save_dir)
             infile.close()
@@ -112,7 +112,7 @@ class CIFAR10(Dataset):
             raise NotImplementedError('support for datapar not implemented')
 
     def load_file(self, filename, nclasses):
-        logger.info('loading: %s' % filename)
+        logger.info('loading: %s', filename)
         dict = deserialize(filename)
 
         full_image = np.float32(dict['data'])

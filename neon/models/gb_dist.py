@@ -101,7 +101,7 @@ class GBDist(GB):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
-            # logger.info('created layer:\n\t%s' % str(layer))
+            # logger.info('created layer:\n\t%s', str(layer))
 
         targets = datasets[0].get_targets(train=True)['train']
 
@@ -135,7 +135,7 @@ class GBDist(GB):
                 tspcost_sum = 0.0
                 for batch in xrange(num_batches):
                     if MPI.COMM_WORLD.rank == 0:
-                        logger.debug('batch = %d' % (batch))
+                        logger.debug('batch = %d', batch)
                     inputs_batch = ds.get_batch(inputs, batch)
                     output = inputs_batch
                     # Forward propagate the input all the way to
@@ -157,10 +157,10 @@ class GBDist(GB):
                 if MPI.COMM_WORLD.rank == 0:
                     tcost = trcost_sum + tspcost_sum
                     logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
-                                ' %0.2f' % (self.trainable_layers[ind], epoch,
-                                            trcost / num_batches, tspcost /
-                                            num_batches,
-                                            tcost / num_batches))
+                                ' %0.2f', self.trainable_layers[ind], epoch,
+                                trcost / num_batches,
+                                tspcost / num_batches,
+                                tcost / num_batches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
@@ -169,8 +169,8 @@ class GBDist(GB):
         logger.info('Done with pretraining')
         end_time = time.time()
         if MPI.COMM_WORLD.rank == 0:
-            logger.info('%d time taken: %0.2f' %
-                        (MPI.COMM_WORLD.rank, end_time - start_time))
+            logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,
+                        end_time - start_time)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
             if isinstance(layer, LocalFilteringLayerDist):
@@ -189,7 +189,7 @@ class GBDist(GB):
             error = 0.0
             for batch in xrange(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.debug('batch = %d' % (batch))
+                    logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
 
@@ -210,12 +210,12 @@ class GBDist(GB):
                                                       targets_batch,
                                                       self.temp)
             if MPI.COMM_WORLD.rank == 0:
-                logger.info('epoch: %d, training error: %0.5f' %
-                            (epoch, error / num_batches))
+                logger.info('epoch: %d, training error: %0.5f',
+                            epoch, error / num_batches)
         end_time = time.time()
         if MPI.COMM_WORLD.rank == 0:
-            logger.info('%d time taken: %0.2f' %
-                        (MPI.COMM_WORLD.rank, end_time - start_time))
+            logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,
+                        end_time - start_time)
 
     def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.
@@ -333,8 +333,8 @@ class GBDist(GB):
                                            out=preds['validation'])
             if MPI.COMM_WORLD.rank == 0:
                 if len(preds) is 0:
-                    logger.error(
-                        "must specify >=1 of: train, test, validation")
+                    logger.error("must specify >=1 of: train, test, "
+                                 "validation")
                 res.append(preds)
 
         return res

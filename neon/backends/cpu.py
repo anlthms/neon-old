@@ -396,7 +396,7 @@ class CPU(Backend):
         # support numpy.seterr settings:
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
         if 'seterr_handling' in self.__dict__:
-            logger.info("Updating numpy.seterr settings: %s" %
+            logger.info("Updating numpy.seterr settings: %s",
                         str(self.seterr_handling))
             np.seterr(**self.seterr_handling)
 
@@ -404,7 +404,7 @@ class CPU(Backend):
         seed = None
         if 'rng_seed' in self.__dict__:
             seed = self.rng_seed
-            logger.info("Seeding random number generator with: %s" % str(seed))
+            logger.info("Seeding random number generator with: %s", str(seed))
         np.random.seed(seed)
 
     def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
@@ -924,8 +924,8 @@ class CPU(Backend):
                 low = weight_params['low']
             if 'high' in weight_params:
                 high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
+                        str(size), low, high)
             weights = self.uniform(low, high, size, dtype)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
@@ -935,23 +935,23 @@ class CPU(Backend):
                 loc = weight_params['loc']
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
+                        str(size), loc, scale)
             weights = self.normal(loc, scale, size, dtype)
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
+            logger.info('generating %s node_normalized(%0.2f) weights.',
+                        str(size), scale)
             node_norm = scale * math.sqrt(6.0 / sum(size))
             weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:
             # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
+            logger.info('separately initializing bias weights to %0.2f',
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
         return weights

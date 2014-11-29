@@ -30,7 +30,7 @@ class RBM(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer)
         inputs = datasets[0].get_inputs(train=True)['train']
         nrecs = inputs.shape[inputs.major_axis()]
         nin = inputs.shape[inputs.minor_axis()]
@@ -57,8 +57,8 @@ class RBM(Model):
                     self.backend, inputs.get_minor_slice(start_idx, end_idx),
                     x_minus.get_major_slice(0, nrows),
                     [self.temp])
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / num_batches))
+            logger.info('epoch: %d, total training error: %0.5f', epoch,
+                        error / num_batches)
 
     def positive(self, inputs):
         """Wrapper for RBMLayer.positive"""

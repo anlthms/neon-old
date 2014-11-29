@@ -55,7 +55,7 @@ class MLP(Model):
                                                   datasets[0].num_procs))
 
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer))
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_targets(train=True)['train']
@@ -76,12 +76,12 @@ class MLP(Model):
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.info('epoch: %d, total training error: %0.5f' %
-                                (epoch, error / inputs.nbatches /
-                                    MPI.COMM_WORLD.size))
+                    logger.info('epoch: %d, total training error: %0.5f',
+                                epoch,
+                                error / inputs.nbatches / MPI.COMM_WORLD.size)
             else:
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / inputs.nbatches))
+                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                            error / inputs.nbatches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -165,6 +165,6 @@ class MLP(Model):
                     misclass = ds.backend.empty(preds[item].shape)
                     ds.backend.not_equal(preds[item], labels, misclass)
                     self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * self.result))
+                    logging.info("%s set misclass rate: %0.5f%%", item,
+                                 100 * self.result)
         # TODO: return values instead?

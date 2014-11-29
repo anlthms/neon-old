@@ -95,7 +95,7 @@ class SPARSENET(Dataset):
                         print "Caching to pickle file: ", outfile
                         pickle.dump(patches, outfile)
                         outfile.close()
-                logger.info('loading: %s' % name)
+                logger.info('loading: %s', name)
                 # load existing data
                 if 'IMAGES' in repo_file:
                     print "test2"
@@ -104,7 +104,7 @@ class SPARSENET(Dataset):
                     indat = indat.reshape((256, 10240)).transpose()[train_idcs]
                     self.inputs['train'] = indat
                 else:
-                    logger.error('problems loading: %s' % name)
+                    logger.error('problems loading: %s', name)
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')

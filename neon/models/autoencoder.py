@@ -49,8 +49,8 @@ class Autoencoder(MLP):
                     self.backend, self.layers[-1].output,
                     targets.get_minor_slice(start_idx, end_idx),
                     self.temp)
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / num_batches))
+            logger.info('epoch: %d, total training error: %0.5f',
+                        epoch, error / num_batches)
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -94,5 +94,5 @@ class Autoencoder(MLP):
                                                    preds[item],
                                                    targets[item],
                                                    temp)
-                    logging.info("%s set reconstruction error : %0.5f" %
-                                 (item, err))
+                    logging.info("%s set reconstruction error : %0.5f",
+                                 item, err)

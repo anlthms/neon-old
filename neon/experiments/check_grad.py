@@ -67,11 +67,11 @@ class GradientChecker(Experiment):
         grads -= updates
         diff = np.linalg.norm(grads[inds]) / nmax
         if diff < 0.0002:
-            logger.info('diff %g. layer %s OK.' % (diff, layer.name))
+            logger.info('diff %g. layer %s OK.', diff, layer.name)
             return True
 
-        logger.error('diff %g. gradient check failed on layer %s.' %
-                     (diff, layer.name))
+        logger.error('diff %g. gradient check failed on layer %s.',
+                     diff, layer.name)
         return False
 
     def run(self):

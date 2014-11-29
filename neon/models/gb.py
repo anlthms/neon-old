@@ -35,7 +35,7 @@ class GB(MLP):
                 trcost = 0.0
                 tspcost = 0.0
                 for batch in xrange(inputs.nbatches):
-                    logger.debug('batch = %d' % (batch))
+                    logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
@@ -49,17 +49,17 @@ class GB(MLP):
                     tspcost += spcost
                 tcost = trcost + tspcost
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
-                            ' %0.2f' % (self.trainable_layers[ind], epoch,
-                                        trcost / inputs.nbatches,
-                                        tspcost / inputs.nbatches,
-                                        tcost / inputs.nbatches))
+                            ' %0.2f', self.trainable_layers[ind], epoch,
+                            trcost / inputs.nbatches,
+                            tspcost / inputs.nbatches,
+                            tcost / inputs.nbatches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
         end_time = time.time()
-        logger.info('Time taken: %0.2f' % (end_time - start_time))
+        logger.info('Time taken: %0.2f', end_time - start_time)
 
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
@@ -77,7 +77,7 @@ class GB(MLP):
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(inputs.nbatches):
-                logger.debug('batch = %d' % (batch))
+                logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
@@ -89,10 +89,10 @@ class GB(MLP):
                                                   self.layers[-1].output,
                                                   targets_batch,
                                                   self.temp)
-            logger.info('epoch: %d, training error: %0.5f' %
-                        (epoch, error / inputs.nbatches))
+            logger.info('epoch: %d, training error: %0.5f',
+                        epoch, error / inputs.nbatches)
         end_time = time.time()
-        logger.info('Time taken: %0.2f' % (end_time - start_time))
+        logger.info('Time taken: %0.2f', end_time - start_time)
 
     def check_node_predictions(self, inputs, targets, node, cls):
         """
@@ -145,11 +145,10 @@ class GB(MLP):
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,
                                                   maxnode, cls)
-            logger.info(
-                'class: %d best node: %d train auc: %.4f test auc: %.4f' %
-                (cls, maxnode, maxauc, testauc))
+            logger.info('class: %d best node: %d train auc: %.4f '
+                        'test auc: %.4f', cls, maxnode, maxauc, testauc)
             sum += maxauc
-        logger.info('average max auc %.4f' % (sum / targets.shape[1]))
+        logger.info('average max auc %.4f', sum / targets.shape[1])
 
     def bprop_last(self, targets, inputs, epoch):
         # Backprop on just the last layer.
@@ -171,7 +170,7 @@ class GB(MLP):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)
-            logger.info('created layer:\n\t%s' % str(layer))
+            logger.info('created layer:\n\t%s', str(layer)
 
         targets = ds.get_targets(train=True)['train']
         if self.pretraining:
@@ -226,7 +225,7 @@ class GB(MLP):
                 outmax[maxinds] = output[maxinds]
                 inputs[notinds, :] = saved[notinds, :]
                 count += maxinds.sum()
-            logger.info('loop %d inc %.4f count %d' % (loops, inc, count))
+            logger.info('loop %d inc %.4f count %d', loops, inc, count)
             for ind in range(self.batch_size):
                 if self.layers[0].nifm == 3:
                     img = inputs[ind].raw().reshape((3, ifmshape[0],

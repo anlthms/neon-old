@@ -81,7 +81,7 @@ class MLPDist(MLP):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.debug("%s" % str(layer))
+            logger.debug("%s", str(layer)
         self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
         ds = datasets[0]
@@ -103,7 +103,7 @@ class MLPDist(MLP):
             error = 0.0
             for batch in xrange(inputs.nbatches):
                 if self.comm.rank == 0:
-                    logger.debug('batch = %d' % (batch))
+                    logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
@@ -114,8 +114,8 @@ class MLPDist(MLP):
                                                       targets_batch,
                                                       self.temp)
             if self.comm.rank == 0:
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / inputs.nbatches))
+                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                            error / inputs.nbatches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -149,8 +149,7 @@ class MLPDist(MLP):
                 self.predict_set(ds, inputs, predsdict, 'validation')
             if self.comm.rank == 0:
                 if len(predsdict) is 0:
-                    logger.error(
-                        "must specify >=1 of: train, test, validation")
+                    logger.error("must specify >=1 of: train, test, validation")
                 res.append(predsdict)
         return res
 

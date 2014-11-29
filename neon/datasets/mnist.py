@@ -163,7 +163,7 @@ class MNIST(Dataset):
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0
-                    logger.info('sampling pct: %0.2f' % self.sample_pct)
+                    logger.info('sampling pct: %0.2f', self.sample_pct)
                 if self.sample_pct < 1.0:
                     numpy.random.shuffle(self.train_idcs)
                 self.train_idcs = self.train_idcs[0:int(
@@ -179,7 +179,7 @@ class MNIST(Dataset):
                         with open(repo_file, 'w') as outfile:
                             for line in infile:
                                 outfile.write(line)
-                logger.info('loading: %s' % name)
+                logger.info('loading: %s', name)
                 if 'images' in repo_file and 'train' in repo_file:
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
@@ -203,7 +203,7 @@ class MNIST(Dataset):
                         tmp[:, col] = indat == col
                     self.targets['test'] = tmp
                 else:
-                    logger.error('problems loading: %s' % name)
+                    logger.error('problems loading: %s', name)
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')

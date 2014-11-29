@@ -87,7 +87,7 @@ class Dataset(object):
         :param repo_path: The local path to write the fetched dataset to
         :type repo_path: str
         """
-        logger.info("fetching: %s, saving to: %s" % (url, repo_path))
+        logger.info("fetching: %s, saving to: %s", url, repo_path)
         urllib.urlretrieve(url, os.path.join(repo_path,
                                              os.path.basename(url)))
 
