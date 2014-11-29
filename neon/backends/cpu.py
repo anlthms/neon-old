@@ -365,15 +365,6 @@ class CPU(Backend):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.zeros(shape, dtype), dtype)
 
-    def alloc_by_tuple(self, nrows, ncols=None, dtype=None):
-        """
-        TODO: make alloc consistent with zeros, ones, etc.?
-        """
-        if ncols is None:
-            nrows, ncols = nrows
-        dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(np.zeros((nrows, ncols), dtype), dtype)
-
     def ones(self, shape, dtype=None):
         """
         Instantiate a new instance of the CPUTensor class setting each element

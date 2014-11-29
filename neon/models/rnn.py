@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # useful for tracking down overflows and NaNs:
 # import numpy as np
 # np.seterr(over='raise')
-# from ipdb import set_trace as trace
+from ipdb import set_trace as trace
 
 
 class RNN(Model):
@@ -40,16 +40,17 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
+        trace()
         # targets = datasets[0].get_targets(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
-        nrecs = inputs.shape[inputs.major_axis()]
+        nrecs = inputs.shape[0] # was shape[1], flipped this.
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
         if 'ada' not in self.__dict__:
             self.ada = None
-        tempbuf = self.backend.alloc(self.batch_size, self.layers[-1].nout,
+        tempbuf = self.backend.empty((self.batch_size, self.layers[-1].nout),
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
         viz = VisualizeRNN()
@@ -126,10 +127,10 @@ class RNN(Model):
 
         Inputs:
             batch: batch number
-            batch_inx: buffer passed for index allocation
+            batch_inx: buffer passed for index emptyation
 
         Returns:
-            updates the buffer batch_inx directly to minimize allocations.
+            updates the buffer batch_inx directly to minimize emptyations.
         """
 
         for tau in range(self.unrolls+1):
@@ -220,7 +221,7 @@ class RNN(Model):
         flattened at the end (each batch has a non-contigous access pattern
         with respect to the full dataset.)
         """
-        nrecs = inputs.shape[inputs.major_axis()]
+        nrecs = inputs.shape[0]
         num_batches = int(math.floor((nrecs) / self.batch_size
                                              / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),

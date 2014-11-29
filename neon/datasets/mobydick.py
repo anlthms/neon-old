@@ -14,7 +14,7 @@ from neon.datasets.dataset import Dataset
 from neon.util.compat import PY3, MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
-
+from ipdb import set_trace as trace
 
 class MOBYDICK(Dataset):
 
