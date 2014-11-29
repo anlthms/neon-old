@@ -873,6 +873,13 @@ class CPU(Backend):
                 rf, out=prodbuf)
             rberror[:, inds] += prodbuf
 
+    def fprop_cmrnorm(self, inputs, outputs, nfm, ksize, alpha, beta):
+        raise NotImplementedError("TODO!")
+
+    def bprop_cmrnorm(self, inputs, outputs, error, berror, nfm, ksize, 
+                      alpha, beta):
+        raise NotImplementedError("TODO!")
+
     def fprop_fc_dot(self, inputs, weights, out):
         np.dot(inputs._tensor, weights.transpose()._tensor, out._tensor)
 
