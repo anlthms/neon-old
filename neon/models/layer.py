@@ -1849,11 +1849,12 @@ class CrossMapResponseNormLayer(YAMLable):
             self.berror = self.backend.zeros((self.nin, self.batch_size))
 
     def fprop(self, inputs):
-        self.backend.fprop_cmrnorm(inputs, self.output, self.nifm,
-            self.ksize, self.alpha, self.beta)
+        self.backend.fprop_cmrnorm(inputs, self.output, self.ifmshape,
+                                   self.nifm, self.ksize, self.alpha,
+                                   self.beta)
 
     def bprop(self, error, inputs, epoch):
         if self.pos > 0:
-            self.backend.bprop_cmrnorm(inputs, self.output, error,
-                                      self.berror, self.nifm, self.ksize,
-                                      self.alpha, self.beta)
+            self.backend.bprop_cmrnorm(inputs, self.output, error, self.berror,
+                                       self.ifmshape, self.nifm, self.ksize,
+                                       self.alpha, self.beta)

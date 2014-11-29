@@ -1096,8 +1096,8 @@ class GPU(Backend):
     def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
                      fshape, padding, stride, nfm):
         cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
-                         sizeX=fshape[0], paddingStart=padding,
-                         moduleStride=stride, numModulesX=ofmshape[0])
+                        sizeX=fshape[0], paddingStart=padding,
+                        moduleStride=stride, numModulesX=ofmshape[0])
 
     def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
                      ofmshape, fshape, padding, stride, nfm, prodbuf):
