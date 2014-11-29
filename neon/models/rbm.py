@@ -30,7 +30,7 @@ class RBM(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.info("%s", str(layer)
+            logger.info("%s", str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
         nrecs = inputs.shape[inputs.major_axis()]
         nin = inputs.shape[inputs.minor_axis()]

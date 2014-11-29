@@ -170,7 +170,7 @@ class GB(MLP):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)
-            logger.info('created layer:\n\t%s', str(layer)
+            logger.info('created layer:\n\t%s', str(layer))
 
         targets = ds.get_targets(train=True)['train']
         if self.pretraining:
