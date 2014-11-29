@@ -97,12 +97,13 @@ class MOBYDICK(Dataset):
                 self.download_to_repo(url, save_dir)
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
-            self.inputs['train'] = indat[:, train_idcs].T
-            self.targets['train'] = indat[:, predict_idcs].T
-            self.inputs['test'] = indat[:, test_idcs].T
-            self.targets['test'] = indat[:, testtarget_idcs].T
+            indat = self.backend.array(indat)
+            self.inputs['train'] = indat[:, train_idcs].transpose()
+            self.targets['train'] = indat[:, predict_idcs].transpose()
+            self.inputs['test'] = indat[:, test_idcs].transpose()
+            self.targets['test'] = indat[:, testtarget_idcs].transpose()
 
-            self.format()
+            #self.format() # DONT!!
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?

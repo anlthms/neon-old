@@ -274,16 +274,15 @@ class RecurrentOutputLayer(Layer):
             self.berror = backend.empty((batch_size, nin))
 
     def fprop(self, inputs, tau):
-        self.backend.fprop_fc(inputs,
-                                  self.weights.transpose(), # TRANSPOSE
-                                  out=self.pre_act_list[tau])
+        self.backend.fprop_fc(self.weights.transpose(), inputs, # TRANSPOSE and switch
+                              out=self.pre_act_list[tau])
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas_o[tau] = error * self.pre_act_list[tau-1]
-        self.backend.update_fc(self.deltas_o[tau].transpose(), inputs, # TRANSPOSE
+        self.backend.update_fc(self.deltas_o[tau].transpose(), inputs.transpose(), # TRANSPOSE both
                                    out=self.temp_out)
         self.updates += self.temp_out
 
@@ -328,9 +327,8 @@ class RecurrentHiddenLayer(Layer):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         # lalala here we die
-        trace()
-        self.backend.fprop_fc(self.weights_rec.transpose(), y, out=z1) # TRANSPOSE dude the weights are fucking symmetric!
-        self.backend.fprop_fc(self.weights.transpose(), inputs, out=z2) # TRANSPOSE
+        self.backend.fprop_fc(self.weights_rec.transpose(), y, out=z1) # TRANSPOSE and switch
+        self.backend.fprop_fc(self.weights.transpose(), inputs, out=z2) # TRANSPOSE and switch
         self.pre_act_list[tau] = z1 + z2
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
@@ -338,22 +336,22 @@ class RecurrentHiddenLayer(Layer):
 
     def bprop(self, error, inputs, tau, batch_inx):
         self.deltas[1] = error * self.pre_act_list[tau-1]
-        self.backend.update_fc(self.deltas[1].transpose(), # TRANSPOSE
-                                   inputs[batch_inx[:, tau-1]],
+        self.backend.update_fc(self.deltas[1].transpose(), # TRANSPOSE both
+                                   inputs[batch_inx[:, tau-1]].transpose(),
                                    out=self.temp_in)
         self.updates += self.temp_in
         for layer in range(0, tau - 1)[::-1]:
-            self.backend.bprop_fc(self.deltas[tau-layer-1].transpose(), # TRANSPOSE
-                                      self.weights_rec,
-                                      out=self.berror)
+            self.backend.bprop_fc(self.weights_rec,
+                                  self.deltas[tau-layer-1].transpose(), # TRANSPOSE switch
+                                  out=self.berror)
             self.deltas[tau-layer] = self.berror * self.pre_act_list[layer]
-            self.backend.update_fc(self.deltas[tau-(layer+1)].transpose(), # TRANSPOSE
-                                       self.output_list[layer],
+            self.backend.update_fc(self.deltas[tau-(layer+1)].transpose(), # TRANSPOSE both
+                                       self.output_list[layer].transpose(),
                                        out=self.temp_rec)
             self.updates_rec += self.temp_rec
-            self.backend.update_fc(self.deltas[tau-layer].transpose(), # TRANSPOSE
-                                       inputs[batch_inx[:, layer]],
-                                       out=self.temp_in)
+            self.backend.update_fc(self.deltas[tau-layer].transpose(),
+                                   inputs[batch_inx[:, layer]].transpose(),
+                                   out=self.temp_in)
             self.updates += self.temp_in
 
     def update(self, epoch):

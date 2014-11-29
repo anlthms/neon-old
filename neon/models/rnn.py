@@ -40,7 +40,6 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s" % str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
-        trace()
         # targets = datasets[0].get_targets(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0] # was shape[1], flipped this.
@@ -204,8 +203,11 @@ class RNN(Model):
         cerror = self.backend.zeros((self.batch_size, self.layers[0].nout))
         for tau in range(min_unroll, self.unrolls+1):
 
-            self.backend.bprop_fc_dot(self.layers[1].deltas_o[tau],
-                                      self.layers[1].weights, out=cerror)
+            #trace() # (50, 128) and (128, 64)
+            # need to bprop from the output layer before calling bprop
+            self.backend.bprop_fc(self.layers[1].weights,
+                                  self.layers[1].deltas_o[tau].transpose(), # TRANSPOSE and switch
+                                  out=cerror)
             self.layers[0].bprop(cerror, inputs, tau, batch_inx)
 
         # apply updates
@@ -242,7 +244,7 @@ class RNN(Model):
                                     axis=outputs.minor_axis(), out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
-        return_buffer = self.backend.empty(nrecs)
+        return_buffer = self.backend.zeros(nrecs)
         nrecs_eff = num_batches*self.unrolls*self.batch_size
         return_buffer[0:nrecs_eff] = outputs.transpose().reshape((-1,))
         return return_buffer
