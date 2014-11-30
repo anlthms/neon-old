@@ -195,7 +195,6 @@
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_dtype: &dt 'float32',
-        delta_dtype: *dt,
         updates_dtype: *dt,
         pre_act_dtype: *dt,
         output_dtype: *dt,

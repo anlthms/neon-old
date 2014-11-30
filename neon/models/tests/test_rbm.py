@@ -15,21 +15,20 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 import numpy as np
 
-from neon.models.learning_rule import GradientDescent
 from neon.models.layer import RBMLayer
+from neon.models.learning_rule import GradientDescent
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
 from neon.util.testing import assert_tensor_near_equal
 from neon.util.compat import CUDA_GPU
 
-if CUDA_GPU:
-    from neon.backends.gpu import GPU, GPUTensor
 
-
+@attr('cuda')
 class TestCudaRBM:
 
-    @attr('cuda')
     def setup(self):
+        if CUDA_GPU:
+            from neon.backends.gpu import GPU, GPUTensor
 
         # TODO: remove randomness from expected target results
         self.be = GPU(rng_seed=0)
@@ -53,14 +52,12 @@ class TestCudaRBM:
         # create fake cost
         self.cost = SumSquaredDiffs()
 
-    @attr('cuda')
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
         target = np.array([0.50785673,  0.50782728,  0.50173879],
                           dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
-    @attr('cuda')
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
@@ -68,7 +65,6 @@ class TestCudaRBM:
                           dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 
-    @attr('cuda')
     @nottest  # TODO: remove randomness
     def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
