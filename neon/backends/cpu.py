@@ -767,27 +767,17 @@ class CPU(Backend):
         assert obj.shape[1] % nfm == 0
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
-    def softmax(self, x, out, axdim=1):
-        if axdim == 0:
-            np.max(x._tensor, out._tensor[0, :], axis=axdim)
-            np.subtract(x._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
-        else:
-            np.max(x._tensor, out._tensor[:, 0], axis=axdim)
-            np.subtract(x._tensor, out._tensor[:, 0, np.newaxis], out._tensor)
+    def softmax(self, x, out):
+        np.max(x._tensor, out._tensor[0, :], axis=0)
+        np.subtract(x._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
         np.exp(out._tensor, out._tensor)
         # This uses some temporary storage, but might be ok?
-        np.divide(out._tensor, np.sum(out._tensor, axis=axdim, keepdims=True),
+        np.divide(out._tensor, np.sum(out._tensor, axis=0, keepdims=True),
                   out._tensor)
 
-    def softmax_gradient(self, y, err, out, axdim=1):
-        if axdim == 0:
-            np.einsum('ij,ji->i', err._tensor.T, y._tensor, out._tensor[0, :])
-            np.subtract(err._tensor, out._tensor[np.newaxis, 0, :],
-                        out._tensor)
-        else:
-            np.einsum('ij,ji->i', err._tensor, y._tensor.T, out._tensor[:, 0])
-            np.subtract(err._tensor, out._tensor[:, 0, np.newaxis],
-                        out._tensor)
+    def softmax_gradient(self, y, err, out):
+        np.einsum('ij,ji->i', err._tensor.T, y._tensor, out._tensor[0, :])
+        np.subtract(err._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,

@@ -29,9 +29,8 @@ def hinge_l2(backend, outputs, targets, temp, subidx=None):
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
     backend.multiply(temp[0], temp[0], out=temp[0])
 
-    if (subidx is not None and subidx < temp[0].shape[temp[0].major_axis()]):
-        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()],
-                                backend.wrap(0.0))
+    if (subidx is not None and subidx < temp[0].shape[0]):
+        temp[0][subidx:temp[0].shape[0]] = backend.wrap(0.0)
 
     backend.multiply(temp[0], backend.wrap(0.5), out=temp[0])
 
@@ -57,9 +56,8 @@ def hinge_l2_derivative(backend, outputs, targets, temp, subidx=None):
     backend.multiply(targets, outputs, out=temp[0])
     backend.subtract(backend.wrap(1.0), temp[0], out=temp[0])
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
-    if (subidx is not None and subidx < temp[0].shape[temp[0].major_axis()]):
-        temp[0].set_major_slice(subidx, temp[0].shape[temp[0].major_axis()],
-                                backend.wrap(0.0))
+    if (subidx is not None and subidx < temp[0].shape[0]):
+        temp[0][subidx:temp[0].shape[0]] = backend.wrap(0.0)
     backend.multiply(temp[0], targets, out=temp[0])
 
     backend.multiply(temp[0], backend.wrap(-1.0), out=temp[0])

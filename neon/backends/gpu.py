@@ -665,19 +665,22 @@ class GPU(Backend):
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
+        cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
+        return out
+
         # storage needed here is pretty atrocious.  Any way we could speed this
         # up?  Would iterating element wise be faster?
-        clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip values < a_min to a_min in out
-        a._tensor.less_than(a_min, clip_mask)
-        clip_vals.assign(a_min)
-        cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # clip values > a_max to a_max in out
-        out._tensor.greater_than(a_max, clip_mask)
-        clip_vals.assign(a_max)
-        cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        return out
+        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
+        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
+        # # clip values < a_min to a_min in out
+        # a._tensor.less_than(a_min, clip_mask)
+        # clip_vals.assign(a_min)
+        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        # # clip values > a_max to a_max in out
+        # out._tensor.greater_than(a_max, clip_mask)
+        # clip_vals.assign(a_max)
+        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        # return out
 
     def rng_init(self):
         seed = None
@@ -1030,15 +1033,10 @@ class GPU(Backend):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
 
-    def softmax(self, x, out, axdim=1):
-        if axdim != 1:
-            raise NotImplementedError("Shouldn't be taking sofmax!")
-        else:
-            cudanet.softmax(x._tensor, out._tensor, axis=axdim)
+    def softmax(self, x, out):
+        cudanet.softmax(x._tensor, out._tensor)
 
-    def softmax_gradient(self, y, err, out, axdim=1):
-        if axdim != 1:
-            raise NotImplemented("axdim ignored")
+    def softmax_gradient(self, y, err, out):
         cudanet.softmax_grad(y._tensor, err._tensor, out._tensor)
 
     def nonzero(self, x):
