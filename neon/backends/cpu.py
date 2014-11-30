@@ -893,8 +893,7 @@ class CPU(Backend):
 
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
                       ksize, alpha, beta):
-        # I think this gradient calculation is more correct than cuda-convnet
-        # but maybe there isn't enough of a difference for it to matter
+        # Holy hell, someone feel free to clean this up
 
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
         temp = self.empty(inputs.shape)
@@ -902,26 +901,28 @@ class CPU(Backend):
         rerror = error._tensor.reshape(nfm, H, W, N)
         rberror = berror._tensor.reshape(nfm, H, W, N)
         rtemp = temp._tensor.reshape(nfm, H, W, N)
+        routputs = inputs._tensor.reshape(nfm, H, W, N)
         for i in xrange(nfm):
             knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
             x = rinputs.take(knlidx, axis=0)
             np.square(x).sum(axis=0, out=rberror[i, :, :, :])
-            grad = rerror.take(knlidx, axis=0)
-            inp = rinputs.take(knlidx, axis=0)
-            (grad*inp).sum(axis=0, out=rtemp[i, :, :, :])
+            knlidx2 = range(max(i+ksize-ksize/2, 0),
+                            min(i+ksize/2+1, nfm))
+            grad = rerror.take(knlidx2, axis=0)
+            inp = rinputs.take(knlidx2, axis=0)
+            act = routputs.take(knlidx2, axis=0)
+            (grad*act*np.power(act/inp, 1.0/beta)).sum(axis=0,
+                                                       out=rtemp[i, :, :, :])
+
+        self.multiply(temp, self.wrap(-2.0 * alpha * beta), out=temp)
+        self.multiply(temp, inputs, out=temp)
 
         self.multiply(berror, self.wrap(alpha), out=berror)
         self.add(berror, self.wrap(1.0), out=berror)
-        self.power(berror, self.wrap(-beta - 1), out=berror)
-        self.multiply(berror, self.wrap(2.0 * alpha * beta), out=berror)
-        self.multiply(berror, inputs, out=berror)
-        self.multiply(berror, temp, out=berror)
+        self.power(berror, self.wrap(beta), out=berror)
+        self.divide(error, berror, out=berror)
 
-        # Now put the rest of the gradient in temp
-        self.multiply(error, outputs, out=temp)
-        self.divide(temp, inputs, out=temp)
-
-        self.subtract(temp, berror, out=berror)
+        self.add(berror, temp, out=berror)
 
     def fprop_fc_dot(self, inputs, weights, out):
         np.dot(inputs._tensor, weights.transpose()._tensor, out._tensor)
