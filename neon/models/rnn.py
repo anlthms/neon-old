@@ -70,11 +70,11 @@ class RNN(Model):
             hidden_init = self.backend.zeros((self.batch_size,
                                              self.layers[1].nin))
             for batch in xrange(num_batches):
+                trace()
                 self.serve_batch(batch, batch_inx, num_batches)  # get indices
                 self.fprop(inputs, batch_inx, hidden_init,
                            debug=(True if batch == -1 else False))
-                self.bprop(targets, inputs,
-                           batch_inx, epoch)
+                self.bprop(targets, inputs, batch_inx, epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.batch_size,
@@ -185,6 +185,7 @@ class RNN(Model):
 
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
+            print "back 1"
             if debug:
                 import numpy as np
                 print "unrolling", tau, "of", self.unrolls
@@ -202,7 +203,7 @@ class RNN(Model):
 
         cerror = self.backend.zeros((self.batch_size, self.layers[0].nout))
         for tau in range(min_unroll, self.unrolls+1):
-
+            print "back 2"
             #trace() # (50, 128) and (128, 64)
             # need to bprop from the output layer before calling bprop
             self.backend.bprop_fc(self.layers[1].weights,

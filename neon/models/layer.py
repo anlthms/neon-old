@@ -64,7 +64,7 @@ class Layer(YAMLable):
         self.updates_dtype = updates_dtype
         self.pre_act = self.backend.empty((self.nout, batch_size),
                                           pre_act_dtype)
-        self.output = self.backend.empty((self.nout, batch_size), output_dtype)
+        self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
         self.pos = pos
         self.learning_rule = learning_rule
         self.learning_rule.allocate_state(self.updates)
@@ -261,17 +261,17 @@ class RecurrentOutputLayer(Layer):
         super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, activation,
                                                    weight_init, learning_rule)
-        self.pre_act_list = [self.backend.empty((batch_size, self.nout),
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
-        self.output_list = [self.backend.empty((batch_size, self.nout),
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
                                                output_dtype)
                             for k in range(unrolls)]
-        self.temp_out = self.backend.empty((self.nout, self.nin))
+        self.temp_out = self.backend.zeros((self.nout, self.nin))
         self.deltas_o = [self.backend.zeros((self.batch_size, nout))
                          for k in range(unrolls+1)]
         if pos > 0:
-            self.berror = backend.empty((batch_size, nin))
+            self.berror = backend.zeros((batch_size, nin))
 
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.weights.transpose(), inputs, # TRANSPOSE and switch
@@ -305,23 +305,25 @@ class RecurrentHiddenLayer(Layer):
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, activation,
                                                    weight_init, learning_rule)
+        print "in layer, init, calling gen weight"
         self.weights_rec = self.backend.gen_weights((nout, nout),
                                                     weight_init_rec,
                                                     weight_dtype)
-        self.pre_act_list = [self.backend.empty((batch_size, self.nout),
+        print "got", self.weights_rec
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
-        self.output_list = [self.backend.empty((batch_size, self.nout),
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
                                                output_dtype)
                             for k in range(unrolls)]
         self.deltas = [self.backend.zeros((self.batch_size, nout))
                        for k in range(unrolls+1)]
-        self.updates_rec = self.backend.empty((self.nout, self.nout))
-        self.temp_rec = self.backend.empty((self.nout, self.nout))
-        self.temp_in = self.backend.empty((self.nout, self.nin))
+        self.updates_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_in = self.backend.zeros((self.nout, self.nin))
         self.learning_rule.allocate_state_rec(self.updates_rec)
 
-        self.berror = backend.empty((batch_size, nout))
+        self.berror = backend.zeros((batch_size, nout))
 
     def fprop(self, y, inputs, tau):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
