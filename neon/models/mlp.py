@@ -52,11 +52,20 @@ class MLP(Model):
 
         for layer in self.layers:
             logger.info("%s" % str(layer))
-        inputs = datasets[0].get_inputs(train=True)['train']
-        targets = datasets[0].get_targets(train=True)['train']
-        nrecs = inputs.shape[inputs.major_axis()]
-        assert 'batch_size' in self.__dict__
+        if not datasets[0].macro_batched:
+            inputs = datasets[0].get_inputs(train=True)['train']
+            targets = datasets[0].get_targets(train=True)['train']
+            nrecs = inputs.shape[inputs.major_axis()]
+        else:
+            if datasets[0].start_train_batch == -1:
+                nrecs = datasets[0].max_file_index
+            else:
+                nrecs = datasets[0].OUTPUT_BATCH_SIZE*(datasets[0].end_train_batch - datasets[0].start_train_batch + 1)
+            #print datasets[0].start_train_batch, nrecs
+            datasets[0].cur_train_macro_batch = datasets[0].start_train_batch
+            #print datasets[0].start_train_batch
 
+        assert 'batch_size' in self.__dict__
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
@@ -64,16 +73,28 @@ class MLP(Model):
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):
-                start_idx = batch * self.batch_size
-                end_idx = min((batch + 1) * self.batch_size, nrecs)
-                self.fprop(inputs.get_minor_slice(start_idx, end_idx))
-                self.bprop(targets.get_minor_slice(start_idx, end_idx),
-                           inputs.get_minor_slice(start_idx, end_idx),
-                           epoch)
-                error += self.cost.apply_function(
-                    self.backend, self.layers[-1].output,
-                    targets.get_minor_slice(start_idx, end_idx),
-                    self.temp)
+                if datasets[0].macro_batched:
+                    # load mini-batch for macro_batched dataset
+                    inputs, targets = datasets[0].get_mini_batch(self.batch_size, 'training')
+                    # next 2 lines will not be needed if everything is col order
+                    inputs = self.backend.format(inputs)
+                    targets = self.backend.format(targets)
+                    self.fprop(inputs)
+                    self.bprop(targets, inputs, epoch)
+                    error += self.cost.apply_function(
+                        self.backend, self.layers[-1].output,
+                        targets, self.temp)
+                else:
+                    start_idx = batch * self.batch_size
+                    end_idx = min((batch + 1) * self.batch_size, nrecs)
+                    self.fprop(inputs.get_minor_slice(start_idx, end_idx))
+                    self.bprop(targets.get_minor_slice(start_idx, end_idx),
+                               inputs.get_minor_slice(start_idx, end_idx),
+                               epoch)
+                    error += self.cost.apply_function(
+                        self.backend, self.layers[-1].output,
+                        targets.get_minor_slice(start_idx, end_idx),
+                        self.temp)
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
@@ -86,7 +107,7 @@ class MLP(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def predict_set(self, inputs):
+    def predict_set(self, inputs, dataset=None):
         nrecs = inputs.shape[inputs.major_axis()]
         outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
@@ -103,29 +124,29 @@ class MLP(Model):
         """
         res = []
         for dataset in datasets:
-            inputs = dataset.get_inputs(train, test, validation)
-            preds = dict()
-            if train and 'train' in inputs:
-                outputs = self.predict_set(inputs['train'])
-                preds['train'] = dataset.backend.empty((outputs.major_axis(),
-                                                        1))
-                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
-                                       out=preds['train'])
-            if test and 'test' in inputs:
-                outputs = self.predict_set(inputs['test'])
-                preds['test'] = dataset.backend.empty((outputs.major_axis(),
-                                                       1))
-                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
-                                       out=preds['test'])
-            if validation and 'validation' in inputs:
-                outputs = self.predict_set(inputs['validation'])
-                val_shape = (outputs.major_axis(), 1)
-                preds['validation'] = dataset.backend.empty(val_shape)
-                dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
-                                       out=preds['validation'])
-            if len(preds) is 0:
-                logger.error("must specify >=1 of: train, test, validation")
-            res.append(preds)
+                inputs = dataset.get_inputs(train, test, validation)
+                preds = dict()
+                if train and 'train' in inputs:
+                    outputs = self.predict_set(inputs['train'])
+                    preds['train'] = dataset.backend.empty((outputs.major_axis(),
+                                                            1))
+                    dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                           out=preds['train'])
+                if test and 'test' in inputs:
+                    outputs = self.predict_set(inputs['test'])
+                    preds['test'] = dataset.backend.empty((outputs.major_axis(),
+                                                           1))
+                    dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                           out=preds['test'])
+                if validation and 'validation' in inputs:
+                    outputs = self.predict_set(inputs['validation'])
+                    val_shape = (outputs.major_axis(), 1)
+                    preds['validation'] = dataset.backend.empty(val_shape)
+                    dataset.backend.argmax(outputs, axis=outputs.minor_axis(),
+                                           out=preds['validation'])
+                if len(preds) is 0:
+                    logger.error("must specify >=1 of: train, test, validation")
+                res.append(preds)
         return res
 
     def fprop(self, inputs):
@@ -175,3 +196,31 @@ class MLP(Model):
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))
         # TODO: return values instead?
+
+    def predict_and_error(self, dataset):
+        
+        for batch_type in ['training', 'validation']:
+            if batch_type == 'training':
+                nrecs = dataset.OUTPUT_BATCH_SIZE*(dataset.end_train_batch - dataset.start_train_batch + 1)
+                dataset.cur_train_macro_batch = dataset.start_train_batch
+            elif batch_type == 'validation':
+                nrecs = dataset.OUTPUT_BATCH_SIZE*(dataset.end_val_batch - dataset.start_val_batch + 1)
+                dataset.cur_val_macro_batch = dataset.start_val_batch
+            outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
+            num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        
+            preds = dataset.backend.empty((1, self.batch_size))
+            err = 0.
+            for batch in xrange(num_batches):
+                inputs, targets = dataset.get_mini_batch(self.batch_size, batch_type, raw_targets=True)
+                # next 2 lines will not be needed if everything is col order
+                inputs = self.backend.format(inputs)
+                targets = self.backend.format(targets)
+                self.fprop(inputs)
+                dataset.backend.argmax(self.layers[-1].output,
+                        axis=self.layers[-1].output.minor_axis(),
+                        out=preds)
+                dataset.backend.not_equal(targets, preds, preds)
+                err += dataset.backend.sum(preds)
+            logging.info("%s set misclass rate: %0.5f%%" % (
+                        batch_type, 100 * err / nrecs))

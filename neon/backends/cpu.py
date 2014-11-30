@@ -930,11 +930,13 @@ class CPU(Backend):
             weights[:, -1] = weight_params['bias_init']
         return weights
 
-
+# template for CPUDist (wrap MPI function calls so _tensor don't have to be
+# exposed in layer code)
 class CPUDist(CPU):
     def bcast(buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
 
+# once CPUDist is implemented inherit from CPUDist
 class CPUDataDist(CPU):
     """
     helper sub-class for data parallel implementations

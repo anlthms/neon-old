@@ -51,6 +51,7 @@ class MNIST(Dataset):
     def __init__(self, **kwargs):
         self.dist_flag = False
         self.num_test_sample = 10000
+        self.macro_batched = False
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
