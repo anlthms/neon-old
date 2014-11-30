@@ -1832,3 +1832,54 @@ class CrossMapPoolingLayer(YAMLable):
         self.backend.update_cmpool(error, inputs, self.ifmsize,
                                    self.updatebuf, out=self.updates)
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+class CrossMapResponseNormLayer(YAMLable):
+
+    """
+    CrossMap response normalization.
+
+    Calculates the normalization across feature maps at each pixel point.
+    output will be same size as input
+
+    The calculation is output(x,y,C) = input(x,y,C)/normFactor(x,y,C)
+
+    where normFactor(x,y,C) is (1 + alpha * sum_ksize( input(x,y,k)^2 ))^beta
+
+    ksize is the kernel size, so will run over the channel index with no
+    padding at the edges of the feature map.  (so for ksize=5, at C=1, we will
+    be summing the values of c=0,1,2,3)
+    """
+
+    def __init__(self, name, backend, batch_size, pos, ifmshape,
+                 nifm, ksize, alpha, beta):
+
+        self.ifmsize = ifmshape[0]*ifmshape[1]
+        self.nifm = nifm
+        self.nin = self.ifmsize*self.nifm
+        self.nout = self.nin
+
+        self.name = name
+        self.backend = backend
+        self.ifmshape = ifmshape
+        self.batch_size = batch_size
+        self.pos = pos
+
+        self.ksize = ksize
+        self.alpha = alpha
+        self.beta = beta
+
+        self.output = self.backend.zeros((self.nout, self.batch_size))
+        if self.pos > 0:
+            self.berror = self.backend.zeros((self.nin, self.batch_size))
+
+    def fprop(self, inputs):
+        self.backend.fprop_cmrnorm(inputs, self.output, self.ifmshape,
+                                   self.nifm, self.ksize, self.alpha,
+                                   self.beta)
+
+    def bprop(self, error, inputs, epoch):
+        if self.pos > 0:
+            self.backend.bprop_cmrnorm(inputs, self.output, error, self.berror,
+                                       self.ifmshape, self.nifm, self.ksize,
+                                       self.alpha, self.beta)
