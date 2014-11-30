@@ -1046,22 +1046,41 @@ class GPU(Backend):
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    def fprop_apool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
+                      beta):
+        cudanet.crossmap_response_norm(
+            inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
-    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
+                      ksize, alpha, beta):
+        cudanet.crossmap_response_norm_undo(
+            inputs._tensor, error._tensor, outputs._tensor,
+            berror._tensor, nfm, ksize, alpha, beta)
 
-    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool(imgs=inputs, target=outputs, channels=nfm,
+                         sizeX=fshape[0], paddingStart=padding,
+                         moduleStride=stride, numModulesX=ofmshape[0])
 
-    def bprop_l2pool(self, outputs, error, berror, berrorbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride,
-                     nfm, prodbuf):
-        raise NotImplementedError("TODO!")
+    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool_undo(avgGrads=error, target=berror, sizeX=fshape[0],
+                              paddingStart=padding, moduleStride=stride,
+                              numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+
+    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
+                     fshape, padding, stride, nfm):
+        cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
+                        sizeX=fshape[0], paddingStart=padding,
+                        moduleStride=stride, numModulesX=ofmshape[0])
+
+    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
+                     ofmshape, fshape, padding, stride, nfm, prodbuf):
+        cudanet.l2_pool_undo(imgs=inputs, l2Grads=error, l2Acts=outputs,
+                             target=berror, sizeX=fshape[0],
+                             paddingStart=padding, moduleStride=stride,
+                             numModulesX=ofmshape[0])
 
     def fprop_fc(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
