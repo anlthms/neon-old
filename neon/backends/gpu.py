@@ -536,28 +536,6 @@ class GPUTensor(Tensor):
         cudanet.exp(self._tensor, target)
         return GPUTensor(target)
 
-    def get_minor_slice(self, start, end):
-        # return self.__class__(self[:, start:end]._tensor)
-        return GPUTensor(self._tensor.col_slice_view(start, end))
-
-    def set_minor_slice(self, start, end, data):
-        # self[:, start:end] = data
-        self._tensor.set_col_slice(start, end, data._tensor)
-
-    def get_major_slice(self, start, end):
-        # return self.__class__(self[start:end]._tensor)
-        return GPUTensor(self._tensor.row_slice_view(start, end))
-
-    def set_major_slice(self, start, end, data):
-        # self[start:end] = data
-        self._tensor.set_row_slice(start, end, data._tensor)
-
-    def major_axis(self):
-        return 1
-
-    def minor_axis(self):
-        return 0
-
 
 class TransposedGPUTensor(GPUTensor):
 
@@ -718,6 +696,27 @@ class GPU(Backend):
         seq = numpy.random.uniform(low, high, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
 
+    def fill_uniform_thresh(self, a, keepthresh=0.5, dtype=None):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            a (dtype): GPUTensor to fill with zeros or ones based on whether
+                       sample from uniform distribution is > keepthresh
+            keepthresh (float, optional): Minimal sample value that can be
+                                          returned. Defaults to 0.5
+        Returns:
+            Tensor: Of specified size filled with these random numbers.
+        """
+        # This is the slow version for checking via cpu generated randoms
+        a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
+            size=a._tensor.shape) < keepthresh) / keepthresh,
+            dtype=numpy.float32)
+        a.copy_to_device()
+
+        # This is the fast version using device generated random matrix
+        # a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
@@ -825,9 +824,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        self.add(left._tensor.greater_than(right._tensor),
-                 left._tensor.equals(right._tensor),
-                 out._tensor)
+        # we calculate >= as not <
+        left._tensor.less_than(right._tensor, out._tensor)
+        out._tensor.equals(0, out._tensor)
         return out
 
     def less(self, left, right, out):
@@ -861,9 +860,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        self.add(left._tensor.less_than(right._tensor),
-                 left._tensor.equals(right._tensor),
-                 out._tensor)
+        # we calculate <= as not >
+        left._tensor.greater_than(right._tensor, out._tensor)
+        out._tensor.equals(0, out._tensor)
         return out
 
     def norm(self, tsr, order=None, axis=None, out=None):
@@ -899,9 +898,12 @@ class GPU(Backend):
         else:
             res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
         if out is None:
-            out = self.array(res)
-        else:
             out = res
+        else:
+            out._tensor = res._tensor
+            out.shape = res.shape
+            # TODO: decide how we want to handle differing dtypes
+            out.dtype = res.dtype
         return out
 
     def xcov(self, a, b, out):
@@ -951,12 +953,10 @@ class GPU(Backend):
             logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
-
         if out is None:
-            res = cudanet.min(x._tensor, axis)
+            res = x._tensor.min(axis)
         else:
-            res = cudanet.min(x._tensor, axis, out)
-
+            res = x._tensor.min(axis, out)
         return GPUTensor(res)
 
     def max(self, x, axis=None, out=None, keepdims=False):
@@ -968,12 +968,10 @@ class GPU(Backend):
             logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
-
         if out is None:
-            res = cudanet.max(x._tensor, axis)
+            res = x._tensor.max(axis)
         else:
-            res = cudanet.max(x._tensor, axis, out)
-
+            res = x._tensor.max(axis, out)
         return GPUTensor(res)
 
     def argmin(self, tsr, axis, out):
@@ -993,8 +991,7 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        out._tensor = tsr._tensor.argmin(axis)
-        out.shape = out._tensor.shape
+        tsr._tensor.argmin(axis, target=out._tensor)
         return out
 
     def argmax(self, tsr, axis, out):
@@ -1014,8 +1011,7 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        out._tensor = tsr._tensor.argmax(axis)
-        out.shape = out._tensor.shape
+        tsr._tensor.argmax(axis, target=out._tensor)
         return out
 
     def fabs(self, x, out=None):
@@ -1074,41 +1070,42 @@ class GPU(Backend):
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
 
-    def fprop_mpool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm, maxinds):
+    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool(
             inputs._tensor, outputs._tensor, nfm, fshape[1],
             padding, stride, ofmshape[1])
 
-    def bprop_mpool(self, inputs, outputs, error, berror, links, ifmshape,
-                    ofmshape, fshape, padding, stride, nfm, maxinds):
+    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         cudanet.max_pool_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+    def fprop_apool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
+    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm):
+    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride, nfm):
         raise NotImplementedError("TODO!")
 
-    def bprop_l2pool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm, prodbuf):
+    def bprop_l2pool(self, outputs, error, berror, berrorbuf, links,
+                     ifmshape, ofmshape, fshape, padding, stride,
+                     nfm, prodbuf):
         raise NotImplementedError("TODO!")
 
-    def fprop_fc_dot(self, inputs, weights, out):
+    def fprop_fc(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    def bprop_fc_dot(self, deltas, weights, out):
+    def bprop_fc(self, deltas, weights, out):
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
-    def update_fc_dot(self, deltas, inputs, out):
+    def update_fc(self, deltas, inputs, out):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
@@ -1119,9 +1116,6 @@ class GPU(Backend):
 
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         raise NotImplementedError("TODO!")
-
-    def format(self, raw):
-        return self.array(raw.transpose().copy())
 
     def sync_stream(self):
         cudanet.sync_stream()

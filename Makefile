@@ -3,25 +3,57 @@
 # ----------------------------------------------------------------------------
 # Top-level control of the building/installation/cleaning of various targets
 
-DOC_DIR=doc
-DOC_PUB_HOST=atlas.localdomain
-DOC_PUB_USER=neon
-DOC_PUB_PATH=/home/neon/public/
+# these variables control the type of build, use -e to override their default
+# values, which are defined in setup.cfg
+DEV := $(strip $(shell grep -i '^ *DEV *=' setup.cfg | cut -f 2 -d '='))
+CPU := $(strip $(shell grep -i '^ *CPU *=' setup.cfg | cut -f 2 -d '='))
+GPU := $(strip $(shell grep -i '^ *GPU *=' setup.cfg | cut -f 2 -d '='))
+DIST := $(strip $(shell grep -i '^ *DIST *=' setup.cfg | cut -f 2 -d '='))
 
-NOSE_FLAGS=""  # --pdb --pdb-failures
+# these variables control where we publish Sphinx docs to
+DOC_DIR := doc
+DOC_PUB_HOST := atlas.localdomain
+DOC_PUB_USER := neon
+DOC_PUB_PATH := /home/neon/public/
 
-# check if a cuda capable GPU is installed
-NO_CUDA_GPU=1
-# NO_CUDA_GPU set to 0 will enable GPU based backend tests, which we attempt to
-# infer automatically
-ifeq ($(shell uname -s),Darwin)
-	# OSX checking for CUDA drivers
-	NO_CUDA_GPU=$(shell kextstat | grep -i cuda > /dev/null 2>&1; echo $$?)
-else
-	# Assume something Linux'y
-	NO_CUDA_GPU=$(shell nvidia-smi > /dev/null 2>&1; echo $$?)
+# these control test options and attribute filters
+NOSE_FLAGS := ""  # --pdb --pdb-failures
+NOSE_ATTRS := -a '!slow'
+
+# ensure a cuda capable GPU is installed
+ifeq ($(GPU), 1)
+  ifeq ($(shell uname -s), Darwin)
+    ifneq ($(shell kextstat | grep -i cuda > /dev/null 2>&1; echo $$?), 0)
+      $(info No CUDA capable GPU installed on OSX.  Forcing GPU=0)
+      override GPU := 0
+    endif
+  else
+    # we assume a Linux-like OS
+    ifneq ($(shell nvidia-smi > /dev/null 2>&1; echo $$?), 0)
+      $(info No CUDA capable GPU installed.  Forcing GPU=0)
+      override GPU := 0
+    endif
+  endif
 endif
 
+# update options based on build type
+INSTALL_REQUIRES :=
+ifeq ($(GPU), 0)
+  NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
+else
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
+    'git+http://gitlab.localdomain/algorithms/cuda-convnet2.git\#egg=cudanet'
+endif
+ifeq ($(DIST), 0)
+  NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
+else
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'mpi4py>=1.3.1'
+endif
+ifeq ($(DEV), 0)
+  NOSE_ATTRS := $(NOSE_ATTRS),'!dev'
+else
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1'
+endif
 
 .PHONY: default build develop install uninstall test test_all sanity speed \
 	      grad all clean_pyc clean doc html style lint bench dist publish_doc \
@@ -30,43 +62,55 @@ endif
 default: build
 
 build: clean_pyc
-	@python setup.py build_ext --inplace
+	@echo "Running build(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
+		build_ext --inplace
 
-develop: build .git/hooks/pre-commit
-	-python setup.py develop
+develop: clean_pyc .git/hooks/pre-commit
+	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
+		develop
 
-install: build
-	pip install --upgrade --download-cache .pkgs --requirement requirements.txt .
+# unfortunately there is no way to communicate custom commands into pip
+# install, hence having to specify installation requirements twice (once
+# above, and once inside setup.py). Ugly kludge, but seems like the only way
+# to support python setup.py install and pip install.
+install: clean_pyc
+	@echo "Running install..."
+	@pip install $(INSTALL_REQUIRES) .
 
 uninstall:
-	pip uninstall -y neon
+	@echo "Running uninstall..."
+	@pip uninstall -y neon
 
 test: build
 	@echo "Running unit tests..."
-ifeq ($(NO_CUDA_GPU),0)
-	@nosetests -a '!slow' $(NOSE_FLAGS) neon
-else
-	@echo "No CUDA compatible GPU found, disabling GPU tests"
-	@nosetests -a '!slow','!cuda' $(NOSE_FLAGS) neon
-endif
+	nosetests $(NOSE_ATTRS) $(NOSE_FLAGS) neon
 
-test_all: build
-	tox
+test_all:
+	@echo "Running test_all..."
+	@tox -- -e CPU=$(CPU) GPU=$(GPU) DIST=$(DIST)
 
 sanity: build
 	@echo "Running sanity checks..."
-	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py \
+		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
 
 speed: build
-	@echo "This will take a minute. Running speed checks..."
-	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py
+	@echo "Running speed checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py \
+		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
 
 grad: build
 	@echo "Running gradient checks..."
+ifeq ($(CPU), 1)
 	@echo "CPU:"
 	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_cpu.yaml
+endif
+ifeq ($(GPU), 1)
 	@echo "GPU:"
 	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_gpu.yaml
+endif
 
 all: style test sanity grad speed
 
@@ -88,21 +132,21 @@ style:
 	@-flake8 --exclude=.tox,build,dist,src .
 
 .git/hooks/pre-commit:
-	-flake8 --install-hook
-	-touch .git/hooks/pre-commit
+	@flake8 --install-hook
+	@-touch .git/hooks/pre-commit
 
 lint:
-	-pylint --output-format=colorized neon
+	@-pylint --output-format=colorized neon
 
 bench: build
-	PYTHONPATH="." benchmarks/run_benchmarks.py
+	@PYTHONPATH="." benchmarks/run_benchmarks.py
 
 dist:
-	python setup.py sdist
+	@python setup.py sdist
 
 publish_doc: doc
-	-cd $(DOC_DIR)/build/html && \
+	@-cd $(DOC_DIR)/build/html && \
 		rsync -avz -essh --perms --chmod=ugo+rX . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)
 
 release: publish_doc
-	gitchangelog > ChangeLog
+	@gitchangelog > ChangeLog

@@ -13,14 +13,18 @@ Installation
     git clone git@gitlab.localdomain:algorithms/neon.git neon
     cd neon
 
+    # configure optional backends like GPU, distributed processing by editing
+    # setup.cfg (set items to 1 to enable):
+    vi setup.cfg
+
     # to install system wide:
     make install  # sudo make install on Linux
-    # or:
-    pip install .  # sudo pip install . on Linux
 
     # or to build for working locally in the source tree
     # (useful for active development)
-    make build
+    make develop  # sudo make develop on Linux
+    # or
+    make build  # will require updating PYTHONPATH to point at neon dir
 
 Running
 -------
@@ -45,8 +49,35 @@ your python path:
 
     PYTHONPATH="." bin/neon my_example_cfg.yaml
 
-Configuration File Format
--------------------------
+Configuration Setup
+-------------------
+Initial build type and required dependency handling can be controlled either by
+editing the ``setup.cfg`` file prior to installation, or by passing arguments
+to the ``make`` command.  Below is an example showing the default values for
+``setup.cfg``:
+
+.. highlight:: ini
+
+.. literalinclude:: ../../setup.cfg
+   :linenos:
+
+As shown, the default set of options is fairly restrictive, so only the CPU
+based backend will be available.  If you have a CUDA capable GPU, you'll
+likely want to set ``GPU=1``.  If you plan to run unit tests, build
+documentation or develop neon, you'll want to set ``DEV=1``.  If you would
+like to run your model training in parallel via MPI you'll need to first set
+``DIST=1``.
+
+To override what is defined in ``setup.cfg``, one can pass the appropriate
+options on the command-line (useful when doing in place development).  Here's
+an example:
+
+.. code-block:: bash
+
+    make -e GPU=1 DEV=1 test
+
+Experiment File Format
+----------------------
 A `YAML <http://www.yaml.org/>`_ configuration file is used to control the
 design of each experiment.  Below is a fully annotated example showing the
 process to train and run inference on a toy network:
@@ -65,6 +96,7 @@ It has been tested with `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1
 
 .. code-block:: bash
 
+    cd <openmpi_source_dir>
     ./configure --prefix=/<path_to_install_openmpi> --with-cuda
     make all
     sudo make install
@@ -75,6 +107,12 @@ Make sure that PATH includes /<path_to_openmpi>/bin and LD_LIBRARY_PATH includes
 
 .. code-block:: bash
 
+  # set DIST=1 in setup.cfg then run:
+  make install
+  # or
+  make -e DIST=1 install
+  # or
+  cd <mpi4py_source_dir>
 	sudo python setup.py build --configure install
 
 3. Setup /etc/hosts with IPs of the nodes.
