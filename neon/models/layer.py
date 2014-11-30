@@ -62,7 +62,7 @@ class Layer(YAMLable):
                                                 weight_dtype)
         self.updates = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.empty((self.nout, batch_size),
+        self.pre_act = self.backend.zeros((self.nout, batch_size),
                                           pre_act_dtype)
         self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
         self.pos = pos
@@ -284,7 +284,7 @@ class RecurrentOutputLayer(Layer):
         self.deltas_o[tau] = error * self.pre_act_list[tau-1]
         self.backend.update_fc(self.deltas_o[tau].transpose(), inputs.transpose(), # TRANSPOSE both
                                    out=self.temp_out)
-        self.updates += self.temp_out
+        self.updates += self.temp_out # ARE THESE EVER RESET TO ZERO? layers[1].
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
