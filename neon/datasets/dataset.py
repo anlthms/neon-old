@@ -20,8 +20,6 @@ if CUDA_GPU:
     print "CUDA_GPU is set"
     import neon.backends.gpu
 
-from ipdb import set_trace as trace
-
 logger = logging.getLogger(__name__)
 
 
@@ -168,7 +166,7 @@ class Dataset(object):
         like this breaks the RNN which expects to be served one large batch.
 
         """
-        bs = self.batch_size # for some reason this knows the batch size!
+        bs = self.batch_size
         nbatches = (data.shape[0] + bs - 1) / bs
         nrows = data.shape[1]
         batchwise = self.backend.zeros((nbatches * nrows, bs))
@@ -182,7 +180,6 @@ class Dataset(object):
                 self.backend.array(batchdata))
         batchwise.nbatches = nbatches
         batchwise.nrows = nrows
-        #trace()
         return batchwise
 
     def format(self):

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # useful for tracking down overflows and NaNs:
 # import numpy as np
 # np.seterr(over='raise')
-from ipdb import set_trace as trace
+# from ipdb import set_trace as trace
 
 
 class RNN(Model):
@@ -42,7 +42,7 @@ class RNN(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         # targets = datasets[0].get_targets(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
-        nrecs = inputs.shape[0] # was shape[1], flipped this.
+        nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         if 'temp_dtype' not in self.__dict__:
@@ -73,7 +73,7 @@ class RNN(Model):
                 self.serve_batch(batch, batch_inx, num_batches)  # get indices
                 self.fprop(inputs, batch_inx, hidden_init,
                            debug=(True if batch == -1 else False))
-                self.bprop(targets, inputs, batch_inx, epoch) # INVALID MULTIPLY
+                self.bprop(targets, inputs, batch_inx, epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.batch_size,
@@ -205,10 +205,9 @@ class RNN(Model):
 
         cerror = self.backend.zeros((self.batch_size, self.layers[0].nout))
         for tau in range(min_unroll, self.unrolls+1):
-            #trace() # (50, 128) and (128, 64)
             # need to bprop from the output layer before calling bprop
             self.backend.bprop_fc(self.layers[1].weights,
-                                  self.layers[1].deltas_o[tau].transpose(), # TRANSPOSE and switch
+                                  self.layers[1].deltas_o[tau].transpose(),
                                   out=cerror)
             self.layers[0].bprop(cerror, inputs, tau, batch_inx)
 

@@ -11,10 +11,10 @@ import numpy
 import os
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import PY3, MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
-from ipdb import set_trace as trace
+
 
 class MOBYDICK(Dataset):
 
@@ -103,7 +103,7 @@ class MOBYDICK(Dataset):
             self.inputs['test'] = indat[:, test_idcs].transpose()
             self.targets['test'] = indat[:, testtarget_idcs].transpose()
 
-            #self.format() # DONT!!
+            # self.format()  # Mobydick does not support new batch format yet.
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?
