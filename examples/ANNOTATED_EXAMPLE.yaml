@@ -240,7 +240,8 @@
     # logging parameters:
     # -------------------
     # level - numeric threshold that controls the types of messages that get
-    #         displayed.  All logging types higher than this value will appear.
+    #         displayed.  All logging types with values greater than or equal
+    #         to this value will appear.
     #         types of logging are:
     #         0 - NOTSET
     #         10 - DEBUG
