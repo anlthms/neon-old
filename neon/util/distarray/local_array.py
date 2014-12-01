@@ -8,9 +8,9 @@ Local View of the Data
 
 import numpy as np
 
-import gdist_consts as gc
 import logging
 from neon.util.compat import MPI_INSTALLED
+from neon.util.distarray import gdist_consts as gc
 
 logger = logging.getLogger(__name__)
 
@@ -198,9 +198,9 @@ class LocalArray(object):
                 0] * self.comm_per_dim + neighbor_array_index[1]
             if (self.local_image.shape[0] == 0):
                 import traceback
-                print "\n*****\n"
-                print (
-                    k, self.local_image.shape, self.send_halos[k].halo_indices)
+                print("\n*****\n")
+                print(k, self.local_image.shape,
+                      self.send_halos[k].halo_indices)
                 traceback.print_stack()
 
             comm.Sendrecv(sendbuf=self.local_image.take(

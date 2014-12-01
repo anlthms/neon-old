@@ -808,9 +808,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        self.add(left._tensor.greater_than(right._tensor),
-                 left._tensor.equals(right._tensor),
-                 out._tensor)
+        # we calculate >= as not <
+        left._tensor.less_than(right._tensor, out._tensor)
+        out._tensor.equals(0, out._tensor)
         return out
 
     def less(self, left, right, out):
@@ -844,9 +844,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        self.add(left._tensor.less_than(right._tensor),
-                 left._tensor.equals(right._tensor),
-                 out._tensor)
+        # we calculate <= as not >
+        left._tensor.greater_than(right._tensor, out._tensor)
+        out._tensor.equals(0, out._tensor)
         return out
 
     def norm(self, tsr, order=None, axis=None, out=None):
@@ -882,9 +882,12 @@ class GPU(Backend):
         else:
             res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
         if out is None:
-            out = self.array(res)
-        else:
             out = res
+        else:
+            out._tensor = res._tensor
+            out.shape = res.shape
+            # TODO: decide how we want to handle differing dtypes
+            out.dtype = res.dtype
         return out
 
     def exp(self, x, out):
@@ -925,12 +928,10 @@ class GPU(Backend):
             logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
-
         if out is None:
-            res = cudanet.min(x._tensor, axis)
+            res = x._tensor.min(axis)
         else:
-            res = cudanet.min(x._tensor, axis, out)
-
+            res = x._tensor.min(axis, out)
         return GPUTensor(res)
 
     def max(self, x, axis=None, out=None, keepdims=False):
@@ -942,12 +943,10 @@ class GPU(Backend):
             logger.debug('Copying to host')
             res.copy_to_host()
             return res.numpy_array[0][0]
-
         if out is None:
-            res = cudanet.max(x._tensor, axis)
+            res = x._tensor.max(axis)
         else:
-            res = cudanet.max(x._tensor, axis, out)
-
+            res = x._tensor.max(axis, out)
         return GPUTensor(res)
 
     def argmin(self, tsr, axis, out):
@@ -963,8 +962,12 @@ class GPU(Backend):
                         representation of tsr.
             out (GPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
         """
         tsr._tensor.argmin(axis, target=out._tensor)
+        return out
 
     def argmax(self, tsr, axis, out):
         """
@@ -979,8 +982,12 @@ class GPU(Backend):
                         representation of tsr.
             out (GPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
         """
         tsr._tensor.argmax(axis, target=out._tensor)
+        return out
 
     def fabs(self, x, out=None):
         if out is not None:
@@ -1039,22 +1046,41 @@ class GPU(Backend):
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    def fprop_apool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
+                      beta):
+        cudanet.crossmap_response_norm(
+            inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
-    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
+                      ksize, alpha, beta):
+        cudanet.crossmap_response_norm_undo(
+            inputs._tensor, error._tensor, outputs._tensor,
+            berror._tensor, nfm, ksize, alpha, beta)
 
-    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool(imgs=inputs, target=outputs, channels=nfm,
+                         sizeX=fshape[0], paddingStart=padding,
+                         moduleStride=stride, numModulesX=ofmshape[0])
 
-    def bprop_l2pool(self, outputs, error, berror, berrorbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride,
-                     nfm, prodbuf):
-        raise NotImplementedError("TODO!")
+    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool_undo(avgGrads=error, target=berror, sizeX=fshape[0],
+                              paddingStart=padding, moduleStride=stride,
+                              numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+
+    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
+                     fshape, padding, stride, nfm):
+        cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
+                        sizeX=fshape[0], paddingStart=padding,
+                        moduleStride=stride, numModulesX=ofmshape[0])
+
+    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
+                     ofmshape, fshape, padding, stride, nfm, prodbuf):
+        cudanet.l2_pool_undo(imgs=inputs, l2Grads=error, l2Acts=outputs,
+                             target=berror, sizeX=fshape[0],
+                             paddingStart=padding, moduleStride=stride,
+                             numModulesX=ofmshape[0])
 
     def fprop_fc(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
