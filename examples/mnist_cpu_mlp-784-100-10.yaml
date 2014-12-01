@@ -39,8 +39,8 @@
             learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
-              type: constant, #constant, nesterov
-              coef: 0.90,
+              type: constant, #constant, nesterov, linear_monotone
+              coef: 0.0,
             },
           },
         },
