@@ -1006,8 +1006,6 @@ class CPU(Backend):
             weights = self.normal(loc, scale, size, dtype)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
-            # After discussing with @scott, this will be a
-            # GPUBackend.numpyapply() call for the linalg.eig
             sparseness = 15
             eigenvalue = 1.2
             if 'sparseness' in weight_params:
