@@ -13,11 +13,6 @@ from neon.diagnostics.visualize_rnn import VisualizeRNN
 
 logger = logging.getLogger(__name__)
 
-# useful for tracking down overflows and NaNs:
-# import numpy as np
-# np.seterr(over='raise')
-# from ipdb import set_trace as trace
-
 
 class RNN(Model):
 
@@ -38,9 +33,8 @@ class RNN(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
-        # targets = datasets[0].get_targets(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:

@@ -16,11 +16,11 @@ if PY3:
 else:
     import urllib
 
-if CUDA_GPU:
-    print "CUDA_GPU is set"
-    import neon.backends.gpu
-
 logger = logging.getLogger(__name__)
+
+if CUDA_GPU:
+    logger.info("CUDA_GPU is set")
+    import neon.backends.gpu
 
 
 class Dataset(object):
@@ -162,9 +162,6 @@ class Dataset(object):
     def transpose_batches(self, data):
         """
         Transpose each minibatch within the dataset.
-        (URS) Not sure if this is related to the row to column change. Seems
-        like this breaks the RNN which expects to be served one large batch.
-
         """
         bs = self.batch_size
         nbatches = (data.shape[0] + bs - 1) / bs

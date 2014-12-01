@@ -9,31 +9,6 @@ import matplotlib.pyplot as plt
 plt.interactive(1)
 import numpy as np
 
-# bokeh is a library that plots to the browser.
-# from bokeh import plotting as blt
-
-"""
-Using Bokeh:
-    first, need to start a server with
-        bokeh-server --redis-port 7002 &
-    from shell, make sure old sessions are killed
-
-    then create a document
-        blt.output_server('lala')
-    and add plots to it.
-        blt.line(np.arange(3), np.random.rand(3))
-        blt.scatter(flowers["petal_length"], flowers["petal_width"])
-    which all appear one after the other.
-
-Some more example stuff:
-    holding on:
-        blt.line(np.arange(3), np.random.rand(3))
-        blt.hold(True)
-        blt.line(np.arange(3), np.random.rand(3))
-        blt.hold(False)
-    making subplots:
-"""
-
 
 class VisualizeRNN(object):
     """
@@ -104,7 +79,7 @@ class VisualizeRNN(object):
         """
         Moved this here so it's legal to use numpy.
         """
-        print "Prediction inputs"
-        print np.argmax(inputs, 1).raw().astype(np.int8).view('c')
-        print "Prediction outputs"
-        print np.argmax(outputs, 1).raw().astype(np.int8).view('c')
+        print("Prediction inputs")
+        print(np.argmax(inputs, 1).raw().astype(np.int8).view('c'))
+        print("Prediction outputs")
+        print(np.argmax(outputs, 1).raw().astype(np.int8).view('c'))

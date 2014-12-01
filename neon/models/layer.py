@@ -305,29 +305,29 @@ class RecurrentLSMTLayer(Layer):
                                                    weight_init, learning_rule)
         # create weight matrices
         self.Wxi = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Whi = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Wxf = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Whf = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Wxo = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Who = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Wxc = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
         self.Whc = self.backend.gen_weights((nout, nout),
-                                             weight_init_rec,
-                                             weight_dtype)
+                                            weight_init_rec,
+                                            weight_dtype)
 
         # initialize buffers for intermediate values
         self.i_t = [self.backend.zeros((batch_size, self.nout))
@@ -376,22 +376,25 @@ class RecurrentLSMTLayer(Layer):
     def fprop(self, y, inputs, tau):
         """
         In numpy pseudocode, the forward pass is:
-            de_dW = dot((y-t) / (y * (1-y)), dy_dW)         # d/dW CE(y,t)
-            dy_dW = dot(sigmoid_prime(dot(Wyh, h)), dh_dW)  # d/dW sigm(Wyh*h)
-            dh_dW = o .* dp_dW + tanh(c) .* do_dW           # d/dW o .* tanh(c)
+            de_dW = dot((y-t) / (y * (1-y)), dy_dW)     # d/dW CE(y,t)
+            dy_dW = dot(sig_prime(dot(Wyh, h)), dh_dW)  # d/dW sigm(Wyh*h)
+            dh_dW = o .* dp_dW + tanh(c) .* do_dW       # d/dW o .* tanh(c)
             do_dWxo = sigmoid_prime(dot(Wxo, x) +
-                                    dot(Who, h) + b) x      # d/dW sigmoid(Wcx*x+Wch*h+b)
-            dp_dW = dot(tanh_prime(c), dc_dW)               # d/dW phi(c)
-            dc_dW = c_ .* df_dW + i .* dg_dW + g .* di_dW   # d/dW (f .* c_ + i .* g)
+                                    dot(Who, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
+            dp_dW = dot(tanh_prime(c), dc_dW)           # d/dW phi(c)
+            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW   # d/dW (f.*c_ + i.*g)
             df_dWxf = sigmoid_prime(dot(Wxf, x) +
-                                    dot(Whf, h) + b) x      # d/dW sigmoid(Wfx*x+Wfh*h+b)
+                                    dot(Whf, h) + b) x  # d/dW s(Wfx*x+Wfh*h+b)
             dg_dWxc = sigmoid_prime(dot(Wxc, x) +
-                                    dot(Whc, h) + b) x      # d/dW sigmoid(Wcx*x+Wch*h+b)
+                                    dot(Whc, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
             di_dWxi = sigmoid_prime(dot(Wxi, x) +
-                                    dot(Whi, h) + b) x      # d/dW sigmoid(Wix*x+Wih*h+b)
+                                    dot(Whi, h) + b) x  # d/dW s(Wix*x+Wih*h+b)
         Start by computing the sigmoids and go up from there.
         This is for the d/dWx, but d/dWh follows the same schema.
         """
+        batch_size = self.batch_size
+        unrolls = self.unrolls
+
         self.net_ix = [self.backend.zeros((batch_size, self.nout))
                        for k in range(unrolls)]
         self.net_ih = [self.backend.zeros((batch_size, self.nout))
