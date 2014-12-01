@@ -19,7 +19,7 @@
       rounding: 0,
     },
   },
-  
+
   datasets: [
     !obj:neon.datasets.iris.Iris {
       backend: *be,
@@ -27,7 +27,7 @@
       sample_pct: 100,
     },
   ],
-  
+
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
@@ -49,10 +49,7 @@
             backend: *be,
             momentum_params: &mm {
               type: constant,
-              initial_coef: 0,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0,
+              coef: 0,
             },
           },
           param_dtype: *def_dtype,
@@ -99,7 +96,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

@@ -18,7 +18,7 @@
       serialized_path: '/usr/local/data/MNIST/mnist-Cudamat.pkl',
     },
   ],
-  
+
   # RBM model specification
   model: !obj:neon.models.dbn.DBN {
     backend: *be,
@@ -27,10 +27,10 @@
     learning_rate: &lr 0.01,
     momentum: {
       type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
+      initial_coef: 0.90,
       start_epoch: 5,
       saturate_epoch: 5,
-      saturated_coef: 0.90,
+      saturated_coef: 0.99,
     },
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './dbn-cudamat20.pkl',
@@ -82,7 +82,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
