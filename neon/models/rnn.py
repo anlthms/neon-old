@@ -243,7 +243,7 @@ class RNN(Model):
             for tau in range(self.unrolls):
                 letters = self.backend.empty(50, dtype=int)
                 self.backend.argmax(self.layers[1].output_list[tau],
-                                    axis=outputs.minor_axis(), out=letters)
+                                    axis=1, out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
         return_buffer = self.backend.zeros(nrecs)
@@ -297,7 +297,7 @@ class RNN(Model):
                 if item in targets and item in preds:
                     misclass = ds.backend.empty(preds[item].shape)
                     ds.backend.argmax(targets[item],
-                                      axis=targets[item].minor_axis(),
+                                      axis=1,
                                       out=misclass)
                     ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
