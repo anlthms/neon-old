@@ -724,7 +724,10 @@ class GPU(Backend):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
     def add(self, a, b, out):
-        a._tensor.add(b._tensor, out._tensor)
+        if type(a._tensor) != cudanet.CUDAMatrix:
+            b._tensor.add(a._tensor, out._tensor)
+        else:
+            a._tensor.add(b._tensor, out._tensor)
 
     def subtract(self, a, b, out):
         if type(a._tensor) != cudanet.CUDAMatrix:

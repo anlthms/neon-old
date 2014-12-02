@@ -31,7 +31,8 @@ def test_cross_entropy_gputensor():
     expected_result = np.sum((- targets.raw()) * np.log(outputs.raw()) -
                              (1 - targets.raw()) * np.log(1 - outputs.raw()))
     assert_tensor_near_equal(expected_result, cross_entropy(be, outputs,
-                                                            targets, temp))
+                                                            targets, temp),
+                             tolerance=1e-6)
 
 
 def test_cross_entropy_derivative_cputensor():

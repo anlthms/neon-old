@@ -38,7 +38,7 @@ def tanh_derivative(backend, tanh, outputs):
         outputs (array_like): Storage for the transformed output.
     """
 
-    backend.square(tanh, out=outputs)
+    backend.multiply(tanh, tanh, out=outputs)
     backend.subtract(backend.wrap(1.0), outputs, out=outputs)
 
 
