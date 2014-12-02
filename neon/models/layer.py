@@ -62,9 +62,9 @@ class Layer(YAMLable):
                                                 weight_dtype)
         self.updates = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.empty((self.nout, batch_size),
+        self.pre_act = self.backend.zeros((self.nout, batch_size),
                                           pre_act_dtype)
-        self.output = self.backend.empty((self.nout, batch_size), output_dtype)
+        self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
         self.pos = pos
         self.learning_rule = learning_rule
         self.learning_rule.allocate_state(self.updates)
@@ -224,7 +224,6 @@ class LayerWithNoBias(Layer):
     """
     Single NNet layer with no bias node
     """
-
     def __init__(self, name, backend, batch_size, pos, nin, nout,
                  activation, weight_init, learning_rule, weight_dtype=None,
                  updates_dtype=None, pre_act_dtype=None,
@@ -247,6 +246,290 @@ class LayerWithNoBias(Layer):
         self.backend.update_fc(error, inputs, out=self.updates)
 
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+class RecurrentOutputLayer(Layer):
+
+    """
+    Derived from LayerWithNoBias. pre_act becomes pre_act_list, output becomes
+    output_list, which are indexed by [tau], the unrolling step.
+    """
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
+                 activation, weight_init, learning_rule, weight_dtype=None,
+                 delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
+        super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
+                                                   pos, nin, nout, activation,
+                                                   weight_init, learning_rule)
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
+                                                pre_act_dtype)
+                             for k in range(unrolls)]
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
+                                               output_dtype)
+                            for k in range(unrolls)]
+        self.temp_out = self.backend.zeros((self.nout, self.nin))
+        self.deltas_o = [self.backend.zeros((self.batch_size, nout))
+                         for k in range(unrolls+1)]
+        if pos > 0:
+            self.berror = backend.zeros((batch_size, nin))
+
+    def fprop(self, inputs, tau):
+        self.backend.fprop_fc(self.weights.transpose(), inputs,
+                              out=self.pre_act_list[tau])
+        self.activation.apply_both(self.backend,
+                                   self.pre_act_list[tau],
+                                   self.output_list[tau])
+
+    def bprop(self, error, inputs, tau):
+        self.deltas_o[tau] = error * self.pre_act_list[tau-1]
+        self.backend.update_fc(self.deltas_o[tau].transpose(),
+                               inputs.transpose(), out=self.temp_out)
+        self.updates += self.temp_out
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+class RecurrentLSMTLayer(Layer):
+
+    """
+    Hidden layer with LSTM gates.
+    """
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
+                 activation, weight_init, weight_init_rec, learning_rule,
+                 weight_dtype=None, delta_dtype=None, updates_dtype=None,
+                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+        # super calls into Layer.__init__() for weight init.
+        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
+                                                   pos, nin, nout, activation,
+                                                   weight_init, learning_rule)
+        # create weight matrices
+        self.Wxi = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Whi = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Wxf = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Whf = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Wxo = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Who = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Wxc = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+        self.Whc = self.backend.gen_weights((nout, nout),
+                                            weight_init_rec,
+                                            weight_dtype)
+
+        # initialize buffers for intermediate values
+        self.i_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.f_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.o_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.g_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.c_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.h_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.i_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+
+        # preactivation -- do we really need to store this across unrolls?
+        self.net_ix = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_ih = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_fx = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_fh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_ox = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_oh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_gx = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_gh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+
+        # misc
+        self.deltas = [self.backend.zeros((self.batch_size, nout))
+                       for k in range(unrolls+1)]
+        self.updates_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_in = self.backend.zeros((self.nout, self.nin))
+        self.learning_rule.allocate_state_rec(self.updates_rec)
+
+        self.berror = backend.zeros((batch_size, nout))
+
+    def fprop(self, y, inputs, tau):
+        """
+        In numpy pseudocode, the forward pass is:
+            de_dW = dot((y-t) / (y * (1-y)), dy_dW)     # d/dW CE(y,t)
+            dy_dW = dot(sig_prime(dot(Wyh, h)), dh_dW)  # d/dW sigm(Wyh*h)
+            dh_dW = o .* dp_dW + tanh(c) .* do_dW       # d/dW o .* tanh(c)
+            do_dWxo = sigmoid_prime(dot(Wxo, x) +
+                                    dot(Who, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
+            dp_dW = dot(tanh_prime(c), dc_dW)           # d/dW phi(c)
+            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW   # d/dW (f.*c_ + i.*g)
+            df_dWxf = sigmoid_prime(dot(Wxf, x) +
+                                    dot(Whf, h) + b) x  # d/dW s(Wfx*x+Wfh*h+b)
+            dg_dWxc = sigmoid_prime(dot(Wxc, x) +
+                                    dot(Whc, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
+            di_dWxi = sigmoid_prime(dot(Wxi, x) +
+                                    dot(Whi, h) + b) x  # d/dW s(Wix*x+Wih*h+b)
+        Start by computing the sigmoids and go up from there.
+        This is for the d/dWx, but d/dWh follows the same schema.
+        """
+        batch_size = self.batch_size
+        unrolls = self.unrolls
+
+        self.net_ix = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_ih = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_fx = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_fh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_ox = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_oh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_gx = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+        self.net_gh = [self.backend.zeros((batch_size, self.nout))
+                       for k in range(unrolls)]
+
+        self.i_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.f_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.o_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.g_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.c_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.h_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+        self.i_t = [self.backend.zeros((batch_size, self.nout))
+                    for k in range(unrolls)]
+
+        # old code from RNN
+        z1 = self.backend.zeros(self.pre_act_list[tau].shape)
+        z2 = self.backend.zeros(self.pre_act_list[tau].shape)
+        self.backend.fprop_fc(self.weights_rec.transpose(), y, out=z1)
+        self.backend.fprop_fc(self.weights.transpose(), inputs, out=z2)
+        self.pre_act_list[tau] = z1 + z2
+        self.activation.apply_both(self.backend,
+                                   self.pre_act_list[tau],
+                                   self.output_list[tau])
+
+    def bprop(self, error, inputs, tau, batch_inx):
+        self.deltas[1] = error * self.pre_act_list[tau-1]
+        self.backend.update_fc(self.deltas[1].transpose(),
+                               inputs[batch_inx[:, tau-1]].transpose(),
+                               out=self.temp_in)
+        self.updates += self.temp_in
+        for layer in range(0, tau - 1)[::-1]:
+            self.backend.bprop_fc(self.weights_rec,
+                                  self.deltas[tau-layer-1].transpose(),
+                                  out=self.berror)
+            self.deltas[tau-layer] = self.berror * self.pre_act_list[layer]
+            self.backend.update_fc(self.deltas[tau-(layer+1)].transpose(),
+                                   self.output_list[layer].transpose(),
+                                   out=self.temp_rec)
+            self.updates_rec += self.temp_rec
+            self.backend.update_fc(self.deltas[tau-layer].transpose(),
+                                   inputs[batch_inx[:, layer]].transpose(),
+                                   out=self.temp_in)
+            self.updates += self.temp_in
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule_rec(self.weights_rec,
+                                          self.updates_rec, epoch)
+
+
+class RecurrentHiddenLayer(Layer):
+
+    """
+    Derived from LayerWithNoBias. In addition to the lists[tau] outlined for
+    RecurrentOutputLayer, the fprop is getting input from two weight matrices,
+    one connected to the input and one connected to the previous hidden state.
+    """
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
+                 activation, weight_init, weight_init_rec, learning_rule,
+                 weight_dtype=None, delta_dtype=None, updates_dtype=None,
+                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+        # super calls into Layer.__init__() for weight init.
+        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
+                                                   pos, nin, nout, activation,
+                                                   weight_init, learning_rule)
+        self.weights_rec = self.backend.gen_weights((nout, nout),
+                                                    weight_init_rec,
+                                                    weight_dtype)
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
+                                                pre_act_dtype)
+                             for k in range(unrolls)]
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
+                                               output_dtype)
+                            for k in range(unrolls)]
+        self.deltas = [self.backend.zeros((self.batch_size, nout))
+                       for k in range(unrolls+1)]
+        self.updates_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_in = self.backend.zeros((self.nout, self.nin))
+        self.learning_rule.allocate_state_rec(self.updates_rec)
+
+        self.berror = backend.zeros((batch_size, nout))
+
+    def fprop(self, y, inputs, tau):
+        z1 = self.backend.zeros(self.pre_act_list[tau].shape)
+        z2 = self.backend.zeros(self.pre_act_list[tau].shape)
+        self.backend.fprop_fc(self.weights_rec.transpose(), y, out=z1)
+        self.backend.fprop_fc(self.weights.transpose(), inputs, out=z2)
+        self.pre_act_list[tau] = z1 + z2
+        self.activation.apply_both(self.backend,
+                                   self.pre_act_list[tau],
+                                   self.output_list[tau])
+
+    def bprop(self, error, inputs, tau, batch_inx):
+        self.deltas[1] = error * self.pre_act_list[tau-1]
+        self.backend.update_fc(self.deltas[1].transpose(),
+                               inputs[batch_inx[:, tau-1]].transpose(),
+                               out=self.temp_in)
+        self.updates += self.temp_in
+        for layer in range(0, tau - 1)[::-1]:
+            self.backend.bprop_fc(self.weights_rec,
+                                  self.deltas[tau-layer-1].transpose(),
+                                  out=self.berror)
+            self.deltas[tau-layer] = self.berror * self.pre_act_list[layer]
+            self.backend.update_fc(self.deltas[tau-(layer+1)].transpose(),
+                                   self.output_list[layer].transpose(),
+                                   out=self.temp_rec)
+            self.updates_rec += self.temp_rec
+            self.backend.update_fc(self.deltas[tau-layer].transpose(),
+                                   inputs[batch_inx[:, layer]].transpose(),
+                                   out=self.temp_in)
+            self.updates += self.temp_in
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule_rec(self.weights_rec,
+                                          self.updates_rec, epoch)
 
 
 class LayerWithNoBiasDist(LayerWithNoBias):

@@ -724,7 +724,10 @@ class GPU(Backend):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
     def add(self, a, b, out):
-        a._tensor.add(b._tensor, out._tensor)
+        if type(a._tensor) != cudanet.CUDAMatrix:
+            b._tensor.add(a._tensor, out._tensor)
+        else:
+            a._tensor.add(b._tensor, out._tensor)
 
     def subtract(self, a, b, out):
         if type(a._tensor) != cudanet.CUDAMatrix:
@@ -1127,6 +1130,9 @@ class GPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             weights = numpy.random.normal(loc, scale, size)
+        elif (weight_params['type'] == 'sparse_eigenvalued'):
+            # TODO: Needs the numpyapply function to be implemented
+            raise NotImplementedError("TODO: linalg.eig call though numpy")
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0

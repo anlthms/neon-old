@@ -7,7 +7,7 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.fixedpoint.FixedPoint {
     rng_seed: 0,
-    seterr_handling: { 
+    seterr_handling: {
       all: 'raise',
     },
     default_dtype: &def_dtype !obj:neon.backends.fixedpoint.fixpt_dtype {
@@ -18,7 +18,7 @@
       rounding: 0
     },
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
@@ -28,7 +28,7 @@
       serialized_path: '/usr/local/data/MNIST/mnist-FixedPoint.pkl',
     },
   ],
-  
+
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
@@ -37,10 +37,10 @@
     learning_rate: &lr 0.01,
     momentum: {
       type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
+      initial_coef: 0.90,
       start_epoch: 5,
       saturate_epoch: 5,
-      saturated_coef: 0.90,
+      saturated_coef: 0.99,
     },
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './mlp-fixpt_simple.pkl',
@@ -111,7 +111,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

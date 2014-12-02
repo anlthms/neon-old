@@ -105,6 +105,7 @@ class GradientDescentMomentum(GradientDescent):
         else:
             raise AttributeError("Missing required momentum parameters")
         self.velocity = None
+        self.velocity_rec = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
@@ -112,7 +113,35 @@ class GradientDescentMomentum(GradientDescent):
             self.velocity = self.backend.zeros(params.shape,
                                                self.velocity_dtype)
 
+    def allocate_state_rec(self, params):
+        """For recurrent layer, need an extra velocity """
+        if (self.velocity_rec is None) \
+                or (self.velocity_rec.shape != params.shape):
+                    self.velocity_rec = self.backend.zeros(params.shape,
+                                                           self.velocity_dtype)
+
+    def apply_rule_rec(self, params, updates, epoch):
+        """ For recurrent layer, need an extra velocity """
+        momentum_coef = self.get_momentum_coef(epoch)
+        self.backend.multiply(self.velocity_rec,
+                              self.backend.wrap(momentum_coef),
+                              out=self.velocity_rec)
+        self.backend.multiply(updates,
+                              self.backend.wrap(self.learning_rate),
+                              out=updates)
+        self.backend.subtract(self.velocity_rec,
+                              updates,
+                              out=self.velocity_rec)
+        self.backend.add(params, self.velocity_rec, out=params)
+
     def apply_rule(self, params, updates, epoch):
+        """
+        Steps for momentum:
+        1. velo = mu * velo    scale down old velocity
+        2. upda = eps * upda   scale down new updates
+        3. velo = velo - upda  combine old and new part
+        4. update the actual weights.
+        """
         momentum_coef = self.get_momentum_coef(epoch)
         self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
                               out=self.velocity)
@@ -123,28 +152,41 @@ class GradientDescentMomentum(GradientDescent):
         self.backend.add(params, self.velocity, out=params)
 
     def get_momentum_coef(self, epoch):
+        """
+        Explanation here what the different momentum parameters mean.
+        initial_coef:   momentum coefficient used from first epoch on
+        saturated_coef: momentum after saturate_epoch is reached
+        start_epoch:    start increasing momentum at this epoch
+        saturate_epoch: saturated_coef is reached and held
+        ...
+        """
         coef = 0.0
         if 'coef' in self.momentum_params:
             coef = self.momentum_params['coef']
+
         if 'initial_coef' in self.momentum_params:
             init_coef = self.momentum_params['initial_coef']
         else:
             init_coef = coef
+
         if 'saturated_coef' in self.momentum_params:
             saturated_coef = self.momentum_params['saturated_coef']
         else:
             saturated_coef = coef
+
         if 'start_epoch' in self.momentum_params:
             start_epoch = self.momentum_params['start_epoch']
         else:
             start_epoch = None
+
         if 'saturate_epoch' in self.momentum_params:
             saturate_epoch = self.momentum_params['saturate_epoch']
         else:
             saturate_epoch = None
 
         if self.momentum_params['type'] == 'constant':
-            pass
+            if 'coef' not in self.momentum_params:
+                raise AttributeError("Please specify momentum coefficient")
         elif self.momentum_params['type'] == 'linear_monotone':
             coef = init_coef
             if start_epoch is not None and epoch >= start_epoch:
@@ -152,14 +194,14 @@ class GradientDescentMomentum(GradientDescent):
                     if start_epoch == saturate_epoch:
                         coef = saturated_coef
                     else:
-                        init_proportion = ((epoch - start_epoch + 0.0) /
-                                           (saturate_epoch - start_epoch))
+                        init_proportion = 1 - ((epoch - start_epoch + 0.0) /
+                                               (saturate_epoch - start_epoch))
                         coef = (init_proportion * init_coef +
                                 (1.0 - init_proportion) * saturated_coef)
                 elif saturate_epoch is not None and epoch > saturate_epoch:
                     coef = saturated_coef
             else:
-                coef = saturated_coef
+                pass
         elif self.momentum_params['type'] == 'nesterov':
             raise NotImplementedError("TODO!")
         else:

@@ -103,10 +103,10 @@
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
+              initial_coef: 0.90,
               start_epoch: 5,
               saturate_epoch: 5,
-              saturated_coef: 0.90,
+              saturated_coef: 0.99,
             },
           },
         },
@@ -143,7 +143,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
