@@ -12,7 +12,7 @@ import numpy as np
 import os
 import tarfile
 import cPickle
-import Image
+from PIL import Image
 from StringIO import StringIO
 import scipy.io
 from random import shuffle
@@ -41,7 +41,7 @@ class I1K(Dataset):
         repo_path (str, optional): where to locally host this dataset on disk
 
     """
-    url = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
+    url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
         self.dist_flag = False
@@ -86,6 +86,12 @@ class I1K(Dataset):
                 load_dir, 'ILSVRC2012_img_val.tar')
             ilsvrc_devkit_tar = os.path.join(
                 load_dir, 'ILSVRC2012_devkit_t12.tar.gz')
+            for infile in (ilsvrc_train_tar, ilsvrc_validation_tar,
+                           ilsvrc_devkit_tar):
+                if not os.path.exists(infile):
+                    raise IOError("%s not found.  Please ensure you have"
+                                  "ImageNet downloaded.  More info here: %s",
+                                  infile, url)
             labels_dic, label_names, validation_labels = self.parse_dev_meta(
                 ilsvrc_devkit_tar)
 
