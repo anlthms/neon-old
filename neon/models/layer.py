@@ -760,14 +760,14 @@ class LocalLayer(YAMLable):
         self.stride = stride
         self.learning_rule = learning_rule
 
-        print self.ifmheight, self.fheight, pad, stride
+        #print self.ifmheight, self.fheight, pad, stride
         self.ofmheight = np.int(np.ceil((self.ifmheight - self.fheight + 2.*pad) / stride)) + 1
         self.ofmwidth = np.int(np.ceil((self.ifmwidth - self.fwidth + 2.*pad) / stride)) + 1
         self.pad = -pad
         self.ofmshape = (self.ofmheight, self.ofmwidth)
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ofmheight * self.ofmwidth
-        print self.ofmheight, self.ofmwidth, nifm, nofm
+        #print self.ofmheight, self.ofmwidth, nifm, nofm
         self.nin = nifm * self.ifmsize
         
         if pos > 0:

@@ -61,7 +61,7 @@ class MLP(Model):
         if not ds.macro_batched:
             inputs = ds.get_inputs(train=True)['train']
             targets = ds.get_targets(train=True)['train']
-            nrecs = inputs.shape[1]
+            num_batches = inputs.nbatches
         else:
             if ds.start_train_batch == -1:
                 nrecs = ds.max_file_index
@@ -70,11 +70,12 @@ class MLP(Model):
             #print ds.start_train_batch, nrecs
             ds.cur_train_macro_batch = ds.start_train_batch
             #print ds.start_train_batch
+            num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
 
         assert 'batch_size' in self.__dict__
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
-        num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
