@@ -879,7 +879,7 @@ class GPU(Backend):
             self.not_equal(tsr, tmp, tmp)
             res = tmp.sum(axis)
         else:
-            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis)) ** (1.0 / order)
         if out is None:
             out = res
         else:
@@ -1013,7 +1013,8 @@ class GPU(Backend):
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
-        #print padding, nifm, ngroups, ifmshape[0], ofmshape[0], ofmshape[1], stride, nifm
+        # print padding, nifm, ngroups, ifmshape[0], ofmshape[0], ofmshape[1],
+        # stride, nifm
         cudanet.convolution(
             weights._tensor, inputs._tensor, outputs._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
@@ -1151,9 +1152,11 @@ class GPU(Backend):
 
 
 class GPUDataDist(GPU):
+
     """
     helper sub-class for data parallel implementations
     """
+
     def __init__(self, **kwargs):
         local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])

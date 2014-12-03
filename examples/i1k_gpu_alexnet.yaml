@@ -15,7 +15,7 @@
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
       serialized_path: '/usr/local/data/I1K/I1K_alexnet.pkl', #delete if loading files from scratch
-      sample_pct: .1,
+      sample_pct: .1, #ignored for now
       macro_batched: True,
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
@@ -35,7 +35,7 @@
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.ConvLayer {
-        name: layer1,
+        name: conv1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
@@ -65,7 +65,7 @@
         },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
-        name: layer2,
+        name: rnorm1,
         backend: *be,
         batch_size: *bs,
         pos: 1,
@@ -76,7 +76,7 @@
         beta: 0.75,
       },
       !obj:neon.models.layer.MaxPoolingLayer {
-        name: layer3,
+        name: pool1,
         backend: *be,
         batch_size: *bs,
         pos: 2,
@@ -86,7 +86,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.ConvLayer {
-        name: layer4,
+        name: conv2,
         backend: *be,
         batch_size: *bs,
         pos: 3,
@@ -104,6 +104,7 @@
         fshape: [5, 5],
         stride: 1,
         pad: 2,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.01,
@@ -111,7 +112,7 @@
         },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
-        name: layer5,
+        name: rnorm2,
         backend: *be,
         batch_size: *bs,
         pos: 4,
@@ -122,7 +123,7 @@
         beta: 0.75,
       },
       !obj:neon.models.layer.MaxPoolingLayer {
-        name: layer6,
+        name: pool2,
         backend: *be,
         batch_size: *bs,
         pos: 5,
@@ -132,7 +133,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.ConvLayer {
-        name: layer7,
+        name: conv3,
         backend: *be,
         batch_size: *bs,
         pos: 6,
@@ -150,6 +151,7 @@
         fshape: [3, 3],
         stride: 1,
         pad: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.01,
@@ -157,7 +159,7 @@
         },
       },
       !obj:neon.models.layer.ConvLayer {
-        name: layer8,
+        name: conv4,
         backend: *be,
         batch_size: *bs,
         pos: 7,
@@ -175,6 +177,7 @@
         fshape: [3, 3],
         stride: 1,
         pad: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.01,
@@ -182,7 +185,7 @@
         },
       },
       !obj:neon.models.layer.ConvLayer {
-        name: layer9,
+        name: conv5,
         backend: *be,
         batch_size: *bs,
         pos: 8,
@@ -207,7 +210,7 @@
         },
       },
       !obj:neon.models.layer.MaxPoolingLayer {
-        name: layer10,
+        name: pool3,
         backend: *be,
         batch_size: *bs,
         pos: 9,
@@ -217,7 +220,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.LayerWithNoBias {
-        name: layer11,
+        name: fc4096a,
         backend: *be,
         batch_size: *bs,
         pos: 10,
@@ -239,7 +242,7 @@
         },
       },
       !obj:neon.models.layer.DropOutLayer {
-        name: layer12,
+        name: dropout1,
         backend: *be,
         batch_size: *bs,
         keep: 0.5,
@@ -247,7 +250,7 @@
         nin: 4096,
       },
       !obj:neon.models.layer.LayerWithNoBias {
-        name: layer13,
+        name: fc4096b,
         backend: *be,
         batch_size: *bs,
         pos: 12,
@@ -269,7 +272,7 @@
         },
       },
       !obj:neon.models.layer.DropOutLayer {
-        name: layer14,
+        name: dropout2,
         backend: *be,
         batch_size: *bs,
         keep: 0.5,
@@ -277,7 +280,7 @@
         nin: 4096,
       },
       !obj:neon.models.layer.LayerWithNoBias {
-        name: output,
+        name: fc1000,
         backend: *be,
         batch_size: *bs,
         pos: 14,

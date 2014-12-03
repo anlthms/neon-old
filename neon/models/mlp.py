@@ -40,7 +40,7 @@ class MLP(Model):
                                      self.temp_dtype)
         self.temp = [tempbuf, tempbuf.copy()]
         self.result = 0
-        assert self.layers[-1].nout <= 2**15
+        assert self.layers[-1].nout <= 2 ** 15
 
     def fit(self, datasets):
         """
@@ -66,28 +66,22 @@ class MLP(Model):
             if ds.start_train_batch == -1:
                 nrecs = ds.max_file_index
             else:
-                nrecs = ds.OUTPUT_BATCH_SIZE*(ds.end_train_batch - ds.start_train_batch + 1)
-            #print ds.start_train_batch, nrecs
+                nrecs = ds.output_batch_size * \
+                    (ds.end_train_batch - ds.start_train_batch + 1)
             ds.cur_train_macro_batch = ds.start_train_batch
-            #print ds.start_train_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
 
         assert 'batch_size' in self.__dict__
-        # we may include 1 smaller-sized partial batch if num recs is not an
-        # exact multiple of batch size.
-        
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches): #inputs.nbatches
+            for batch in xrange(num_batches):  # inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
-                    logger.info('loading mb %d', batch )
-                    inputs, targets = ds.get_mini_batch(self.batch_size, 'training')
-                    logger.info('done loading mb %d', batch )
-                    # next 2 lines will not be needed if everything is col order
-                    #inputs = self.backend.format(inputs)
-                    #targets = self.backend.format(targets)
+                    logger.info('loading mb %d', batch)
+                    inputs, targets = ds.get_mini_batch(
+                        self.batch_size, 'training')
+                    logger.info('done loading mb %d', batch)
                     self.fprop(inputs)
                     self.bprop(targets, inputs, epoch)
                     error += self.cost.apply_function(
@@ -111,7 +105,7 @@ class MLP(Model):
                                     MPI.COMM_WORLD.size))
             else:
                 logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches)) #inputs.nbatches
+                            (epoch, error / num_batches))  # inputs.nbatches
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -125,7 +119,7 @@ class MLP(Model):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
-            self.backend.argmax(outputs, axis=0, out=preds[batch:(batch+1)])
+            self.backend.argmax(outputs, axis=0, out=preds[batch:(batch + 1)])
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -153,7 +147,6 @@ class MLP(Model):
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
-            #print layer.pos
             layer.fprop(y)
             y = layer.output
 
@@ -190,7 +183,7 @@ class MLP(Model):
             for item in items:
                 if item in targets and item in preds:
                     labels = self.backend.empty((targets[item].nbatches,
-                                                self.batch_size))
+                                                 self.batch_size))
                     for batch in xrange(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         self.backend.argmax(targets_batch, axis=0,
@@ -203,29 +196,28 @@ class MLP(Model):
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
-        
+
         for batch_type in ['training', 'validation']:
             if batch_type == 'training':
-                nrecs = dataset.OUTPUT_BATCH_SIZE*(dataset.end_train_batch - dataset.start_train_batch + 1)
+                nrecs = dataset.output_batch_size * \
+                    (dataset.end_train_batch - dataset.start_train_batch + 1)
                 dataset.cur_train_macro_batch = dataset.start_train_batch
             elif batch_type == 'validation':
-                nrecs = dataset.OUTPUT_BATCH_SIZE*(dataset.end_val_batch - dataset.start_val_batch + 1)
+                nrecs = dataset.output_batch_size * \
+                    (dataset.end_val_batch - dataset.start_val_batch + 1)
                 dataset.cur_val_macro_batch = dataset.start_val_batch
-            outputs = self.backend.alloc(nrecs, self.layers[-1].nout)
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        
+
             preds = dataset.backend.empty((1, self.batch_size))
             err = 0.
             for batch in xrange(num_batches):
-                inputs, targets = dataset.get_mini_batch(self.batch_size, batch_type, raw_targets=True)
-                # next 2 lines will not be needed if everything is col order
-                #inputs = self.backend.format(inputs)
-                #targets = self.backend.format(targets)
+                inputs, targets = dataset.get_mini_batch(
+                    self.batch_size, batch_type, raw_targets=True)
                 self.fprop(inputs)
                 dataset.backend.argmax(self.layers[-1].output,
-                        axis=0,
-                        out=preds)
+                                       axis=0,
+                                       out=preds)
                 dataset.backend.not_equal(targets, preds, preds)
                 err += dataset.backend.sum(preds)
             logging.info("%s set misclass rate: %0.5f%%" % (
-                        batch_type, 100 * err / nrecs))
+                batch_type, 100 * err / nrecs))
