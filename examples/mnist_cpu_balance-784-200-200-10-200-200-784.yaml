@@ -52,7 +52,7 @@
           scale: 0.01,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &covlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -75,6 +75,11 @@
         },
       },
       !obj:neon.models.layer.BranchLayer {
+        name: blayer,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        nin: 200,
         sublayers: [
           !obj:neon.models.layer.Layer {
             name: output,
@@ -166,7 +171,7 @@
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &outlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -190,9 +195,13 @@
       },
     ],
     cost: [
-    !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    !obj:neon.transforms.xcov.XCovariance {},
+      !obj:neon.transforms.sum_squared.SumSquaredDiffs {
+        olayer:*outlayer,
+      },
+      !obj:neon.transforms.cross_entropy.CrossEntropy {},
+      !obj:neon.transforms.xcov.XCovariance {
+        olayer:*covlayer,
+      },
     ],
   },
 
