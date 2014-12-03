@@ -16,6 +16,9 @@ from StringIO import StringIO
 import scipy.io
 from random import shuffle
 from time import time
+from neon.util.compat import CUDA_GPU
+if CUDA_GPU:
+    import neon.backends.gpu
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED
@@ -46,7 +49,6 @@ class I1K(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
-        self.num_test_sample = 10000
         self.macro_batched = False
         self.start_train_batch = -1
         self.end_train_batch = -1
@@ -175,7 +177,7 @@ class I1K(Dataset):
             with self.open_tar(ILSVRC_TRAIN_TAR, 'training tar') as tf:
                 synsets = tf.getmembers()
                 synset_tars = [tarfile.open(fileobj=tf.extractfile(s)) for s in synsets]
-                synset_tars=synset_tars[:2] #todo: delete this line
+                synset_tars=synset_tars[:4] #todo: delete this line
                 logger.info("Loaded synset tars.")
                 logger.info("Building training set image list (this can take 10-20 minutes)...")
 
@@ -194,15 +196,15 @@ class I1K(Dataset):
                 logger.info("created list of jpg files")
                 
                 self.CROP_TO_SQUARE          = True
-                self.OUTPUT_IMAGE_SIZE       = 256
+                self.OUTPUT_IMAGE_SIZE       = 228
                 # Number of threads to use for JPEG decompression and image resizing.
                 self.NUM_WORKER_THREADS      = 8
-                self.OUTPUT_BATCH_SIZE = 200 #macro batch size
-                self.max_file_index = 1000 #np.floor(self.sample_pct*len(train_jpeg_files))
+                self.OUTPUT_BATCH_SIZE = 3072 #macro batch size
+                self.max_file_index = 3072 #np.floor(self.sample_pct*len(train_jpeg_files))
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
                 
-                self.val_max_file_index = 1000 #00
+                self.val_max_file_index = 3072 #00
                 val_label_sample = validation_labels[0:self.val_max_file_index]
 
                 # todo 2: implement macro batching [will require changing model code]
@@ -231,9 +233,9 @@ class I1K(Dataset):
                     
                     self.inputs['train'] = jpeg_mat
                     # convert labels to one hot
-                    tmp = np.zeros((max_file_index, self.nclasses), dtype='float32')
+                    tmp = np.zeros((self.nclasses, self.max_file_index), dtype='float32')
                     for col in range(self.nclasses):
-                        tmp[:, col] = label_sample == col
+                        tmp[col] = label_sample == col
                     self.targets['train'] = tmp
                     print 'done loading training data'
 
@@ -243,9 +245,9 @@ class I1K(Dataset):
                         jpeg_mat = self.resizeJPEG([jpeg.read() for jpeg in val_file_sample], as_string=False)
 
                         self.inputs['test'] = jpeg_mat
-                        tmp = np.zeros((max_file_index, self.nclasses), dtype='float32')
+                        tmp = np.zeros((self.nclasses, self.max_file_index), dtype='float32')
                         for col in range(self.nclasses):
-                            tmp[:, col] = val_label_sample == col
+                            tmp[col] = val_label_sample == col
                         self.targets['test'] = tmp
             
                     print "done loading imagenet data"
@@ -259,8 +261,8 @@ class I1K(Dataset):
         if as_string:
             tgt = []
         else:
-            # as numpy array
-            tgt = np.empty((len(jpeg_strings), (self.OUTPUT_IMAGE_SIZE**2) *3 ), dtype='float32')
+            # as numpy array, row order
+            tgt = np.empty((len(jpeg_strings), (self.OUTPUT_IMAGE_SIZE**2) *3), dtype='float32')
         for i, jpeg_string in enumerate(jpeg_strings):
             #print jpeg_string[0:10]
             img = Image.open(StringIO(jpeg_string))
@@ -288,7 +290,8 @@ class I1K(Dataset):
                 f = StringIO()
                 img.save(f, "JPEG")
                 tgt.append(f.getvalue())
-            else:                    
+            else:
+                # this is still in row order                
                 if img.mode == 'L': #greyscale
                     logger.debug('greyscale image found... tiling')
                     tgt[i] = np.tile(np.array(img, dtype='float32').reshape((1,-1)),3)
@@ -307,11 +310,11 @@ class I1K(Dataset):
         labels = self.jpeg_strings['labels']
         
         if not raw_targets:
-            self.targets_macro = np.zeros((self.OUTPUT_BATCH_SIZE, self.nclasses), dtype='float32')
+            self.targets_macro = np.zeros((self.nclasses, self.OUTPUT_BATCH_SIZE), dtype='float32')
             for col in range(self.nclasses):
-                self.targets_macro[:, col] = labels == col
+                self.targets_macro[col] = labels == col
         else:
-            self.targets_macro = np.asarray(labels).reshape((-1,1))
+            self.targets_macro = np.asarray(labels).reshape((1,-1))
 
     def get_mini_batch(self, batch_size, batch_type, raw_targets=False):
         if self.OUTPUT_BATCH_SIZE % batch_size != 0:
@@ -348,7 +351,7 @@ class I1K(Dataset):
             raise ValueError('Invalid batch_type in get_batch')
 
         #provide mini batch from macro batch
-        inputs = np.empty((batch_size, (self.OUTPUT_IMAGE_SIZE**2) *3 ), dtype='float32')
+        inputs = np.empty(((self.OUTPUT_IMAGE_SIZE**2) *3, batch_size), dtype='float32')
         start_idx = cur_mini_batch_id*batch_size
         end_idx = (cur_mini_batch_id+1)* batch_size
 
@@ -357,11 +360,11 @@ class I1K(Dataset):
             img = Image.open(StringIO(jpeg_string))
             if img.mode == 'L': #greyscale
                 logger.debug('greyscale image found... tiling')
-                inputs[i] = np.tile(np.array(img, dtype='float32').reshape((1,-1)),3)
+                inputs[:,i,np.newaxis] = np.tile(np.array(img, dtype='float32').reshape((-1,1)),(3,1))
             else:
-                inputs[i] = np.array(img, dtype='float32').reshape((1,-1))
+                inputs[:,i,np.newaxis] = np.array(img, dtype='float32').reshape((-1,1))
 
-        targets = self.targets_macro[start_idx:end_idx]
+        targets = self.targets_macro[:,start_idx:end_idx]
 
         # serialize
 
@@ -381,7 +384,12 @@ class I1K(Dataset):
             if self.cur_val_mini_batch >= num_minibatches_in_macro:
                 self.cur_val_mini_batch = 0
 
-        return inputs, targets
+        # TODO: resize image to 224x224 here224
+
+        #if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
+        #    return self.backend.array(inputs), self.backend.array(targets)
+        #else:
+        return self.backend.array(inputs), self.backend.array(targets)
 
     # def __getstate__(self):
     #     self._blacklist = ['start_train_batch', 'end_train_batch', 'start_val_batch', 'end_val_batch']

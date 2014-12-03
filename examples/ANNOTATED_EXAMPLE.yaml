@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # neon configuration files are written in YAML (a human readable markup
 # language that supports key/value pairs).  We actually make use of pyyaml and
 # customize things slightly to support arbitrary python objects as values and

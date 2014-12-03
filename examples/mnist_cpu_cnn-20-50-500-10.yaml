@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a CNN on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
@@ -13,7 +16,7 @@
       sample_pct: 10,
     },
   ],
-  
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
@@ -21,7 +24,6 @@
     num_epochs: 2,
     batch_size: &bs 100,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,

@@ -16,9 +16,9 @@
       macro_batched: True,
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
-      start_train_batch: 1,
-      end_train_batch: 3,
-      start_val_batch: 2,
+      start_train_batch: 0,
+      end_train_batch: 4,
+      start_val_batch: 1,
       end_val_batch: 4,
     },
   ],

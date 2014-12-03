@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 A self contained version of Fisher's Iris dataset.  This is a tiny 3 output
 class, 5 input feature, 150 total instance (50 per outcome) dataset.  It

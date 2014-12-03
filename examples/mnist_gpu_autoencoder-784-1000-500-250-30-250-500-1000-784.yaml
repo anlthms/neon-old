@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a stacked autoencoder on MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 Sparsenet is the natural image dataset used by Olshausen and Field
 More info at: http://redwood.berkeley.edu/bruno/sparsenet/

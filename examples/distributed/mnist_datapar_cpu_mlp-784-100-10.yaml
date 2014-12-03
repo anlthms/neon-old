@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Data parallel version of settings to train/test a 1 hidden layer Neural Net on full
 # MNIST. Network archetecture matches Arjun's Matlab variant.
 # Make sure np = 3 when running this example with mpirun

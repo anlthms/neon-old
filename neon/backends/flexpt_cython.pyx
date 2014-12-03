@@ -1,4 +1,7 @@
 #cython: profile=False
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 import numpy as np
 cimport cython

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # MNIST.  Parameters are optimized for performance.
 
@@ -62,7 +65,6 @@
           rounding: 1
         },
         velocity_dtype: *allfrac_dtype,
-        delta_dtype: *allfrac_dtype,
         updates_dtype: *allfrac_dtype,
         pre_act_dtype: *def_dtype,
         output_dtype: *def_dtype,
@@ -83,7 +85,6 @@
         },
         weight_dtype: *allfrac_dtype,
         velocity_dtype: *allfrac_dtype,
-        delta_dtype: *allfrac_dtype,
         updates_dtype: *allfrac_dtype,
         pre_act_dtype: *def_dtype,
         output_dtype: *allfrac_dtype,
