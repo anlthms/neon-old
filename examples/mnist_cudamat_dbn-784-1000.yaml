@@ -26,7 +26,7 @@
     batch_size: &bs 100,
     learning_rate: &lr 0.01,
     momentum: {
-        type: constant # linear_monotone, nesterov
+        type: constant, # linear_monotone, nesterov
         coef: 0.90,
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './dbn-cudamat20.pkl',
