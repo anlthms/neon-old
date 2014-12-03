@@ -48,8 +48,8 @@ class Layer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 activation, weight_init, learning_rule, weight_dtype=None,
-                 updates_dtype=None, pre_act_dtype=None,
+                 weight_init, learning_rule, activation=None,
+                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
@@ -62,9 +62,12 @@ class Layer(YAMLable):
                                                 weight_dtype)
         self.updates = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.zeros((self.nout, batch_size),
-                                          pre_act_dtype)
         self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
+        if activation is not None:
+            self.pre_act = self.backend.zeros((self.nout, batch_size),
+                                              pre_act_dtype)
+        else:
+            self.pre_act = self.output
         self.pos = pos
         self.learning_rule = learning_rule
         self.learning_rule.allocate_state(self.updates)
@@ -109,7 +112,8 @@ class Layer(YAMLable):
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
         """
@@ -117,7 +121,9 @@ class Layer(YAMLable):
         # updates = dot(error.transpose(), inputs)  # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
             self.backend.bprop_fc(error, self.weights[:, 0:endcol],
@@ -225,22 +231,24 @@ class LayerWithNoBias(Layer):
     Single NNet layer with no bias node
     """
     def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 activation, weight_init, learning_rule, weight_dtype=None,
-                 updates_dtype=None, pre_act_dtype=None,
+                 weight_init, learning_rule, activation=None,
+                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-                                              pos, nin, nout, activation,
-                                              weight_init, learning_rule)
+                                              pos, nin, nout, weight_init,
+                                              learning_rule, activation)
         if pos > 0:
             self.berror = backend.empty((nin, batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
-        # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+
         if self.pos > 0:
             self.backend.bprop_fc(error, self.weights, out=self.berror)
         self.backend.update_fc(error, inputs, out=self.updates)
