@@ -834,6 +834,33 @@ class LocalLayerDist(LocalLayer):
     """
     Base class for locally connected layers.
     """
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
+                 nofm, ifmshape, fshape, stride, pooling=False,
+                 activation=None, pad=0):
+        self.name = name
+        self.backend = backend
+        self.activation = activation
+        self.pad = pad
+        self.ifmheight, self.ifmwidth = ifmshape
+        self.ifmshape = ifmshape
+        self.fshape = fshape
+        self.fheight, self.fwidth = fshape
+        self.batch_size = batch_size
+        self.pos = pos
+        self.learning_rule = learning_rule
+        self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
+        self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
+        self.ofmshape = (self.ofmheight, self.ofmwidth)
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.ofmsize = self.ofmheight * self.ofmwidth
+        self.nin = nifm * self.ifmsize
+        # if pos > 0:
+        #    self.berror = backend.empty((batch_size, self.nin), dtype=dtype)
+        self.nifm = nifm
+        self.nofm = nofm
+        self.fsize = nifm * self.fheight * self.fwidth
+        self.stride = stride
+        self.pooling = pooling
 
     def adjust_for_dist(self, ifmshape):
         """
@@ -910,36 +937,6 @@ class LocalLayerDist(LocalLayer):
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, self.batch_size))
 
-    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, pooling=False,
-                 activation=None):
-        self.name = name
-        self.backend = backend
-        self.activation = activation
-        self.ifmheight, self.ifmwidth = ifmshape
-        self.ifmshape = ifmshape
-        self.fshape = fshape
-        self.fheight, self.fwidth = fshape
-        self.batch_size = batch_size
-        self.pos = pos
-        self.learning_rule = learning_rule
-        self.pos = pos
-        # self.dtype = dtype
-        self.ofmheight = (self.ifmheight - self.fheight) / stride + 1
-        self.ofmwidth = (self.ifmwidth - self.fwidth) / stride + 1
-        self.ofmshape = (self.ofmheight, self.ofmwidth)
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.nin = nifm * self.ifmsize
-        # if pos > 0:
-        #    self.berror = backend.empty((batch_size, self.nin), dtype=dtype)
-
-        self.nifm = nifm
-        self.nofm = nofm
-        self.fsize = nifm * self.fheight * self.fwidth
-        self.stride = stride
-        self.pooling = pooling
-
 
 class ConvLayer(LocalLayer):
 
@@ -1009,11 +1006,12 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, weight_init, activation=None):
+                 nofm, ifmshape, fshape, stride, weight_init, activation=None,
+                 pad=0):
         super(ConvLayerDist, self).__init__(name, backend, batch_size, pos,
                                             learning_rule, nifm, nofm,
                                             ifmshape, fshape, stride,
-                                            activation=activation)
+                                            activation=activation, pad=pad)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
