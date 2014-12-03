@@ -38,8 +38,9 @@ def cross_entropy(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
 
+    # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
-    return backend.mean(temp[0])
+    return backend.sum(temp[0])
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp):

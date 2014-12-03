@@ -132,7 +132,8 @@ class MLP(Model):
         res = []
 
         for ds in datasets:
-            inputs = ds.get_inputs(train, test, validation)
+            inputs = ds.get_inputs(train=train, test=test,
+                                   validation=validation)
             preds = dict()
             if train and 'train' in inputs:
                 preds['train'] = self.predict_set(ds, inputs['train'])

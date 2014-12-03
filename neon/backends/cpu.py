@@ -728,6 +728,9 @@ class CPU(Backend):
         np.multiply(x._tensor, x._tensor, out._tensor)
         np.multiply(out._tensor, x._tensor, out._tensor)
 
+    def power(self, x, a, out):
+        np.power(x._tensor, a._tensor, out._tensor)
+
     # Not part of the API - can be moved to a utility class.
     def hstack_maps(self, obj, nfm):
         """
@@ -882,6 +885,54 @@ class CPU(Backend):
             berrorbuf[inds, :] += prodbuf
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
+    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
+                      beta):
+        # This is kind of terrible, needs some optimizing
+        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        rinputs = inputs._tensor.reshape(nfm, H, W, N)
+        routputs = outputs._tensor.reshape(nfm, H, W, N)
+        for i in xrange(nfm):
+            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
+            x = rinputs.take(knlidx, axis=0)
+            np.square(x).sum(axis=0, out=routputs[i, :, :, :])
+        self.multiply(outputs, self.wrap(alpha), out=outputs)
+        self.add(outputs, self.wrap(1.0), out=outputs)
+        self.power(outputs, self.wrap(-beta), out=outputs)
+        self.multiply(inputs, outputs, out=outputs)
+
+    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
+                      ksize, alpha, beta):
+        # Holy hell, someone feel free to clean this up
+
+        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        temp = self.empty(inputs.shape)
+        rinputs = inputs._tensor.reshape(nfm, H, W, N)
+        rerror = error._tensor.reshape(nfm, H, W, N)
+        rberror = berror._tensor.reshape(nfm, H, W, N)
+        rtemp = temp._tensor.reshape(nfm, H, W, N)
+        routputs = inputs._tensor.reshape(nfm, H, W, N)
+        for i in xrange(nfm):
+            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
+            x = rinputs.take(knlidx, axis=0)
+            np.square(x).sum(axis=0, out=rberror[i, :, :, :])
+            knlidx2 = range(max(i+ksize-ksize/2, 0),
+                            min(i+ksize/2+1, nfm))
+            grad = rerror.take(knlidx2, axis=0)
+            inp = rinputs.take(knlidx2, axis=0)
+            act = routputs.take(knlidx2, axis=0)
+            (grad*act*np.power(act/inp, 1.0/beta)).sum(axis=0,
+                                                       out=rtemp[i, :, :, :])
+
+        self.multiply(temp, self.wrap(-2.0 * alpha * beta), out=temp)
+        self.multiply(temp, inputs, out=temp)
+
+        self.multiply(berror, self.wrap(alpha), out=berror)
+        self.add(berror, self.wrap(1.0), out=berror)
+        self.power(berror, self.wrap(beta), out=berror)
+        self.divide(error, berror, out=berror)
+
+        self.add(berror, temp, out=berror)
+
     def fprop_fc(self, inputs, weights, out):
         self.dot(weights, inputs, out)
 
@@ -914,6 +965,21 @@ class CPU(Backend):
                 out[ifmind, ofmind] = updatebuf
 
     def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations:
+        uniform - uniform distribution
+        sparse_eigenvalued - each weight has 15 nonzero inputs and the
+                maximum eigenvalue of the weight matrix is scaled to 1.2
+        normal or gaussian - normal distribution
+        node_normalized - initialization is as discussed in Glorot2010
+
+        Inputs:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Outputs:
+            weights: The weights
+        """
         weights = None
         if 'dtype' in weight_params:
             dtype = weight_params['dtype']
@@ -938,6 +1004,31 @@ class CPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             weights = self.normal(loc, scale, size, dtype)
+        elif (weight_params['type'] == 'sparse_eigenvalued'):
+            # initialization for RNNS as in Sutskever 2013
+            sparseness = 15
+            eigenvalue = 1.2
+            if 'sparseness' in weight_params:
+                sparseness = weight_params['sparseness']
+            if 'eigenvalue' in weight_params:
+                eigenvalue = weight_params['eigenvalue']
+            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
+                        (str(size), sparseness, eigenvalue))
+            elements = size[0]*size[1]
+            nonzeros = size[0] * sparseness
+            weights = np.zeros(size).flatten()
+            nonzeroindex = np.random.permutation(elements)[0:nonzeros]
+            weights[nonzeroindex] = 0.3 * np.random.randn(nonzeros)
+            weights = weights.reshape(size)
+            if size[0] == size[1]:
+                temp = np.linalg.eig(weights)
+                max_eig = np.max(np.absolute(temp[0]))
+                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
+                weights = self.tensor_cls(eigenvalue * weights / max_eig)
+            else:
+                logger.info('Matrix is non-square, no eigenvalue scaling.')
+                weights = self.tensor_cls(weights)
+
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0

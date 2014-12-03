@@ -16,11 +16,11 @@ if PY3:
 else:
     import urllib
 
-if CUDA_GPU:
-    import neon.backends.gpu
-
-
 logger = logging.getLogger(__name__)
+
+if CUDA_GPU:
+    logger.info("CUDA_GPU is set")
+    import neon.backends.gpu
 
 
 class Dataset(object):

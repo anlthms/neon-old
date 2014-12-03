@@ -1,65 +1,70 @@
-# ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
-# ----------------------------------------------------------------------------
-# Experiment settings to train/test a 1 hidden layer Neural Net on full
-# MNIST.  Parameters are optimized for performance.
+# Experiment settings to train/test a small 1 hidden layer Neural Net on full
+# MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
-    # set which numpy issues raise exceptions, warnings, etc.
-    # see: numpy.seterr()
     seterr_handling: {
-      all: 'warn',
+      all: 'warn', #  'warn' or 'raise'
     },
   },
 
   datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
+    # Moby Dick data
+    !obj:neon.datasets.mobydick.MOBYDICK {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 100,
+      sample_pct: 10, # 10% gives 400 batches like in rnn2
+      unrolls: &ur 5, # how many letters the targets are ahead of the training
     },
   ],
 
-  # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  # simple RNN model specification
+  model: !obj:neon.models.rnn.RNN {
     backend: *be,
-    num_epochs: 60,
-    batch_size: &bs 100,
+    num_epochs: 10,
+    batch_size: &bs 50,
+    unrolls: *ur,
+    make_plots: True,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './mlp-simple.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
-        name: h0,
+      # recurrent layer
+      !obj:neon.models.layer.RecurrentHiddenLayer {
+        name: recurrent,
         backend: *be,
         batch_size: *bs,
         pos: 0,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
+          name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.01,
+            learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.90,
-              start_epoch: 5,
-              saturate_epoch: 5,
+              type: linear_monotone, # constant, nesterov dont work
+              initial_coef: 0.9,
               saturated_coef: 0.99,
+              start_epoch: 10,
+              saturate_epoch: 100,
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
-        nout: 2000,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        nin: 128, # and an implicit 64 rec weight.
+        nout: 64,
+        unrolls: *ur,
+        activation: !obj:neon.transforms.tanh.Tanh {},
         weight_init: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.01,
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
+        },
+        weight_init_rec: {
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
         },
       },
-      !obj:neon.models.layer.Layer {
+      # output layer
+      !obj:neon.models.layer.RecurrentOutputLayer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -72,13 +77,14 @@
             momentum_params: *mm,
           },
         },
-        nin: 2001, # previous nout + 1 for the bias
-        nout: 10,
+        nin: 64, # previous nout + 1 for the bias
+        nout: 128,
+        unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
+          type: sparse_eigenvalued,
+          sparseness: 15,
+          eigenvalue: 1.2,
         },
       },
     ],
@@ -97,3 +103,4 @@
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }
+
