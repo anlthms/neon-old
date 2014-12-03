@@ -1,9 +1,9 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test a stacked autoencoder on MNIST.
+# Experiment settings to train a stacked autoencoder on MNIST.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+!obj:neon.experiments.fit.FitExperiment {
   backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
@@ -25,7 +25,7 @@
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './ae-cudanet.pkl',
     layers: [
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: enc1,
         backend: *be,
         batch_size: *bs,
@@ -36,11 +36,8 @@
             learning_rate: &lr 0.0001,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.90,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.99,
+              type: constant, # linear_monotone, nesterov
+              coef: 0.90,
             },
           },
         },
@@ -52,7 +49,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: enc2,
         backend: *be,
         batch_size: *bs,
@@ -73,7 +70,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: enc3,
         backend: *be,
         batch_size: *bs,
@@ -94,7 +91,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: enc4,
         backend: *be,
         batch_size: *bs,
@@ -109,13 +106,12 @@
         },
         nin: 250,
         nout: 30,
-        activation: !obj:neon.transforms.linear.Identity {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: dec1,
         backend: *be,
         batch_size: *bs,
@@ -136,7 +132,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: dec2,
         backend: *be,
         batch_size: *bs,
@@ -157,7 +153,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: dec3,
         backend: *be,
         batch_size: *bs,
@@ -178,7 +174,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.AELayer {
+      !obj:neon.models.layer.LayerWithNoBias {
         name: dec4,
         backend: *be,
         batch_size: *bs,

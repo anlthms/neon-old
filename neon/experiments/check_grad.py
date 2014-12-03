@@ -60,7 +60,7 @@ class GradientChecker(Experiment):
                 self.model.backend, self.model.layers[-1].output,
                 targets, self.model.temp)
 
-            grads[ind] = ((cost1 - cost2) * self.model.layers[-1].nout *
+            grads[ind] = ((cost1 - cost2) / self.model.layers[-1].batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))
             weights[ind] = saved
 
