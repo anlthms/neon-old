@@ -48,8 +48,8 @@ class Layer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 activation, weight_init, learning_rule, weight_dtype=None,
-                 updates_dtype=None, pre_act_dtype=None,
+                 weight_init, learning_rule, activation=None,
+                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         self.name = name
         self.backend = backend
@@ -62,9 +62,12 @@ class Layer(YAMLable):
                                                 weight_dtype)
         self.updates = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates_dtype = updates_dtype
-        self.pre_act = self.backend.zeros((self.nout, batch_size),
-                                          pre_act_dtype)
         self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
+        if activation is not None:
+            self.pre_act = self.backend.zeros((self.nout, batch_size),
+                                              pre_act_dtype)
+        else:
+            self.pre_act = self.output
         self.pos = pos
         self.learning_rule = learning_rule
         self.learning_rule.allocate_state(self.updates)
@@ -109,7 +112,8 @@ class Layer(YAMLable):
     def fprop(self, inputs):
         inputs = self.backend.append_bias(inputs)
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
         """
@@ -117,7 +121,9 @@ class Layer(YAMLable):
         # updates = dot(error.transpose(), inputs)  # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+
         if self.pos > 0:
             endcol = self.weights.shape[1] - 1
             self.backend.bprop_fc(error, self.weights[:, 0:endcol],
@@ -177,7 +183,7 @@ class LayerDist(Layer):
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0:
+        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
@@ -193,7 +199,8 @@ class LayerDist(Layer):
         # updates  = dot(error.T, inputs)        # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act_, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act_, out=error)
         endcol = self.weights.shape[1]
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
             inputs = self.backend.append_bias(inputs)
@@ -225,22 +232,24 @@ class LayerWithNoBias(Layer):
     Single NNet layer with no bias node
     """
     def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 activation, weight_init, learning_rule, weight_dtype=None,
-                 updates_dtype=None, pre_act_dtype=None,
+                 weight_init, learning_rule, activation=None,
+                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-                                              pos, nin, nout, activation,
-                                              weight_init, learning_rule)
+                                              pos, nin, nout, weight_init,
+                                              learning_rule, activation)
         if pos > 0:
             self.berror = backend.empty((nin, batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        if self.activation is not None:
+            self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs, epoch):
-        # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+
         if self.pos > 0:
             self.backend.bprop_fc(error, self.weights, out=self.berror)
         self.backend.update_fc(error, inputs, out=self.updates)
@@ -259,8 +268,8 @@ class RecurrentOutputLayer(Layer):
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
@@ -301,8 +310,8 @@ class RecurrentLSMTLayer(Layer):
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         # create weight matrices
         self.Wxi = self.backend.gen_weights((nout, nout),
                                             weight_init_rec,
@@ -476,8 +485,8 @@ class RecurrentHiddenLayer(Layer):
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         self.weights_rec = self.backend.gen_weights((nout, nout),
                                                     weight_init_rec,
                                                     weight_dtype)
@@ -583,7 +592,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0:
+        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
@@ -595,7 +604,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act_, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
@@ -666,8 +676,8 @@ class RBMLayer(Layer):
     def __init__(self, name, backend, batch_size, pos, nin,
                  nout, activation, weight_init, learning_rule):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
-                                       nin, nout, activation, weight_init,
-                                       learning_rule)
+                                       nin, nout, weight_init,
+                                       learning_rule, activation)
         self.p_hid_plus = backend.empty((self.nout, batch_size))
         self.s_hid_plus = backend.empty((self.nout, batch_size))
         self.p_hid_minus = backend.empty((self.nout, batch_size))
@@ -725,23 +735,6 @@ class RBMLayer(Layer):
 
         self.learning_rule.apply_rule(self.weights, self.diff, epoch)
         # epoch, momentum?
-
-
-class AELayer(LayerWithNoBias):
-
-    """
-    Single NNet layer built to handle data from a particular backend used
-    in an Autoencoder.
-    TODO: merge with generic Layer above.
-    """
-
-    def __init__(self, name, backend, batch_size, pos, nin,
-                 nout, activation, weight_init, learning_rule, weights=None):
-        super(AELayer, self).__init__(name, backend, batch_size, pos,
-                                      nin, nout, activation, weight_init,
-                                      learning_rule)
-        if weights is not None:
-            self.weights = weights
 
 
 class LocalLayer(YAMLable):
