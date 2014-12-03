@@ -5,51 +5,40 @@ XCov cost functions and classes for balance networks
 from neon.transforms.cost import Cost
 
 
-def xcov_cost(backend, outputs, targets, temp, blkidx=None):
-    n = outputs.shape[0]
-    if not blkidx:
-        blk1 = outputs
-        blk2 = outputs
-    else:
-        blk1 = outputs[0:blkidx]
-        blk2 = outputs[blkidx:n]
+def xcov_cost(backend, outputs, targets, temp, blkidx):
+    blk1 = outputs[0:blkidx]
+    blk2 = outputs[blkidx:]
 
     backend.xcov(blk1, blk2, out=temp[0])
     return 0.5*temp[0].sumsq()
 
 
-def xcov_cost_derivative(backend, outputs, targets, temp, blkidx=None):
+def xcov_cost_derivative(backend, outputs, targets, temp, blkidx):
     #temp[0] is k1 x k2
-    #temp[1] is n x k1
-    #temp[2] is n x k2
-    #temp[3] is n x (k1+k2)
+    #temp[1] is k1 x n
+    #temp[2] is k2 x n
+    #temp[3] is (k1+k2) x n
 
     # TODO: make sure that the dots are consistent across backends for this
     # arrangement
     n = outputs.shape[0]
 
-    if not blkidx:
-        raise NotImplementedError("Need blkidx defined for"
-                                  "xcov_cost_derivative")
-    else:
-        k1 = blkidx
-        k2 = outputs.shape[1] - blkidx
-        blk1 = outputs[0:blkidx]
-        blk2 = outputs[blkidx:n]
+    k1 = blkidx
+    k2 = outputs.shape[1] - blkidx
+    blk1 = outputs[:, :blkidx]
+    blk2 = outputs[:, blkidx:]
 
-        backend.mean_norm(blk1, axis=0, out=temp[1])
-        backend.xcov(blk1, blk2, out=temp[0])
-        backend.dot(temp[1], temp[0], out=temp[2])
-        temp[3][blkidx:n] = temp[2]
+    backend.mean_norm(blk1, axis=1, out=temp[1])
+    backend.xcov(blk1, blk2, out=temp[0])
+    backend.dot(temp[0].transpose(), temp[1], out=temp[2])
+    temp[3][blkidx:] = temp[2]
 
-        backend.mean_norm(blk2, axis=0, out=temp[2])
-        temp[0].reshape((k2, k1))
-        backend.xcov(blk2, blk1, out=temp[0])
-        backend.dot(temp[2], temp[0], out=temp[1])
-        temp[3][0:blkidx] = temp[1]
+    backend.mean_norm(blk2, axis=1, out=temp[2])
+    backend.dot(temp[0], temp[2], out=temp[1])
+    temp[3][:blkidx] = temp[1]
 
-        backend.multiply(temp[3], backend.wrap(1./n), out=temp[3])
-        return temp[3]
+    backend.multiply(temp[3], backend.wrap(1./n), out=temp[3])
+    return temp[3]
 
 
 class XCovariance(Cost):
@@ -57,19 +46,38 @@ class XCovariance(Cost):
     """
     Embodiment of a X covariance cost function.
     """
-    def __init__(self, blkidx=None):
-        self.blkidx = blkidx
+    def __init__(self, **kwargs):
+        super(XCovariance, self).__init__(**kwargs)
 
-    def apply_function(self, backend, outputs, targets, temp):
+        for req_param in ['blkidx']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
+
+        if self.blkidx > self.inputbuf1.shape[0]:
+            raise ValueError("blkidx %d too large" % blkidx)
+
+        n = self.inputbuf1.shape[1]
+        k1 = self.blkidx
+        k2 = self.inputbuf1.shape[0]-k1
+        tempbuf1 = self.backend.empty((k1, n), self.temp_dtype)
+        tempbuf2 = self.backend.empty((k2, n), self.temp_dtype)
+        tempbuf3 = self.backend.empty((k1, k2), self.temp_dtype)
+        tempbuf4 = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
+
+        self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
+
+    def apply_function(self, targets):
         """
         Apply the xcov cost function to the datasets passed.
         """
-        return xcov_cost(backend, outputs, targets, temp, blkidx=self.blkidx)
+        return xcov_cost(self.backend, self.inputbuf1, targets, self.temp,
+                         self.blkidx)
 
-    def apply_derivative(self, backend, outputs, targets, temp):
+    def apply_derivative(self, targets):
         """
         Apply the derivative of the xcov cost function to the datasets
         passed.
         """
-        return xcov_cost_derivative(backend, outputs, targets, temp,
-                                    blkidx=self.blkidx)
+        return xcov_cost_derivative(self.backend, self.inputbuf1, targets,
+                                    self.temp, self.blkidx)

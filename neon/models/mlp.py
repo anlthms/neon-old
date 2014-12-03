@@ -31,13 +31,11 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        if 'temp_dtype' not in self.__dict__:
-            self.temp_dtype = None
-        if 'ada' not in self.__dict__:
-            self.ada = None
-        tempbuf = self.backend.empty((self.layers[-1].nout, self.batch_size),
-                                     self.temp_dtype)
-        self.temp = [tempbuf, tempbuf.copy()]
+        # if 'temp_dtype' not in self.__dict__:
+        #     self.temp_dtype = None
+        # tempbuf = self.backend.empty((self.layers[-1].nout, self.batch_size),
+        #                              self.temp_dtype)
+        # self.temp = [tempbuf, tempbuf.copy()]
         self.result = 0
         assert self.layers[-1].nout <= 2**15
 
@@ -68,11 +66,9 @@ class MLP(Model):
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
-                self.bprop(targets_batch, inputs_batch, epoch)
-                error += self.cost.apply_function(
-                    self.backend, self.layers[-1].output,
-                    targets_batch,
-                    self.temp)
+                self.bprop(targets_batch, inputs_batch)
+                error += self.cost.apply_function(targets_batch)
+                self.update(epoch)
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
@@ -124,20 +120,23 @@ class MLP(Model):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch):
+    def bprop(self, targets, inputs):
         i = self.nlayers - 1
-        error = self.cost.apply_derivative(self.backend, self.layers[i].output,
-                                           targets, self.temp)
+        error = self.cost.apply_derivative(targets)
         batch_size = self.batch_size
         if self.dist_mode == 'datapar':
             batch_size *= MPI.COMM_WORLD.size
         self.backend.divide(error, self.backend.wrap(batch_size), out=error)
 
         while i > 0:
-            self.layers[i].bprop(error, self.layers[i - 1].output, epoch)
+            self.layers[i].bprop(error, self.layers[i - 1].output)
             error = self.layers[i].berror
             i -= 1
-        self.layers[i].bprop(error, inputs, epoch)
+        self.layers[i].bprop(error, inputs)
+
+    def update(self, epoch):
+        for layer in self.layers:
+            layer.update(epoch)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,

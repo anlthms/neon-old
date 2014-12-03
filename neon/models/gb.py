@@ -82,13 +82,14 @@ class GB(MLP):
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
                 if epoch < self.num_initial_epochs:
-                    self.bprop_last(targets_batch, inputs_batch, epoch)
+                    self.bprop_last(targets_batch, inputs_batch)
                 else:
-                    self.bprop_last(targets_batch, inputs_batch, epoch)
-                error += self.cost.apply_function(self.backend,
-                                                  self.layers[-1].output,
-                                                  targets_batch,
-                                                  self.temp)
+                    self.bprop(targets_batch, inputs_batch)
+                error += self.cost.apply_function(targets_batch)                                                  self.temp)
+                if epoch < self.num_initial_epochs:
+                    self.update_last(epoch)
+                else:
+                    self.update(epoch)
             logger.info('epoch: %d, training error: %0.5f' %
                         (epoch, error / inputs.nbatches))
         end_time = time.time()
@@ -151,14 +152,15 @@ class GB(MLP):
             sum += maxauc
         logger.info('average max auc %.4f' % (sum / targets.shape[1]))
 
-    def bprop_last(self, targets, inputs, epoch):
+    def bprop_last(self, targets, inputs):
         # Backprop on just the last layer.
-        error = self.cost.apply_derivative(self.backend,
-                                           self.layers[-1].output, targets,
-                                           self.temp)
+        error = self.cost.apply_derivative(targets)
         self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                             out=error)
-        self.layers[-1].bprop(error, self.layers[-2].output, epoch)
+        self.layers[-1].bprop(error, self.layers[-2].output)
+
+    def update_last(self, epoch):
+        self.layers[-1].update(epoch)
 
     def fit(self, datasets):
         ds = datasets[0]

@@ -5,7 +5,7 @@ hinge cost functions and classes for balance networks
 from neon.transforms.cost import Cost
 
 
-def hinge_l2(backend, outputs, targets, temp, subidx=None):
+def hinge_l2(backend, outputs, targets, temp, blkidx=None):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
@@ -29,15 +29,14 @@ def hinge_l2(backend, outputs, targets, temp, subidx=None):
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
     backend.multiply(temp[0], temp[0], out=temp[0])
 
-    if (subidx is not None and subidx < temp[0].shape[0]):
-        temp[0][subidx:temp[0].shape[0]] = backend.wrap(0.0)
+    temp[0][blkidx:] = backend.wrap(0.0)
 
     backend.multiply(temp[0], backend.wrap(0.5), out=temp[0])
 
     return backend.sum(temp[0])
 
 
-def hinge_l2_derivative(backend, outputs, targets, temp, subidx=None):
+def hinge_l2_derivative(backend, outputs, targets, temp, blkidx=None):
     """
     Applies derivative of the hinge l2 function to the pairwise elements from
     outputs and targets.
@@ -56,8 +55,7 @@ def hinge_l2_derivative(backend, outputs, targets, temp, subidx=None):
     backend.multiply(targets, outputs, out=temp[0])
     backend.subtract(backend.wrap(1.0), temp[0], out=temp[0])
     backend.greater(temp[0], backend.wrap(0), out=temp[0])
-    if (subidx is not None and subidx < temp[0].shape[0]):
-        temp[0][subidx:temp[0].shape[0]] = backend.wrap(0.0)
+    temp[0][blkidx:] = backend.wrap(0.0)
     backend.multiply(temp[0], targets, out=temp[0])
 
     backend.multiply(temp[0], backend.wrap(-1.0), out=temp[0])
@@ -70,19 +68,31 @@ class HingeL2(Cost):
     """
     Embodiment of a Hinge L2 cost function.
     """
-    def __init__(self, stopidx=None):
-        self.stopidx = stopidx
+    def __init__(self, **kwargs):
+        super(HingeL2, self).__init__(**kwargs)
 
-    def apply_function(self, backend, outputs, targets, temp):
+        for req_param in ['blkidx']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
+
+        if self.blkidx > self.inputbuf1.shape[0]:
+            raise ValueError("blkidx %d too large" % blkidx)
+
+        tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
+        self.temp = [tempbuf]
+
+    def apply_function(self, targets):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        return hinge_l2(backend, outputs, targets, temp, subidx=self.stopidx)
+        return hinge_l2(self.backend, self.inputbuf1, 
+                        targets, self.temp, self.blkidx)
 
-    def apply_derivative(self, backend, outputs, targets, temp):
+    def apply_derivative(self, targets):
         """
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
-        return hinge_l2_derivative(backend, outputs, targets, temp,
-                                   subidx=self.stopidx)
+        return hinge_l2_derivative(self.backend, self.inputbuf1, targets,
+                                    self.temp, self.blkidx)

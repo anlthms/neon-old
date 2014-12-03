@@ -631,10 +631,10 @@ class CPU(Backend):
         return out
 
     def xcov(self, a, b, out):
-        a0 = a._tensor - a._tensor.mean(0, keepdims=True)
-        b0 = b._tensor - b._tensor.mean(0, keepdims=True)
-        np.dot(a0.T, b0, out._tensor)
-        CPU.divide(out, CPU.wrap(a.shape[0]), out=out)
+        a0 = a._tensor - a._tensor.mean(1, keepdims=True)
+        b0 = b._tensor - b._tensor.mean(1, keepdims=True)
+        np.dot(a0, b0.T, out._tensor)
+        self.divide(out, self.wrap(a.shape[0]), out=out)
 
     def mean_norm(self, a, axis, out):
         if (axis == -1 or not axis):

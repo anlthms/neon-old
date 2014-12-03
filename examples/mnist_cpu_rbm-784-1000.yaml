@@ -24,7 +24,7 @@
     num_epochs: 20,
     batch_size: &bs 100,
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    serialized_path: './rbm-numpy20.pkl',
+    # serialized_path: './rbm-numpy20.pkl',
     layers: [
       !obj:neon.models.layer.RBMLayer {
         name: vis2hid,

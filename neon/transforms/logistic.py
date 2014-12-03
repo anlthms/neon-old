@@ -25,7 +25,7 @@ class Logistic(Activation):
             inputs (array_like): Input data to be transformed
             outputs (array_like): Storage for the transformed output.
         """
-        backend.logistic(inputs, out=outputs)
+        backend.logistic(inputs, outputs)
 
     def apply_derivative(self, backend, inputs, outputs):
         """
@@ -55,7 +55,7 @@ class Logistic(Activation):
             outputs (array_like): Storage for the transformed output.
         """
         # Apply the logistic function.
-        backend.logistic(backend, inputs, outputs)
+        backend.logistic(inputs, outputs)
 
         # Apply the derivative of the logistic function, storing the result in
         # inputs

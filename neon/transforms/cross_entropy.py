@@ -6,6 +6,8 @@ Cross entropy transform functions and classes.
 """
 
 from neon.transforms.cost import Cost
+from neon.transforms.logistic import Logistic
+from neon.transforms.softmax import Softmax
 
 
 def cross_entropy(backend, outputs, targets, temp):
@@ -127,32 +129,50 @@ class CrossEntropy(Cost):
     """
     Embodiment of a cross entropy cost function.
     """
-    def __init__(self, use_binary=True, shortcut_deriv=False):
-        self.useBinary = use_binary
-        self.shortcutDeriv = shortcut_deriv
+    def __init__(self, **kwargs):
+        super(CrossEntropy, self).__init__(**kwargs)
+        # The default cross entropy to use is where each output node
+        # can take on value with binary prob
+        if not hasattr(self, 'use_binary'):
+            self.use_binary = True
 
-    def apply_function(self, backend, outputs, targets, temp):
+        if not hasattr(self, 'shortcut_deriv'):
+            self.shortcut_deriv = False
+            if (isinstance(self.olayer.activation, Logistic)
+                    and self.use_binary):
+                self.shortcut_deriv = True
+
+            if (isinstance(self.olayer.activation, Softmax)
+                    and not self.use_binary):
+                self.shortcut_deriv = True
+
+        # Allocate temporary storage
+        # both temp bufs are just nout x batchsize
+        tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
+        self.temp = [tempbuf, tempbuf.copy()]
+
+        # Set the appropriate functions
+        self.ce_function = cross_entropy
+        self.cd_function = cross_entropy_derivative
+
+        if not self.use_binary:
+            self.ce_function = cross_entropy_multi
+            self.cd_function = cross_entropy_multi_derivative
+
+        # if self.shortcut_deriv:
+            # self.cd_function = shortcut_derivative
+
+    def apply_function(self, targets):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        if self.useBinary:
-            ce_function = cross_entropy
-        else:
-            ce_function = cross_entropy_multi
+        return self.ce_function(self.backend, self.inputbuf1,
+                           targets, self.temp)
 
-        return ce_function(backend, outputs, targets, temp)
-
-    def apply_derivative(self, backend, outputs, targets, temp):
+    def apply_derivative(self, targets):
         """
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
-        if self.shortcutDeriv:
-            cd_function = shortcut_derivative
-        else:
-            if self.useBinary:
-                cd_function = cross_entropy_derivative
-            else:
-                cd_function = cross_entropy_multi_derivative
-
-        return cd_function(backend, outputs, targets, temp)
+        return self.cd_function(self.backend, self.inputbuf1,
+                           targets, self.temp)

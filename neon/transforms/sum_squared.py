@@ -51,17 +51,27 @@ class SumSquaredDiffs(Cost):
     """
     Embodiment of a sum of squared differences cost function.
     """
+    def __init__(self, **kwargs):
+        super(SumSquaredDiffs, self).__init__(**kwargs)
 
-    def apply_function(self, backend, outputs, targets, temp):
+        # Allocate temporary storage
+        # both temp bufs are just nout x batchsize
+        tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
+        self.temp = [tempbuf]
+
+    def apply_function(self, targets):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
-        return sum_squared_diffs(backend, outputs, targets, temp)
+        return sum_squared_diffs(self.backend, self.inputbuf1,
+                                 targets, self.temp)
 
-    def apply_derivative(self, backend, outputs, targets, temp):
+    def apply_derivative(self, targets):
         """
         Apply the derivative of the sum of squared differences cost function
         to the datasets passed.
         """
-        return sum_squared_diffs_derivative(backend, outputs, targets, temp)
+        return sum_squared_diffs_derivative(self.backend,
+                                            self.inputbuf1, targets,
+                                            self.temp)

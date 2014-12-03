@@ -23,7 +23,7 @@
     num_epochs: 60,
     batch_size: &bs 100,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './ae-cudanet.pkl',
+    # serialized_path: './ae-cudanet.pkl',
     layers: [
       !obj:neon.models.layer.AELayer {
         name: enc1,
@@ -109,7 +109,7 @@
         },
         nin: 250,
         nout: 30,
-        activation: !obj:neon.transforms.linear.Identity {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: gaussian,
           scale: 0.1,
