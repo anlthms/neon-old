@@ -183,7 +183,7 @@ class LayerDist(Layer):
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0:
+        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
@@ -199,7 +199,8 @@ class LayerDist(Layer):
         # updates  = dot(error.T, inputs)        # calculate new gradient
         # weight update itself done by application of learning rule
         """
-        self.backend.multiply(error, self.pre_act_, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act_, out=error)
         endcol = self.weights.shape[1]
         if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
             inputs = self.backend.append_bias(inputs)
@@ -591,7 +592,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0:
+        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
@@ -603,7 +604,8 @@ class LayerWithNoBiasDist(LayerWithNoBias):
 
     def bprop(self, error, inputs, epoch):
         # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act_, out=error)
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
