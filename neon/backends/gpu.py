@@ -712,13 +712,13 @@ class GPU(Backend):
             Tensor: Of specified size filled with these random numbers.
         """
         # This is the slow version for checking via cpu generated randoms
-        a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
-            size=a._tensor.shape) < keepthresh) / keepthresh,
-            dtype=numpy.float32)
-        a.copy_to_device()
+        # a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
+        #     size=a._tensor.shape) < keepthresh) / keepthresh,
+        #     dtype=numpy.float32)
+        # a.copy_to_device()
 
         # This is the fast version using device generated random matrix
-        # a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+        a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)

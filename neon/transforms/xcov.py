@@ -22,9 +22,6 @@ def xcov_cost_derivative(backend, outputs, targets, temp, blkidx):
     # TODO: make sure that the dots are consistent across backends for this
     # arrangement
     n = outputs.shape[0]
-
-    k1 = blkidx
-    k2 = outputs.shape[1] - blkidx
     blk1 = outputs[:, :blkidx]
     blk2 = outputs[:, blkidx:]
 
@@ -55,7 +52,7 @@ class XCovariance(Cost):
                                  req_param)
 
         if self.blkidx > self.inputbuf1.shape[0]:
-            raise ValueError("blkidx %d too large" % blkidx)
+            raise ValueError("blkidx %d too large" % self.blkidx)
 
         n = self.inputbuf1.shape[1]
         k1 = self.blkidx

@@ -6,7 +6,6 @@ Contains code to train stacked autoencoder models and run inference.
 """
 
 import logging
-import math
 
 from neon.models.mlp import MLP
 

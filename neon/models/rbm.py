@@ -6,7 +6,6 @@ Simple restricted Boltzmann Machine model.
 """
 
 import logging
-import math
 from neon.models.model import Model
 
 logger = logging.getLogger(__name__)
@@ -51,11 +50,10 @@ class RBM(Model):
                 inputs_batch = ds.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)
-                x_minus = self.layers[0].x_minus
-                nrows = x_minus.shape[0] - 1
-                error += self.cost.apply_function(
-                    self.backend, inputs_batch,
-                    x_minus[:nrows], [self.temp])
+                # x_minus = self.layers[0].x_minus
+                # nrows = x_minus.shape[0] - 1
+                # self.layers.output[:] = x_minus[:nrows]
+                error += self.cost.apply_function(inputs_batch)
                 self.update(epoch)
             logger.info('epoch: %d, total training error: %0.5f' %
                         (epoch, error / inputs.nbatches))

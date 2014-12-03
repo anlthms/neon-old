@@ -11,7 +11,7 @@
       all: 'warn',
     },
   },
-  
+
   datasets: [
     !obj:neon.datasets.iris.Iris {
       backend: *be,
@@ -19,14 +19,12 @@
       sample_pct: 100,
     },
   ],
-  
+
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 2500,
     batch_size: &bs 30,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './iris-mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -56,7 +54,7 @@
           high: 1,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -79,8 +77,11 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer
+    },
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

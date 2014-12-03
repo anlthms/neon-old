@@ -26,9 +26,6 @@
     backend: *be,
     num_epochs: 30,
     batch_size: &bs 100,
-    cost: [ !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-            !obj:neon.transforms.cross_entropy.CrossEntropy {},
-            !obj:neon.transforms.xcov.XCovariance {} ],
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -77,51 +74,52 @@
           bias_init: 0.0,
         },
       },
-      !obj.models.layer.BranchLayer {
-        layers: [ !obj:neon.models.layer.Layer {
-                name: output,
+      !obj:neon.models.layer.BranchLayer {
+        sublayers: [
+          !obj:neon.models.layer.Layer {
+            name: output,
+            backend: *be,
+            batch_size: *bs,
+            pos: 2,
+            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+              name: outputlr,
+              lr_params: {
+                learning_rate: *lr,
                 backend: *be,
-                batch_size: *bs,
-                pos: 2,
-                learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-                  name: outputlr,
-                  lr_params: {
-                    learning_rate: *lr,
-                    backend: *be,
-                    momentum_params: *mm,
-                  },
-                },
-                nin: 201, # previous nout + 1 for the bias
-                nout: 10,
-                activation: !obj:neon.transforms.softmax.Softmax {},
-                weight_init: {
-                  type: node_normalized,
-                  scale: 4.0,
-                  bias_init: 0.0,
-                },
+                momentum_params: *mm,
               },
-              !obj:neon.models.layer.Layer {
-                name: output,
+            },
+            nin: 201, # previous nout + 1 for the bias
+            nout: 10,
+            activation: !obj:neon.transforms.softmax.Softmax {},
+            weight_init: {
+              type: node_normalized,
+              scale: 4.0,
+              bias_init: 0.0,
+            },
+          },
+          !obj:neon.models.layer.Layer {
+            name: output,
+            backend: *be,
+            batch_size: *bs,
+            pos: 2,
+            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+              name: outputlr,
+              lr_params: {
+                learning_rate: *lr,
                 backend: *be,
-                batch_size: *bs,
-                pos: 2,
-                learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-                  name: outputlr,
-                  lr_params: {
-                    learning_rate: *lr,
-                    backend: *be,
-                    momentum_params: *mm,
-                  },
-                },
-                nin: 201, # previous nout + 1 for the bias
-                nout: 2,
-                activation: !obj:neon.transforms.softmax.Softmax {},
-                weight_init: {
-                  type: node_normalized,
-                  scale: 4.0,
-                  bias_init: 0.0,
-                },
+                momentum_params: *mm,
               },
+            },
+            nin: 201, # previous nout + 1 for the bias
+            nout: 2,
+            activation: !obj:neon.transforms.softmax.Softmax {},
+            weight_init: {
+              type: node_normalized,
+              scale: 4.0,
+              bias_init: 0.0,
+            },
+          },
         ],
       },
       !obj:neon.models.layer.Layer {
@@ -191,8 +189,13 @@
         },
       },
     ],
+    cost: [
+    !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
+    !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    !obj:neon.transforms.xcov.XCovariance {},
+    ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

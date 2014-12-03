@@ -129,6 +129,9 @@ class Layer(YAMLable):
     def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
+    def set_train_mode(self, mode):
+        pass
+
 
 class LayerDist(Layer):
 
@@ -337,6 +340,62 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
+class BranchLayer(YAMLable):
+
+    """
+    Branch layer is composed of a list of other layers
+    during fprop, it concatenates the component outputs and passes it on
+    during bprop, it splits the backward errors into the components and
+        accumulates into a common berror
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nin, sublayers,
+                 output_dtype=None, berror_dtype=None):
+        self.name = name
+        self.backend = backend
+        self.nin = nin
+        self.nout = 0
+        self.nsublayers = len(self.sublayers)
+        self.startidx = [0]*len(self.sublayers)
+        self.endidx = [0]*len(self.sublayers)
+
+        for i in xrange(self.nsublayers):
+            self.nout += self.sublayers[i].nout
+            self.endidx[i] = self.nout
+            if i > 0:
+                self.startidx[i] = (self.startidx[i-1] +
+                                    self.sublayers[i-1].nout)
+
+        self.output = backend.empty((self.nout, batch_size), output_dtype)
+        self.pos = pos
+        if pos > 0:
+            self.berror = backend.empty((nin, batch_size), berror_dtype)
+
+    def fprop(self, inputs):
+        for (sublayer, s_idx, e_idx) in zip(self.sublayers,
+                                            self.startidx, self.endidx):
+            sublayer.fprop(inputs)
+            self.output[s_idx:e_idx] = sublayer.output
+
+    def bprop(self, error, inputs):
+        for (sublayer, s_idx, e_idx) in zip(self.sublayers,
+                                            self.startidx, self.endidx):
+            sublayer.bprop(error[s_idx:e_idx], inputs)
+
+        if self.pos > 0:
+            self.berror[:] = self.backend.wrap(0.0)
+            for sublayer in self.sublayers:
+                self.backend.add(self.berror, sublayer.berror, out=self.berror)
+
+    def update(self, epoch):
+        for sublayer in self.sublayers:
+            sublayer.update(epoch)
+
+    def set_train_mode(self, mode):
+        for sublayer in self.sublayers:
+            sublayer.set_train_mode(mode)
+
+
 class DropOutLayer(YAMLable):
 
     """
@@ -361,7 +420,7 @@ class DropOutLayer(YAMLable):
         self.output = self.backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
         if pos > 0:
-            self.berror = backend.empty((nin, batch_size))
+            self.berror = backend.empty((nin, batch_size), berror_dtype)
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -394,7 +453,7 @@ class DataLayer(YAMLable):
         self.backend = backend
         self.batch_size = batch_size
         self.datasets = datasets
-        self.output = self.backend.empty((self.nout, batch_size), output_dtype)
+        self.output = self.backend.empty((self.nout, batch_size))
         self.current_batch = 0
         self.partition = None
 
@@ -418,10 +477,15 @@ class DataLayer(YAMLable):
         if not self.partition in self.inputs:
             raise ValueError('Partition does not exist')
 
+        raise NotImplementedError('Have to implement DataLayer')
+
     def bprop(self, error, inputs):
         pass
 
     def update(self, epoch):
+        pass
+
+    def set_train_mode(self, mode):
         pass
 
 
@@ -446,6 +510,7 @@ class RBMLayer(Layer):
         self.learning_rule.allocate_state(self.diff)
         self.neg_pre_act = backend.empty((self.nin, batch_size))
         self.x_minus = backend.empty((self.nin, batch_size))
+        self.output = backend.empty((self.nin-1, batch_size))
 
     def positive(self, inputs):
         """
@@ -479,6 +544,7 @@ class RBMLayer(Layer):
         self.backend.fprop_fc(self.x_minus, self.weights, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_minus)
+        self.output[:] = self.x_minus[:-1]
 
     def update(self, epoch):
         """
@@ -594,6 +660,9 @@ class LocalLayer(YAMLable):
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class LocalLayerDist(LocalLayer):
@@ -1206,6 +1275,7 @@ class MaxPoolingLayer(LocalLayer):
     def update(self, epoch):
         pass
 
+
 class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
 
     """
@@ -1271,6 +1341,7 @@ class L2PoolingLayer(LocalLayer):
 
     def update(self, epoch):
         pass
+
 
 class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
 
@@ -1341,6 +1412,7 @@ class AveragePoolingLayer(LocalLayer):
 
     def update(self, epoch):
         pass
+
 
 class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
 
@@ -1608,6 +1680,10 @@ class LCNLayer(YAMLable):
 
     def update(self, epoch):
         pass
+
+    def set_train_mode(self, mode):
+        pass
+
 
 class LCNLayerDist(LCNLayer):
 
@@ -1897,3 +1973,6 @@ class CrossMapPoolingLayer(YAMLable):
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+    def set_train_mode(self, mode):
+        pass

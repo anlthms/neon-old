@@ -167,7 +167,7 @@ class CrossEntropy(Cost):
         Apply the cross entropy cost function to the datasets passed.
         """
         return self.ce_function(self.backend, self.inputbuf1,
-                           targets, self.temp)
+                                targets, self.temp)
 
     def apply_derivative(self, targets):
         """
@@ -175,4 +175,4 @@ class CrossEntropy(Cost):
         passed.
         """
         return self.cd_function(self.backend, self.inputbuf1,
-                           targets, self.temp)
+                                targets, self.temp)

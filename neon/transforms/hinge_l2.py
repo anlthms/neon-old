@@ -77,7 +77,7 @@ class HingeL2(Cost):
                                  req_param)
 
         if self.blkidx > self.inputbuf1.shape[0]:
-            raise ValueError("blkidx %d too large" % blkidx)
+            raise ValueError("blkidx %d too large" % self.blkidx)
 
         tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
         self.temp = [tempbuf]
@@ -86,7 +86,7 @@ class HingeL2(Cost):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        return hinge_l2(self.backend, self.inputbuf1, 
+        return hinge_l2(self.backend, self.inputbuf1,
                         targets, self.temp, self.blkidx)
 
     def apply_derivative(self, targets):
@@ -95,4 +95,4 @@ class HingeL2(Cost):
         passed.
         """
         return hinge_l2_derivative(self.backend, self.inputbuf1, targets,
-                                    self.temp, self.blkidx)
+                                   self.temp, self.blkidx)

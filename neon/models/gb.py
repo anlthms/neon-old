@@ -85,7 +85,7 @@ class GB(MLP):
                     self.bprop_last(targets_batch, inputs_batch)
                 else:
                     self.bprop(targets_batch, inputs_batch)
-                error += self.cost.apply_function(targets_batch)                                                  self.temp)
+                error += self.cost.apply_function(targets_batch)
                 if epoch < self.num_initial_epochs:
                     self.update_last(epoch)
                 else:

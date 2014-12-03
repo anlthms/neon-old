@@ -25,7 +25,6 @@
     num_epochs: 2,
     batch_size: &bs 100,
     learning_rate: &lr 0.01,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     # serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
@@ -118,7 +117,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -141,8 +140,11 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
