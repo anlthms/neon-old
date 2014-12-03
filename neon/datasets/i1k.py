@@ -91,7 +91,7 @@ class I1K(Dataset):
                 if not os.path.exists(infile):
                     raise IOError("%s not found.  Please ensure you have"
                                   "ImageNet downloaded.  More info here: %s",
-                                  infile, url)
+                                  infile, self.url)
             labels_dic, label_names, validation_labels = self.parse_dev_meta(
                 ilsvrc_devkit_tar)
 
