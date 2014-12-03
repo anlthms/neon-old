@@ -5,7 +5,7 @@ hinge cost functions and classes for balance networks
 from neon.transforms.cost import Cost
 
 
-def hinge_l2(backend, outputs, targets, temp, blkidx=None):
+def hinge_l2(backend, outputs, targets, temp, blkidx):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
@@ -36,7 +36,7 @@ def hinge_l2(backend, outputs, targets, temp, blkidx=None):
     return backend.sum(temp[0])
 
 
-def hinge_l2_derivative(backend, outputs, targets, temp, blkidx=None):
+def hinge_l2_derivative(backend, outputs, targets, temp, blkidx):
     """
     Applies derivative of the hinge l2 function to the pairwise elements from
     outputs and targets.

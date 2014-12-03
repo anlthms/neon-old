@@ -355,6 +355,7 @@ class BranchLayer(YAMLable):
         self.backend = backend
         self.nin = nin
         self.nout = 0
+        self.sublayers = sublayers
         self.nsublayers = len(self.sublayers)
         self.startidx = [0]*len(self.sublayers)
         self.endidx = [0]*len(self.sublayers)
