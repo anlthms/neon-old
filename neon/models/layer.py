@@ -267,8 +267,8 @@ class RecurrentOutputLayer(Layer):
                  delta_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
@@ -309,8 +309,8 @@ class RecurrentLSMTLayer(Layer):
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         # create weight matrices
         self.Wxi = self.backend.gen_weights((nout, nout),
                                             weight_init_rec,
@@ -484,8 +484,8 @@ class RecurrentHiddenLayer(Layer):
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
         # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, activation,
-                                                   weight_init, learning_rule)
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
         self.weights_rec = self.backend.gen_weights((nout, nout),
                                                     weight_init_rec,
                                                     weight_dtype)
@@ -674,8 +674,8 @@ class RBMLayer(Layer):
     def __init__(self, name, backend, batch_size, pos, nin,
                  nout, activation, weight_init, learning_rule):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
-                                       nin, nout, activation, weight_init,
-                                       learning_rule)
+                                       nin, nout, weight_init,
+                                       learning_rule, activation)
         self.p_hid_plus = backend.empty((self.nout, batch_size))
         self.s_hid_plus = backend.empty((self.nout, batch_size))
         self.p_hid_minus = backend.empty((self.nout, batch_size))
@@ -733,23 +733,6 @@ class RBMLayer(Layer):
 
         self.learning_rule.apply_rule(self.weights, self.diff, epoch)
         # epoch, momentum?
-
-
-class AELayer(LayerWithNoBias):
-
-    """
-    Single NNet layer built to handle data from a particular backend used
-    in an Autoencoder.
-    TODO: merge with generic Layer above.
-    """
-
-    def __init__(self, name, backend, batch_size, pos, nin,
-                 nout, activation, weight_init, learning_rule, weights=None):
-        super(AELayer, self).__init__(name, backend, batch_size, pos,
-                                      nin, nout, activation, weight_init,
-                                      learning_rule)
-        if weights is not None:
-            self.weights = weights
 
 
 class LocalLayer(YAMLable):
