@@ -583,8 +583,6 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.empty(
             (self.nout, self.batch_size * MPI.COMM_WORLD.size))
-        # if (MPI.COMM_WORLD.rank==0):
-        #     print self.delta_.shape, self.delta_gather.shape
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.empty((self.nin, self.batch_size))

@@ -688,13 +688,15 @@ class GPU(Backend):
         Returns:
             Tensor: Of specified size filled with these random numbers.
         """
-        # This is the slow version for checking via cpu generated randoms
+        # This slow implementation is kept here in commented form should you
+        # need to ensure consistency with CPU generated random numbers:
         # a.raw(dohostcopy=False)[:] = numpy.array((numpy.random.uniform(
         #     size=a._tensor.shape) < keepthresh) / keepthresh,
         #     dtype=numpy.float32)
         # a.copy_to_device()
 
-        # This is the fast version using device generated random matrix
+        # This implementation is faster but breaks consistency with CPU
+        # backend based random numbers:
         a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
@@ -1013,8 +1015,6 @@ class GPU(Backend):
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
-        # print padding, nifm, ngroups, ifmshape[0], ofmshape[0], ofmshape[1],
-        # stride, nifm
         cudanet.convolution(
             weights._tensor, inputs._tensor, outputs._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
