@@ -2,15 +2,16 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Hyperbolic tangent transform functions and classes.
+Tanh transform functions and classes.
 """
 
 from neon.transforms.activation import Activation
 
 
 class Tanh(Activation):
+
     """
-    Embodiment of a hyperbolic tangent activation function.
+    Embodiment of a tanh activation function.
     """
 
     def apply_function(self, backend, inputs, outputs):

@@ -508,20 +508,20 @@ class GPUTensor(Tensor):
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
-    def mean(self):
-        result = self._tensor.mean(axis=0).mean(axis=1)
+    def mean(self, axis=None):
+        result = self._tensor.mean(axis)
         logger.debug('Copying to host')
         result.copy_to_host()
         return result.numpy_array[0][0]
 
-    def min(self):
-        result = self._tensor.min(axis=0).min(axis=1)
+    def min(self, axis=None):
+        result = self._tensor.min(axis)
         logger.debug('Copying to host')
         result.copy_to_host()
         return result.numpy_array[0][0]
 
-    def max(self):
-        result = self._tensor.max(axis=0).max(axis=1)
+    def max(self, axis=None):
+        result = self._tensor.max(axis)
         logger.debug('Copying to host')
         result.copy_to_host()
         return result.numpy_array[0][0]
@@ -653,12 +653,6 @@ class GPU(Backend):
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
-    def alloc(self, nrows, ncols, dtype=numpy.float32):
-        if dtype is None:
-            dtype = numpy.float32
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros((ncols, nrows), dtype=dtype)))
-
     def wrap(self, obj):
         return GPUTensor(obj)
 
@@ -743,7 +737,10 @@ class GPU(Backend):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
     def add(self, a, b, out):
-        a._tensor.add(b._tensor, out._tensor)
+        if type(a._tensor) != cudanet.CUDAMatrix:
+            b._tensor.add(a._tensor, out._tensor)
+        else:
+            a._tensor.add(b._tensor, out._tensor)
 
     def subtract(self, a, b, out):
         if type(a._tensor) != cudanet.CUDAMatrix:
@@ -1080,22 +1077,41 @@ class GPU(Backend):
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, fshape[1], padding, stride, ofmshape[1])
 
-    def fprop_apool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
+                      beta):
+        cudanet.crossmap_response_norm(
+            inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
-    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
+                      ksize, alpha, beta):
+        cudanet.crossmap_response_norm_undo(
+            inputs._tensor, error._tensor, outputs._tensor,
+            berror._tensor, nfm, ksize, alpha, beta)
 
-    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride, nfm):
-        raise NotImplementedError("TODO!")
+    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool(imgs=inputs, target=outputs, channels=nfm,
+                         sizeX=fshape[0], paddingStart=padding,
+                         moduleStride=stride, numModulesX=ofmshape[0])
 
-    def bprop_l2pool(self, outputs, error, berror, berrorbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride,
-                     nfm, prodbuf):
-        raise NotImplementedError("TODO!")
+    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
+                    fshape, padding, stride, nfm):
+        cudanet.avg_pool_undo(avgGrads=error, target=berror, sizeX=fshape[0],
+                              paddingStart=padding, moduleStride=stride,
+                              numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+
+    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
+                     fshape, padding, stride, nfm):
+        cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
+                        sizeX=fshape[0], paddingStart=padding,
+                        moduleStride=stride, numModulesX=ofmshape[0])
+
+    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
+                     ofmshape, fshape, padding, stride, nfm, prodbuf):
+        cudanet.l2_pool_undo(imgs=inputs, l2Grads=error, l2Acts=outputs,
+                             target=berror, sizeX=fshape[0],
+                             paddingStart=padding, moduleStride=stride,
+                             numModulesX=ofmshape[0])
 
     def fprop_fc(self, inputs, weights, out):
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
@@ -1142,6 +1158,29 @@ class GPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
                         (str(size), loc, scale))
             weights = numpy.random.normal(loc, scale, size)
+        elif (weight_params['type'] == 'sparse_eigenvalued'):
+            # initialization for RNNS as in Sutskever 2013
+            sparseness = 15
+            eigenvalue = 1.2
+            if 'sparseness' in weight_params:
+                sparseness = weight_params['sparseness']
+            if 'eigenvalue' in weight_params:
+                eigenvalue = weight_params['eigenvalue']
+            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
+                        (str(size), sparseness, eigenvalue))
+            elements = size[0]*size[1]
+            nonzeros = size[0] * sparseness
+            weights = numpy.zeros(size).flatten()
+            nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
+            weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
+            weights = weights.reshape(size).copy()
+            if size[0] == size[1]:
+                temp = numpy.linalg.eig(weights)
+                max_eig = numpy.max(numpy.absolute(temp[0]))
+                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
+                weights = eigenvalue * weights / max_eig
+            else:
+                logger.info('Matrix is non-square, no eigenvalue scaling.')
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0

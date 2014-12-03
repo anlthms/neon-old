@@ -40,8 +40,9 @@ def cross_entropy(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
 
+    # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
-    return backend.mean(temp[0])
+    return backend.sum(temp[0])
 
 
 def cross_entropy_multi(backend, outputs, targets, temp):
@@ -146,11 +147,6 @@ class CrossEntropy(Cost):
                     and not self.use_binary):
                 self.shortcut_deriv = True
 
-        # Allocate temporary storage
-        # both temp bufs are just nout x batchsize
-        tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
-        self.temp = [tempbuf, tempbuf.copy()]
-
         # Set the appropriate functions
         self.ce_function = cross_entropy
         self.cd_function = cross_entropy_derivative
@@ -162,11 +158,17 @@ class CrossEntropy(Cost):
         # if self.shortcut_deriv:
             # self.cd_function = shortcut_derivative
 
+    def set_outputbuf(self, databuf):
+        if not self.outputbuf or self.outputbuf.shape != databuf.shape:
+            tempbuf = self.backend.empty(databuf.shape, self.temp_dtype)
+            self.temp = [tempbuf, tempbuf.copy()]
+        self.outputbuf = databuf
+
     def apply_function(self, targets):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        return self.ce_function(self.backend, self.inputbuf1,
+        return self.ce_function(self.backend, self.outputbuf,
                                 targets, self.temp)
 
     def apply_derivative(self, targets):
@@ -174,5 +176,5 @@ class CrossEntropy(Cost):
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
-        return self.cd_function(self.backend, self.inputbuf1,
+        return self.cd_function(self.backend, self.outputbuf,
                                 targets, self.temp)

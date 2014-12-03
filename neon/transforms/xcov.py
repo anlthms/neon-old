@@ -51,24 +51,27 @@ class XCovariance(Cost):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
-        if self.blkidx > self.inputbuf1.shape[0]:
+        if self.blkidx > self.outputbuf.shape[0]:
             raise ValueError("blkidx %d too large" % self.blkidx)
 
-        n = self.inputbuf1.shape[1]
-        k1 = self.blkidx
-        k2 = self.inputbuf1.shape[0]-k1
-        tempbuf1 = self.backend.empty((k1, n), self.temp_dtype)
-        tempbuf2 = self.backend.empty((k2, n), self.temp_dtype)
-        tempbuf3 = self.backend.empty((k1, k2), self.temp_dtype)
-        tempbuf4 = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
-
-        self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
+    def set_outputbuf(self, databuf):
+        if not self.outputbuf or self.outputbuf.shape != databuf.shape:
+            n = self.outputbuf.shape[1]
+            k1 = self.blkidx
+            k2 = self.outputbuf.shape[0]-k1
+            tempbuf1 = self.backend.empty((k1, n), self.temp_dtype)
+            tempbuf2 = self.backend.empty((k2, n), self.temp_dtype)
+            tempbuf3 = self.backend.empty((k1, k2), self.temp_dtype)
+            tempbuf4 = self.backend.empty(self.outputbuf.shape,
+                                          self.temp_dtype)
+            self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
+        self.outputbuf = databuf
 
     def apply_function(self, targets):
         """
         Apply the xcov cost function to the datasets passed.
         """
-        return xcov_cost(self.backend, self.inputbuf1, targets, self.temp,
+        return xcov_cost(self.backend, self.outputbuf, targets, self.temp,
                          self.blkidx)
 
     def apply_derivative(self, targets):
@@ -76,5 +79,5 @@ class XCovariance(Cost):
         Apply the derivative of the xcov cost function to the datasets
         passed.
         """
-        return xcov_cost_derivative(self.backend, self.inputbuf1, targets,
+        return xcov_cost_derivative(self.backend, self.outputbuf, targets,
                                     self.temp, self.blkidx)

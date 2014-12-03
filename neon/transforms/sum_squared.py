@@ -54,17 +54,18 @@ class SumSquaredDiffs(Cost):
     def __init__(self, **kwargs):
         super(SumSquaredDiffs, self).__init__(**kwargs)
 
-        # Allocate temporary storage
-        # both temp bufs are just nout x batchsize
-        tempbuf = self.backend.empty(self.inputbuf1.shape, self.temp_dtype)
-        self.temp = [tempbuf]
+    def set_outputbuf(self, databuf):
+        if not self.outputbuf or self.outputbuf.shape != databuf.shape:
+            tempbuf = self.backend.empty(databuf.shape, self.temp_dtype)
+            self.temp = [tempbuf]
+        self.outputbuf = databuf
 
     def apply_function(self, targets):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
-        return sum_squared_diffs(self.backend, self.inputbuf1,
+        return sum_squared_diffs(self.backend, self.outputbuf,
                                  targets, self.temp)
 
     def apply_derivative(self, targets):
@@ -73,5 +74,5 @@ class SumSquaredDiffs(Cost):
         to the datasets passed.
         """
         return sum_squared_diffs_derivative(self.backend,
-                                            self.inputbuf1, targets,
+                                            self.outputbuf, targets,
                                             self.temp)

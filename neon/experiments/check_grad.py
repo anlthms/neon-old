@@ -50,17 +50,13 @@ class GradientChecker(Experiment):
             saved = weights[ind]
             weights[ind] += self.eps
             self.model.fprop(inputs)
-            cost1 = self.model.cost.apply_function(
-                self.model.backend, self.model.layers[-1].output,
-                targets, self.model.temp)
+            cost1 = self.model.cost.apply_function(targets)
 
             weights[ind] -= 2 * self.eps
             self.model.fprop(inputs)
-            cost2 = self.model.cost.apply_function(
-                self.model.backend, self.model.layers[-1].output,
-                targets, self.model.temp)
+            cost2 = self.model.cost.apply_function(targets)
 
-            grads[ind] = ((cost1 - cost2) * self.model.layers[-1].nout *
+            grads[ind] = ((cost1 - cost2) / self.model.layers[-1].batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))
             weights[ind] = saved
 
@@ -105,11 +101,13 @@ class GradientChecker(Experiment):
         targets = self.datasets[0].get_targets(train=True)['train']
 
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0)
+        self.model.bprop(targets, inputs)
+        self.model.update(0)
 
         self.save_state()
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0)
+        self.model.bprop(targets, inputs)
+        self.model.update(0)
         self.load_state()
 
         for ind in self.trainable_layers[::-1]:

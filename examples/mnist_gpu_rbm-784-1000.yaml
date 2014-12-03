@@ -17,7 +17,7 @@
       sample_pct: 100,
     },
   ],
-  
+
   # RBM model specification
   model: !obj:neon.models.rbm.RBM {
     backend: *be,
@@ -51,7 +51,7 @@
       olayer: *rlayer,
     },
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

@@ -28,12 +28,22 @@ class Cost(object):
         if not hasattr(self, 'batch_size'):
             self.batch_size = self.olayer.batch_size
 
+        self.outputbuf = None
         if not hasattr(self, 'olayer_data'):
-            self.inputbuf1 = getattr(self.olayer, 'output')
+            self.set_outputbuf(getattr(self.olayer, 'output'))
         else:
             if not hasattr(self.olayer, self.olayer_data):
                 raise ValueError("Layer %s does not have buffer %s" %
                                  (self.olayer.name, self.olayer_data))
+
+    def set_outputbuf(self, databuf):
+        """
+        Called when we need to change the data that the cost function is
+        operating on.
+        In the derived costs, this will reallocate the temporary storage if
+        the outputbuf shape changes (hopefully infrequently)
+        """
+        self.outputbuf = databuf
 
     def apply_function(self, targets):
         """
