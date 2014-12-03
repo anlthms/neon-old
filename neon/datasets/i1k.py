@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
 ImageNet 1k dataset
 More information at: http://www.image-net.org/download-imageurls
@@ -196,7 +199,7 @@ class I1K(Dataset):
                 logger.info("created list of jpg files")
                 
                 self.CROP_TO_SQUARE          = True
-                self.OUTPUT_IMAGE_SIZE       = 228
+                self.OUTPUT_IMAGE_SIZE       = 224
                 # Number of threads to use for JPEG decompression and image resizing.
                 self.NUM_WORKER_THREADS      = 8
                 self.OUTPUT_BATCH_SIZE = 3072 #macro batch size

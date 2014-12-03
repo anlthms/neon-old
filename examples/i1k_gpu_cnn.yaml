@@ -1,4 +1,7 @@
-# Experiment settings to train/test a CNN on MNIST.
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a small CNN on ImageNet.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.gpu.GPU {

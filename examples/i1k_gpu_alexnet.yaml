@@ -1,4 +1,7 @@
-# Experiment settings to train/test a CNN on MNIST.
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test the AlexNet CNN on ImageNet.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.gpu.GPU {
@@ -27,7 +30,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 1,
+    num_epochs: 2,
     batch_size: &bs 128,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
@@ -52,7 +55,7 @@
         },
         nifm: 3,
         nofm: 64,
-        ifmshape: [228, 228],
+        ifmshape: [224, 224],
         fshape: [11, 11],
         stride: 4,
         weight_init: {
@@ -210,7 +213,7 @@
         pos: 9,
         nifm: 256,
         ifmshape: [13, 13],
-        fshape: [2, 2],
+        fshape: [3, 3],
         stride: 2,
       },
       !obj:neon.models.layer.LayerWithNoBias {

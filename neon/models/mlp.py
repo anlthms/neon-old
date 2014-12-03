@@ -81,7 +81,9 @@ class MLP(Model):
             for batch in xrange(num_batches): #inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
+                    logger.info('loading mb %d', batch )
                     inputs, targets = ds.get_mini_batch(self.batch_size, 'training')
+                    logger.info('done loading mb %d', batch )
                     # next 2 lines will not be needed if everything is col order
                     #inputs = self.backend.format(inputs)
                     #targets = self.backend.format(targets)
@@ -150,6 +152,7 @@ class MLP(Model):
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
+            #print layer.pos
             layer.fprop(y)
             y = layer.output
 
