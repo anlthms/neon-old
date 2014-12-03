@@ -1105,6 +1105,21 @@ class GPU(Backend):
         cudanet.sync_stream()
 
     def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
+
+        Arguments:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Returns:
+            GPUTensor: The initialized weights
+        """
         # FIXME: Get rid of duplication.
         weights = None
         if weight_params['type'] == 'uniform':
