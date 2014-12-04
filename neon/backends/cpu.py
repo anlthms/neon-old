@@ -771,16 +771,17 @@ class CPU(Backend):
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
     def softmax(self, x, out):
-        np.max(x._tensor, out._tensor[0, :], axis=0)
-        np.subtract(x._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
+        x._tensor.max(axis=0, out=out._tensor[0, :])
+        np.subtract(x._tensor, x._tensor.max(axis=0, keepdims=True),
+                    out._tensor)
         np.exp(out._tensor, out._tensor)
         # This uses some temporary storage, but might be ok?
         np.divide(out._tensor, np.sum(out._tensor, axis=0, keepdims=True),
                   out._tensor)
 
     def softmax_gradient(self, y, err, out):
-        np.einsum('ij,ji->i', err._tensor.T, y._tensor, out._tensor[0, :])
-        np.subtract(err._tensor, out._tensor[np.newaxis, 0, :], out._tensor)
+        a = np.einsum('ij,ji->i', err._tensor.T, y._tensor)
+        np.subtract(err._tensor, a[np.newaxis, :], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
