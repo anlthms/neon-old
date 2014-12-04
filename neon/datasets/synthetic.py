@@ -31,6 +31,7 @@ class UniformRandom(Dataset):
         self.ntest = ntest
         self.nin = nin
         self.nout = nout
+        self.macro_batched = False
         np.random.seed(0)
 
     def load_data(self, shape):
@@ -61,6 +62,7 @@ class ToyImages(Dataset):
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.macro_batched = False
         self.ntrain = 128
         self.ntest = 128
         self.ifmheight = 32

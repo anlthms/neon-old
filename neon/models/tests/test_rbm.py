@@ -48,9 +48,8 @@ class TestCudaRBM:
                               nin=nin + 1, nout=conf['num_nodes'] + 1,
                               activation=activation,
                               weight_init=conf['weight_init'])
-
         # create fake cost
-        self.cost = SumSquaredDiffs()
+        self.cost = SumSquaredDiffs(olayer=self.layer)
 
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
@@ -69,10 +68,6 @@ class TestCudaRBM:
     def test_cudanet_cost(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        temp = [self.be.zeros(self.inputs.shape)]
-        thecost = self.cost.apply_function(self.be, self.inputs,
-                                           self.layer.x_minus.take(range(
-                                               self.layer.x_minus.shape[0] -
-                                               1), axis=0), temp)
+        thecost = self.cost.apply_function(self.inputs)
         target = 106.588943481
         assert_tensor_near_equal(thecost, target)

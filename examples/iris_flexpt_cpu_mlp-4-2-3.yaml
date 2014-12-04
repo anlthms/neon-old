@@ -34,7 +34,6 @@
     batch_size: 30,
     num_epochs: 2500,
     temp_dtype: *def_dtype,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './iris-fixpt-mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
@@ -67,7 +66,7 @@
         pre_act_dtype: *def_dtype,
         output_dtype: *def_dtype,
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: 30,
@@ -95,6 +94,9 @@
         berror_dtype: *def_dtype,
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer
+    },
   },
 
   # logging options that are passed to logging.basicConfig
