@@ -948,7 +948,7 @@ class ConvLayer(LocalLayer):
                  nofm, ifmshape, fshape, stride, weight_init, activation=None,
                  pad=0):
         if pad != 0 and isinstance(backend, CPU):
-          raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
+            raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
         super(ConvLayer, self).__init__(name, backend, batch_size, pos,
                                         learning_rule, nifm, nofm,
                                         ifmshape, fshape, stride,
@@ -1011,7 +1011,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
                  nofm, ifmshape, fshape, stride, weight_init, activation=None,
                  pad=0):
         if pad != 0:
-          raise NotImplementedError('Pad != 0, for ConvLayerDist')
+            raise NotImplementedError('Pad != 0, for ConvLayerDist')
         super(ConvLayerDist, self).__init__(name, backend, batch_size, pos,
                                             learning_rule, nifm, nofm,
                                             ifmshape, fshape, stride,

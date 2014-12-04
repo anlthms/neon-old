@@ -131,7 +131,7 @@ class I1K(Dataset):
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
 
-                self.val_max_file_index = 3072 
+                self.val_max_file_index = 3072
                 val_label_sample = validation_labels[0:self.val_max_file_index]
 
                 # todo 2: implement macro batching [will require changing model
