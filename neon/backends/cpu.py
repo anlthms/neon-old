@@ -771,7 +771,7 @@ class CPU(Backend):
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
     def softmax(self, x, out):
-        x._tensor.max(axis=0, out=out._tensor[0, :])
+        x._tensor.max(axis=0, out=out._tensor[0])
         np.subtract(x._tensor, x._tensor.max(axis=0, keepdims=True),
                     out._tensor)
         np.exp(out._tensor, out._tensor)
@@ -781,7 +781,7 @@ class CPU(Backend):
 
     def softmax_gradient(self, y, err, out):
         a = np.einsum('ij,ji->i', err._tensor.T, y._tensor)
-        np.subtract(err._tensor, a[np.newaxis, :], out._tensor)
+        np.subtract(err._tensor, a[np.newaxis], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
@@ -793,7 +793,7 @@ class CPU(Backend):
             rflinks = links[dst]
             self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
                      out=prodbuf)
-            outputs[ofmlocs[dst], :] = prodbuf
+            outputs[ofmlocs[dst]] = prodbuf
 
     def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
@@ -802,7 +802,7 @@ class CPU(Backend):
             self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
-            berror[rflinks, :] = bpropbuf
+            berror[rflinks] = bpropbuf
 
     def update_conv(self, weights, inputs, error, updates, links, ifmshape,
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
@@ -825,10 +825,10 @@ class CPU(Backend):
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
             # Save the index of the maximum value within the receptive fields.
-            maxinds[dst, :] = rf.argmax(axis=0)
+            maxinds[dst] = rf.argmax(axis=0)
             # Set the pre-activations to the maximum value.
-            maxvals = rf[maxinds[dst, :], range(rf.shape[1])]
-            outputsbuf[dst, :] = maxvals
+            maxvals = rf[maxinds[dst], range(rf.shape[1])]
+            outputsbuf[dst] = maxvals
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
     def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
@@ -837,8 +837,8 @@ class CPU(Backend):
         rerror = self.hstack_maps(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
-            inds = rflinks.take(maxinds[dst, :], axis=0)
-            berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst, :]
+            inds = rflinks.take(maxinds[dst], axis=0)
+            berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     # Alternate implementation of max pooling fprop. To be deleted.
@@ -855,10 +855,10 @@ class CPU(Backend):
                 # within the input feature map.
                 rf = ifm.take(links[dst], axis=0)
                 # Save the index of the maximum value.
-                maxfm[dst, :] = rf.argmax(axis=0)
+                maxfm[dst] = rf.argmax(axis=0)
                 # Set the pre-activations to the maximum value.
-                maxvals = rf[maxinds[dst, :], range(rf.shape[1])]
-                ofm[dst, :] = maxvals
+                maxvals = rf[maxinds[dst], range(rf.shape[1])]
+                ofm[dst] = maxvals
 
     # Alternate implementation of max pooling bprop. To be deleted.
     def bprop_mpool2(self, inputs, outputs, error, berror, links, ifmshape,
@@ -872,15 +872,15 @@ class CPU(Backend):
             maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
             for dst in xrange(ofmsize):
                 rflinks = links[dst]
-                inds = rflinks.take(maxfm[dst, :], axis=0)
-                ifm[inds, range(ifm.shape[1])] += ofm[dst, :]
+                inds = rflinks.take(maxfm[dst], axis=0)
+                ifm[inds, range(ifm.shape[1])] += ofm[dst]
 
     def fprop_apool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm):
         rinputs = self.hstack_maps(inputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst, :] = rf.mean(axis=0)
+            outputsbuf[dst] = rf.mean(axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
     def bprop_apool(self, outputs, error, berror, berrorbuf, links,
@@ -889,7 +889,7 @@ class CPU(Backend):
         error /= fshape[0] * fshape[1]
         rerror = self.hstack_maps(error, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
-            berrorbuf[links[dst], :] += rerror[dst, :]
+            berrorbuf[links[dst]] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
@@ -897,7 +897,7 @@ class CPU(Backend):
         rinputs = self.hstack_maps(inputs, nfm)
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst, :] = self.norm(rf, 2, axis=0)
+            outputsbuf[dst] = self.norm(rf, 2, axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
 
     def bprop_l2pool(self, inputs, outputs, error, berror, berrorbuf, links,
@@ -910,67 +910,64 @@ class CPU(Backend):
         for dst in xrange(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=0)
-            denom = routputs[dst, :].copy()
+            denom = routputs[dst].copy()
             # If the L2 norm is zero, the entire receptive field must be
             # zeros. In that case, we set the L2 norm to 1 before using
             # it to normalize the receptive field.
             denom[denom.raw() == 0] = 1
             self.divide(rf, denom, out=rf)
             self.multiply(
-                rerror[dst:(dst + 1), :].repeat(fshape[0] * fshape[1], axis=0),
+                rerror[dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=0),
                 rf, out=prodbuf)
-            berrorbuf[inds, :] += prodbuf
+            berrorbuf[inds] += prodbuf
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
                       beta):
-        # This is kind of terrible, needs some optimizing
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs._tensor.reshape(nfm, H, W, N)
-        routputs = outputs._tensor.reshape(nfm, H, W, N)
+        rinputs = inputs._tensor.reshape((nfm, H, W, N))
+        routputs = outputs._tensor.reshape((nfm, H, W, N))
         for i in xrange(nfm):
-            knlidx = range(
-                max(i - ksize / 2, 0), min(i - ksize / 2 + ksize, nfm))
-            x = rinputs.take(knlidx, axis=0)
-            np.square(x).sum(axis=0, out=routputs[i, :, :, :])
+            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
+            np.square(x).sum(axis=0, out=routputs[i])
         self.multiply(outputs, self.wrap(alpha), out=outputs)
         self.add(outputs, self.wrap(1.0), out=outputs)
         self.power(outputs, self.wrap(-beta), out=outputs)
         self.multiply(inputs, outputs, out=outputs)
 
+    def bprop_cmrnorm_approx(self, inputs, outputs, error, berror, ifmshape,
+                             nfm, ksize, alpha, beta, tempbuf):
+        berror[:] = error
+
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta):
-        # Holy hell, someone feel free to clean this up
-
+                      ksize, alpha, beta, tempbuf):
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        temp = self.empty(inputs.shape)
-        rinputs = inputs._tensor.reshape(nfm, H, W, N)
-        rerror = error._tensor.reshape(nfm, H, W, N)
-        rberror = berror._tensor.reshape(nfm, H, W, N)
-        rtemp = temp._tensor.reshape(nfm, H, W, N)
-        routputs = inputs._tensor.reshape(nfm, H, W, N)
+        rinputs = inputs.reshape((nfm, H, W, N))
+        rberror = berror.reshape((nfm, H, W, N))
+        routputs = outputs.reshape((nfm, H, W, N))
+
+        otemp = routputs.copy()
+        # We can do this because rinputs[routputs == 0].sum() == 0
+        otemp[otemp._tensor == 0] = 1.0
+        self.divide(rinputs, otemp, out=otemp)
+        itemp = rinputs.copy()
+        # We can do this because routputs[rinputs == 0].sum() == 0
+        itemp[itemp._tensor == 0] = 1.0
+        self.divide(routputs, itemp, out=itemp)
+
+        self.power(otemp, self.wrap(1.0 / beta), out=otemp)
+        self.multiply(otemp, routputs, out=otemp)
+        self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
+        self.fill(rberror, 0.0)
+
         for i in xrange(nfm):
-            knlidx = range(
-                max(i - ksize / 2, 0), min(i - ksize / 2 + ksize, nfm))
-            x = rinputs.take(knlidx, axis=0)
-            np.square(x).sum(axis=0, out=rberror[i, :, :, :])
-            knlidx2 = range(max(i + ksize - ksize / 2, 0),
-                            min(i + ksize / 2 + 1, nfm))
-            grad = rerror.take(knlidx2, axis=0)
-            inp = rinputs.take(knlidx2, axis=0)
-            act = routputs.take(knlidx2, axis=0)
-            (grad * act * np.power(
-                act / inp, 1.0 / beta)).sum(axis=0, out=rtemp[i, :, :, :])
+            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
+                self.multiply(otemp[i], rinputs[j], out=tempbuf)
+                if i == j:
+                    self.add(tempbuf, itemp[i], out=tempbuf)
+                self.add(rberror[i], tempbuf, out=rberror[i])
 
-        self.multiply(temp, self.wrap(-2.0 * alpha * beta), out=temp)
-        self.multiply(temp, inputs, out=temp)
-
-        self.multiply(berror, self.wrap(alpha), out=berror)
-        self.add(berror, self.wrap(1.0), out=berror)
-        self.power(berror, self.wrap(beta), out=berror)
-        self.divide(error, berror, out=berror)
-
-        self.add(berror, temp, out=berror)
+        self.multiply(error, berror, out=berror)
 
     def fprop_fc(self, inputs, weights, out):
         self.dot(weights, inputs, out)
@@ -983,10 +980,10 @@ class CPU(Backend):
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         for ofmind in range(weights.shape[1]):
-            ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize), :]
+            ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             self.fill(ofm, 0.0)
             for ifmind in range(weights.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize), :]
+                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
                 ofm += ifm * weights[ifmind, ofmind]
 
     def bprop_cmpool(self, deltas, weights, fmsize, out):
@@ -995,9 +992,9 @@ class CPU(Backend):
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         self.fill(out, 0.0)
         for ofmind in range(out.shape[1]):
-            ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize), :]
+            ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             for ifmind in range(out.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize), :]
+                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
                 ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
