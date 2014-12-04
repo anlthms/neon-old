@@ -1049,7 +1049,7 @@ class GPU(Backend):
             inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta):
+                      ksize, alpha, beta, tempbuf):
         cudanet.crossmap_response_norm_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, nfm, ksize, alpha, beta)
