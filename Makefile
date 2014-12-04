@@ -38,6 +38,11 @@ endif
 
 # update options based on build type
 INSTALL_REQUIRES :=
+ifeq ($(DEV), 0)
+  NOSE_ATTRS := $(NOSE_ATTRS),'!dev'
+else
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1'
+endif
 ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
@@ -48,11 +53,6 @@ ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'mpi4py>=1.3.1'
-endif
-ifeq ($(DEV), 0)
-  NOSE_ATTRS := $(NOSE_ATTRS),'!dev'
-else
-  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1'
 endif
 
 .PHONY: default build develop install uninstall test test_all sanity speed \
@@ -75,8 +75,11 @@ develop: clean_pyc .git/hooks/pre-commit
 # install, hence having to specify installation requirements twice (once
 # above, and once inside setup.py). Ugly kludge, but seems like the only way
 # to support python setup.py install and pip install.
+# Since numpy is required for building some of the other dependent packages
+# we need to separately install it first
 install: clean_pyc
 	@echo "Running install..."
+	@pip install 'numpy>=1.8.1' 'PyYAML>=3.11'
 	@pip install $(INSTALL_REQUIRES) .
 
 uninstall:

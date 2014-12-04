@@ -39,7 +39,6 @@ dependency_links = []
 required_packages = ['numpy>=1.8.1', 'PyYAML>=3.11']
 
 
-# class NeonCommand(install):
 class NeonCommand(Command):
     description = "Passes additional build type options to subsequent commands"
     user_options = [('cpu=', None, 'Add CPU backend related dependencies'),

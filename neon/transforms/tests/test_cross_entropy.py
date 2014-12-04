@@ -15,8 +15,8 @@ def test_cross_entropy_cputensor():
     outputs = CPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = CPUTensor([0.5, 0.99, 0.01, 0.2])
     temp = [be.zeros(outputs.shape), be.zeros(outputs.shape)]
-    expected_result = np.mean((- targets.raw()) * np.log(outputs.raw()) -
-                              (1 - targets.raw()) * np.log(1 - outputs.raw()))
+    expected_result = np.sum((- targets.raw()) * np.log(outputs.raw()) -
+                             (1 - targets.raw()) * np.log(1 - outputs.raw()))
     assert_tensor_near_equal(expected_result, cross_entropy(be, outputs,
                                                             targets, temp))
 
@@ -28,10 +28,11 @@ def test_cross_entropy_gputensor():
     outputs = GPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = GPUTensor([0.5, 0.99, 0.01, 0.2])
     temp = [be.zeros(outputs.shape), be.zeros(outputs.shape)]
-    expected_result = np.mean((- targets.raw()) * np.log(outputs.raw()) -
-                              (1 - targets.raw()) * np.log(1 - outputs.raw()))
+    expected_result = np.sum((- targets.raw()) * np.log(outputs.raw()) -
+                             (1 - targets.raw()) * np.log(1 - outputs.raw()))
     assert_tensor_near_equal(expected_result, cross_entropy(be, outputs,
-                                                            targets, temp))
+                                                            targets, temp),
+                             tolerance=1e-6)
 
 
 def test_cross_entropy_derivative_cputensor():
