@@ -1862,11 +1862,11 @@ class LCNLayer(YAMLable):
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, start_row:(canvas.shape[1] - start_row),
-               start_col:(canvas.shape[2] - start_col), :] = inset
+               start_col:(canvas.shape[2] - start_col)] = inset
 
     def copy_from_inset(self, canvas, start_row, start_col):
         return canvas[:, self.start_row:(canvas.shape[1] - start_row),
-                      self.start_col:(canvas.shape[2] - start_col), :]
+                      self.start_col:(canvas.shape[2] - start_col)]
 
     def fprop_sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.nifm, self.ifmheight, self.ifmwidth,
@@ -1906,9 +1906,9 @@ class LCNLayer(YAMLable):
                 rflinks = self.conv.rlinks[dst]
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc, :], filt.transpose(),
+                self.backend.multiply(error[loc], filt.transpose(),
                                       out=self.prodbuf)
-                self.exerror[rflinks, :] -= self.prodbuf
+                self.exerror[rflinks] -= self.prodbuf
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
@@ -1939,15 +1939,15 @@ class LCNLayer(YAMLable):
                 frame = rrexinputs.take(rflinks, axis=0)
                 self.backend.multiply(frame, self.filters.transpose(),
                                       out=frame)
-                self.backend.multiply(frame, self.diverror[loc, :], out=frame)
+                self.backend.multiply(frame, self.diverror[loc], out=frame)
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
                 rframe[fm:(fm + 1),
-                       self.fheight / 2, self.fwidth / 2, :] -= divout
-                self.backend.multiply(error[loc, :].repeat(self.fsize, axis=0),
+                       self.fheight / 2, self.fwidth / 2] -= divout
+                self.backend.multiply(error[loc],
                                       frame, out=frame)
-                self.exerror[rflinks, :] -= frame
+                self.exerror[rflinks] -= frame
         self.reshape_error()
 
     def bprop(self, error, inputs):
