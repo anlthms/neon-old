@@ -887,51 +887,50 @@ class CPU(Backend):
 
     def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
                       beta):
-        # This is kind of terrible, needs some optimizing
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs._tensor.reshape(nfm, H, W, N)
-        routputs = outputs._tensor.reshape(nfm, H, W, N)
+        rinputs = inputs._tensor.reshape((nfm, H, W, N))
+        routputs = outputs._tensor.reshape((nfm, H, W, N))
         for i in xrange(nfm):
-            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
-            x = rinputs.take(knlidx, axis=0)
-            np.square(x).sum(axis=0, out=routputs[i, :, :, :])
+            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
+            np.square(x).sum(axis=0, out=routputs[i])
         self.multiply(outputs, self.wrap(alpha), out=outputs)
         self.add(outputs, self.wrap(1.0), out=outputs)
         self.power(outputs, self.wrap(-beta), out=outputs)
         self.multiply(inputs, outputs, out=outputs)
 
+    def bprop_cmrnorm_approx(self, inputs, outputs, error, berror, ifmshape,
+                             nfm, ksize, alpha, beta, tempbuf):
+        berror[:] = error
+
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta):
-        # Holy hell, someone feel free to clean this up
-
+                      ksize, alpha, beta, tempbuf):
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        temp = self.empty(inputs.shape)
-        rinputs = inputs._tensor.reshape(nfm, H, W, N)
-        rerror = error._tensor.reshape(nfm, H, W, N)
-        rberror = berror._tensor.reshape(nfm, H, W, N)
-        rtemp = temp._tensor.reshape(nfm, H, W, N)
-        routputs = inputs._tensor.reshape(nfm, H, W, N)
+        rinputs = inputs.reshape((nfm, H, W, N))
+        rberror = berror.reshape((nfm, H, W, N))
+        routputs = inputs.reshape((nfm, H, W, N))
+
+        otemp = routputs.copy()
+        # We can do this because rinputs[routputs == 0].sum() == 0
+        otemp[otemp._tensor == 0] = 1.0
+        self.divide(rinputs, otemp, out=otemp)
+        itemp = rinputs.copy()
+        # We can do this because routputs[rinputs == 0].sum() == 0
+        itemp[itemp._tensor == 0] = 1.0
+        self.divide(routputs, itemp, out=itemp)
+
+        self.power(otemp, self.wrap(1.0 / beta), out=otemp)
+        self.multiply(otemp, routputs, out=otemp)
+        self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
+        self.fill(rberror, 0.0)
+
         for i in xrange(nfm):
-            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
-            x = rinputs.take(knlidx, axis=0)
-            np.square(x).sum(axis=0, out=rberror[i, :, :, :])
-            knlidx2 = range(max(i+ksize-ksize/2, 0),
-                            min(i+ksize/2+1, nfm))
-            grad = rerror.take(knlidx2, axis=0)
-            inp = rinputs.take(knlidx2, axis=0)
-            act = routputs.take(knlidx2, axis=0)
-            (grad*act*np.power(act/inp, 1.0/beta)).sum(axis=0,
-                                                       out=rtemp[i, :, :, :])
+            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
+                self.multiply(otemp[i], rinputs[j], out=tempbuf)
+                if i == j:
+                    self.add(tempbuf, itemp[i], out=tempbuf)
+                self.add(rberror[i], tempbuf, out=rberror[i])
 
-        self.multiply(temp, self.wrap(-2.0 * alpha * beta), out=temp)
-        self.multiply(temp, inputs, out=temp)
-
-        self.multiply(berror, self.wrap(alpha), out=berror)
-        self.add(berror, self.wrap(1.0), out=berror)
-        self.power(berror, self.wrap(beta), out=berror)
-        self.divide(error, berror, out=berror)
-
-        self.add(berror, temp, out=berror)
+        self.multiply(error, berror, out=berror)
 
     def fprop_fc(self, inputs, weights, out):
         self.dot(weights, inputs, out)
