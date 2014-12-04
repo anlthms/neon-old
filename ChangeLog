@@ -1,6 +1,268 @@
 # Changelog
 
-## (unreleased)
+## v0.5.0 (2014-12-04)
+
+### Modifications
+
+* Merge branch 'balance' into 'master' [Anil Thomas]
+
+    Balance  many changes...  sorry to tag you anil, but i didn't want to
+    wear scott out before sending him into below freezing weather  -
+    update() function refactored out of bprop()  - costs changed to refer
+    to arbitrary layer along with output buffer (so now you just supply
+    target to the cost computation)   - above allows us to remove temp
+    buffer allocations separately from the cost instantiation   - see
+    .yaml files to see new convention for cost instantiation   - necessary
+    for balance layer where there will be multiple costs for a network,
+    each connected to different layers   - can also change reference to
+    which buffer to is used if a layer has multiple outputs (see rnn for
+    how to use cost.set_outputbuf)   - set_outputbuf also used a lot in
+    the gb.py model  - addition of BranchLayer, allows splitting of layers
+    at the same level  - addition of softmax, xcov, hinge_l2 cost
+    functions  - streamlining of activation functions  See merge request
+    !68
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    ImageNet support (no multithreading)  MYL-88 MYL-89 MYL-119 Tested on
+    the new i1k_gpu_alexnet.yaml file and cifar10_gpu_cnn.yaml file  See
+    merge request !67
+
+* Merge branch 'perf2' into 'master' [Scott Leishman]
+
+    Perf2  Support fully connected layers with no activation.  See merge
+    request !66
+
+* forgot a comma, sorry. [Urs]
+
+* fixed two bugs introduced by the attempted bugfix to linear_monotone momentum: momentum was actually constant at 0.9 in all the examples, the .99 was never reached. This affeced all yaml files. The second fix is to check_grad.py, where the numerical gradient is rescaled by the batch size and output layer size to reflect the change in cross_entropy from mean() to sum() [Urs]
+
+* Merge branch 'rnn' into 'master' [Scott Leishman]
+
+    RNN  This is a pretty big chunk of new code with the RNN model, it's
+    layers, some visualization code and the Moby Dick data set. Changes to
+    learning rule, activation etc. are fairly minimal, but might have some
+    (as of yet undiscovered) effects on current and future models. Make
+    sanity passes, but for example tahn has been changed to follow the new
+    format of sigmoid, so any model that uses it would need to be updated.
+    Similarity, there were some strange things going on with
+    linear_monotone momentum, which I think I fixed, but that might lead
+    to strange results if the old behavior is expected. I am not yet 100%
+    sure this network is bug free, as there appear to be some subtle
+    differences to the reference_implementations/rnn2.py which should do
+    the same thing (and has been checked by numerical gradient). Since I
+    am shifting my focus to LSTMs now, I want to get it into master in
+    this state anyway.  See merge request !65
+
+* Merge branch 'ResponseLayerFeature' into 'master' [Scott Leishman]
+
+    Response layer feature  This branch adds a cross-map response
+    normalization layer and some missing pooling operations.  - average
+    pooling and l2 pooling for gpu backend (requires latest cudanet) -
+    CrossMap response norm along with gpu and cpu fprop and bprop
+    functions (MYL-113) - also added cpu backend power() function (we
+    should be careful to handle negative numbers properly because
+    numpy.power can have weird behavior)  See merge request !64
+
+* Merge branch 'build_cleanup' into 'master' [Anil Thomas]
+
+    Build cleanup - restrict default requirements and fix build
+    environment issues  Tired of build failed emails?  Well this set of
+    commits should address this as well as more appropriately handle
+    requirements installation (when coupled with the updated cmake based
+    install of cuda-convnet-2, see the [merge
+    request](http://gitlab.localdomain/algorithms/cuda-
+    convnet2/merge_requests/6) -- for the moment I've disabled GPU based
+    tests in tox on the CI servers while this is being reviewed).  Now
+    you'll need to explicitly edit `setup.cfg` once, or pass in parameters
+    to your `make` calls to get GPU or distributed functionality, which is
+    documented [here](http://atlas.localdomain:5700/using_neon.html
+    #configuration-setup).  I can only assign this commit to 1 individual
+    (sorry @anil, you're the unlucky recipient!) but @alex, @arjun, @urs,
+    @amir it would be great if you could each check out this branch and
+    try and install/test on whatever machine you use to develop to make
+    sure there aren't any lingering issues, or if the documentation isn't
+    clear.  Please report any feedback in the comments and I'll try and
+    address them.  See merge request !63
+
+* Conditionally import GPU only when CUDA card is installed. [Scott Leishman]
+
+* Merge branch 'perf2' into 'master' [Scott Leishman]
+
+    Perf2  See merge request !62
+
+* Fix bug with dropout layer integration. [Anil Thomas]
+
+* Merge branch 'DropoutFeature' into 'master' [Anil Thomas]
+
+    Dropout feature  This is just the dropout stuff but added on top of
+    the most recent master (as opposed to the one that was branched off of
+    GPU_MPI a week ago).  Passes make test and make style  See merge
+    request !61
+
+* Merge branch 'mop_updates' into 'master' [Scott Leishman]
+
+    Copyright notice updates  Touches nearly every file to add our
+    copyright notice.  Also small update to ensure that when we run
+    `publish_docs` permissions are not set too restrictive.  See merge
+    request !60
+
+* Merge branch 'GPU_mpi' into 'master' [Scott Leishman]
+
+    Gpu mpi  Changes in this branch: - Correct behavior of col/row slice
+    as far as views and copies go - Makes use of new cudanet capability
+    for device selection - Implements GPUDist backend for data parallel -
+    Fixes some potentially very bad behavior of dtype overriding (passing
+    None for dtype overrides default value of np.float32) - Corrects
+    problem of streaming for argmax and argmin kernels where data was
+    being read prior to kernel execution completion - Needs latest master
+    of cudanet in order to work  See merge request !59
+
+* Merge branch 'mop_updates' into 'master' [Scott Leishman]
+
+    argmin, argmax, p-norm, other cleanup and unit tests  Finished
+    revamping argmin, argmax, norm across each of the three backends.
+    Wrote unit tests for each, updated docs and so forth.  See merge
+    request !58
+
+* revert previous gpu unit test change. [Scott Leishman]
+
+* temporary work-around to get builds running ok. [Scott Leishman]
+
+* fix broken GPU tensor unit test. [Scott Leishman]
+
+* Merge branch 'perf2' into 'master' [Scott Leishman]
+
+    Perf2  See merge request !57
+
+* Temporarily remove optional package requirements. [Scott Leishman]
+
+    This will break tests for the moment!
+
+* Restore virtual environment tox path. [Scott Leishman]
+
+* Use cpu not numpy backend for cnn adadelta. [Scott Leishman]
+
+* Merge branch 'master' of https://github.com/NervanaSystems/neon. [Scott Leishman]
+
+    Merging in Amir's license fix from github.  Closes MYL-116
+
+* Included square and cube into cudanet backend. [Alex Park]
+
+* Adding an adadelta cnn for numpy. [Alex Park]
+
+* Merge branch 'mop_updates' into 'master' [Scott Leishman]
+
+    Mop updates - remove logical operators, add unit tests and doc
+    strings, new functions.  Partially closes MYL-85  Several other
+    additions and cleanups too.  See merge request !55
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    Implements data parallel MLP and convnet.  Earlier models were using
+    the halo/tower strategy or vector parallel strategy. For the GPU
+    cluster, the simplest thing we want to try are data parallel models.
+    This implements an MLP and convnet (for CPU backend: step 1 of
+    MYL-92). Step 2 will be GPU backend support.  Also updated the MPI
+    docs (though WIP).  *Master was merged in before this request  See
+    merge request !54
+
+* Remove un-needed modules. [Scott Leishman]
+
+* Merge branch 'perf2' into 'master' [Scott Leishman]
+
+    Perf2  Sanity tests.  See merge request !51
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    distributed MLP support for layers with bias  merged in master before
+    submitting merge request  See merge request !53
+
+* Merge branch 'mop_updates' into 'master' [Scott Leishman]
+
+    CI build fixes, consistent transpose  * Ensure Linux based builds can
+    find CUDA libs during tox run.  Needed for our new CI server * fix
+    small python3 incompatibility. * get rid of .T in existing code, force
+    use of .transpose() in backends, models, and layers.  See merge
+    request !52
+
+* Cleanup flexpoint make clean target. [Scott Leishman]
+
+* Merge branch 'mop_updates' into 'master' [Scott Leishman]
+
+    Mop updates - round 1  Completes first pass of MOP updates.  Biggest
+    changes include: * force instance creation for each backend operation
+    (cleans up inconsistent mix of class/static methods) * backends and
+    tensors have been renamed, now have CPU (numpy derived) and GPU (cuda-
+    convenet2 derived) backends, with existing _numpy, _cudamat, _cudanet
+    backends and tensors relegated to an unsupported subdir.   * We may
+    drop unsupported backends altogether in the future, but for now we
+    keep them around.  We will not push functionality updates to them
+    though   * required renaming all example networks, unit tests, and so
+    forth * renamed fixed decimal point work to flexpoint, applied a
+    couple of fixes to match updates to other backends and layer/model
+    changes.   * This work is still incomplete so flexpoint examples
+    remain broken * audited documentation so that it reflects current set
+    of models, layers, datasets implemented.  See merge request !50
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    Fix dist and non-dist inconsistencies following recent merges  GB and
+    GB dist match (doesn't fix MYL-102 though) Convnet and Convnet Dist
+    match  With MLP there is small divergence between dist, non-dist, and
+    GPU non-dist. Not sure what is causing it or whether it is
+    significant.  See merge request !49
+
+* Minor license updates. [Scott Leishman]
+
+* Merge branch 'LearningRuleRefactor' into 'master' [Scott Leishman]
+
+    Learning rule refactor  See merge request !47
+
+* Merge branch 'license' into 'master' [Scott Leishman]
+
+    License  See merge request !48
+
+* Merge branch 'cudaconvnet_integration' [Scott Leishman]
+
+    Manually resolved some dataset related conflicts.  Seeing some issue
+    with GB distributed net and possibly others.  Checking into mainline
+    so that Arjun can help debug.
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    simplify install and add initial dist MLP support  See merge request
+    !46
+
+* Merge branch 'adadelta' into 'master' [Scott Leishman]
+
+    Adadelta  This is an adaDelta implementation for neon-CPU for
+    comparison to @alex cuda-convnet implementation.  There are some rough
+    ends that I'd like to get feedback from @scott on: To avoid breaking
+    existing yaml files that don't have the &quot;ada&quot; field, MLP.py line 26
+    creates this reference if it does not exist. I don't want to change
+    all yaml files because this would tempt users to set
+    ada['enable']=True for models that don't (yet) support it.  I am using
+    a similar hack in layer.py line 167 and there I actually don't know
+    what the right way would be to do this, suggestions?  See merge
+    request !43
+
+* Merge branch 'distarray' into 'master' [Arjun Bansal]
+
+    minor docs  See merge request !44
+
+* Merge branch 'distarray' into 'master' [Scott Leishman]
+
+    minor additions and cleanup for MPI related features  This should help
+    Amir with NERSC/MPI models.  See merge request !42
+
+* Merge branch 'fixpt_backend' into 'master' [Scott Leishman]
+
+    Fixpt backend  Various fixedpoint backend improvements and changes.
+    Adds additional tests, smaller network and so forth.  Also slightly
+    modified initial logger creation.  See merge request !41
+
+* Add tag to changelog. [Scott Leishman]
 
 
 ## v0.4.0 (2014-10-26)
