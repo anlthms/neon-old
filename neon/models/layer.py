@@ -769,7 +769,7 @@ class DataLayer(YAMLable):
         if not self.partition:
             raise ValueError('Dataset partition must be selected prior to use')
 
-        if not self.partition in self.inputs:
+        if self.partition not in self.inputs:
             raise ValueError('Partition does not exist')
 
         raise NotImplementedError('Have to implement DataLayer')
@@ -2296,7 +2296,7 @@ class CrossMapResponseNormLayer(YAMLable):
         self.pos = pos
 
         self.ksize = ksize
-        self.alpha = alpha
+        self.alpha = alpha * 1.0 / ksize
         self.beta = beta
 
         self.output = self.backend.empty((self.nout, self.batch_size))
