@@ -622,7 +622,7 @@ class CPU(Backend):
         elif order == 0:
             res = np.sum(tsr._tensor != 0, axis)
         else:
-            res = np.sum(np.abs(tsr._tensor)**order, axis)**(1.0 / order)
+            res = np.sum(np.abs(tsr._tensor) ** order, axis) ** (1.0 / order)
         if out is None:
             out = self.array(res)
         else:
@@ -928,7 +928,8 @@ class CPU(Backend):
         rinputs = inputs._tensor.reshape(nfm, H, W, N)
         routputs = outputs._tensor.reshape(nfm, H, W, N)
         for i in xrange(nfm):
-            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
+            knlidx = range(
+                max(i - ksize / 2, 0), min(i - ksize / 2 + ksize, nfm))
             x = rinputs.take(knlidx, axis=0)
             np.square(x).sum(axis=0, out=routputs[i, :, :, :])
         self.multiply(outputs, self.wrap(alpha), out=outputs)
@@ -948,16 +949,17 @@ class CPU(Backend):
         rtemp = temp._tensor.reshape(nfm, H, W, N)
         routputs = inputs._tensor.reshape(nfm, H, W, N)
         for i in xrange(nfm):
-            knlidx = range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm))
+            knlidx = range(
+                max(i - ksize / 2, 0), min(i - ksize / 2 + ksize, nfm))
             x = rinputs.take(knlidx, axis=0)
             np.square(x).sum(axis=0, out=rberror[i, :, :, :])
-            knlidx2 = range(max(i+ksize-ksize/2, 0),
-                            min(i+ksize/2+1, nfm))
+            knlidx2 = range(max(i + ksize - ksize / 2, 0),
+                            min(i + ksize / 2 + 1, nfm))
             grad = rerror.take(knlidx2, axis=0)
             inp = rinputs.take(knlidx2, axis=0)
             act = routputs.take(knlidx2, axis=0)
-            (grad*act*np.power(act/inp, 1.0/beta)).sum(axis=0,
-                                                       out=rtemp[i, :, :, :])
+            (grad * act * np.power(
+                act / inp, 1.0 / beta)).sum(axis=0, out=rtemp[i, :, :, :])
 
         self.multiply(temp, self.wrap(-2.0 * alpha * beta), out=temp)
         self.multiply(temp, inputs, out=temp)
@@ -1002,19 +1004,19 @@ class CPU(Backend):
 
     def gen_weights(self, size, weight_params, dtype=None):
         """
-        Different types of weight initializations:
-        uniform - uniform distribution
-        sparse_eigenvalued - each weight has 15 nonzero inputs and the
-                maximum eigenvalue of the weight matrix is scaled to 1.2
-        normal or gaussian - normal distribution
-        node_normalized - initialization is as discussed in Glorot2010
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
 
-        Inputs:
+        Arguments:
             size: shape of the weight matrix to generate
             weight_params: parameters 'type', 'high', 'low', 'loc', etc.
 
-        Outputs:
-            weights: The weights
+        Returns:
+            CPUTensor: The initialized weights
         """
         weights = None
         if 'dtype' in weight_params:
@@ -1050,7 +1052,7 @@ class CPU(Backend):
                 eigenvalue = weight_params['eigenvalue']
             logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
                         (str(size), sparseness, eigenvalue))
-            elements = size[0]*size[1]
+            elements = size[0] * size[1]
             nonzeros = size[0] * sparseness
             weights = np.zeros(size).flatten()
             nonzeroindex = np.random.permutation(elements)[0:nonzeros]
@@ -1084,10 +1086,22 @@ class CPU(Backend):
         return weights
 
 
+# template for CPUDist (wrap MPI function calls so _tensor don't have to be
+# exposed in layer code)
+class CPUDist(CPU):
+
+    def bcast(self, buf, rank=0):
+        buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
+
+# once CPUDist is implemented inherit from CPUDist
+
+
 class CPUDataDist(CPU):
+
     """
     helper sub-class for data parallel implementations
     """
+
     def update_fc(self, deltas, inputs, out):
         super(CPUDataDist, self).update_fc(deltas, inputs, out)
         # trivial implementation below

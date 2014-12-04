@@ -2,7 +2,7 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Simple multi-layer perceptron model.
+Convolution network using halopar
 """
 
 import logging
@@ -48,6 +48,8 @@ class ConvnetDist(MLPDist):
                 top_mp_ifmwidth = layer.ifmwidth
             elif isinstance(layer, LayerWithNoBiasDist):
                 # fully connected layer: no halo transfers needed
+                # nout_ is the full size of the layer
+                # nout will be the split size of the layer
                 layer.nout_ = layer.nout
                 if i < self.nlayers - 1:
                     if layer.nout % MPI.COMM_WORLD.size != 0:

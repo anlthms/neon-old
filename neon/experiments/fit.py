@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class FitExperiment(Experiment):
+
     """
     In this `Experiment`, a model is trained on a training dataset to
     learn a set of parameters
@@ -30,6 +31,7 @@ class FitExperiment(Experiment):
     TODO:
         add other params
     """
+
     def __init__(self, **kwargs):
         # default dist_flag to False
         self.dist_flag = False
@@ -60,7 +62,21 @@ class FitExperiment(Experiment):
                         raise AttributeError("dist_flag set but mpi4py not "
                                              "installed")
                 if os.path.exists(ds.serialized_path):
+                    set_batches = False
+                    if hasattr(self.datasets[ds_idx], 'start_train_batch'):
+                        [tmp1, tmp2, tmp3, tmp4] = [
+                            self.datasets[ds_idx].start_train_batch,
+                            self.datasets[ds_idx].end_train_batch,
+                            self.datasets[ds_idx].start_val_batch,
+                            self.datasets[ds_idx].end_val_batch]
+                        set_batches = True
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
+                    if set_batches:
+                        [self.datasets[ds_idx].start_train_batch,
+                         self.datasets[ds_idx].end_train_batch,
+                         self.datasets[ds_idx].start_val_batch,
+                         self.datasets[ds_idx].end_val_batch] = [
+                            tmp1, tmp2, tmp3, tmp4]
                 else:
                     ds.load()
                     serialize(ds, ds.serialized_path)

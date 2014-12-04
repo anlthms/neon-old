@@ -566,6 +566,8 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
+        # set cuda device to device 0 by default
+        cudanet.set_device_id(0)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
@@ -705,13 +707,15 @@ class GPU(Backend):
         Returns:
             Tensor: Of specified size filled with these random numbers.
         """
-        # This is the slow version for checking via cpu generated randoms
-        # a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
+        # This slow implementation is kept here in commented form should you
+        # need to ensure consistency with CPU generated random numbers:
+        # a.raw(dohostcopy=False)[:] = numpy.array((numpy.random.uniform(
         #     size=a._tensor.shape) < keepthresh) / keepthresh,
         #     dtype=numpy.float32)
         # a.copy_to_device()
 
-        # This is the fast version using device generated random matrix
+        # This implementation is faster but breaks consistency with CPU
+        # backend based random numbers:
         a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
@@ -896,7 +900,7 @@ class GPU(Backend):
             self.not_equal(tsr, tmp, tmp)
             res = tmp.sum(axis)
         else:
-            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis)) ** (1.0 / order)
         if out is None:
             out = res
         else:
@@ -1135,6 +1139,21 @@ class GPU(Backend):
         cudanet.sync_stream()
 
     def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
+
+        Arguments:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Returns:
+            GPUTensor: The initialized weights
+        """
         # FIXME: Get rid of duplication.
         weights = None
         if weight_params['type'] == 'uniform':
@@ -1202,9 +1221,11 @@ class GPU(Backend):
 
 
 class GPUDataDist(GPU):
+
     """
     helper sub-class for data parallel implementations
     """
+
     def __init__(self, **kwargs):
         local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
