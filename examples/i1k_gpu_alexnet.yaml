@@ -7,7 +7,7 @@
   backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.i1k.I1K {
@@ -15,8 +15,10 @@
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
       serialized_path: '/usr/local/data/I1K/I1K_alexnet.pkl', #delete if loading files from scratch
-      sample_pct: .1, #ignored for now
+      # sample_pct: .1, #ignored for now
       macro_batched: True,
+      output_image_size: &ois 224,
+      max_tar_file: 4,
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
       start_train_batch: 0,
@@ -55,7 +57,7 @@
         },
         nifm: 3,
         nofm: 64,
-        ifmshape: [224, 224],
+        ifmshape: [*ois, *ois],
         fshape: [11, 11],
         stride: 4,
         weight_init: {

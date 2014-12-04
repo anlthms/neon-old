@@ -52,6 +52,7 @@ class I1K(Dataset):
         self.end_val_batch = -1
         self.__dict__.update(kwargs)
         if self.dist_flag:
+            raise NotImplementedError('Dist not implemented for I1K!')
             if MPI_INSTALLED:
                 from mpi4py import MPI
                 self.comm = MPI.COMM_WORLD
@@ -77,9 +78,8 @@ class I1K(Dataset):
             self.save_dir = save_dir
             # for now assuming that dataset is already there
             # ToS of imagenet prohibit distribution of URLs
-            # self.fetch_dataset(save_dir)
 
-            # from krizhevsky's make-data.py
+            # based on krizhevsky's make-data.py
             ilsvrc_train_tar = os.path.join(
                 load_dir, 'ILSVRC2012_img_train.tar')
             ilsvrc_validation_tar = os.path.join(
@@ -99,10 +99,12 @@ class I1K(Dataset):
                 synsets = tf.getmembers()
                 synset_tars = [
                     tarfile.open(fileobj=tf.extractfile(s)) for s in synsets]
-                synset_tars = synset_tars[:4]  # todo: delete this line
+                # subsampling the first n tar files for now
+                # todo: delete this line
+                synset_tars = synset_tars[:self.max_tar_file]
                 logger.info("Loaded synset tars.")
-                logger.info("Building training set image list ",
-                            "(this can take 10-20 minutes)...")
+                logger.info('Building training set image list '
+                            '(this can take 10-20 minutes)...')
 
                 train_jpeg_files = []
                 for i, st in enumerate(synset_tars):
@@ -120,17 +122,16 @@ class I1K(Dataset):
                 logger.info("created list of jpg files")
 
                 self.crop_to_square = True
-                self.output_image_size = 224
                 # todo: Number of threads to use for JPEG decompression and
                 # image resizing.
                 self.num_worker_threads = 8
-                self.output_batch_size = 3072  # macro batch size
-                # np.floor(self.sample_pct*len(train_jpeg_files))
+                # macro batch size
+                self.output_batch_size = 3072
                 self.max_file_index = 3072
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
 
-                self.val_max_file_index = 3072  # 00
+                self.val_max_file_index = 3072 
                 val_label_sample = validation_labels[0:self.val_max_file_index]
 
                 # todo 2: implement macro batching [will require changing model
@@ -138,7 +139,8 @@ class I1K(Dataset):
                 if self.macro_batched:
                     # Write training batches
                     self.num_train_macro_batches = self.write_batches(
-                        os.path.join(save_dir, 'macro_batches'),
+                        os.path.join(save_dir, 'macro_batches_'
+                                     + str(self.output_image_size)),
                         'training', 0,
                         label_sample, jpeg_file_sample)
                     with self.open_tar(ilsvrc_validation_tar,
@@ -149,7 +151,8 @@ class I1K(Dataset):
                         val_file_sample = validation_jpeg_files[
                             0:self.val_max_file_index]
                         self.num_val_macro_batches = self.write_batches(
-                            os.path.join(save_dir, 'macro_batches'),
+                            os.path.join(save_dir, 'macro_batches_'
+                                         + str(self.output_image_size)),
                             'validation', 0,
                             val_label_sample,
                             val_file_sample)
@@ -243,8 +246,8 @@ class I1K(Dataset):
                         raw_targets=False):
 
         batch_path = os.path.join(
-            self.save_dir, 'macro_batches', '%s_batch_%d' % (
-                batch_type, macro_batch_index))
+            self.save_dir, 'macro_batches_' + str(self.output_image_size),
+            '%s_batch_%d' % (batch_type, macro_batch_index))
         j = 0
         self.jpeg_strings = self.unpickle(
             os.path.join(batch_path, '%s_batch_%d.%d' % (
@@ -336,7 +339,7 @@ class I1K(Dataset):
             if self.cur_val_mini_batch >= num_minibatches_in_macro:
                 self.cur_val_mini_batch = 0
 
-        # TODO: resize image to 224x224 here224
+        # TODO: resize 256x256 image to 224x224 here
 
         # if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
         #    return self.backend.array(inputs), self.backend.array(targets)

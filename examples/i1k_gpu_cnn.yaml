@@ -15,14 +15,16 @@
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
       serialized_path: '/usr/local/data/I1K/I1K_dataset.pkl', #delete if loading files from scratch
-      sample_pct: .1,
+      # sample_pct: .1,
+      max_tar_file: 4, #use this instead of sample_pct
       macro_batched: True,
+      output_image_size: &ois 256,
       # macro batch start and end indices for train and val datasets
-      #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
+      # need #macro batches * output_batch_size to divide nrecs
       start_train_batch: 0,
-      end_train_batch: 4,
-      start_val_batch: 1,
-      end_val_batch: 4,
+      end_train_batch: 0,
+      start_val_batch: 0,
+      end_val_batch: 0,
     },
   ],
 
@@ -30,8 +32,8 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 2,
-    batch_size: &bs 100,
+    num_epochs: 1,
+    batch_size: &bs 128,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.ConvLayer {
@@ -55,7 +57,7 @@
         },
         nifm: 3,
         nofm: 16,
-        ifmshape: [256, 256],
+        ifmshape: [*ois, *ois],
         fshape: [4, 4],
         stride: 4,
         weight_init: {
