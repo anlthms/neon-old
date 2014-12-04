@@ -944,7 +944,7 @@ class CPU(Backend):
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
         rinputs = inputs.reshape((nfm, H, W, N))
         rberror = berror.reshape((nfm, H, W, N))
-        routputs = inputs.reshape((nfm, H, W, N))
+        routputs = outputs.reshape((nfm, H, W, N))
 
         otemp = routputs.copy()
         # We can do this because rinputs[routputs == 0].sum() == 0
