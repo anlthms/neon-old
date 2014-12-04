@@ -492,6 +492,22 @@ class GPUTensor(Tensor):
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
+    def sumsq(self, axis=None):
+        """
+        Sum of squares of elements of a CudanetTensor. If axis is None,
+        all elements are summed and a numpy scalar returned. If axis is 1
+        or 2, sum along that axis and return a CudanetTensor.
+        """
+        if axis is None:
+            result = self._tensor.sumsq(axis=None)
+            logger.debug('Copying to host')
+            result.copy_to_host()
+            return result.numpy_array[0][0]
+        else:
+            result = self._tensor.sumsq(axis=axis)
+            logger.debug('major change in functionality of sum')
+            return GPUTensor(result)
+
     def mean(self, axis=None):
         result = self._tensor.mean(axis)
         logger.debug('Copying to host')
@@ -645,19 +661,22 @@ class GPU(Backend):
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
+        cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
+        return out
+
         # storage needed here is pretty atrocious.  Any way we could speed this
         # up?  Would iterating element wise be faster?
-        clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip values < a_min to a_min in out
-        a._tensor.less_than(a_min, clip_mask)
-        clip_vals.assign(a_min)
-        cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # clip values > a_max to a_max in out
-        out._tensor.greater_than(a_max, clip_mask)
-        clip_vals.assign(a_max)
-        cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        return out
+        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
+        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
+        # # clip values < a_min to a_min in out
+        # a._tensor.less_than(a_min, clip_mask)
+        # clip_vals.assign(a_min)
+        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        # # clip values > a_max to a_max in out
+        # out._tensor.greater_than(a_max, clip_mask)
+        # clip_vals.assign(a_max)
+        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        # return out
 
     def rng_init(self):
         seed = None
@@ -891,6 +910,12 @@ class GPU(Backend):
             out.dtype = res.dtype
         return out
 
+    def xcov(self, a, b, out):
+        cudanet.xcov(a._tensor, b._tensor, out._tensor)
+
+    def mean_norm(self, a, axis, out):
+        cudanet.mean_norm(a._tensor, axis, out._tensor)
+
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
 
@@ -899,6 +924,9 @@ class GPU(Backend):
 
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
+
+    def tanh(self, x, out):
+        cudanet.tanh(x._tensor, out._tensor)
 
     def rectlin(self, x, out):
         self.greater(x, self.wrap(0), out=out)
@@ -1005,6 +1033,12 @@ class GPU(Backend):
     def squish(self, obj, n):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
+
+    def softmax(self, x, out):
+        cudanet.softmax(x._tensor, out._tensor)
+
+    def softmax_gradient(self, y, err, out):
+        cudanet.softmax_grad(y._tensor, err._tensor, out._tensor)
 
     def nonzero(self, x):
         res = x._tensor.copy()
@@ -1144,8 +1178,28 @@ class GPU(Backend):
                         (str(size), loc, scale))
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
-            # TODO: Needs the numpyapply function to be implemented
-            raise NotImplementedError("TODO: linalg.eig call though numpy")
+            # initialization for RNNS as in Sutskever 2013
+            sparseness = 15
+            eigenvalue = 1.2
+            if 'sparseness' in weight_params:
+                sparseness = weight_params['sparseness']
+            if 'eigenvalue' in weight_params:
+                eigenvalue = weight_params['eigenvalue']
+            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
+                        (str(size), sparseness, eigenvalue))
+            elements = size[0]*size[1]
+            nonzeros = size[0] * sparseness
+            weights = numpy.zeros(size).flatten()
+            nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
+            weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
+            weights = weights.reshape(size).copy()
+            if size[0] == size[1]:
+                temp = numpy.linalg.eig(weights)
+                max_eig = numpy.max(numpy.absolute(temp[0]))
+                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
+                weights = eigenvalue * weights / max_eig
+            else:
+                logger.info('Matrix is non-square, no eigenvalue scaling.')
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0

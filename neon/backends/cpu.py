@@ -282,6 +282,13 @@ class CPUTensor(Tensor):
         else:
             return self.__class__(res)
 
+    def sumsq(self, axis=None, dtype=np.float32, out=None):
+        res = np.sum(self._tensor * self._tensor, axis, dtype, out)
+        if axis is None:
+            return res
+        else:
+            return self.__class__(res)
+
 
 class CPU(Backend):
 
@@ -623,6 +630,18 @@ class CPU(Backend):
             out.shape = res.shape
         return out
 
+    def xcov(self, a, b, out):
+        a0 = a._tensor - a._tensor.mean(1, keepdims=True)
+        b0 = b._tensor - b._tensor.mean(1, keepdims=True)
+        np.dot(a0, b0.T, out._tensor)
+        self.divide(out, self.wrap(a.shape[0]), out=out)
+
+    def mean_norm(self, a, axis, out):
+        if (axis == -1 or not axis):
+            out._tensor = a._tensor - a._tensor.mean()
+        else:
+            out._tensor = a._tensor - a._tensor.mean(axis, keepdims=True)
+
     def exp(self, x, out):
         np.exp(x._tensor, out=out._tensor)
 
@@ -634,6 +653,10 @@ class CPU(Backend):
         self.exp(out, out=out)
         self.add(out, self.wrap(1.0), out=out)
         self.reciprocal(out, out=out)
+
+    def tanh(self, x, out):
+        np.exp(-2.0 * x._tensor, out=out._tensor)
+        np.divide(1. - out._tensor, 1. + out._tensor, out=out._tensor)
 
     def rectlin(self, x, out):
         self.greater(x, self.wrap(0), out=out)
@@ -746,6 +769,20 @@ class CPU(Backend):
         """
         assert obj.shape[1] % nfm == 0
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
+
+    def softmax(self, x, out):
+        x._tensor.max(axis=0, out=out._tensor[0, :])
+        np.subtract(x._tensor, x._tensor.max(axis=0, keepdims=True),
+                    out._tensor)
+        np.exp(out._tensor, out._tensor)
+        # This uses some temporary storage, but might be ok?
+        np.divide(out._tensor, np.sum(out._tensor, axis=0, keepdims=True),
+                  out._tensor)
+
+    def softmax_gradient(self, y, err, out):
+        a = np.einsum('ij,ji->i', err._tensor.T, y._tensor)
+        np.subtract(err._tensor, a[np.newaxis, :], out._tensor)
+        np.multiply(out._tensor, y._tensor, out._tensor)
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):

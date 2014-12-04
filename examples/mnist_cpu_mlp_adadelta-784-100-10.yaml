@@ -7,11 +7,11 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
-    seterr_handling: { 
+    seterr_handling: {
       all: 'warn',
     },
   },
-  
+
   datasets: [
     # MNIST data
     !obj:neon.datasets.mnist.MNIST {
@@ -20,13 +20,12 @@
       sample_pct: 100,
     },
   ],
-  
+
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -50,7 +49,7 @@
           scale: 0.01,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -73,8 +72,11 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

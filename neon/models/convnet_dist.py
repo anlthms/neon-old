@@ -113,16 +113,14 @@ class ConvnetDist(MLPDist):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch):
+    def bprop(self, targets, inputs):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if MPI.COMM_WORLD.rank == 0:
-            error = self.cost.apply_derivative(self.backend,
-                                               lastlayer.output, targets,
-                                               self.temp)
+            error = self.cost.apply_derivative(targets)
             self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
@@ -132,12 +130,10 @@ class ConvnetDist(MLPDist):
             if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
-                                     take(self.layers[i].in_indices, axis=0),
-                                     epoch)
+                                     take(self.layers[i].in_indices, axis=0))
             else:
                 self.layers[i].bprop(error,
-                                     self.layers[i - 1].output,
-                                     epoch)
+                                     self.layers[i - 1].output)
             error = self.layers[i].berror
             i -= 1
             if isinstance(self.layers[i], LayerWithNoBiasDist):
@@ -150,9 +146,7 @@ class ConvnetDist(MLPDist):
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
         # Following is for top MPL layer
-        self.layers[i].bprop(error,
-                             self.layers[i - 1].output,
-                             epoch)
+        self.layers[i].bprop(error, self.layers[i - 1].output)
         while i > 0:
             i -= 1
             # aggregate the berror terms at halo locations
@@ -162,5 +156,4 @@ class ConvnetDist(MLPDist):
                 self.layers[
                     i + 1].input.local_array.get_bprop_view(
                     self.layers[i + 1].berror),
-                self.layers[i].input.local_array.chunk,
-                epoch)
+                self.layers[i].input.local_array.chunk)

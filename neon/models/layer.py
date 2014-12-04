@@ -115,7 +115,7 @@ class Layer(YAMLable):
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         """
         # numpy pseudocode for the backprop:
         # updates = dot(error.transpose(), inputs)  # calculate new gradient
@@ -131,7 +131,12 @@ class Layer(YAMLable):
 
         inputs = self.backend.append_bias(inputs)
         self.backend.update_fc(error, inputs, out=self.updates)
+
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class LayerDist(Layer):
@@ -193,7 +198,7 @@ class LayerDist(Layer):
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         """
         # numpy pseudocode for the backprop:
         # updates  = dot(error.T, inputs)        # calculate new gradient
@@ -223,6 +228,7 @@ class LayerDist(Layer):
                                       out=self.berror)
             self.backend.update_fc(error, inputs, out=self.updates)
 
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
@@ -247,14 +253,14 @@ class LayerWithNoBias(Layer):
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch):
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
-
+    def bprop(self, error, inputs):
+        # comment if not using denominator term in cross_entropy
+        self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
             self.backend.bprop_fc(error, self.weights, out=self.berror)
         self.backend.update_fc(error, inputs, out=self.updates)
 
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
@@ -604,7 +610,7 @@ class LayerWithNoBiasDist(LayerWithNoBias):
         # but a consequence of reusing the pre_act buffer for fprop and bprop
         self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         # comment if not using denominator term in cross_entropy
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act_, out=error)
@@ -624,7 +630,65 @@ class LayerWithNoBiasDist(LayerWithNoBias):
                                       out=self.berror)
             self.backend.update_fc(error, inputs, out=self.updates)
 
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+
+class BranchLayer(YAMLable):
+
+    """
+    Branch layer is composed of a list of other layers
+    during fprop, it concatenates the component outputs and passes it on
+    during bprop, it splits the backward errors into the components and
+        accumulates into a common berror
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nin, sublayers,
+                 output_dtype=None, berror_dtype=None):
+        self.name = name
+        self.backend = backend
+        self.nin = nin
+        self.nout = 0
+        self.sublayers = sublayers
+        self.nsublayers = len(self.sublayers)
+        self.startidx = [0]*len(self.sublayers)
+        self.endidx = [0]*len(self.sublayers)
+
+        for i in xrange(self.nsublayers):
+            self.nout += self.sublayers[i].nout
+            self.endidx[i] = self.nout
+            if i > 0:
+                self.startidx[i] = (self.startidx[i-1] +
+                                    self.sublayers[i-1].nout)
+
+        self.output = backend.empty((self.nout, batch_size), output_dtype)
+        self.pos = pos
+        if pos > 0:
+            self.berror = backend.empty((nin, batch_size), berror_dtype)
+
+    def fprop(self, inputs):
+        for (sublayer, s_idx, e_idx) in zip(self.sublayers,
+                                            self.startidx, self.endidx):
+            sublayer.fprop(inputs)
+            self.output[s_idx:e_idx] = sublayer.output
+
+    def bprop(self, error, inputs):
+        for (sublayer, s_idx, e_idx) in zip(self.sublayers,
+                                            self.startidx, self.endidx):
+            sublayer.bprop(error[s_idx:e_idx], inputs)
+
+        if self.pos > 0:
+            self.berror[:] = self.backend.wrap(0.0)
+            for sublayer in self.sublayers:
+                self.backend.add(self.berror, sublayer.berror, out=self.berror)
+
+    def update(self, epoch):
+        for sublayer in self.sublayers:
+            sublayer.update(epoch)
+
+    def set_train_mode(self, mode):
+        for sublayer in self.sublayers:
+            sublayer.set_train_mode(mode)
 
 
 class DropOutLayer(YAMLable):
@@ -651,7 +715,7 @@ class DropOutLayer(YAMLable):
         self.output = self.backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
         if pos > 0:
-            self.berror = backend.empty((nin, batch_size))
+            self.berror = backend.empty((nin, batch_size), berror_dtype)
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -661,12 +725,63 @@ class DropOutLayer(YAMLable):
             self.backend.multiply(self.backend.wrap(self.keep), inputs,
                                   out=self.output)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.multiply(error, self.keepmask, out=self.berror)
 
+    def update(self, epoch):
+        pass
+
     def set_train_mode(self, mode):
         self.train_mode = False
+
+
+class DataLayer(YAMLable):
+
+    """
+    Data Layer takes datasets as input and on fprop, passes forward the latest
+    batch
+    """
+
+    def __init__(self, name, backend, batch_size, datasets):
+        self.name = name
+        self.backend = backend
+        self.batch_size = batch_size
+        self.datasets = datasets
+        self.output = self.backend.empty((self.nout, batch_size))
+        self.current_batch = 0
+        self.partition = None
+
+    def init_datasets(self, train=True, test=True, validation=True):
+        self.train = train
+        self.test = test
+        self.validation = validation
+        self.inputs = self.datasets[0].get_inputs(
+            train=self.train, test=self.test, validation=self.validation)
+        self.targets = self.datasets[0].get_targets(
+            train=self.train, test=self.test, validation=self.validation)
+
+    def select_partition(self, partition):
+        self.current_batch = 0
+        self.partition = partition
+
+    def fprop(self, dummyvar):
+        if not self.partition:
+            raise ValueError('Dataset partition must be selected prior to use')
+
+        if not self.partition in self.inputs:
+            raise ValueError('Partition does not exist')
+
+        raise NotImplementedError('Have to implement DataLayer')
+
+    def bprop(self, error, inputs):
+        pass
+
+    def update(self, epoch):
+        pass
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class RBMLayer(Layer):
@@ -690,6 +805,7 @@ class RBMLayer(Layer):
         self.learning_rule.allocate_state(self.diff)
         self.neg_pre_act = backend.empty((self.nin, batch_size))
         self.x_minus = backend.empty((self.nin, batch_size))
+        self.output = backend.empty((self.nin-1, batch_size))
 
     def positive(self, inputs):
         """
@@ -723,8 +839,7 @@ class RBMLayer(Layer):
         self.backend.fprop_fc(self.x_minus, self.weights, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_minus)
-        self.backend.update_fc(self.p_hid_minus, self.x_minus,
-                               out=self.p_minus)
+        self.output[:] = self.x_minus[:-1]
 
     def update(self, epoch):
         """
@@ -733,10 +848,10 @@ class RBMLayer(Layer):
         Arguments:
             epoch: not used, for future compatibility
         """
+        self.backend.update_fc(self.p_hid_minus, self.x_minus,
+                               out=self.p_minus)
         self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
-
         self.learning_rule.apply_rule(self.weights, self.diff, epoch)
-        # epoch, momentum?
 
 
 class LocalLayer(YAMLable):
@@ -827,6 +942,9 @@ class LocalLayer(YAMLable):
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class LocalLayerDist(LocalLayer):
@@ -986,7 +1104,7 @@ class ConvLayer(LocalLayer):
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
@@ -998,6 +1116,8 @@ class ConvLayer(LocalLayer):
                                  self.links, self.ifmshape, self.ofmshape,
                                  self.ofmlocs, self.pad, self.stride,
                                  self.nifm, 1, self.fwidth, self.updatebuf)
+
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
@@ -1046,24 +1166,24 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         inputs = self.input.get_fprop_view(inputs_)
         super(ConvLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.bprop_conv(self.weights, error, self.berror,
                                     self.links, self.ifmshape, self.ofmshape,
                                     self.ofmlocs, 0, self.stride, self.nifm,
                                     1, self.bpropbuf)
-        self.backend.update_conv(self.weights, inputs, error, self.updates,
-                                 self.links, self.ifmshape, self.ofmshape,
-                                 self.ofmlocs, 0, self.stride, self.nifm,
-                                 1, self.fwidth, self.updatebuf)
-
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
             self.updates.raw(), op=MPI.SUM, root=0)
         self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
+        self.backend.update_conv(self.weights, inputs, error, self.updates,
+                                 self.links, self.ifmshape, self.ofmshape,
+                                 self.ofmlocs, 0, self.stride, self.nifm,
+                                 1, self.fwidth, self.updatebuf)
 
+    def update(self, epoch):
         # Update the filters after summing the weight updates.
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
@@ -1130,22 +1250,23 @@ class LocalFilteringLayer(LocalLayer):
 
         # Backward propagate the gradient of the reconstruction error
         # through the defiltering layer.
-        error = cost.apply_derivative(self.backend, self.defilter.output,
-                                      inputs, self.defilter.temp)
+        cost.set_outputbuf(self.defilter.output)
+        error = cost.apply_derivative(inputs)
         self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
                             out=error)
-        self.defilter.bprop(error, self.output, epoch)
+        self.defilter.bprop(error, self.output)
+        self.defilter.update(epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[1]) *
                  (self.backend.ones(self.pooling.output.shape)))
-        self.pooling.bprop(error, self.output, epoch)
+        self.pooling.bprop(error, self.output)
         # Aggregate the errors from both layers before back propagating
         # through the current layer.
         berror = self.defilter.berror + self.pooling.berror
-        self.bprop(berror, inputs, epoch)
-        rcost = cost.apply_function(self.backend, self.defilter.output,
-                                    inputs, self.defilter.temp)
+        self.bprop(berror, inputs)
+        self.update(epoch)
+        rcost = cost.apply_function(inputs)
         spcost = self.sparsity * self.pooling.output.sum()
         return rcost, spcost
 
@@ -1163,7 +1284,7 @@ class LocalFilteringLayer(LocalLayer):
             # size: # mbs x nofm
             self.output[self.ofmlocs[dst], :] = self.prodbuf
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.clear(self.berror)
             for dst in xrange(self.ofmsize):
@@ -1189,6 +1310,7 @@ class LocalFilteringLayer(LocalLayer):
                              out=self.updatebuf)
             self.updates[self.ofmlocs[dst]] = self.updatebuf
 
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
         self.normalize_weights(self.weights)
 
@@ -1308,15 +1430,17 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                       self.defilter.temp)
         self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
                             out=error)
-        self.defilter.bprop(error, self.output, epoch)
+        self.defilter.bprop(error, self.output)
+        self.defilter.update(epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
         error = ((self.sparsity / inputs.shape[1]) *
                  (self.backend.ones(self.pooling.output.shape)))
-        self.pooling.bprop(error, self.output, epoch)
+        self.pooling.bprop(error, self.output)
         berror = self.defilter.berror + (
             self.pooling.input.get_bprop_view(self.pooling.berror))
-        self.bprop(berror, inputs, epoch)
+        self.bprop(berror, inputs)
+        self.update(epoch)
         rcost = cost.apply_function(self.backend,
                                     self.autoencoder.defiltering_local_image,
                                     inputs_,
@@ -1369,7 +1493,7 @@ class LocalDeFilteringLayer(object):
                              out=self.prodbuf)
             self.output[rflinks, :] += self.prodbuf
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
@@ -1383,6 +1507,7 @@ class LocalDeFilteringLayer(object):
                              out=self.updatebuf)
             self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
 
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
         self.prev.normalize_weights(self.weights)
 
@@ -1424,13 +1549,16 @@ class MaxPoolingLayer(LocalLayer):
             self.ifmshape, self.ofmshape, self.fshape, 0,
             self.stride, self.nifm, self.maxinds)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.bprop_mpool(
                 inputs, self.output,
                 error, self.berror, self.berrorbuf, self.links,
                 self.ifmshape, self.ofmshape, self.fshape, 0, self.stride,
                 self.nifm, self.maxinds)
+
+    def update(self, epoch):
+        pass
 
 
 class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
@@ -1489,12 +1617,15 @@ class L2PoolingLayer(LocalLayer):
             self.ifmshape, self.ofmshape, self.fshape,
             0, self.stride, self.nifm)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.bprop_l2pool(
                 inputs, self.output, error, self.berror, self.berrorbuf,
                 self.links, self.ifmshape, self.ofmshape, self.fshape,
                 0, self.stride, self.nifm, self.prodbuf)
+
+    def update(self, epoch):
+        pass
 
 
 class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
@@ -1525,10 +1656,10 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
         inputs = self.input.get_fprop_view(inputs_)
         super(L2PoolingLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs_, epoch):
+    def bprop(self, error, inputs_):
         # redo-ing get_fprop_view, could cache for speed-up
         inputs = self.input.get_fprop_view(inputs_)
-        super(L2PoolingLayerDist, self).bprop(error, inputs, epoch)
+        super(L2PoolingLayerDist, self).bprop(error, inputs)
 
 
 class AveragePoolingLayer(LocalLayer):
@@ -1557,12 +1688,15 @@ class AveragePoolingLayer(LocalLayer):
             self.ifmshape, self.ofmshape, self.fshape,
             0, self.stride, self.nifm)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.bprop_apool(
                 self.output, error, self.berror, self.berrorbuf, self.links,
                 self.ifmshape, self.ofmshape, self.fshape,
                 0, self.stride, self.nifm)
+
+    def update(self, epoch):
+        pass
 
 
 class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
@@ -1592,10 +1726,10 @@ class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
         inputs = self.input.get_fprop_view(inputs_)
         super(AveragePoolingLayerDist, self).fprop(inputs)
 
-    def bprop(self, error, inputs_, epoch):
+    def bprop(self, error, inputs_):
         # redo-ing get_fprop_view, could cache for speed-up
         inputs = self.input.get_fprop_view(inputs_)
-        super(AveragePoolingLayerDist, self).bprop(error, inputs, epoch)
+        super(AveragePoolingLayerDist, self).bprop(error, inputs)
 
 
 class Convolver(LocalLayer):
@@ -1765,7 +1899,7 @@ class LCNLayer(YAMLable):
                                            self.start_col)
         self.berror = self.berror.reshape((self.nin, self.batch_size))
 
-    def bprop_sub_normalize(self, error, inputs, epoch):
+    def bprop_sub_normalize(self, error, inputs):
         self.backend.clear(self.exerror)
         for fm in range(self.nifm):
             for dst in xrange(self.conv.ofmsize):
@@ -1777,7 +1911,7 @@ class LCNLayer(YAMLable):
                 self.exerror[rflinks, :] -= self.prodbuf
         self.reshape_error()
 
-    def bprop_div_normalize(self, error, inputs, epoch):
+    def bprop_div_normalize(self, error, inputs):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
@@ -1816,18 +1950,24 @@ class LCNLayer(YAMLable):
                 self.exerror[rflinks, :] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
-            self.bprop_div_normalize(error, inputs, epoch)
-            self.bprop_sub_normalize(self.berror, inputs, epoch)
+            self.bprop_div_normalize(error, inputs)
+            self.bprop_sub_normalize(self.berror, inputs)
 
-    def bprop_fast(self, error, inputs, epoch):
+    def bprop_fast(self, error, inputs):
         """
         An incorrect, but much faster version of backprop.
         """
         if self.pos > 0:
             self.berror[:] = error
+
+    def update(self, epoch):
+        pass
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class LCNLayerDist(LCNLayer):
@@ -2006,7 +2146,7 @@ class LCNLayerDist(LCNLayer):
         self.input.make_fprop_view(self.subout)
         self.fprop_div_normalize()
 
-    def bprop_div_normalize(self, error, inputs, epoch):
+    def bprop_div_normalize(self, error, inputs):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
 
@@ -2050,17 +2190,15 @@ class LCNLayerDist(LCNLayer):
                 self.exerror[rflinks, :] -= frame
         self.reshape_error()
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             # note: have to account for halos + padding after each step
-            self.bprop_div_normalize(error, inputs, epoch)
+            self.bprop_div_normalize(error, inputs)
 
-            self.bprop_sub_normalize(
-                self.input.get_bprop_view(self.berror),
-                inputs, epoch)
+            self.bprop_sub_normalize(self.input.get_bprop_view(self.berror),
+                                     inputs)
 
-            self.berror = (
-                self.input.get_bprop_view(self.berror))
+            self.berror = (self.input.get_bprop_view(self.berror))
 
 
 class CrossMapPoolingLayer(YAMLable):
@@ -2110,7 +2248,7 @@ class CrossMapPoolingLayer(YAMLable):
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
@@ -2118,7 +2256,12 @@ class CrossMapPoolingLayer(YAMLable):
                                       out=self.berror)
         self.backend.update_cmpool(error, inputs, self.ifmsize,
                                    self.updatebuf, out=self.updates)
+
+    def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+
+    def set_train_mode(self, mode):
+        pass
 
 
 class CrossMapResponseNormLayer(YAMLable):

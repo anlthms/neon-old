@@ -1,3 +1,5 @@
+neon.sublime-project
+neon.sublime-workspace
 *.pyc
 *.pkl
 *.so
