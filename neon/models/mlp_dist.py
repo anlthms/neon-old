@@ -87,14 +87,7 @@ class MLPDist(MLP):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_targets(train=True)['train']
-        nrecs = inputs.shape[0]
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
-        if 'temp_dtype' not in self.__dict__:
-            self.temp_dtype = None
-        tempbuf = self.backend.zeros((self.layers[-1].nout, self.batch_size),
-                                     self.temp_dtype)
-        self.temp = [tempbuf, tempbuf.copy()]
+        assert 'batch_size' in self.__dict__
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
@@ -107,12 +100,10 @@ class MLPDist(MLP):
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
-                self.bprop(targets_batch, inputs_batch, epoch)
+                self.bprop(targets_batch, inputs_batch)
                 if self.comm.rank == 0:
-                    error += self.cost.apply_function(self.backend,
-                                                      self.layers[-1].output,
-                                                      targets_batch,
-                                                      self.temp)
+                    error += self.cost.apply_function(targets_batch)
+                self.update(epoch)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
                             error / inputs.nbatches)
@@ -165,16 +156,14 @@ class MLPDist(MLP):
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch):
+    def bprop(self, targets, inputs):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if self.comm.rank == 0:
-            error = self.cost.apply_derivative(self.backend,
-                                               lastlayer.output, targets,
-                                               self.temp)
+            error = self.cost.apply_derivative(targets)
             self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = self.comm.bcast(error.raw())
@@ -188,14 +177,10 @@ class MLPDist(MLP):
                 isinstance(self.layers[i - 1], LayerWithNoBiasDist))
             prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
             if prev_layer_dist or prev_layer_no_bias_dist:
-                self.layers[i].bprop(error,
-                                     self.layers[i - 1].output.
-                                     take(self.layers[i].out_indices, axis=0),
-                                     epoch)
+                self.layers[i].bprop(error, self.layers[i - 1].output.
+                                     take(self.layers[i].out_indices, axis=0))
             else:
-                self.layers[i].bprop(error,
-                                     self.layers[i - 1].output,
-                                     epoch)
+                self.layers[i].bprop(error, self.layers[i - 1].output)
             error = self.layers[i].berror
             i -= 1
             # extract self.layers[i].pre_act terms
@@ -203,6 +188,8 @@ class MLPDist(MLP):
                 self.layers[i + 1].out_indices, axis=0)
 
         # first FC layer
-        self.layers[i].bprop(self.layers[i + 1].berror,
-                             inputs,
-                             epoch)
+        self.layers[i].bprop(self.layers[i + 1].berror, inputs)
+
+    def update(self, epoch):
+        for layer in self.layers:
+            layer.update(epoch)

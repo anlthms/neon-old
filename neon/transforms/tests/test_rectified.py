@@ -5,66 +5,80 @@ from nose.plugins.attrib import attr
 import numpy as np
 
 from neon.backends.cpu import CPU, CPUTensor
-from neon.transforms.rectified import rectlin, rectlin_derivative
+from neon.transforms.rectified import RectLin
 from neon.util.testing import assert_tensor_equal
 
 
+def compare_cpu_tensors(inputs, outputs, deriv=False):
+    rlin = RectLin()
+    be = CPU()
+    temp = be.zeros(inputs.shape)
+    if deriv is True:
+        rlin.apply_derivative(be, CPUTensor(inputs), temp)
+    else:
+        rlin.apply_function(be, CPUTensor(inputs), temp)
+    be.subtract(temp, CPUTensor(outputs), temp)
+    assert_tensor_equal(temp, be.zeros(inputs.shape))
+
+
+def compare_gpu_tensors(inputs, outputs, deriv=False):
+    from neon.backends.gpu import GPU, GPUTensor
+    rlin = RectLin()
+    be = GPU()
+    temp = be.zeros(inputs.shape)
+    if deriv is True:
+        rlin.apply_derivative(be, GPUTensor(inputs), temp)
+    else:
+        rlin.apply_function(be, GPUTensor(inputs), temp)
+    be.subtract(temp, GPUTensor(outputs), temp)
+    assert_tensor_equal(temp, be.zeros(inputs.shape))
+
+
 def test_rectlin_positives():
-    assert_tensor_equal(np.array([1, 3, 2]), rectlin(np.array([1, 3, 2])))
+    inputs = np.array([1, 3, 2])
+    outputs = np.array([1, 3, 2])
+    compare_cpu_tensors(inputs, outputs)
 
 
 def test_rectlin_negatives():
-    assert_tensor_equal(np.array([[0, 0], [0, 0]]),
-                        rectlin(np.array([[-1, -3], [-2, -4]])))
+    inputs = np.array([[-1, -3], [-2, -4]])
+    outputs = np.array([[0, 0], [0, 0]])
+    compare_cpu_tensors(inputs, outputs)
 
 
 def test_rectlin_mixed():
-    assert_tensor_equal(np.array([[4, 0], [0, 9]]),
-                        rectlin(np.array([[4, 0], [-2, 9]])))
-
-
-def test_rectlin_cputensor():
-    be = CPU()
-    temp = be.zeros((2, 2))
-    be.rectlin(CPUTensor([[4, 0], [-2, 9]]), temp)
-    assert_tensor_equal(CPUTensor([[4, 0], [0, 9]]), temp)
+    inputs = np.array([[4, 0], [-2, 9]])
+    outputs = np.array([[4, 0], [0, 9]])
+    compare_cpu_tensors(inputs, outputs)
 
 
 @attr('cuda')
 def test_rectlin_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
-    be = GPU()
-    temp = be.zeros((2, 2))
-    be.rectlin(GPUTensor([[4, 0], [0, 9]]), temp)
-    assert_tensor_equal(GPUTensor([[4, 0], [0, 9]]), temp)
+    inputs = np.array([[4, 0], [-2, 9]])
+    outputs = np.array([[4, 0], [0, 9]])
+    compare_gpu_tensors(inputs, outputs)
 
 
 def test_rectlin_derivative_positives():
-    assert_tensor_equal(np.array([1, 1, 1]),
-                        rectlin_derivative(np.array([1, 3, 2])))
+    inputs = np.array([1, 3, 2])
+    outputs = np.array([1, 1, 1])
+    compare_cpu_tensors(inputs, outputs, deriv=True)
 
 
 def test_rectlin_derivative_negatives():
-    assert_tensor_equal(np.array([[0, 0], [0, 0]]),
-                        rectlin_derivative(np.array([[-1, -3], [-2, -4]])))
+    inputs = np.array([[-1, -3], [-2, -4]])
+    outputs = np.array([[0, 0], [0, 0]])
+    compare_cpu_tensors(inputs, outputs, deriv=True)
 
 
 def test_rectlin_derivative_mixed():
-    assert_tensor_equal(np.array([[1, 0], [0, 1]]),
-                        rectlin_derivative(np.array([[4, 0], [-2, 9]])))
-
-
-def test_rectlin_derivative_cputensor():
-    be = CPU()
-    temp = be.zeros((2, 2))
-    be.rectlin_derivative(CPUTensor([[4, 0], [-2, 9]]), temp)
-    assert_tensor_equal(CPUTensor([[1, 0], [0, 1]]), temp)
+    inputs = np.array([[4, 0], [-2, 9]])
+    outputs = np.array([[1, 0], [0, 1]])
+    compare_cpu_tensors(inputs, outputs, deriv=True)
 
 
 @attr('cuda')
 def test_rectlin_derivative_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
-    be = GPU()
-    temp = be.zeros((2, 2))
-    be.rectlin_derivative(GPUTensor([[4, 0], [-2, 9]]), temp)
-    assert_tensor_equal(GPUTensor([[1, 0], [0, 1]]), temp)
+    inputs = np.array([[4, 0], [-2, 9]])
+    outputs = np.array([[1, 0], [0, 1]])
+    compare_gpu_tensors(inputs, outputs, deriv=True)

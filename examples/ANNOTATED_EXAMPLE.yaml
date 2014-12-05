@@ -104,10 +104,6 @@
     #              be no larger than the size of the training dataset.
     # num_epochs - the number of iterations through the entire training set
     #              to make in training the model
-    # cost - the objective function transform.  Current types are:
-    #        CrossEntropy - typically used to measure the difference between two
-    #                       probability distributions
-    #        SumSquaredDiffs - computes the sum of squared differences.
     # serialized_path - the full location and name to a python .pkl file that
     #                   we will use to cache this model.  Speeds up
     #                   subsequent use of this model for inference purposes.
@@ -115,7 +111,6 @@
     backend: *be,
     num_epochs: 2500,
     batch_size: &bs 30,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './iris-mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
@@ -212,7 +207,7 @@
           high: 1,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -235,6 +230,13 @@
         },
       },
     ],
+    # cost - the objective function transform.  Current types are:
+    #        CrossEntropy - typically used to measure the difference between two
+    #                       probability distributions
+    #        SumSquaredDiffs - computes the sum of squared differences.
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   logging: {
     # logging parameters:

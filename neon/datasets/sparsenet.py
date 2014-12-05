@@ -49,6 +49,7 @@ class SPARSENET(Dataset):
     raw_train_unwhitened = basejoin(raw_base_url, 'IMAGES_RAW.mat')
 
     def __init__(self, **kwargs):
+        self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def read_image_file(self, fname, dtype=None):

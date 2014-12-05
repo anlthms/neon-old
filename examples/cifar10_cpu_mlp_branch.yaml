@@ -48,11 +48,64 @@
           high: 0.1,
         },
       },
+      !obj:neon.models.layer.BranchLayer {
+        name: blayer,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nin: 200,
+        sublayers: [
+          !obj:neon.models.layer.LayerWithNoBias {
+            name: blayer1,
+            backend: *be,
+            batch_size: *bs,
+            pos: 1,
+            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+              name: outputlr,
+              lr_params: {
+                learning_rate: *lr,
+                backend: *be,
+                momentum_params: *mm,
+              },
+            },
+            nin: 200,
+            nout: 40,
+            activation: !obj:neon.transforms.logistic.Logistic {},
+            weight_init: {
+              type: uniform,
+              low: -0.1,
+              high: 0.1,
+            },
+          },
+          !obj:neon.models.layer.LayerWithNoBias {
+            name: blayer2,
+            backend: *be,
+            batch_size: *bs,
+            pos: 1,
+            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+              name: outputlr,
+              lr_params: {
+                learning_rate: *lr,
+                backend: *be,
+                momentum_params: *mm,
+              },
+            },
+            nin: 200,
+            nout: 10,
+            activation: !obj:neon.transforms.rectified.RectLin {},
+            weight_init: {
+              type: uniform,
+              low: -0.1,
+              high: 0.1,
+            },
+          },
+        ],
+      },
       &lastlayer !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
-        pos: 1,
+        pos: 2,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
@@ -61,7 +114,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 200,
+        nin: 50,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
@@ -74,7 +127,7 @@
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
       olayer: *lastlayer,
     },
-},
+  },
 
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):

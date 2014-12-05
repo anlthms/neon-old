@@ -127,6 +127,7 @@ class Iris(Dataset):
     raw_onehot_targets[100:150, 2] = 1
 
     def __init__(self, **kwargs):
+        self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def load(self):

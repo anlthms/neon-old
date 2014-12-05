@@ -186,7 +186,7 @@ class GradientDescentMomentum(GradientDescent):
 
         if self.momentum_params['type'] == 'constant':
             if 'coef' not in self.momentum_params:
-                raise AttributeError("Please specify momentum coefficient")
+                coef = init_coef
         elif self.momentum_params['type'] == 'linear_monotone':
             coef = init_coef
             if start_epoch is not None and epoch >= start_epoch:

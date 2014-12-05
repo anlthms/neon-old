@@ -22,8 +22,7 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    serialized_path: './ae-cudanet.pkl',
+    # serialized_path: './ae-cudanet.pkl',
     layers: [
       !obj:neon.models.layer.LayerWithNoBias {
         name: enc1,
@@ -174,7 +173,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
         name: dec4,
         backend: *be,
         batch_size: *bs,
@@ -196,6 +195,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig
