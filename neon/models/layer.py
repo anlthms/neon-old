@@ -896,7 +896,7 @@ class LocalLayer(YAMLable):
                                         self.ofmsize)).raw()
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
-            self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
+            self.ofmlocs[dst] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
         if pooling is True:
