@@ -931,7 +931,7 @@ class LocalLayer(YAMLable):
                 # Shift the filter down by one stride.
                 src += stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds, dtype='i32')
+            self.links[dst] = backend.array(colinds, dtype='i32')
         self.rlinks = self.links.raw()
 
     def normalize_weights(self, weights):
@@ -1010,7 +1010,7 @@ class LocalLayerDist(LocalLayer):
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
                                           dtype='i32')
         for dst in xrange(self.ofmsize):
-            self.ofmlocs[dst, :] = ofmstarts + dst
+            self.ofmlocs[dst] = ofmstarts + dst
         # stores the flattened px location across
         # ofm in columns
 
@@ -1049,7 +1049,7 @@ class LocalLayerDist(LocalLayer):
                 # Shift the filter down by one stride.
                 src += self.stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
-            self.links[dst, :] = self.backend.array(colinds)
+            self.links[dst] = self.backend.array(colinds)
         self.rlinks = self.links.raw()
 
         self.nout = self.nifm * self.ofmsize
@@ -1282,7 +1282,7 @@ class LocalFilteringLayer(LocalLayer):
                              inputs.take(rflinks, axis=0),
                              out=self.prodbuf)
             # size: # mbs x nofm
-            self.output[self.ofmlocs[dst], :] = self.prodbuf
+            self.output[self.ofmlocs[dst]] = self.prodbuf
 
     def bprop(self, error, inputs):
         if self.pos > 0:
@@ -1300,7 +1300,7 @@ class LocalFilteringLayer(LocalLayer):
                 self.backend.add(self.bpropbuf,
                                  self.berror.take(rflinks, axis=0),
                                  out=self.bpropbuf)
-                self.berror[rflinks, :] = self.bpropbuf
+                self.berror[rflinks] = self.bpropbuf
 
         for dst in xrange(self.ofmsize):
             rflinks = self.rlinks[dst]
@@ -1489,20 +1489,20 @@ class LocalDeFilteringLayer(object):
             # self.weights.take: nofm x ifmsize
             self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0).transpose(),
-                             inputs[self.prev.ofmlocs[dst], :],
+                             inputs[self.prev.ofmlocs[dst]],
                              out=self.prodbuf)
-            self.output[rflinks, :] += self.prodbuf
+            self.output[rflinks] += self.prodbuf
 
     def bprop(self, error, inputs):
         for dst in xrange(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0),
-                             error[rflinks, :],
+                             error[rflinks],
                              out=self.bpropbuf)
-            self.berror[self.prev.ofmlocs[dst], :] = self.bpropbuf
-            delta_slice = error[rflinks, :]
-            self.backend.dot(inputs[self.prev.ofmlocs[dst], :],
+            self.berror[self.prev.ofmlocs[dst]] = self.bpropbuf
+            delta_slice = error[rflinks]
+            self.backend.dot(inputs[self.prev.ofmlocs[dst]],
                              delta_slice.transpose(),
                              out=self.updatebuf)
             self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
@@ -1753,7 +1753,7 @@ class Convolver(LocalLayer):
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights, inputs.take(rflinks, axis=0),
                              out=self.prodbuf)
-            self.output[self.ofmlocs[dst], :] = self.prodbuf
+            self.output[self.ofmlocs[dst]] = self.prodbuf
 
 
 class LCNLayer(YAMLable):
@@ -2100,11 +2100,11 @@ class LCNLayerDist(LCNLayer):
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, start_row:start_row + inset.shape[1],
-               start_col:start_col + inset.shape[2], :] = inset
+               start_col:start_col + inset.shape[2]] = inset
 
     def copy_from_inset(self, canvas, start_row, start_col):
         return canvas[:, start_row:start_row + self.ifmheight,
-                      start_col:start_col + self.ifmwidth, :]
+                      start_col:start_col + self.ifmwidth]
 
     def fprop_sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.nifm,
@@ -2120,7 +2120,7 @@ class LCNLayerDist(LCNLayer):
                            self.start_row2:(
                                self.rexinputs.shape[1] - self.start_row2),
                            self.start_col2:(
-                               self.rexinputs.shape[2] - self.start_col2), :],
+                               self.rexinputs.shape[2] - self.start_col2)],
             self.rmeanfm,
             out=self.rsubout)
 
@@ -2178,16 +2178,16 @@ class LCNLayerDist(LCNLayer):
                 frame = rrexinputs.take(rflinks, axis=0)
                 self.backend.multiply(frame, self.filters.transpose(),
                                       out=frame)
-                self.backend.multiply(frame, self.diverror[loc, :], out=frame)
+                self.backend.multiply(frame, self.diverror[loc], out=frame)
                 rframe = frame.reshape((self.nifm,
                                         self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
                 rframe[fm:(fm + 1),
-                       self.fheight / 2, self.fwidth / 2, :] -= divout
-                self.backend.multiply(error[loc, :].repeat(self.fsize, axis=0),
+                       self.fheight / 2, self.fwidth / 2] -= divout
+                self.backend.multiply(error[loc].repeat(self.fsize, axis=0),
                                       frame, out=frame)
-                self.exerror[rflinks, :] -= frame
+                self.exerror[rflinks] -= frame
         self.reshape_error()
 
     def bprop(self, error, inputs):
