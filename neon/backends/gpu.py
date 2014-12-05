@@ -222,15 +222,17 @@ class GPUTensor(Tensor):
                     raise TooSlowToImplementError("arbitrary "
                                                   "indexing")
         else:
-            # 1-D index, check for form x[:] = value
+            # 1-D index, unless of form x[:] = value, we treat this as
+            # x[key, :] = value
             if isinstance(key, slice):
                 start, stop, stride = key.indices(self.shape[0])
                 if start == 0 and stop == self.shape[0]:
+                    # form x[:] = value
                     self._tensor.assign(value)
                 else:
-                    raise IndexError("1-D partial indexing unsupported")
+                    self._tensor.set_row_slice(start, stop, value)
             else:
-                raise IndexError("Invalid 1-D index type")
+                self._tensor.set_row_slice(key, key + 1, value)
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
