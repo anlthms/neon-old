@@ -11,7 +11,7 @@ import numpy as np
 
 import gdist_consts as gc
 import local_array as laa
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
 

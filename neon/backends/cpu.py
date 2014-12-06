@@ -9,7 +9,7 @@ wraps :mod:`numpy` ndarray and related operations
 import logging
 import math
 import numpy as np
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 from neon.backends.backend import Backend, Tensor
 
@@ -786,7 +786,7 @@ class CPU(Backend):
 
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
@@ -798,7 +798,7 @@ class CPU(Backend):
     def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         self.fill(berror, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
@@ -808,7 +808,7 @@ class CPU(Backend):
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
         self.fill(updates, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
@@ -820,7 +820,7 @@ class CPU(Backend):
     def fprop_mpool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
@@ -835,7 +835,7 @@ class CPU(Backend):
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         self.fill(berrorbuf, 0.0)
         rerror = self.hstack_maps(error, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[dst], axis=0)
             berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
@@ -846,11 +846,11 @@ class CPU(Backend):
                      fshape, padding, stride, nfm, maxinds):
         ifmsize = ifmshape[0] * ifmshape[1]
         ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in xrange(nfm):
+        for fmind in range(nfm):
             ifm = inputs[fmind * ifmsize:(fmind + 1) * ifmsize]
             ofm = outputs[fmind * ofmsize:(fmind + 1) * ofmsize]
             maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in xrange(ofmsize):
+            for dst in range(ofmsize):
                 # For this output unit, get the corresponding receptive field
                 # within the input feature map.
                 rf = ifm.take(links[dst], axis=0)
@@ -866,11 +866,11 @@ class CPU(Backend):
         self.fill(berror, 0.0)
         ifmsize = ifmshape[0] * ifmshape[1]
         ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in xrange(nfm):
+        for fmind in range(nfm):
             ifm = berror[fmind * ifmsize:(fmind + 1) * ifmsize]
             ofm = error[fmind * ofmsize:(fmind + 1) * ofmsize]
             maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in xrange(ofmsize):
+            for dst in range(ofmsize):
                 rflinks = links[dst]
                 inds = rflinks.take(maxfm[dst], axis=0)
                 ifm[inds, range(ifm.shape[1])] += ofm[dst]
@@ -878,7 +878,7 @@ class CPU(Backend):
     def fprop_apool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
             outputsbuf[dst] = rf.mean(axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
@@ -888,14 +888,14 @@ class CPU(Backend):
         self.fill(berrorbuf, 0.0)
         error /= fshape[0] * fshape[1]
         rerror = self.hstack_maps(error, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             berrorbuf[links[dst]] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
                      ifmshape, ofmshape, fshape, padding, stride, nfm):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
             outputsbuf[dst] = self.norm(rf, 2, axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
@@ -907,7 +907,7 @@ class CPU(Backend):
         routputs = self.hstack_maps(outputs, nfm)
         rerror = self.hstack_maps(error, nfm)
         self.fill(berrorbuf, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=0)
             denom = routputs[dst].copy()
@@ -927,7 +927,7 @@ class CPU(Backend):
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nfm, H, W, N))
         routputs = outputs._tensor.reshape((nfm, H, W, N))
-        for i in xrange(nfm):
+        for i in range(nfm):
             x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
             np.square(x).sum(axis=0, out=routputs[i])
         self.multiply(outputs, self.wrap(alpha), out=outputs)
@@ -960,7 +960,7 @@ class CPU(Backend):
         self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
         self.fill(rberror, 0.0)
 
-        for i in xrange(nfm):
+        for i in range(nfm):
             for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
                 self.multiply(otemp[i], rinputs[j], out=tempbuf)
                 if i == j:

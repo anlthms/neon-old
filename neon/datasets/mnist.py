@@ -14,7 +14,7 @@ import struct
 import numpy as np
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import PY3, MPI_INSTALLED
+from neon.util.compat import PY3, MPI_INSTALLED, range
 
 
 if PY3:

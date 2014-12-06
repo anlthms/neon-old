@@ -12,6 +12,7 @@ import os
 from neon.models.layer import LocalFilteringLayer
 from neon.models.mlp import MLP
 from neon.util.persist import ensure_dirs_exist
+from neon.util.compat import range
 import time
 
 logger = logging.getLogger(__name__)
@@ -30,16 +31,16 @@ class GB(MLP):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
-            for epoch in xrange(self.num_pretrain_epochs):
+            for epoch in range(self.num_pretrain_epochs):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in xrange(inputs.nbatches):
+                for batch in range(inputs.nbatches):
                     logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
-                    for i in xrange(self.trainable_layers[ind]):
+                    for i in range(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
@@ -74,9 +75,9 @@ class GB(MLP):
         tempbuf = self.backend.empty((targets.nrows, self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(inputs.nbatches):
+            for batch in range(inputs.nbatches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
@@ -106,7 +107,7 @@ class GB(MLP):
         labels[targets[:, cls] == 0] = 0
         labels[targets[:, cls] == 1] = 1
         auc = 0.0
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, self.nrecs)
             self.fprop(inputs[start_idx:end_idx])
@@ -125,16 +126,16 @@ class GB(MLP):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         labels = self.backend.zeros((targets.shape[0]), dtype=int)
         sum = 0.0
-        for cls in xrange(targets.shape[1]):
+        for cls in range(targets.shape[1]):
             labels[targets[:, cls] == 0] = 0
             labels[targets[:, cls] == 1] = 1
             auc = self.backend.zeros((self.layers[-2].output.shape[1]))
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
                 # Get the output of the last LCN layer.
-                for node in xrange(auc.shape[0]):
+                for node in range(auc.shape[0]):
                     pred = self.layers[-2].output[:, node]
                     auc[node] += metrics.roc_auc_score(
                         labels[start_idx:end_idx].raw(), pred.raw())
@@ -168,7 +169,7 @@ class GB(MLP):
         self.nlayers = len(self.layers)
         assert 'batch_size' in self.__dict__
         self.trainable_layers = []
-        for ind in xrange(self.nlayers):
+        for ind in range(self.nlayers):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)

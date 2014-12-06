@@ -12,7 +12,7 @@ import time
 from neon.models.gb import GB
 from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist
 from neon.models.layer import L2PoolingLayerDist, LayerWithNoBiasDist
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class GBDist(GB):
                                   w=layer.ifmshape[1],
                                   )
         layer.adjust_for_dist()
-        for i in xrange(1, self.nlayers):
+        for i in range(1, self.nlayers):
             layer = self.layers[i]
             if isinstance(layer, LocalFilteringLayerDist):
                 # for h,w assumes that prev layer is a LCNLayer
@@ -97,7 +97,7 @@ class GBDist(GB):
         if 'batch_size' not in self.__dict__:
             self.batch_size = self.nrecs
         self.trainable_layers = []
-        for ind in xrange(self.nlayers):
+        for ind in range(self.nlayers):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
@@ -127,20 +127,20 @@ class GBDist(GB):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
-            for epoch in xrange(self.num_pretrain_epochs):
+            for epoch in range(self.num_pretrain_epochs):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
                 trcost_sum = 0.0
                 tspcost_sum = 0.0
-                for batch in xrange(num_batches):
+                for batch in range(num_batches):
                     if MPI.COMM_WORLD.rank == 0:
                         logger.debug('batch = %d', batch)
                     inputs_batch = ds.get_batch(inputs, batch)
                     output = inputs_batch
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
-                    for i in xrange(self.trainable_layers[ind]):
+                    for i in range(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
@@ -185,9 +185,9 @@ class GBDist(GB):
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
         num_batches = inputs.nbatches
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -288,7 +288,7 @@ class GBDist(GB):
         if MPI.COMM_WORLD.rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
         num_batches = inputs.nbatches
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             start_idx = batch * self.batch_size

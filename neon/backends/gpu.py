@@ -8,7 +8,7 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 if MPI_INSTALLED:
     from mpi4py import MPI
 import math

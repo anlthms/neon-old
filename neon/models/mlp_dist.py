@@ -9,7 +9,7 @@ import logging
 
 from neon.models.mlp import MLP
 from neon.models.layer import LayerWithNoBiasDist, LayerDist
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class MLPDist(MLP):
 
     def adjust_for_dist(self):
         # MPI: call adjust_for_dist for each layer
-        for i in xrange(0, self.nlayers):
+        for i in range(0, self.nlayers):
             layer = self.layers[i]
             layer_no_bias_dist = isinstance(layer, LayerWithNoBiasDist)
             layer_dist = isinstance(layer, LayerDist)
@@ -92,9 +92,9 @@ class MLPDist(MLP):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(inputs.nbatches):
+            for batch in range(inputs.nbatches):
                 if self.comm.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -116,7 +116,7 @@ class MLPDist(MLP):
                                        self.batch_size))
             predsdict[setname] = preds
 
-        for batch in xrange(inputs[setname].nbatches):
+        for batch in range(inputs[setname].nbatches):
             inputs_batch = ds.get_batch(inputs[setname], batch)
             self.fprop(inputs_batch)
             if self.comm.rank == 0:

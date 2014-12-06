@@ -7,6 +7,7 @@ Simple restricted Boltzmann Machine model.
 
 import logging
 from neon.models.model import Model
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,9 @@ class RBM(Model):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(inputs.nbatches):
+            for batch in range(inputs.nbatches):
                 inputs_batch = ds.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)

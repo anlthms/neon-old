@@ -9,7 +9,7 @@ import logging
 import math
 
 from neon.models.model import Model
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -65,9 +65,9 @@ class MLP(Model):
 
         assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):  # inputs.nbatches
+            for batch in range(num_batches):  # inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
                     logger.info('loading mb %d', batch)
@@ -101,7 +101,7 @@ class MLP(Model):
         for layer in self.layers:
             layer.set_train_mode(False)
 
-        for batch in xrange(inputs.nbatches):
+        for batch in range(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
@@ -165,7 +165,7 @@ class MLP(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in xrange(len(datasets)):
+        for idx in range(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
             targets = ds.get_targets(train=True, test=True, validation=True)
@@ -173,7 +173,7 @@ class MLP(Model):
                 if item in targets and item in preds:
                     labels = self.backend.empty((targets[item].nbatches,
                                                  self.batch_size))
-                    for batch in xrange(targets[item].nbatches):
+                    for batch in range(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         self.backend.argmax(targets_batch, axis=0,
                                             out=labels[batch:(batch + 1)])
@@ -199,7 +199,7 @@ class MLP(Model):
 
             preds = dataset.backend.empty((1, self.batch_size))
             err = 0.
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch(
                     self.batch_size, batch_type, raw_targets=True)
                 self.fprop(inputs)

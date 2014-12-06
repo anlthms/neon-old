@@ -12,7 +12,7 @@ import os
 import tarfile
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.persist import deserialize
 
 

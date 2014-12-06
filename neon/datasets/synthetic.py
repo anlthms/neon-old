@@ -9,6 +9,7 @@ import logging
 import numpy as np
 
 from neon.datasets.dataset import Dataset
+from neon.util.compat import range
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class ToyImages(Dataset):
         co = np.cos(angs)
         xvals = np.int32(xrad * co) + self.center[0]
         yvals = np.int32(yrad * si) + self.center[1]
-        for fm in xrange(self.nifm):
+        for fm in range(self.nifm):
             rcanvas[fm, xvals, yvals] = np.random.randint(256)
 
     def circle(self, canvas, rad):
@@ -96,12 +97,12 @@ class ToyImages(Dataset):
         labels = np.zeros(shape[0], dtype=np.float32)
         ncircles = shape[0] / 2
 
-        for row in xrange(0, ncircles):
+        for row in range(0, ncircles):
             # Make circles.
             rad = np.random.randint(self.minrad, self.maxrad)
             self.circle(data[row], rad)
 
-        for row in xrange(ncircles, shape[0]):
+        for row in range(ncircles, shape[0]):
             # Make ellipses.
             while True:
                 xrad, yrad = np.random.randint(self.minrad, self.maxrad, 2)
@@ -112,7 +113,7 @@ class ToyImages(Dataset):
 
         data /= 255
         onehot = np.zeros((len(labels), self.nout), dtype=np.float32)
-        for col in xrange(self.nout):
+        for col in range(self.nout):
             onehot[:, col] = (labels == col)
         return (data, onehot)
 

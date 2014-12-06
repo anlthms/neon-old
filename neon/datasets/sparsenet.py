@@ -13,7 +13,7 @@ import numpy
 import scipy.io
 import pickle
 
-from neon.util.compat import PY3
+from neon.util.compat import PY3, range
 
 from neon.datasets.dataset import Dataset
 
@@ -71,7 +71,7 @@ class SPARSENET(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(10000)
+            train_idcs = list(range(10000))
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct > 1.0:
                     self.sample_pct /= 100.0
