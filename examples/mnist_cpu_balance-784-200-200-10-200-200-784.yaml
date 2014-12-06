@@ -196,11 +196,11 @@
     ],
     cost: [
       !obj:neon.transforms.sum_squared.SumSquaredDiffs {
-        olayer:*outlayer,
+        olayer: *outlayer,
       },
       !obj:neon.transforms.cross_entropy.CrossEntropy {},
       !obj:neon.transforms.xcov.XCovariance {
-        olayer:*covlayer,
+        olayer: *covlayer,
       },
     ],
   },

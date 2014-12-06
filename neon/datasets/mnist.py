@@ -160,7 +160,7 @@ class MNIST(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            self.train_idcs = range(60000)
+            self.train_idcs = list(range(60000))
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0

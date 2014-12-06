@@ -531,7 +531,7 @@ class RecurrentHiddenLayer(Layer):
                                inputs[batch_inx[:, tau - 1]].transpose(),
                                out=self.temp_in)
         self.updates += self.temp_in
-        for layer in range(0, tau - 1)[::-1]:
+        for layer in list(range(0, tau - 1))[::-1]:
             self.backend.bprop_fc(self.weights_rec,
                                   self.deltas[tau - layer - 1].transpose(),
                                   out=self.berror)
