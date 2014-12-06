@@ -20,9 +20,88 @@ from time import time
 from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED
 import sys
+import threading
+from collections import deque
 
 logger = logging.getLogger(__name__)
 
+def my_pickle(filename, data):
+        with open(filename, "w") as fo:
+            cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
+
+def my_unpickle(filename):
+    fo = open(filename, 'r')
+    contents = cPickle.load(fo)
+    fo.close()
+    return contents
+
+class LoadFile(threading.Thread):
+    def __init__(self, fname, file_queue):
+        threading.Thread.__init__(self)
+        self.fname = fname
+        self.file_queue = file_queue
+        
+    def run(self):
+        logger.info('%s: loading file', self.fname)
+        self.file_queue.append(my_unpickle(self.fname))
+        logger.info('%s: done loading file', self.fname)
+
+class DecompressImages(threading.Thread):
+    def __init__(self, mb_id, mb_queue, batch_size, output_image_size,
+            jpeg_strings, targets_macro):
+        threading.Thread.__init__(self)
+        self.mb_id = mb_id
+        #mini-batch queue
+        self.mb_queue = mb_queue
+        self.batch_size = batch_size
+        self.output_image_size = output_image_size
+        self.jpeg_strings = jpeg_strings
+        self.targets_macro = targets_macro
+        
+    def run(self):
+        logger.info('mini-batch decompress start %d', self.mb_id)
+        # provide mini batch from macro batch
+        inputs = np.empty(
+            ((self.output_image_size ** 2) * 3, self.batch_size),
+            dtype='float32')
+        start_idx = self.mb_id * self.batch_size
+        end_idx = (self.mb_id + 1) * self.batch_size
+
+        # convert jpeg string to numpy array
+        for i, jpeg_string in enumerate(
+                self.jpeg_strings['data'][start_idx:end_idx]):
+            img = Image.open(StringIO(jpeg_string))
+            if img.mode == 'L':  # greyscale
+                logger.debug('greyscale image found... tiling')
+                inputs[:, i, np.newaxis] = np.tile(
+                    np.array(img, dtype='float32').reshape((-1, 1)), (3, 1))
+            else:
+                inputs[:, i, np.newaxis] = np.array(
+                    img, dtype='float32').reshape((-1, 1))
+
+        targets = self.targets_macro[:, start_idx:end_idx]
+
+        self.mb_queue.append([inputs, targets])
+        logger.info('mini-batch decompress end %d', self.mb_id)
+
+class GPUTransfer(threading.Thread):
+    def __init__(self, mb_id, mb_queue, gpu_queue, backend):
+        threading.Thread.__init__(self)
+        self.mb_id = mb_id
+        self.mb_queue = mb_queue
+        self.gpu_queue = gpu_queue
+        self.backend = backend
+
+    def run(self):
+        logger.info('backend mini-batch transfer start %d', self.mb_id)
+        # threaded conversion of jpeg strings to numpy array
+        if len(self.mb_queue) == 0:
+            return
+        inputs, targets = self.mb_queue.popleft()
+        inputs_backend = self.backend.array(inputs)
+        targets_backend = self.backend.array(targets)
+        logger.info('backend mini-batch transfer done %d', self.mb_id)
+        self.gpu_queue.append([inputs_backend, targets_backend])
 
 class I1K(Dataset):
 
@@ -61,6 +140,13 @@ class I1K(Dataset):
                     raise AttributeError('MPI.COMM_WORLD.size not compatible')
             else:
                 raise AttributeError("dist_flag set but mpi4py not installed")
+        if self.macro_batched:
+            # macro batch queue
+            self.macro_batch_queue = deque([])
+            # mini batch queue
+            self.mini_batch_queue = deque([])
+            # gpu/backend queue
+            self.gpu_queue = deque([])
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -242,17 +328,67 @@ class I1K(Dataset):
 
         return tgt
 
+    def get_next_macro_batch_id(self, batch_type, macro_batch_index):
+        next_macro_batch_id = macro_batch_index + 1
+        if batch_type == 'training':
+            if (next_macro_batch_id >= self.num_train_macro_batches
+                    and self.end_train_batch == -1):
+                next_macro_batch_id = 0
+            elif next_macro_batch_id > self.end_train_batch:
+                next_macro_batch_id = self.start_train_batch
+        elif batch_type == 'validation':
+            if (next_macro_batch_id >= self.num_val_macro_batches and
+                    self.end_val_batch == -1):
+                next_macro_batch_id = 0
+            elif next_macro_batch_id > self.end_val_batch:
+                next_macro_batch_id = self.start_val_batch
+        return next_macro_batch_id
+
     def get_macro_batch(self, batch_type, macro_batch_index,
                         raw_targets=False):
-
         batch_path = os.path.join(
             self.save_dir, 'macro_batches_' + str(self.output_image_size),
             '%s_batch_%d' % (batch_type, macro_batch_index))
         j = 0
-        self.jpeg_strings = self.unpickle(
-            os.path.join(batch_path, '%s_batch_%d.%d' % (
-                batch_type, macro_batch_index, j / self.output_batch_size)))
+        #if macro_batch_queue is empty... 
+        if len(self.macro_batch_queue) == 0:
+            #load 2 + 1 macro batches
+            thread1 = LoadFile(os.path.join(batch_path, '%s_batch_%d.%d' % (
+                batch_type, macro_batch_index, j / self.output_batch_size)),
+                self.macro_batch_queue)
+            thread1.start()
+            self.macro_batch_onque = self.get_next_macro_batch_id(batch_type,
+                macro_batch_index)
+            thread2 = LoadFile(os.path.join(batch_path, '%s_batch_%d.%d' % (
+                batch_type,
+                self.macro_batch_onque,
+                j / self.output_batch_size)),
+                self.macro_batch_queue)
+            thread2.start() #load the second macro batch asynchronously
+            self.macro_batch_onque = self.get_next_macro_batch_id(batch_type,
+                self.macro_batch_onque)
+            thread3 = LoadFile(os.path.join(batch_path, '%s_batch_%d.%d' % (
+                batch_type,
+                self.macro_batch_onque,
+                j / self.output_batch_size)),
+                self.macro_batch_queue)
+            thread3.start() # this is asynchronous
+            thread1.join() # first two macro batches will be sequential
+            thread2.join()
+        else:
+            self.macro_batch_onque = self.get_next_macro_batch_id(batch_type,
+                self.macro_batch_onque)
+            thread1 = LoadFile(os.path.join(batch_path, '%s_batch_%d.%d' % (
+                batch_type,
+                self.macro_batch_onque,
+                j / self.output_batch_size)),
+                self.macro_batch_queue)
+            thread1.start()
 
+        #pop a macro batch off the thread queue
+        self.jpeg_strings = self.macro_batch_queue.popleft()
+        
+        # todo: this part could also be threaded for speedup
         # during run time extract labels
         labels = self.jpeg_strings['labels']
 
@@ -264,11 +400,21 @@ class I1K(Dataset):
         else:
             self.targets_macro = np.asarray(labels).reshape((1, -1))
 
+    def get_next_mini_batch_id(self, batch_type, mini_batch_index):
+        next_mini_batch_id = mini_batch_index + 1
+        if batch_type == 'training':
+            if next_mini_batch_id >= self.num_minibatches_in_macro:
+                next_mini_batch_id = 0
+        elif batch_type == 'validation':
+            if next_mini_batch_id >= self.num_minibatches_in_macro:
+                next_mini_batch_id = 0
+        return next_mini_batch_id
+
     def get_mini_batch(self, batch_size, batch_type, raw_targets=False):
         if self.output_batch_size % batch_size != 0:
             raise ValueError('self.output_batch_size % batch_size != 0')
         else:
-            num_minibatches_in_macro = self.output_batch_size / batch_size
+            self.num_minibatches_in_macro = self.output_batch_size / batch_size
 
         # keep track of most recent batch and return the next batch
         if batch_type == 'training':
@@ -279,12 +425,8 @@ class I1K(Dataset):
                             self.cur_train_macro_batch)
                 self.get_macro_batch(
                     batch_type, self.cur_train_macro_batch, raw_targets)
-                self.cur_train_macro_batch += 1
-                if (self.cur_train_macro_batch >= self.num_train_macro_batches
-                        and self.end_train_batch == -1):
-                    self.cur_train_macro_batch = 0
-                elif self.cur_train_macro_batch > self.end_train_batch:
-                    self.cur_train_macro_batch = self.start_train_batch
+                self.cur_train_macro_batch = self.get_next_macro_batch_id(
+                    'training', self.cur_train_macro_batch)
         elif batch_type == 'validation':
             cur_mini_batch_id = self.cur_val_mini_batch
             if cur_mini_batch_id == 0:
@@ -292,59 +434,82 @@ class I1K(Dataset):
                     "val processing macro batch: %d", self.cur_val_macro_batch)
                 self.get_macro_batch(
                     batch_type, self.cur_val_macro_batch, raw_targets)
-                self.cur_val_macro_batch += 1
-                if (self.cur_val_macro_batch >= self.num_val_macro_batches and
-                        self.end_val_batch == -1):
-                    self.cur_val_macro_batch = 0
-                elif self.cur_val_macro_batch > self.end_val_batch:
-                    self.cur_val_macro_batch = self.start_val_batch
+                self.cur_val_macro_batch = self.get_next_macro_batch_id(
+                    'validation', self.cur_val_macro_batch)
         else:
             raise ValueError('Invalid batch_type in get_batch')
 
-        # provide mini batch from macro batch
-        inputs = np.empty(
-            ((self.output_image_size ** 2) * 3, batch_size), dtype='float32')
-        start_idx = cur_mini_batch_id * batch_size
-        end_idx = (cur_mini_batch_id + 1) * batch_size
-
-        # convert jpeg string to numpy array
-        for i, jpeg_string in enumerate(
-                self.jpeg_strings['data'][start_idx:end_idx]):
-            img = Image.open(StringIO(jpeg_string))
-            if img.mode == 'L':  # greyscale
-                logger.debug('greyscale image found... tiling')
-                inputs[:, i, np.newaxis] = np.tile(
-                    np.array(img, dtype='float32').reshape((-1, 1)), (3, 1))
+        if len(self.mini_batch_queue) == 0:
+            thread1 = DecompressImages(cur_mini_batch_id,
+                self.mini_batch_queue, batch_size, self.output_image_size,
+                self.jpeg_strings, self.targets_macro)
+            thread1.start()
+            self.mini_batch_onque = self.get_next_mini_batch_id(batch_type,
+                cur_mini_batch_id)
+            thread2 = DecompressImages(self.mini_batch_onque,
+                self.mini_batch_queue, batch_size, self.output_image_size,
+                self.jpeg_strings, self.targets_macro)
+            thread2.start()
+            self.mini_batch_onque = self.get_next_mini_batch_id(batch_type,
+                self.mini_batch_onque)
+            thread3 = DecompressImages(self.mini_batch_onque,
+                self.mini_batch_queue, batch_size, self.output_image_size,
+                self.jpeg_strings, self.targets_macro)
+            thread3.start()
+            thread1.join()
+            thread2.join()
+        else:
+            tmp = self.mini_batch_onque
+            self.mini_batch_onque = self.get_next_mini_batch_id(batch_type,
+                self.mini_batch_onque)
+            # todo: no wrap around to next macro batch for mini currently
+            if self.mini_batch_onque != 0:
+                thread1 = DecompressImages(self.mini_batch_onque,
+                    self.mini_batch_queue, batch_size, self.output_image_size,
+                    self.jpeg_strings, self.targets_macro)
+                thread1.start()
             else:
-                inputs[:, i, np.newaxis] = np.array(
-                    img, dtype='float32').reshape((-1, 1))
+                self.mini_batch_onque = tmp
 
-        targets = self.targets_macro[:, start_idx:end_idx]
-
+        
         # serialize
-
-        # todo: threaded conversion of jpeg strings to numpy array
-        # todo: threaded load of next batch while compute of current batch
         # todo:
         # test file reading speeds 3M, 30M, 90M, 300M
         # multithreaded reads
         # multiple MPI processes reading diff files from same disk
 
-        if batch_type == 'training':
-            self.cur_train_mini_batch += 1
-            if self.cur_train_mini_batch >= num_minibatches_in_macro:
-                self.cur_train_mini_batch = 0
-        elif batch_type == 'validation':
-            self.cur_val_mini_batch += 1
-            if self.cur_val_mini_batch >= num_minibatches_in_macro:
-                self.cur_val_mini_batch = 0
-
         # TODO: resize 256x256 image to 224x224 here
 
-        # if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
-        #    return self.backend.array(inputs), self.backend.array(targets)
-        # else:
-        return self.backend.array(inputs), self.backend.array(targets)
+        # todo: run this with page locked memory
+        # thread host -> gpu transfers onto a queue
+        if len(self.gpu_queue) == 0:
+            thread1 = GPUTransfer(self.cur_train_mini_batch,
+                self.mini_batch_queue, self.gpu_queue, self.backend)
+            self.gpu_batch_onque = self.get_next_mini_batch_id(batch_type,
+                self.cur_train_mini_batch)
+            thread2 = GPUTransfer(self.gpu_batch_onque,
+                self.mini_batch_queue, self.gpu_queue, self.backend)
+            thread1.start()
+            thread2.start()
+            thread1.join()
+        else:
+            tmp = self.gpu_batch_onque
+            self.gpu_batch_onque = self.get_next_mini_batch_id(batch_type,
+                self.gpu_batch_onque)
+            if self.gpu_batch_onque != 0:
+                thread1 = GPUTransfer(self.gpu_batch_onque,
+                    self.mini_batch_queue, self.gpu_queue, self.backend)
+                thread1.start()
+            else:
+                self.gpu_batch_onque = tmp
+        
+        if batch_type == 'training':
+            self.cur_train_mini_batch = self.get_next_mini_batch_id(batch_type, cur_mini_batch_id)
+        elif batch_type == 'validation':
+            self.cur_val_mini_batch = self.get_next_mini_batch_id(batch_type, cur_mini_batch_id)
+
+        inputs_backend, targets_backend = self.gpu_queue.popleft()
+        return inputs_backend, targets_backend
 
     # code below from Alex Krizhevsky's cuda-convnet2 library, make-data.py
     # Copyright 2014 Google Inc. All rights reserved.
@@ -368,16 +533,6 @@ class I1K(Dataset):
                          "top of this file (%s)." % (name, path, sys.argv[0]))
             sys.exit(1)
         return tarfile.open(path)
-
-    def pickle(self, filename, data):
-        with open(filename, "w") as fo:
-            cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
-
-    def unpickle(self, filename):
-        fo = open(filename, 'r')
-        contents = cPickle.load(fo)
-        fo.close()
-        return contents
 
     def makedir(self, path):
         if not os.path.exists(path):
@@ -430,7 +585,7 @@ class I1K(Dataset):
             # for j in xrange(0, len(labels_batch),
             # self.OUTPUT_SUB_BATCH_SIZE):
             j = 0
-            self.pickle(os.path.join(batch_path, '%s_batch_%d.%d' %
+            my_pickle(os.path.join(batch_path, '%s_batch_%d.%d' %
                         (name, start_batch_num + i, j /
                             self.output_batch_size)),
                         {'data': jpeg_strings[j:j + self.output_batch_size],

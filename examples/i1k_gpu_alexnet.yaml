@@ -32,7 +32,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 1,
     batch_size: &bs 128,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [

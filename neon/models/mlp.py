@@ -11,6 +11,7 @@ import math
 from neon.models.model import Model
 from neon.models.layer import DropOutLayer
 from neon.util.compat import MPI_INSTALLED
+from collections import deque
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -78,10 +79,10 @@ class MLP(Model):
             for batch in xrange(num_batches):  # inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
-                    logger.info('loading mb %d', batch)
+                    logger.info('get mb %d', batch)
                     inputs, targets = ds.get_mini_batch(
                         self.batch_size, 'training')
-                    logger.info('done loading mb %d', batch)
+                    logger.info('done get mb %d', batch)
                     self.fprop(inputs)
                     self.bprop(targets, inputs, epoch)
                     error += self.cost.apply_function(
@@ -198,6 +199,10 @@ class MLP(Model):
     def predict_and_error(self, dataset):
 
         for batch_type in ['training', 'validation']:
+            # todo: temporary; change batch_type from here instead
+            dataset.macro_batch_queue = deque([])
+            dataset.mini_batch_queue = deque([])
+            dataset.gpu_queue = deque([])
             if batch_type == 'training':
                 nrecs = dataset.output_batch_size * \
                     (dataset.end_train_batch - dataset.start_train_batch + 1)
