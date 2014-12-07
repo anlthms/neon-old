@@ -12,7 +12,7 @@ from neon.models.model import Model
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 
 logger = logging.getLogger(__name__)
-
+from ipdb import set_trace as trace
 
 class RNN(Model):
 
@@ -40,7 +40,7 @@ class RNN(Model):
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / self.batch_size
+        num_batches = int(math.floor((nrecs + 0.0) / 128
                                                    / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
@@ -51,21 +51,21 @@ class RNN(Model):
         for epoch in xrange(self.num_epochs):
             error = 0
             suberror = self.backend.zeros(num_batches)
-            batch_inx = self.backend.zeros((self.batch_size,
-                                            self.unrolls+1), dtype=int)
-            hidden_init = self.backend.zeros((self.batch_size,
-                                             self.layers[1].nin))
+            hidden_init = self.backend.zeros((self.layers[1].nin,
+                                             self.batch_size))
             for batch in xrange(num_batches):
-                self.serve_batch(batch, batch_inx, num_batches)  # get indices
-                self.fprop(inputs, batch_inx, hidden_init,
+                # input a couple of letters x50.
+                batch_inx = range(batch*128*self.unrolls,
+                                  (batch+1)*128*self.unrolls)
+                self.fprop(inputs[batch_inx,:], hidden_init,
                            debug=(True if batch == -1 else False))
-                self.bprop(targets, inputs, batch_inx, epoch)
-                hidden_init = self.layers[0].output_list[-1]
+                self.bprop(targets, inputs[batch_inx,:], epoch)
+                hidden_init = self.layers[0].output_list[-1] # this has been flipped to (nout, batch)
                 if batch % 20 is 0:  # reset hidden state periodically
-                    hidden_init = self.backend.zeros((self.batch_size,
-                                                     self.layers[1].nin))
+                    hidden_init = self.backend.zeros((self.layers[1].nin,
+                                                     self.batch_size))
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                suberror = self.cost.apply_function(targets[batch_inx[:, -1]])
+                suberror = self.cost.apply_function(targets[batch_inx,:][4*128L:5*128,:])
                 suberror /= float(self.batch_size * self.layers[0].nin)
                 suberrorlist.append(suberror)
                 error += suberror / num_batches
@@ -88,39 +88,6 @@ class RNN(Model):
         # print the prediction
         self.visualize(datasets, viz)
 
-    def serve_batch(self, batch, batch_inx, num_batches):
-        """
-        For t-BPTT, need the batches to be layed out like this:
-        (For 1000 batches, 3 unrolls, batch size 50)
-        2,999 5,999  ...  149,999
-          .
-          .
-        0,003
-        ---------------------      ^  1000 batches
-        0,002 3,002
-        0,001 3,001                ^  3  unrolls
-        0,000 3,000  ...  147,000  -> 50 batch size
-
-        Each SGD step perform BPTT through a 50x3 block of this data. Because
-        this corresponds to a 128x50x3 tensor, we only pass indices and not
-        the minibatch directly.
-        This function returns the submatrix delimited by the --- and constructs
-        it row by row. Wtih batch size 50 and 3 unrolls, constructing 1000
-        batches takes 150k data points.
-
-        Inputs:
-            batch: batch number
-            batch_inx: buffer passed for index emptyation
-
-        Returns:
-            updates the buffer batch_inx directly to minimize emptyations.
-        """
-
-        for tau in range(self.unrolls+1):
-            batch_inx[:, tau] = (self.unrolls*batch + tau
-                                 + self.unrolls*num_batches
-                                 * self.backend.array(range(self.batch_size)))
-
     def visualize(self, datasets, viz):
         """
         Generate and print predictions on the given datasets.
@@ -132,13 +99,13 @@ class RNN(Model):
         for i in range(self.unrolls+1):
             batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
                                                  dtype=int)
-        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
+        hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
         self.fprop(inputs, batch_inx, hidden_init)
 
         viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
                        self.layers[1].output_list[self.unrolls-1])
 
-    def fprop(self, inputs, batch_inx, hidden_init, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -147,14 +114,14 @@ class RNN(Model):
             unrolls = self.unrolls
         if debug:
             import numpy as np
-            print "fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
+            print "rnn.fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
         y = hidden_init
         for tau in range(0, unrolls):
-            self.layers[0].fprop(y, inputs[batch_inx[:, tau], :], tau)
+            self.layers[0].fprop(y, inputs[tau:128+tau, :], tau)
             y = self.layers[0].output_list[tau]
             self.layers[1].fprop(y, tau)
 
-    def bprop(self, targets, inputs, batch_inx, epoch, debug=False):
+    def bprop(self, targets, inputs, epoch, debug=False):
 
         full_unroll = True
         if full_unroll:
@@ -179,19 +146,19 @@ class RNN(Model):
                 print "in bprop, input", np.nonzero(inputs[0:tau, :].raw())[1]
                 print "backprop target", np.flatnonzero(targets[tau, :].raw())
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
-            error = self.cost.apply_derivative(targets[batch_inx[:, tau]])
+            error = self.cost.apply_derivative(targets[tau])
             error /= float(error.shape[0] * error.shape[1])
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1],
                                  tau)
 
-        cerror = self.backend.zeros((self.batch_size, self.layers[0].nout))
+        cerror = self.backend.zeros((self.layers[0].nout, self.batch_size))
         for tau in range(min_unroll, self.unrolls+1):
             # need to bprop from the output layer before calling bprop
-            self.backend.bprop_fc(self.layers[1].weights,
-                                  self.layers[1].deltas_o[tau].transpose(),
+            self.backend.bprop_fc(self.layers[1].deltas_o[tau],
+                                  self.layers[1].weights,
                                   out=cerror)
-            self.layers[0].bprop(cerror, inputs, tau, batch_inx)
+            self.layers[0].bprop(cerror, inputs, tau)
 
         # apply updates
         for layer in self.layers:
