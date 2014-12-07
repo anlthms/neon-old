@@ -14,6 +14,7 @@ from neon.diagnostics.visualize_rnn import VisualizeRNN
 logger = logging.getLogger(__name__)
 from ipdb import set_trace as trace
 
+
 class RNN(Model):
 
     """
@@ -41,7 +42,7 @@ class RNN(Model):
             self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
-                                                   / self.unrolls)) - 1
+                                                   / self.unrolls)) - 2
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -54,18 +55,18 @@ class RNN(Model):
             hidden_init = self.backend.zeros((self.layers[1].nin,
                                              self.batch_size))
             for batch in xrange(num_batches):
-                # input a couple of letters x50.
-                batch_inx = range(batch*128*self.unrolls,
-                                  (batch+1)*128*self.unrolls)
-                self.fprop(inputs[batch_inx,:], hidden_init,
+                batch_inx = range(batch*128*self.unrolls,  # extra one? (for target)
+                                  (batch+1)*128*self.unrolls+128) # just here to make it one longer
+                #print "fprop for", batch, "with", batch_inx[0], "to",  batch_inx[-1]
+                self.fprop(inputs[batch_inx, :], hidden_init,
                            debug=(True if batch == -1 else False))
-                self.bprop(targets, inputs[batch_inx,:], epoch)
-                hidden_init = self.layers[0].output_list[-1] # this has been flipped to (nout, batch)
+                self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch)
+                hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.layers[1].nin,
                                                      self.batch_size))
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                suberror = self.cost.apply_function(targets[batch_inx,:][4*128L:5*128,:])
+                suberror = self.cost.apply_function(targets[batch_inx, :][(self.unrolls-0)*128 : (self.unrolls+1)*128, :])
                 suberror /= float(self.batch_size * self.layers[0].nin)
                 suberrorlist.append(suberror)
                 error += suberror / num_batches
@@ -114,10 +115,10 @@ class RNN(Model):
             unrolls = self.unrolls
         if debug:
             import numpy as np
-            print "rnn.fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
+            print "fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
         y = hidden_init
         for tau in range(0, unrolls):
-            self.layers[0].fprop(y, inputs[tau:128+tau, :], tau)
+            self.layers[0].fprop(y, inputs[128*tau:128*(tau+1), :], tau)
             y = self.layers[0].output_list[tau]
             self.layers[1].fprop(y, tau)
 
@@ -146,7 +147,7 @@ class RNN(Model):
                 print "in bprop, input", np.nonzero(inputs[0:tau, :].raw())[1]
                 print "backprop target", np.flatnonzero(targets[tau, :].raw())
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
-            error = self.cost.apply_derivative(targets[tau])
+            error = self.cost.apply_derivative(targets[128*tau:128*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1],
@@ -158,7 +159,7 @@ class RNN(Model):
             self.backend.bprop_fc(self.layers[1].deltas_o[tau],
                                   self.layers[1].weights,
                                   out=cerror)
-            self.layers[0].bprop(cerror, inputs, tau)
+            self.layers[0].bprop(cerror, inputs, tau) ### Full inputs;??
 
         # apply updates
         for layer in self.layers:
