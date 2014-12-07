@@ -16,6 +16,7 @@ from neon.util.compat import MPI_INSTALLED
 logger = logging.getLogger(__name__)
 from ipdb import set_trace as trace
 
+
 class MOBYDICK(Dataset):
 
     """
@@ -94,21 +95,19 @@ class MOBYDICK(Dataset):
                 self.download_to_repo(url, save_dir)
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
-            # first have to take out training and test:
+
             self.preinputs = dict()
             self.preinputs['train'] = indat[:, train_idcs]
             self.preinputs['test'] = indat[:, test_idcs]
-            # build the maxtrix I keep drawing:
+
             for dataset in ('train', 'test'):
                 num_batches = self.preinputs[dataset].shape[1]/self.batch_size
-                splay_matrix = numpy.arange(num_batches* self.batch_size)
-                splay_matrix = splay_matrix.reshape(self.batch_size,num_batches)
-                splay_3d = self.preinputs[dataset][:,splay_matrix.T] # splay_3d.argmax(0) is a [128,50,200] matrix.
-                splay_3d = numpy.transpose(splay_3d,(1,0,2))
-                splay_data = splay_3d.reshape(-1,50) # flatten back to 2D
-
-                self.inputs[dataset] = self.backend.array(splay_data)
-            # self.format()  # Mobydick does not support new batch format yet.
+                idx_list = numpy.arange(num_batches * self.batch_size)
+                idx_list = idx_list.reshape(self.batch_size, num_batches)
+                splay_3d = self.preinputs[dataset][:, idx_list.T]
+                splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
+                self.inputs[dataset] = self.backend.array(splay_3d)
+            # self.format()  # Mobydick does not need this
 
         else:
             raise AttributeError('repo_path not specified in config')
