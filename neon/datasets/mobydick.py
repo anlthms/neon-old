@@ -106,7 +106,8 @@ class MOBYDICK(Dataset):
                 idx_list = idx_list.reshape(self.batch_size, num_batches)
                 splay_3d = self.preinputs[dataset][:, idx_list.T]
                 splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
-                self.inputs[dataset] = self.backend.array(splay_3d)
+                self.inputs[dataset] = self.backend.array(splay_3d)  # [:-128, :]
+                # self.targets[dataset] = self.backend.array(splay_3d)[128:, :]
             # self.format()  # Mobydick does not need this
 
         else:

@@ -55,9 +55,8 @@ class RNN(Model):
             hidden_init = self.backend.zeros((self.layers[1].nin,
                                              self.batch_size))
             for batch in xrange(num_batches):
-                batch_inx = range(batch*128*self.unrolls,  # extra one? (for target)
-                                  (batch+1)*128*self.unrolls+128) # just here to make it one longer
-                #print "fprop for", batch, "with", batch_inx[0], "to",  batch_inx[-1]
+                batch_inx = range(batch*128*self.unrolls,
+                                  (batch+1)*128*self.unrolls+128)
                 self.fprop(inputs[batch_inx, :], hidden_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch)
@@ -66,7 +65,9 @@ class RNN(Model):
                     hidden_init = self.backend.zeros((self.layers[1].nin,
                                                      self.batch_size))
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                suberror = self.cost.apply_function(targets[batch_inx, :][(self.unrolls-0)*128 : (self.unrolls+1)*128, :])
+                target_out = targets[batch_inx, :][(self.unrolls-0)*128:
+                                                   (self.unrolls+1)*128, :]
+                suberror = self.cost.apply_function(target_out)
                 suberror /= float(self.batch_size * self.layers[0].nin)
                 suberrorlist.append(suberror)
                 error += suberror / num_batches
@@ -87,24 +88,26 @@ class RNN(Model):
                 logger.debug("%s", layer)
 
         # print the prediction
-        self.visualize(datasets, viz)
+        # self.example_prediction(datasets, viz)
 
-    def visualize(self, datasets, viz):
-        """
-        Generate and print predictions on the given datasets.
-        """
-        inputs = datasets[0].get_inputs(test=True)['test']
-        # targets = datasets[0].get_targets(test=True)['test']
-        batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1),
-                                       dtype=int)
-        for i in range(self.unrolls+1):
-            batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
-                                                 dtype=int)
-        hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
-        self.fprop(inputs, batch_inx, hidden_init)
+    # def example_prediction(self, datasets, viz):
+    #     """
+    #     Generate and print predictions on the given datasets.
+    #     [TODO] Still possible after refactor? Why not just look
+    #            at the first of 5o strings in minibatch?
+    #     """
+    #     inputs = datasets[0].get_inputs(test=True)['test']
+    #     # targets = datasets[0].get_targets(test=True)['test']
+    #     batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1),
+    #                                    dtype=int)
+    #     for i in range(self.unrolls+1):
+    #         batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
+    #                                              dtype=int)
+    #     hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
+    #     self.fprop(inputs[batch_inx,:], hidden_init)
 
-        viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
-                       self.layers[1].output_list[self.unrolls-1])
+    #     viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
+    #                    self.layers[1].output_list[self.unrolls-1])
 
     def fprop(self, inputs, hidden_init, debug=False, unrolls=None):
         """
@@ -159,7 +162,7 @@ class RNN(Model):
             self.backend.bprop_fc(self.layers[1].deltas_o[tau],
                                   self.layers[1].weights,
                                   out=cerror)
-            self.layers[0].bprop(cerror, inputs, tau) ### Full inputs;??
+            self.layers[0].bprop(cerror, inputs, tau)
 
         # apply updates
         for layer in self.layers:
@@ -175,24 +178,23 @@ class RNN(Model):
         with respect to the full dataset.)
         """
         nrecs = inputs.shape[0]
-        num_batches = int(math.floor((nrecs) / self.batch_size
-                                             / self.unrolls)) - 1
+        num_batches = int(math.floor((nrecs) / 128
+                                             / self.unrolls)) - 2
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
-        hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
-        batch_inx = self.backend.zeros((self.batch_size,
-                                        self.unrolls+1), dtype=int)
+        hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
         for batch in xrange(num_batches):
-            self.serve_batch(batch, batch_inx, num_batches)
-            self.fprop(inputs, batch_inx, hidden_init, unrolls=self.unrolls)
+            batch_inx = range(batch*128*self.unrolls,
+                              (batch+1)*128*self.unrolls+128)
+            self.fprop(inputs[batch_inx, :], hidden_init, unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
             if batch % 20 is 0:
-                    hidden_init = self.backend.zeros((self.batch_size,
-                                                     self.layers[1].nin))
+                    hidden_init = self.backend.zeros((self.layers[1].nin,
+                                                      self.batch_size))
             for tau in range(self.unrolls):
                 letters = self.backend.empty(50, dtype=int)
                 self.backend.argmax(self.layers[1].output_list[tau],
-                                    axis=1, out=letters)
+                                    axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
         return_buffer = self.backend.zeros(nrecs)
@@ -240,15 +242,19 @@ class RNN(Model):
         for idx in xrange(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
-            targets = ds.get_targets(train=True, test=True, validation=False)
+            # targets = ds.get_targets(train=True, test=True, validation=False)
+            targets = ds.get_inputs(train=True, test=True, validation=False)
+            targets['train'] = targets['train'][128::, :]
+            targets['test'] = targets['test'][128::, :]
             for item in items:
                 print "item:", item
                 if item in targets and item in preds:
-                    misclass = ds.backend.empty(preds[item].shape)
+                    misclass = ds.backend.empty(targets[item].shape[0])
                     ds.backend.argmax(targets[item],
                                       axis=1,
                                       out=misclass)
-                    ds.backend.not_equal(preds[item], misclass, misclass)
+                    ds.backend.not_equal(preds[item][:targets[item].shape[0]],
+                                         misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))
