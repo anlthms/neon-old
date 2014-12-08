@@ -8,8 +8,9 @@ Simple recurrent neural network with one hidden layer.
 import logging
 import math
 
-from neon.models.model import Model
 from neon.diagnostics.visualize_rnn import VisualizeRNN
+from neon.models.model import Model
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +49,14 @@ class RNN(Model):
         logger.info('commencing model fitting')
         suberrorlist = []
         errorlist = []
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0
             suberror = self.backend.zeros(num_batches)
             batch_inx = self.backend.zeros((self.batch_size,
                                             self.unrolls+1), dtype=int)
             hidden_init = self.backend.zeros((self.batch_size,
                                              self.layers[1].nin))
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 self.serve_batch(batch, batch_inx, num_batches)  # get indices
                 self.fprop(inputs, batch_inx, hidden_init,
                            debug=(True if batch == -1 else False))
@@ -214,7 +215,7 @@ class RNN(Model):
         hidden_init = self.backend.zeros((self.batch_size, self.layers[1].nin))
         batch_inx = self.backend.zeros((self.batch_size,
                                         self.unrolls+1), dtype=int)
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             self.serve_batch(batch, batch_inx, num_batches)
             self.fprop(inputs, batch_inx, hidden_init, unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
@@ -269,7 +270,7 @@ class RNN(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in xrange(len(datasets)):
+        for idx in range(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
             targets = ds.get_targets(train=True, test=True, validation=False)

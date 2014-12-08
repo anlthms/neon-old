@@ -9,7 +9,7 @@ import logging
 import math
 
 from neon.models.model import Model
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -31,11 +31,6 @@ class MLP(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        # if 'temp_dtype' not in self.__dict__:
-        #     self.temp_dtype = None
-        # tempbuf = self.backend.empty((self.layers[-1].nout, self.batch_size),
-        #                              self.temp_dtype)
-        # self.temp = [tempbuf, tempbuf.copy()]
         self.result = 0
         assert self.layers[-1].nout <= 2 ** 15
 
@@ -53,7 +48,7 @@ class MLP(Model):
                                                   datasets[0].num_procs))
 
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer))
         ds = datasets[0]
         if not ds.macro_batched:
             inputs = ds.get_inputs(train=True)['train']
@@ -70,9 +65,9 @@ class MLP(Model):
 
         assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(num_batches):  # inputs.nbatches
+            for batch in range(num_batches):  # inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
                     logger.info('loading mb %d', batch)
@@ -92,12 +87,12 @@ class MLP(Model):
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
-                    logger.info('epoch: %d, total training error: %0.5f' %
-                                (epoch, error / inputs.nbatches /
-                                    MPI.COMM_WORLD.size))
+                    logger.info('epoch: %d, total training error: %0.5f',
+                                epoch,
+                                error / inputs.nbatches / MPI.COMM_WORLD.size)
             else:
-                logger.info('epoch: %d, total training error: %0.5f' %
-                            (epoch, error / num_batches))  # inputs.nbatches
+                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                            error / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -106,7 +101,7 @@ class MLP(Model):
         for layer in self.layers:
             layer.set_train_mode(False)
 
-        for batch in xrange(inputs.nbatches):
+        for batch in range(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
@@ -170,7 +165,7 @@ class MLP(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in xrange(len(datasets)):
+        for idx in range(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
             targets = ds.get_targets(train=True, test=True, validation=True)
@@ -178,15 +173,15 @@ class MLP(Model):
                 if item in targets and item in preds:
                     labels = self.backend.empty((targets[item].nbatches,
                                                  self.batch_size))
-                    for batch in xrange(targets[item].nbatches):
+                    for batch in range(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         self.backend.argmax(targets_batch, axis=0,
                                             out=labels[batch:(batch + 1)])
                     misclass = ds.backend.empty(preds[item].shape)
                     ds.backend.not_equal(preds[item], labels, misclass)
                     self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * self.result))
+                    logging.info("%s set misclass rate: %0.5f%%", item,
+                                 100 * self.result)
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
@@ -204,7 +199,7 @@ class MLP(Model):
 
             preds = dataset.backend.empty((1, self.batch_size))
             err = 0.
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch(
                     self.batch_size, batch_type, raw_targets=True)
                 self.fprop(inputs)

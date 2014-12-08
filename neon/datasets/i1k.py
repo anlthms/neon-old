@@ -18,7 +18,7 @@ import scipy.io
 from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 import sys
 
 logger = logging.getLogger(__name__)
@@ -410,7 +410,7 @@ class I1K(Dataset):
     def partition_list(self, l, partition_size):
         divup = lambda a, b: (a + b - 1) / b
         return [l[i * partition_size:(i + 1) * partition_size]
-                for i in xrange(divup(len(l), partition_size))]
+                for i in range(divup(len(l), partition_size))]
 
     def write_batches(self, target_dir, name, start_batch_num, labels,
                       jpeg_files):
@@ -427,7 +427,7 @@ class I1K(Dataset):
                 target_dir, '%s_batch_%d' % (name, start_batch_num + i))
             self.makedir(batch_path)
             # no subbatch support for now; do we really need them?
-            # for j in xrange(0, len(labels_batch),
+            # for j in range(0, len(labels_batch),
             # self.OUTPUT_SUB_BATCH_SIZE):
             j = 0
             self.pickle(os.path.join(batch_path, '%s_batch_%d.%d' %

@@ -8,7 +8,7 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 if MPI_INSTALLED:
     from mpi4py import MPI
 import math
@@ -690,7 +690,7 @@ class GPU(Backend):
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
-                            "integer.  You specified: %s" % str(seed))
+                            "integer.  You specified: %s", str(seed))
             cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
@@ -1165,8 +1165,8 @@ class GPU(Backend):
                 low = weight_params['low']
             if 'high' in weight_params:
                 high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
+                        str(size), low, high)
             weights = numpy.random.uniform(low, high, size)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
@@ -1176,8 +1176,8 @@ class GPU(Backend):
                 loc = weight_params['loc']
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
+                        str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
@@ -1207,15 +1207,15 @@ class GPU(Backend):
             scale = 1.0
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
+            logger.info('generating %s node_normalized(%0.2f) weights.',
+                        str(size), scale)
             node_norm = scale * math.sqrt(6.0 / sum(size))
             weights = numpy.random.uniform(-node_norm, node_norm, size)
         else:
             raise AttributeError("invalid weight_params specified")
         if 'bias_init' in weight_params:
             # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
+            logger.info('separately initializing bias weights to %0.2f',
                         weight_params['bias_init'])
             weights[:, -1] = weight_params['bias_init']
 
@@ -1234,15 +1234,14 @@ class GPUDataDist(GPU):
         num_devices = cudanet.get_num_devices()
 
         if (local_size > num_devices):
-            logger.warning('Node %s: requested device: %d  max devices: %d' %
-                           (MPI.Get_processor_name(), local_size,
-                            num_devices))
+            logger.warning('Node %s: requested device: %d  max devices: %d',
+                           MPI.Get_processor_name(), local_size, num_devices)
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
 
         cudanet.set_device_id(local_rank)
-        logger.info('Setting Device on %s to %d' %
-                    (MPI.Get_processor_name(), local_rank))
+        logger.info('Setting Device on %s to %d',
+                    MPI.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
     def update_fc_dot(self, deltas, inputs, out):
