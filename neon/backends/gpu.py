@@ -478,7 +478,7 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None):
+    def sum(self, axis=None, out=None):
         """
         Sum elements of a GPUTensor. If axis is None, all elements are
         summed and a numpy scalar returned. If axis is 1 or 2, sum along that
@@ -490,7 +490,7 @@ class GPUTensor(Tensor):
             result.copy_to_host()
             return result.numpy_array[0][0]
         else:
-            result = self._tensor.sum(axis=axis)
+            result = self._tensor.sum(axis=axis, target=out._tensor)
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
@@ -927,12 +927,12 @@ class GPU(Backend):
         self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
-        x._tensor[:] = val
+        x[:] = val
 
-    def sum(self, x):
+    def sum(self, x, axis=None, out=None):
         if x is None:
             return float('NaN')
-        return x.sum()
+        return x.sum(axis=axis, out=out)
 
     def mean(self, x):
         if x is None:

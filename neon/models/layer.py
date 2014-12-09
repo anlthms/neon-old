@@ -268,10 +268,10 @@ class LayerWithNoBias(Layer):
         self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
             self.backend.bprop_fc(error, self.weights, out=self.berror)
-        self.backend.update_fc(error, inputs, out=self.updates)
+        self.backend.update_fc(error, inputs, out=self.weight_updates)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
 class RecurrentOutputLayer(Layer):
