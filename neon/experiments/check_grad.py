@@ -10,6 +10,7 @@ import numpy as np
 
 from neon.datasets.synthetic import UniformRandom
 from neon.experiments.experiment import Experiment
+from neon.util.compat import range
 
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,12 @@ class GradientChecker(Experiment):
         self.datasets = experiment.datasets
 
     def save_state(self):
-        for ind in xrange(len(self.trainable_layers)):
+        for ind in range(len(self.trainable_layers)):
             layer = self.model.layers[self.trainable_layers[ind]]
             self.weights[ind][:] = layer.weights
 
     def load_state(self):
-        for ind in xrange(len(self.trainable_layers)):
+        for ind in range(len(self.trainable_layers)):
             layer = self.model.layers[self.trainable_layers[ind]]
             layer.weights[:] = self.weights[ind]
 
@@ -63,11 +64,11 @@ class GradientChecker(Experiment):
         grads -= updates
         diff = np.linalg.norm(grads[inds]) / nmax
         if diff < 0.0002:
-            logger.info('diff %g. layer %s OK.' % (diff, layer.name))
+            logger.info('diff %g. layer %s OK.', diff, layer.name)
             return True
 
-        logger.error('diff %g. gradient check failed on layer %s.' %
-                     (diff, layer.name))
+        logger.error('diff %g. gradient check failed on layer %s.',
+                     diff, layer.name)
         return False
 
     def run(self):
@@ -81,7 +82,7 @@ class GradientChecker(Experiment):
         self.eps = 1e-4
         self.weights = []
         self.trainable_layers = []
-        for ind in xrange(len(self.model.layers)):
+        for ind in range(len(self.model.layers)):
             layer = self.model.layers[ind]
             if not (hasattr(layer, 'weights') and hasattr(layer, 'updates')):
                 continue

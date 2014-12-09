@@ -138,7 +138,7 @@ class Iris(Dataset):
         for name, l_idx, h_idx in (('train', 0, 30),
                                    ('validation', 30, 40),
                                    ('test', 40, 50)):
-            logger.info('loading: %s data' % name)
+            logger.info('loading: %s data', name)
             s_idcs = slice(l_idx, h_idx)
             v_idcs = slice(l_idx + 50, h_idx + 50)
             c_idcs = slice(l_idx + 100, h_idx + 100)

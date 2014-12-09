@@ -11,7 +11,7 @@ import numpy
 import os
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,12 @@ class MOBYDICK(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(1000000)  # 1M letters
-            predict_idcs = range(1, 1000000+1)
-            test_idcs = range(1000000, 1010000)
-            testtarget_idcs = range(1000000+self.unrolls, 1010000+self.unrolls)
-            testtarget_idcs = range(1000000+1, 1010000+1)
+            train_idcs = list(range(1000000))  # 1M letters
+            predict_idcs = list(range(1, 1000000+1))
+            test_idcs = list(range(1000000, 1010000))
+            testtarget_idcs = list(range(1000000+self.unrolls,
+                                         1010000+self.unrolls))
+            testtarget_idcs = list(range(1000000+1, 1010000+1))
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0

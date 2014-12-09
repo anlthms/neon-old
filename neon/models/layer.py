@@ -10,7 +10,7 @@ import logging
 import numpy as np
 from neon.backends.cpu import CPU
 from neon.transforms.gaussian import gaussian_filter
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray import gdist_consts as gc
 from neon.util.distarray.local_array import LocalArray
 from neon.util.persist import YAMLable
@@ -531,7 +531,7 @@ class RecurrentHiddenLayer(Layer):
                                inputs[batch_inx[:, tau - 1]].transpose(),
                                out=self.temp_in)
         self.updates += self.temp_in
-        for layer in range(0, tau - 1)[::-1]:
+        for layer in list(range(0, tau - 1))[::-1]:
             self.backend.bprop_fc(self.weights_rec,
                                   self.deltas[tau - layer - 1].transpose(),
                                   out=self.berror)
@@ -654,7 +654,7 @@ class BranchLayer(YAMLable):
         self.startidx = [0]*len(self.sublayers)
         self.endidx = [0]*len(self.sublayers)
 
-        for i in xrange(self.nsublayers):
+        for i in range(self.nsublayers):
             self.nout += self.sublayers[i].nout
             self.endidx[i] = self.nout
             if i > 0:
@@ -895,7 +895,7 @@ class LocalLayer(YAMLable):
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
                                         self.ofmsize)).raw()
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             self.ofmlocs[dst] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
@@ -911,16 +911,16 @@ class LocalLayer(YAMLable):
                 (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             # Collect the column indices for the
             # entire receptive field.
             colinds = []
-            for row in xrange(self.fheight):
+            for row in range(self.fheight):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
             if pooling is False:
-                for ifm in xrange(1, nifm):
+                for ifm in range(1, nifm):
                     colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
@@ -1009,8 +1009,9 @@ class LocalLayerDist(LocalLayer):
 
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
                                           dtype='i32')
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             self.ofmlocs[dst] = ofmstarts + dst
+
         # stores the flattened px location across
         # ofm in columns
 
@@ -1028,16 +1029,16 @@ class LocalLayerDist(LocalLayer):
                 (self.ofmsize, self.fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             # Collect the column indices for the
             # entire receptive field.
             colinds = []
-            for row in xrange(self.fheight):
+            for row in range(self.fheight):
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
             fminds = colinds[:]
             if self.pooling is False:
-                for ifm in xrange(1, self.nifm):
+                for ifm in range(1, self.nifm):
                     colinds += [x + ifm * self.ifmsize for x in fminds]
 
             if (src % self.ifmwidth + self.fwidth + self.stride) <= (
@@ -1271,7 +1272,7 @@ class LocalFilteringLayer(LocalLayer):
         return rcost, spcost
 
     def fprop(self, inputs):
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             rflinks = self.rlinks[dst]
             # We use a different filter for each receptive field.
             # size-guide
@@ -1287,7 +1288,7 @@ class LocalFilteringLayer(LocalLayer):
     def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.clear(self.berror)
-            for dst in xrange(self.ofmsize):
+            for dst in range(self.ofmsize):
                 # Use the same filter that was used for forward propagation
                 # of this receptive field.
                 # size-guide
@@ -1302,7 +1303,7 @@ class LocalFilteringLayer(LocalLayer):
                                  out=self.bpropbuf)
                 self.berror[rflinks] = self.bpropbuf
 
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             rflinks = self.rlinks[dst]
             delta_slice = error.take(self.ofmlocs[dst], axis=0)
             self.backend.dot(delta_slice,
@@ -1482,7 +1483,7 @@ class LocalDeFilteringLayer(object):
 
     def fprop(self, inputs):
         self.backend.clear(self.output)
-        for dst in xrange(self.prev.ofmsize):
+        for dst in range(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:
             # inputs[:, self.prev.ofmlocs[dst]]: mbs x nout -> mbs x nofm
@@ -1494,7 +1495,7 @@ class LocalDeFilteringLayer(object):
             self.output[rflinks] += self.prodbuf
 
     def bprop(self, error, inputs):
-        for dst in xrange(self.prev.ofmsize):
+        for dst in range(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0),
@@ -1749,7 +1750,7 @@ class Convolver(LocalLayer):
         self.prodbuf = backend.empty((nofm, batch_size))
 
     def fprop(self, inputs):
-        for dst in xrange(self.ofmsize):
+        for dst in range(self.ofmsize):
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights, inputs.take(rflinks, axis=0),
                              out=self.prodbuf)
@@ -1832,7 +1833,7 @@ class LCNLayer(YAMLable):
                                                      self.filters.shape[0],
                                                      self.filters.shape[1]))
             self.sqtemp = backend.empty(self.output.shape)
-            for fm in xrange(nifm):
+            for fm in range(nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
@@ -1902,7 +1903,7 @@ class LCNLayer(YAMLable):
     def bprop_sub_normalize(self, error, inputs):
         self.backend.clear(self.exerror)
         for fm in range(self.nifm):
-            for dst in xrange(self.conv.ofmsize):
+            for dst in range(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
@@ -1922,7 +1923,7 @@ class LCNLayer(YAMLable):
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
         for fm in range(self.nifm):
-            for dst in xrange(self.conv.ofmsize):
+            for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=0)
@@ -2092,7 +2093,7 @@ class LCNLayerDist(LCNLayer):
                                                      self.filters.shape[0],
                                                      self.filters.shape[1]))
             self.sqtemp = self.backend.empty(self.output.shape)
-            for fm in xrange(self.nifm):
+            for fm in range(self.nifm):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
                     (self.nifm, self.fheight, self.fwidth))
@@ -2161,7 +2162,7 @@ class LCNLayerDist(LCNLayer):
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
         for fm in range(self.nifm):
-            for dst in xrange(self.conv.ofmsize):
+            for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 divout = self.output.take(loc, axis=0)

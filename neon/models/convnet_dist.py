@@ -10,7 +10,7 @@ import logging
 from neon.models.mlp_dist import MLPDist
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
 from neon.models.layer import LayerWithNoBiasDist
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class ConvnetDist(MLPDist):
         layer = self.layers[0]
         layer.input = GlobalArray(cur_layer=layer)
         layer.adjust_for_dist()
-        for i in xrange(1, self.nlayers):
+        for i in range(1, self.nlayers):
             layer = self.layers[i]
             logger.debug('layer= %d', i)
             if isinstance(layer, ConvLayerDist):
@@ -71,9 +71,8 @@ class ConvnetDist(MLPDist):
                         self.layers[i - 1].stride) + 1
                     layer.global_size = (layer.global_height *
                                          layer.global_width)
-                    logger.debug(
-                        'global_size=%d, global_width=%d', layer.global_size,
-                        layer.global_width)
+                    logger.debug('global_size=%d, global_width=%d',
+                                 layer.global_size, layer.global_width)
                     layer.nin = mp_layer.nout
                     layer.ifmshape = mp_layer.ofmshape
                     layer.nifm = mp_layer.nifm
