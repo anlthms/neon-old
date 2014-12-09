@@ -60,21 +60,36 @@ class Layer(YAMLable):
         self.weight_dtype = weight_dtype
         self.weights = self.backend.gen_weights((nout, nin), weight_init,
                                                 weight_dtype)
-        self.updates = self.backend.empty(self.weights.shape, updates_dtype)
+        self.weight_updates = self.backend.empty(self.weights.shape,
+                                                 updates_dtype)
         self.updates_dtype = updates_dtype
         self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
         if activation is not None:
-            self.pre_act = self.backend.zeros((self.nout, batch_size),
+            self.pre_act = self.backend.zeros(self.output.shape,
                                               pre_act_dtype)
         else:
             self.pre_act = self.output
+
         self.pos = pos
         self.learning_rule = learning_rule
-        self.learning_rule.allocate_state(self.updates)
         self.batch_size = batch_size
+        self.use_biases = 'bias_init' in weight_init
+        if self.use_biases:
+            self.biases = self.backend.empty((nout, 1), weight_dtype)
+            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.bias_updates = self.backend.empty(self.biases.shape,
+                                                   updates_dtype)
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+
+        self.learning_rule.allocate_state(self.updates)
+
         if pos > 0:
             # This is storage for the backward propagated error.
-            self.berror = self.backend.empty((nin - 1, batch_size),
+            self.berror = self.backend.empty((nin, batch_size),
                                              berror_dtype)
             self.berror_dtype = berror_dtype
 
@@ -110,30 +125,25 @@ class Layer(YAMLable):
                  w_dtype=self.weights.dtype))
 
     def fprop(self, inputs):
-        inputs = self.backend.append_bias(inputs)
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
+        if self.use_biases is True:
+            self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error, inputs):
-        """
-        # numpy pseudocode for the backprop:
-        # updates = dot(error.transpose(), inputs)  # calculate new gradient
-        # weight update itself done by application of learning rule
-        """
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
 
         if self.pos > 0:
-            endcol = self.weights.shape[1] - 1
-            self.backend.bprop_fc(error, self.weights[:, 0:endcol],
-                                  out=self.berror)
+            self.backend.bprop_fc(error, self.weights, out=self.berror)
 
-        inputs = self.backend.append_bias(inputs)
-        self.backend.update_fc(error, inputs, out=self.updates)
+        self.backend.update_fc(error, inputs, out=self.weight_updates)
+        if self.use_biases is True:
+            self.backend.sum(error, axis=1, out=self.bias_updates)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
     def set_train_mode(self, mode):
         pass

@@ -724,17 +724,6 @@ class GPU(Backend):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
 
-    def append_bias(self, x):
-        """
-        Adds a bias row to GPUTensor x, returning a new GPUTensor.
-        """
-        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
-        result.set_row_slice(0, x.shape[0], x._tensor)
-        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
-                             cudanet.CUDAMatrix.ones.slice(
-                                 0, x.shape[1]).reshape((1, x.shape[1])))
-        return GPUTensor(result)
-
     def copy(self, a):
         assert type(a) == GPUTensor
         return a.copy()
@@ -1213,11 +1202,6 @@ class GPU(Backend):
             weights = numpy.random.uniform(-node_norm, node_norm, size)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f',
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
 
         return GPUTensor(numpy.array(weights, numpy.float32))
 

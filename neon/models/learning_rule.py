@@ -104,14 +104,14 @@ class GradientDescentMomentum(GradientDescent):
             self.momentum_params = lr_params['momentum_params']
         else:
             raise AttributeError("Missing required momentum parameters")
-        self.velocity = None
+        self.velocity = []
         self.velocity_rec = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
-        if self.velocity is None or self.velocity.shape != params.shape:
-            self.velocity = self.backend.zeros(params.shape,
-                                               self.velocity_dtype)
+        for item in params:
+            self.velocity.append(self.backend.zeros(item.shape,
+                                                    self.velocity_dtype))
 
     def allocate_state_rec(self, params):
         """For recurrent layer, need an extra velocity """
@@ -143,13 +143,15 @@ class GradientDescentMomentum(GradientDescent):
         4. update the actual weights.
         """
         momentum_coef = self.get_momentum_coef(epoch)
-        self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
-                              out=self.velocity)
-        self.backend.multiply(updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=updates)
-        self.backend.subtract(self.velocity, updates, out=self.velocity)
-        self.backend.add(params, self.velocity, out=params)
+        for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            self.backend.multiply(vs_item,
+                                  self.backend.wrap(momentum_coef),
+                                  out=vs_item)
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            self.backend.add(ps_item, vs_item, out=ps_item)
 
     def get_momentum_coef(self, epoch):
         """
