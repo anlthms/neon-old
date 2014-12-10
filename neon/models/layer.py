@@ -1091,7 +1091,7 @@ class ConvLayer(LocalLayer):
         self.prodbuf = backend.empty((nofm, batch_size))
         self.bpropbuf = backend.empty((self.fsize, batch_size))
         self.updatebuf = backend.empty(self.weights.shape)
-        self.learning_rule.allocate_state(self.updates)
+        self.learning_rule.allocate_state([self.updates])
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
         else:
@@ -1129,7 +1129,7 @@ class ConvLayer(LocalLayer):
                                  self.nifm, 1, self.fwidth, self.updatebuf)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):
@@ -1226,7 +1226,7 @@ class LocalFilteringLayer(LocalLayer):
         self.updatebuf = backend.empty((nofm, self.fsize))
         self.learning_rule = learning_rule
 
-        self.learning_rule.allocate_state(self.updates)
+        self.learning_rule.allocate_state([self.updates])
         if pretraining is True:
             self.sparsity = sparsity
             self.tied_weights = tied_weights
@@ -1322,7 +1322,7 @@ class LocalFilteringLayer(LocalLayer):
             self.updates[self.ofmlocs[dst]] = self.updatebuf
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
         self.normalize_weights(self.weights)
 
 
@@ -2247,7 +2247,7 @@ class CrossMapPoolingLayer(YAMLable):
         self.updates = backend.empty(self.weights.shape)
         self.output = backend.empty((self.nout, batch_size))
         self.updatebuf = backend.empty((1, 1))
-        self.learning_rule.allocate_state(self.updates)
+        self.learning_rule.allocate_state([self.updates])
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
         else:
@@ -2269,7 +2269,7 @@ class CrossMapPoolingLayer(YAMLable):
                                    self.updatebuf, out=self.updates)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
 
     def set_train_mode(self, mode):
         pass
