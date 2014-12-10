@@ -29,7 +29,7 @@
     batch_size: &bs 100,
     serialized_path: './logreg.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -48,13 +48,14 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
     ],

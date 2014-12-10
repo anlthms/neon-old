@@ -153,6 +153,8 @@
         #               scale - standard deviation for gaussian random number
         #                       init, or multiplier in node_normalized random
         #                       number init (see Glorot2010).
+        #               bias_init - indicates that biases should be used and
+        #                           provides the initial value.
         name: h0,
         backend: *be,
         batch_size: 30,
@@ -198,13 +200,14 @@
             },
           },
         },
-        nin: 5, # input layer + 1 for the bias
+        nin: 4,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
       &lastlayer !obj:neon.models.layer.Layer {
@@ -220,13 +223,14 @@
             momentum_params: *mm,
           },
         },
-        nin: 3, # previous nout + 1 for the bias
+        nin: 2, # previous nout
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
     ],

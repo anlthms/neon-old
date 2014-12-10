@@ -113,7 +113,7 @@
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: layer6,
         backend: *be,
         batch_size: *bs,
@@ -135,7 +135,7 @@
           high: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,

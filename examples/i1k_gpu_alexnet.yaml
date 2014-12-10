@@ -220,7 +220,7 @@
         fshape: [3, 3],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: fc4096a,
         backend: *be,
         batch_size: *bs,
@@ -250,7 +250,7 @@
         pos: 11,
         nin: 4096,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: fc4096b,
         backend: *be,
         batch_size: *bs,
@@ -280,7 +280,7 @@
         pos: 13,
         nin: 4096,
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: fc1000,
         backend: *be,
         batch_size: *bs,

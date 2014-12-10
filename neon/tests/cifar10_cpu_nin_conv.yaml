@@ -192,7 +192,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: layer7,
         backend: *be,
         batch_size: *bs,
@@ -214,7 +214,7 @@
           high: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,

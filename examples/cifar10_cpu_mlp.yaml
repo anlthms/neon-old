@@ -23,7 +23,7 @@
     num_epochs: 100,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -48,7 +48,7 @@
           high: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
