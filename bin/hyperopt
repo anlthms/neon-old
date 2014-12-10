@@ -3,11 +3,13 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Wrapper to call MEO on a neon model.
+Wrapper to call hyperparameter optimization on a neon model.
 Based on grad executable.
 
 The plan:
--
+- first of all, implement a random search only.
+- later, integrate spearmint-lite, which means take the results from a
+  run and add them to a file ()
 """
 
 import argparse
@@ -16,7 +18,8 @@ import sys
 
 import neon
 from neon.util.persist import deserialize
-from neon.experiments.spear_mint import SpearMint
+from neon.experiments.hyperopt import HyperOpt
+from ipdb import set_trace as trace
 
 
 def parse_args():
@@ -36,6 +39,7 @@ def main():
     # read in yaml configuration and initialize objects
     args = parse_args()
     experiment = deserialize(args.yaml_file)
+    trace()
 
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)

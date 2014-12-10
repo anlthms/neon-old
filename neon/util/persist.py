@@ -8,6 +8,7 @@ Utility functions for saving various types of objects state.
 import logging
 import os
 import yaml
+from ipdb import set_trace as trace
 
 from neon.util.compat import PY3
 
@@ -72,10 +73,29 @@ def obj_multi_constructor(loader, tag_suffix, node):
         res = None
     return res
 
+def range_multi_constructor(loader, tag_suffix, node):
+    """
+    experimental function to include parameter ranges in the yaml files.
+    returns a dict with type, start and end of range
+    """
+    # extract type of variable
+    var_type = tag_suffix # float, int, categorical
+
+    # get they key/value pairs from node and instantiate the object
+    try:
+        res = loader.construct_mapping(node)
+    except TypeError as e:
+        logger.warning("Unable to construct '%s' instance.  Error: %s" %
+                       (cls.__name__, e.message))
+        res = None
+    res['type']='var_type'
+    return res
 
 def initialize_yaml():
     global yaml_initialized
     yaml.add_multi_constructor('!obj:', obj_multi_constructor,
+                               yaml.loader.SafeLoader)
+    yaml.add_multi_constructor('!range:', range_multi_constructor,
                                yaml.loader.SafeLoader)
     yaml_initialized = True
 
