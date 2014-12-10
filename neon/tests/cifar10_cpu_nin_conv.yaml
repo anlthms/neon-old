@@ -28,7 +28,6 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       # NOTE: All the weights on the 1x1 convolutional
       # layers are set to positive values. 
@@ -215,7 +214,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -238,6 +237,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   logging: {

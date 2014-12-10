@@ -27,7 +27,6 @@
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './logreg.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
@@ -59,6 +58,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig
