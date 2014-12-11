@@ -58,8 +58,9 @@ class RNN(Model):
                 batch_inx = range(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
                 self.fprop(inputs[batch_inx, :], hidden_init,
-                           debug=(True if batch == -1 else False))
-                self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch)
+                           debug=(True if batch == 1 else False))
+                self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
+                           debug=(True if batch == 1 else False))
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.layers[1].nin,
@@ -81,7 +82,7 @@ class RNN(Model):
                                      self.layers[0].output_list,
                                      self.layers[1].pre_act_list,
                                      self.layers[1].output_list,
-                                     targets, batch_inx)
+                                     targets[batch_inx, :])
             logger.info('epoch: %d, total training error per element: %0.5f' %
                         (epoch, error))
             for layer in self.layers:
@@ -94,19 +95,14 @@ class RNN(Model):
     #     """
     #     Generate and print predictions on the given datasets.
     #     [TODO] Still possible after refactor? Why not just look
-    #            at the first of 5o strings in minibatch?
+    #            at the first of 5o strings in minibatch? Because they
+    #            don't form a word...
     #     """
     #     inputs = datasets[0].get_inputs(test=True)['test']
-    #     # targets = datasets[0].get_targets(test=True)['test']
-    #     batch_inx = self.backend.zeros((self.batch_size, self.unrolls+1),
-    #                                    dtype=int)
-    #     for i in range(self.unrolls+1):
-    #         batch_inx[:, i] = self.backend.array(range(i, i+self.batch_size),
-    #                                              dtype=int)
     #     hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
-    #     self.fprop(inputs[batch_inx,:], hidden_init)
+    #     self.fprop(inputs[0:768,:], hidden_init)
 
-    #     viz.print_text(inputs[self.unrolls:self.unrolls+50, :],
+    #     viz.print_text(inputs[self.unrolls*128:(self.unrolls+1)*128, :],
     #                    self.layers[1].output_list[self.unrolls-1])
 
     def fprop(self, inputs, hidden_init, debug=False, unrolls=None):
@@ -118,7 +114,7 @@ class RNN(Model):
             unrolls = self.unrolls
         if debug:
             import numpy as np
-            print "fprop input", np.nonzero(inputs[0:self.unrolls, :].raw())[1]
+            print "fprop input", inputs.reshape((6,128,50)).argmax(1)[:,0]
         y = hidden_init
         for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[128*tau:128*(tau+1), :], tau)
@@ -147,8 +143,8 @@ class RNN(Model):
             if debug:
                 import numpy as np
                 print "unrolling", tau, "of", self.unrolls
-                print "in bprop, input", np.nonzero(inputs[0:tau, :].raw())[1]
-                print "backprop target", np.flatnonzero(targets[tau, :].raw())
+                print "in bprop, input", inputs.reshape((6,128,50)).argmax(1)[:,0]
+                print "backprop target", targets.reshape((6,128,50)).argmax(1)[:,0]
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[128*tau:128*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
@@ -176,8 +172,11 @@ class RNN(Model):
         is done by having a for loop over batches load a matrix, that is
         flattened at the end (each batch has a non-contigous access pattern
         with respect to the full dataset.)
+
+        outputs are computed as a 2000 x 50 matrix that is then flattened
+        to return_buffer of 100000 records. This will be preds['train']
         """
-        nrecs = inputs.shape[0]
+        nrecs = inputs.shape[0] # not sure what recs is, but no.
         num_batches = int(math.floor((nrecs) / 128
                                              / self.unrolls)) - 2
         outputs = self.backend.zeros((num_batches*(self.unrolls),
@@ -197,7 +196,7 @@ class RNN(Model):
                                     axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
-        return_buffer = self.backend.zeros(nrecs)
+        return_buffer = self.backend.zeros(nrecs/128*50)
         nrecs_eff = num_batches*self.unrolls*self.batch_size
         return_buffer[0:nrecs_eff] = outputs.transpose().reshape((-1,))
         return return_buffer
@@ -249,12 +248,18 @@ class RNN(Model):
             for item in items:
                 print "item:", item
                 if item in targets and item in preds:
-                    misclass = ds.backend.empty(targets[item].shape[0])
-                    ds.backend.argmax(targets[item],
-                                      axis=1,
-                                      out=misclass)
-                    ds.backend.not_equal(preds[item][:targets[item].shape[0]],
-                                         misclass, misclass)
+                    num_batches = targets[item].shape[0]/128
+                    misclass = ds.backend.zeros(num_batches*128) # 255872
+                    # argmax is now over a not cool direction.
+                    tempbuf = self.backend.zeros((num_batches+1,50))
+                    for i in range(num_batches):
+                        ds.backend.argmax(targets[item][i*128:(i+1)*128, :],
+                                          axis=0, out=tempbuf[i,:])
+                    import numpy as np
+                    misclass = tempbuf.transpose().reshape((-1,))
+                    print "the target for", item, "is", misclass[100:118].raw().astype(np.int8).view('c')
+                    print "prediction for", item, "is", preds[item][0:18].raw().astype(np.int8).view('c')
+                    ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
                         item, 100 * self.result))
