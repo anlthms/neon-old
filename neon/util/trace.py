@@ -3,12 +3,12 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Driver script for running neon model experiments.
+Facility to optionally trace through function calls
 """
 import inspect, os, types, numpy, sys, re, logging
 
 class Tracer(object):
-    file_filter = "*"
+    file_filter = ".*"
     logger = None
     @classmethod
     def setup(cls, file_filter, output_file):
