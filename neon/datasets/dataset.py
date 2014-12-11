@@ -9,7 +9,7 @@ import logging
 import os
 
 from neon.backends.cpu import CPU
-from neon.util.compat import PY3, CUDA_GPU
+from neon.util.compat import PY3, CUDA_GPU, range
 
 if PY3:
     import urllib.request as urllib
@@ -87,7 +87,7 @@ class Dataset(object):
         :param repo_path: The local path to write the fetched dataset to
         :type repo_path: str
         """
-        logger.info("fetching: %s, saving to: %s" % (url, repo_path))
+        logger.info("fetching: %s, saving to: %s", url, repo_path)
         urllib.urlretrieve(url, os.path.join(repo_path,
                                              os.path.basename(url)))
 
@@ -167,7 +167,7 @@ class Dataset(object):
         nbatches = (data.shape[0] + bs - 1) / bs
         nrows = data.shape[1]
         batchwise = self.backend.zeros((nbatches * nrows, bs))
-        for batch in xrange(nbatches):
+        for batch in range(nbatches):
             batchdata = data[batch * bs:(batch + 1) * bs].transpose()
             if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
                 batchdata = batchdata.copy()

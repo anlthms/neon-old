@@ -13,7 +13,7 @@ import numpy
 import scipy.io
 import pickle
 
-from neon.util.compat import PY3
+from neon.util.compat import PY3, range
 
 from neon.datasets.dataset import Dataset
 
@@ -71,7 +71,7 @@ class SPARSENET(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(10000)
+            train_idcs = list(range(10000))
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct > 1.0:
                     self.sample_pct /= 100.0
@@ -96,7 +96,7 @@ class SPARSENET(Dataset):
                         print "Caching to pickle file: ", outfile
                         pickle.dump(patches, outfile)
                         outfile.close()
-                logger.info('loading: %s' % name)
+                logger.info('loading: %s', name)
                 # load existing data
                 if 'IMAGES' in repo_file:
                     print "test2"
@@ -105,7 +105,7 @@ class SPARSENET(Dataset):
                     indat = indat.reshape((256, 10240)).transpose()[train_idcs]
                     self.inputs['train'] = indat
                 else:
-                    logger.error('problems loading: %s' % name)
+                    logger.error('problems loading: %s', name)
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')

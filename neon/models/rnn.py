@@ -8,8 +8,9 @@ Simple recurrent neural network with one hidden layer.
 import logging
 import math
 
-from neon.models.model import Model
 from neon.diagnostics.visualize_rnn import VisualizeRNN
+from neon.models.model import Model
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 from ipdb import set_trace as trace
@@ -49,7 +50,7 @@ class RNN(Model):
         logger.info('commencing model fitting')
         suberrorlist = []
         errorlist = []
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0
             suberror = self.backend.zeros(num_batches)
             hidden_init = self.backend.zeros((self.layers[1].nin,
@@ -238,7 +239,7 @@ class RNN(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in xrange(len(datasets)):
+        for idx in range(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
             # targets = ds.get_targets(train=True, test=True, validation=False)

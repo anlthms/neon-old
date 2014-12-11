@@ -11,7 +11,7 @@ import numpy
 import os
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
 from ipdb import set_trace as trace
