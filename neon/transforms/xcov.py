@@ -8,33 +8,33 @@ from neon.transforms.cost import Cost
 def xcov_cost(backend, outputs, targets, temp, blkidx):
     blk1 = outputs[0:blkidx]
     blk2 = outputs[blkidx:]
+    backend.xcov(blk1, blk2, out=temp[2])
+    return 0.5*temp[2].sumsq()
 
-    backend.xcov(blk1, blk2, out=temp[0])
-    return 0.5*temp[0].sumsq()
 
-
-def xcov_cost_derivative(backend, outputs, targets, temp, blkidx):
-    #temp[0] is k1 x k2
-    #temp[1] is k1 x n
-    #temp[2] is k2 x n
+def xcov_cost_derivative(backend, outputs, targets, temp, blkidx,
+                         scale=1.0):
+    #temp[0] is k1 x n
+    #temp[1] is k2 x n
+    #temp[2] is k1 x k2
     #temp[3] is (k1+k2) x n
 
     # TODO: make sure that the dots are consistent across backends for this
     # arrangement
-    n = outputs.shape[0]
-    blk1 = outputs[:, :blkidx]
-    blk2 = outputs[:, blkidx:]
+    n = outputs.shape[1]
+    blk1 = outputs[0:blkidx]
+    blk2 = outputs[blkidx:]
 
-    backend.mean_norm(blk1, axis=1, out=temp[1])
-    backend.xcov(blk1, blk2, out=temp[0])
-    backend.dot(temp[0].transpose(), temp[1], out=temp[2])
-    temp[3][blkidx:] = temp[2]
+    backend.mean_norm(blk1, axis=1, out=temp[0])
+    backend.xcov(blk1, blk2, out=temp[2])
+    backend.dot(temp[2].transpose(), temp[0], out=temp[1])
+    temp[3][blkidx:] = temp[1]
 
-    backend.mean_norm(blk2, axis=1, out=temp[2])
-    backend.dot(temp[0], temp[2], out=temp[1])
-    temp[3][:blkidx] = temp[1]
+    backend.mean_norm(blk2, axis=1, out=temp[1])
+    backend.dot(temp[2], temp[1], out=temp[0])
+    temp[3][:blkidx] = temp[0]
 
-    backend.multiply(temp[3], backend.wrap(1./n), out=temp[3])
+    backend.multiply(temp[3], backend.wrap(scale/n), out=temp[3])
     return temp[3]
 
 
@@ -55,7 +55,10 @@ class XCovariance(Cost):
             raise ValueError("blkidx %d too large" % self.blkidx)
 
     def set_outputbuf(self, databuf):
-        if not self.outputbuf or self.outputbuf.shape != databuf.shape:
+        if not self.outputbuf:
+            self.outputbuf = databuf
+
+        if self.outputbuf.shape != databuf.shape or not self.temp:
             n = self.outputbuf.shape[1]
             k1 = self.blkidx
             k2 = self.outputbuf.shape[0]-k1
@@ -72,7 +75,7 @@ class XCovariance(Cost):
         Apply the xcov cost function to the datasets passed.
         """
         return xcov_cost(self.backend, self.outputbuf, targets, self.temp,
-                         self.blkidx)
+                         self.blkidx) * self.scale
 
     def apply_derivative(self, targets):
         """
@@ -80,4 +83,4 @@ class XCovariance(Cost):
         passed.
         """
         return xcov_cost_derivative(self.backend, self.outputbuf, targets,
-                                    self.temp, self.blkidx)
+                                    self.temp, self.blkidx, self.scale)

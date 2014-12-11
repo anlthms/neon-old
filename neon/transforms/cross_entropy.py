@@ -64,10 +64,10 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.log(outputs, out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], backend.wrap(-1.0), out=temp[0])
-    return backend.mean(temp[0])
+    return backend.sum(temp[0])
 
 
-def cross_entropy_derivative(backend, outputs, targets, temp):
+def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
     """
     Applies derivative of the cross entropy to the pairwise elements from
     outputs and targets.
@@ -94,7 +94,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp):
     return temp[0]
 
 
-def cross_entropy_multi_derivative(backend, outputs, targets, temp):
+def cross_entropy_multi_derivative(backend, outputs, targets, temp, scale=1.0):
     """
     Applies derivative of the cross entropy to the pairwise elements from
     outputs and targets.
@@ -110,18 +110,19 @@ def cross_entropy_multi_derivative(backend, outputs, targets, temp):
                     have the same shape and backend as outputs.
     """
     backend.divide(targets, outputs, out=temp[0])
-    backend.multiply(temp[0], backend.wrap(-1.0), out=temp[0])
+    backend.multiply(temp[0], backend.wrap(-scale), out=temp[0])
     return temp[0]
 
 
-def shortcut_derivative(backend, outputs, targets, temp):
+def shortcut_derivative(backend, outputs, targets, temp, scale=1.0):
     """
     For use when combining cost with matched activation
     i.e. cross_entropy_binary with logistic or
          cross_entropy_multi  with softmax
     Derivative has simpler form and removes numerical errors
     """
-    backend.subtract(targets, outputs, out=temp[0])
+    backend.subtract(outputs, targets, out=temp[0])
+    backend.multiply(temp[0], backend.wrap(scale), out=temp[0])
     return temp[0]
 
 
@@ -155,8 +156,12 @@ class CrossEntropy(Cost):
             self.ce_function = cross_entropy_multi
             self.cd_function = cross_entropy_multi_derivative
 
-        # if self.shortcut_deriv:
-            # self.cd_function = shortcut_derivative
+        if self.shortcut_deriv:
+            self.cd_function = shortcut_derivative
+
+    def __str__(self):
+        return ("Cost Function: {bnry} {shrtct}\n".format
+        (bnry=self.use_binary, shrtct=shortcut_deriv))
 
     def set_outputbuf(self, databuf):
         if not self.outputbuf or self.outputbuf.shape != databuf.shape:
@@ -169,7 +174,7 @@ class CrossEntropy(Cost):
         Apply the cross entropy cost function to the datasets passed.
         """
         return self.ce_function(self.backend, self.outputbuf,
-                                targets, self.temp)
+                                targets, self.temp) * self.scale
 
     def apply_derivative(self, targets):
         """
@@ -177,4 +182,4 @@ class CrossEntropy(Cost):
         passed.
         """
         return self.cd_function(self.backend, self.outputbuf,
-                                targets, self.temp)
+                                targets, self.temp, self.scale)

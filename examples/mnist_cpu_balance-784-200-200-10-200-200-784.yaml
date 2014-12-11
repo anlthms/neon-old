@@ -3,6 +3,13 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
+# h0
+# h1
+# blayer [classlayer stylelayer]
+# h3
+# h4
+# h5
+
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
@@ -17,18 +24,18 @@
     !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 100,
+      sample_pct: 10,
     },
   ],
 
-  # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  # simple Balance model specification
+  model: !obj:neon.models.balance.Balance {
     backend: *be,
-    num_epochs: 30,
+    num_epochs: 5,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.Layer {
-        name: h0,
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
@@ -52,11 +59,35 @@
           scale: 0.01,
         },
       },
-      &covlayer !obj:neon.models.layer.Layer {
-        name: output,
+      # !obj:neon.models.layer.LayerMultiPass {
+      #   name: h1,
+      #   backend: *be,
+      #   batch_size: *bs,
+      #   prev_names: [h0],
+      #   pos: 1,
+      #   learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+      #     name: outputlr,
+      #     lr_params: {
+      #       learning_rate: *lr,
+      #       backend: *be,
+      #       momentum_params: *mm,
+      #     },
+      #   },
+      #   nin: 201, # previous nout + 1 for the bias
+      #   nout: 200,
+      #   activation: !obj:neon.transforms.rectified.RectLin {},
+      #   weight_init: {
+      #     type: node_normalized,
+      #     scale: 4.0,
+      #     bias_init: 0.0,
+      #   },
+      # },
+      &classlayer !obj:neon.models.layer.LayerMultiPass {
+        name: classlayer,
         backend: *be,
         batch_size: *bs,
-        pos: 1,
+        prev_names: [h1],
+        pos: 2,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
@@ -66,71 +97,55 @@
           },
         },
         nin: 201, # previous nout + 1 for the bias
-        nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
+        nout: 10,
+        activation: !obj:neon.transforms.softmax.Softmax {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: node_normalized,
           scale: 4.0,
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.BranchLayer {
+      &stylelayer !obj:neon.models.layer.LayerMultiPass {
+        name: stylelayer,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h1],
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 201, # previous nout + 1 for the bias
+        nout: 2,
+        weight_init: {
+          type: node_normalized,
+          scale: 4.0,
+          bias_init: 0.0,
+        },
+      },
+      &blayer !obj:neon.models.layer.BranchLayer {
         name: blayer,
         backend: *be,
         batch_size: *bs,
+        prev_names: [h1],
         pos: 2,
         nin: 200,
         sublayers: [
-          !obj:neon.models.layer.Layer {
-            name: output,
-            backend: *be,
-            batch_size: *bs,
-            pos: 2,
-            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-              name: outputlr,
-              lr_params: {
-                learning_rate: *lr,
-                backend: *be,
-                momentum_params: *mm,
-              },
-            },
-            nin: 201, # previous nout + 1 for the bias
-            nout: 10,
-            activation: !obj:neon.transforms.softmax.Softmax {},
-            weight_init: {
-              type: node_normalized,
-              scale: 4.0,
-              bias_init: 0.0,
-            },
-          },
-          !obj:neon.models.layer.Layer {
-            name: output,
-            backend: *be,
-            batch_size: *bs,
-            pos: 2,
-            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-              name: outputlr,
-              lr_params: {
-                learning_rate: *lr,
-                backend: *be,
-                momentum_params: *mm,
-              },
-            },
-            nin: 201, # previous nout + 1 for the bias
-            nout: 2,
-            activation: !obj:neon.transforms.softmax.Softmax {},
-            weight_init: {
-              type: node_normalized,
-              scale: 4.0,
-              bias_init: 0.0,
-            },
-          },
+          *classlayer,
+          *stylelayer,
         ],
       },
-      !obj:neon.models.layer.Layer {
-        name: output,
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h3,
         backend: *be,
         batch_size: *bs,
+        prev_names: [blayer],
         pos: 3,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
@@ -142,17 +157,18 @@
         },
         nin: 13, # previous nout + 1 for the bias
         nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
           scale: 4.0,
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
-        name: output,
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h4,
         backend: *be,
         batch_size: *bs,
+        prev_names: [h3],
         pos: 4,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
@@ -164,17 +180,18 @@
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
           scale: 4.0,
           bias_init: 0.0,
         },
       },
-      &outlayer !obj:neon.models.layer.Layer {
-        name: output,
+      &outlayer !obj:neon.models.layer.LayerMultiPass {
+        name: h5,
         backend: *be,
         batch_size: *bs,
+        prev_names: [h4],
         pos: 5,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
@@ -186,7 +203,6 @@
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 784,
-        activation: !obj:neon.transforms.linear.Linear {},
         weight_init: {
           type: node_normalized,
           scale: 4.0,
@@ -196,11 +212,19 @@
     ],
     cost: [
       !obj:neon.transforms.sum_squared.SumSquaredDiffs {
-        olayer:*outlayer,
+        olayer: *outlayer,
+        scale: .00001,
       },
-      !obj:neon.transforms.cross_entropy.CrossEntropy {},
+      !obj:neon.transforms.cross_entropy.CrossEntropy {
+        olayer: *classlayer,
+        # scale: 50,
+        shortcut_deriv: True,
+        use_binary: False,
+      },
       !obj:neon.transforms.xcov.XCovariance {
-        olayer:*covlayer,
+        olayer: *blayer,
+        blkidx: 10,
+        scale: 100,
       },
     ],
   },

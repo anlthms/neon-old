@@ -634,7 +634,7 @@ class CPU(Backend):
         a0 = a._tensor - a._tensor.mean(1, keepdims=True)
         b0 = b._tensor - b._tensor.mean(1, keepdims=True)
         np.dot(a0, b0.T, out._tensor)
-        self.divide(out, self.wrap(a.shape[0]), out=out)
+        self.divide(out, self.wrap(a.shape[1]), out=out)
 
     def mean_norm(self, a, axis, out):
         if (axis == -1 or not axis):
@@ -771,7 +771,6 @@ class CPU(Backend):
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
     def softmax(self, x, out):
-        x._tensor.max(axis=0, out=out._tensor[0, :])
         np.subtract(x._tensor, x._tensor.max(axis=0, keepdims=True),
                     out._tensor)
         np.exp(out._tensor, out._tensor)
