@@ -176,23 +176,24 @@ class LayerDist(Layer):
                              'LayerDist')
 
         self.weights = self.weights.take(in_indices, axis=1)
+        self.weight_updates = self.backend.empty(self.weights.shape)
 
-        self.updates = self.backend.empty(self.weights.shape)
+        if self.use_biases:
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.empty(
             (self.nout, self.batch_size * MPI.COMM_WORLD.size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
-            if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
-                self.berror = self.backend.empty((self.nin - 1,
-                                                  self.batch_size))
-            else:
-                self.berror = self.backend.empty((self.nin, self.batch_size))
+            self.berror = self.backend.empty((self.nin, self.batch_size))
 
     def fprop(self, inputs):
-        if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
-            inputs = self.backend.append_bias(inputs)
         self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
@@ -216,10 +217,6 @@ class LayerDist(Layer):
         """
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act_, out=error)
-        endcol = self.weights.shape[1]
-        if MPI.COMM_WORLD.rank == MPI.COMM_WORLD.size - 1:
-            inputs = self.backend.append_bias(inputs)
-            endcol = self.weights.shape[1] - 1
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
@@ -228,56 +225,21 @@ class LayerDist(Layer):
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
             if self.pos > 0:
                 self.backend.bprop_fc(self.delta_,
-                                      self.weights[:, 0:endcol],
+                                      self.weights,
                                       out=self.berror)
             self.backend.update_fc(self.delta_, inputs, out=self.updates)
         else:
             if self.pos > 0:
                 self.backend.bprop_fc(error,
-                                      self.weights[:, 0:endcol],
+                                      self.weights,
                                       out=self.berror)
-            self.backend.update_fc(error, inputs, out=self.updates)
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-
-
-class LayerWithNoBias(Layer):
-
-    """
-    Single NNet layer with no bias node
-    """
-
-    def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 weight_init, learning_rule, activation=None,
-                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
-                 output_dtype=None, berror_dtype=None):
-        super(LayerWithNoBias, self).__init__(name, backend, batch_size,
-                                              pos, nin, nout, weight_init,
-                                              learning_rule, activation)
-        if pos > 0:
-            self.berror = backend.empty((nin, batch_size))
-
-    def fprop(self, inputs):
-        self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        if self.activation is not None:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
-
-    def bprop(self, error, inputs):
-        # comment if not using denominator term in cross_entropy
-        self.backend.multiply(error, self.pre_act, out=error)
-        if self.pos > 0:
-            self.backend.bprop_fc(error, self.weights, out=self.berror)
-        self.backend.update_fc(error, inputs, out=self.weight_updates)
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.params, self.updates, epoch)
+            self.backend.update_fc(error, inputs, out=self.weight_updates)
 
 
 class RecurrentOutputLayer(Layer):
 
     """
-    Derived from LayerWithNoBias. pre_act becomes pre_act_list, output becomes
+    Derived from Layer. pre_act becomes pre_act_list, output becomes
     output_list, which are indexed by [tau], the unrolling step.
     """
 
@@ -494,7 +456,7 @@ class RecurrentLSMTLayer(Layer):
 class RecurrentHiddenLayer(Layer):
 
     """
-    Derived from LayerWithNoBias. In addition to the lists[tau] outlined for
+    Derived from Layer. In addition to the lists[tau] outlined for
     RecurrentOutputLayer, the fprop is getting input from two weight matrices,
     one connected to the input and one connected to the previous hidden state.
     """
@@ -559,89 +521,6 @@ class RecurrentHiddenLayer(Layer):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
         self.learning_rule.apply_rule_rec(self.weights_rec,
                                           self.updates_rec, epoch)
-
-
-class LayerWithNoBiasDist(LayerWithNoBias):
-
-    """
-    MPI Distributed
-    Single NNet layer with no bias node
-    """
-
-    def adjust_for_dist(self):
-        # indices of the input layer in weight matrix
-        in_indices = []
-        cond1 = self.prev_layer == 'MaxPoolingLayerDist'
-        cond2 = self.prev_layer == 'LCNLayerDist'
-        if cond1 or cond2:
-            logger.debug('ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, '
-                         'global_size=%d, global_width=%d', self.ifmshape[0],
-                         self.ifmshape[1], self.nifm, self.global_size,
-                         self.global_width)
-            for cur_channel in range(self.nifm):
-                current_index = (cur_channel * self.global_size +
-                                 self.top_left_row_output * self.global_width +
-                                 self.top_left_col_output)
-                for cur_row in range(self.ifmshape[0]):
-                    in_indices.extend(
-                        range(current_index, current_index + self.ifmshape[1]))
-                    current_index += self.global_width
-        elif self.prev_layer == 'LayerWithNoBiasDist':
-            in_indices = self.in_indices
-        else:
-            raise ValueError('Unsupported previous layer for '
-                             'LayerWithNoBiasDist')
-
-        self.weights = self.weights.take(in_indices, axis=1)
-
-        self.updates = self.backend.empty(self.weights.shape)
-        self.learning_rule.allocate_state(self.updates)
-        self.delta_ = self.backend.empty((self.nout_, self.batch_size))
-        self.delta_gather = self.backend.empty(
-            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
-        if self.pos > 0:
-            # This is storage for the backward propagated error.
-            self.berror = self.backend.empty((self.nin, self.batch_size))
-
-    def fprop(self, inputs):
-        # dot product is distributed across nodes
-        self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
-        # accumulate the pre_act values before applying non-linearity
-        self.pre_act._tensor = MPI.COMM_WORLD.reduce(
-            self.pre_act.raw(), op=MPI.SUM, root=0)
-        # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
-            # this stores the derivatives in self.pre_act
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
-        # strictly, following line not needed for top-most layer
-        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.raw())
-        # broadcast back the pre_act values for bprop.
-        # note: suboptimal for dist implementation,
-        # but a consequence of reusing the pre_act buffer for fprop and bprop
-        self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
-
-    def bprop(self, error, inputs):
-        # comment if not using denominator term in cross_entropy
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act_, out=error)
-        if self.nout_ != self.nout:
-            MPI.COMM_WORLD.Allgather(
-                error.raw(), self.delta_gather._tensor)
-            # todo: only supported in numpy backend for now
-            self.delta_._tensor = np.vstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=1))
-            if self.pos > 0:
-                self.backend.bprop_fc(self.delta_, self.weights,
-                                      out=self.berror)
-            self.backend.update_fc(self.delta_, inputs, out=self.updates)
-        else:
-            if self.pos > 0:
-                self.backend.bprop_fc(error, self.weights,
-                                      out=self.berror)
-            self.backend.update_fc(error, inputs, out=self.updates)
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
 class BranchLayer(YAMLable):

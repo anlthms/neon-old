@@ -94,7 +94,7 @@
         stride: 2,
       },
       # todo: support FC-> FC connections
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerDist {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -122,7 +122,7 @@
           high: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBiasDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
