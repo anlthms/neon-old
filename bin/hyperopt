@@ -41,6 +41,14 @@ def main():
     experiment = deserialize(args.yaml_file)
     trace()
 
+    # pick some parameters to use:
+    if experiment.hyperopt[0]['chooser'] is 'shotgun':
+        experiment.model.layers[0].learning_rule
+        experiment.model.layers[0].learning_rule.lr_params.learning_rate
+        # [BUG] problem - can't look inside the object where the range is.
+
+    # now serialize it again so
+
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)
 
