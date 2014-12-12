@@ -37,8 +37,8 @@
             backend: *be,
           },
         },
-        nin: 785, # num inputs + 1 for bias
-        nout: 1001, # num outputs + 1 for bias
+        nin: 784,
+        nout: 1000,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,

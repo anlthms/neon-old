@@ -694,7 +694,7 @@ class RBMLayer(Layer):
         self.learning_rule.allocate_state(self.diff)
         self.neg_pre_act = backend.empty((self.nin, batch_size))
         self.x_minus = backend.empty((self.nin, batch_size))
-        self.output = backend.empty((self.nin-1, batch_size))
+        self.output = backend.empty((self.nin, batch_size))
 
     def positive(self, inputs):
         """
@@ -704,11 +704,10 @@ class RBMLayer(Layer):
            inputs (neon.datasets.dataset.Dataset): dataset upon which
                                                       to operate
         """
-        inputs = self.backend.append_bias(inputs)
-        self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
+        self.backend.dot(self.weights, inputs, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_plus)
-        self.backend.update_fc(self.p_hid_plus, inputs, out=self.p_plus)
+        self.backend.dot(self.p_hid_plus, inputs.transpose(), out=self.p_plus)
         self.random_numbers = self.backend.uniform(size=self.p_hid_plus.shape)
         self.backend.greater(self.p_hid_plus, self.random_numbers,
                              out=self.s_hid_plus)
@@ -721,14 +720,14 @@ class RBMLayer(Layer):
            inputs (neon.datasets.dataset.Dataset): dataset upon which
                                                       to operate
         """
-        self.backend.bprop_fc(self.s_hid_plus, self.weights,
-                              out=self.neg_pre_act)
+        self.backend.dot(self.weights.transpose(), self.s_hid_plus,
+                         out=self.neg_pre_act)
         self.activation.apply_function(self.backend, self.neg_pre_act,
                                        self.x_minus)
-        self.backend.fprop_fc(self.x_minus, self.weights, out=self.pre_act)
+        self.backend.dot(self.weights, self.x_minus, out=self.pre_act)
         self.activation.apply_function(self.backend, self.pre_act,
                                        self.p_hid_minus)
-        self.output[:] = self.x_minus[:-1]
+        self.output[:] = self.x_minus
 
     def update(self, epoch):
         """
@@ -737,8 +736,8 @@ class RBMLayer(Layer):
         Arguments:
             epoch: not used, for future compatibility
         """
-        self.backend.update_fc(self.p_hid_minus, self.x_minus,
-                               out=self.p_minus)
+        self.backend.dot(self.p_hid_minus, self.x_minus.transpose(),
+                         out=self.p_minus)
         self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
         self.learning_rule.apply_rule(self.weights, self.diff, epoch)
 

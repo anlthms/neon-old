@@ -34,7 +34,7 @@ class RBM(Model):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         nrecs = inputs.shape[1]
-        nin = self.layers[0].nin-1
+        nin = self.layers[0].nin
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
