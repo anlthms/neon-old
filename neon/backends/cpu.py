@@ -816,6 +816,14 @@ class CPU(Backend):
                      out=updatebuf)
             self.add(updates, updatebuf, out=updates)
 
+    def fprop_unpool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        raise NotImplementedError("TODO!")
+
+    def bprop_unpool(self, inputs, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        raise NotImplementedError("TODO!")
+
     def fprop_mpool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         rinputs = self.hstack_maps(inputs, nfm)

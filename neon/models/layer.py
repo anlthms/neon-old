@@ -1166,6 +1166,42 @@ class ConvLayer(LocalLayer):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
 
 
+class ConvLayerMultiPass(Layer):
+
+    """
+    Single NNet layer that accumulate backpropagated error
+    """
+
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
+                 nofm, ifmshape, fshape, stride, weight_init, activation=None,
+                 pad=0, prev_names=[]):
+        super(ConvLayerMultiPass, self).__init__(name, backend, batch_size,
+                                        pos, learning_rule, nifm, nofm,
+                                        ifmshape, fshape, stride,
+                                        activation=activation,
+                                        pad=pad, prev_names=prev_names)
+        self.utemp = self.backend.empty(self.weights.shape, updates_dtype)
+        self.updates[:] = self.backend.wrap(0.0)
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.updates[:] = self.backend.wrap(0.0)
+
+    def bprop(self, error, inputs):
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+        if self.pos > 0:
+            self.backend.bprop_conv(self.weights, error, self.berror,
+                                    self.links, self.ifmshape, self.ofmshape,
+                                    self.ofmlocs, self.pad, self.stride,
+                                    self.nifm, 1, self.bpropbuf)
+        self.backend.update_conv(self.weights, inputs, error, self.utemp,
+                                 self.links, self.ifmshape, self.ofmshape,
+                                 self.ofmlocs, self.pad, self.stride,
+                                 self.nifm, 1, self.fwidth, self.updatebuf)
+        self.backend.add(self.utemp, self.updates, out=self.updates)
+
+
 class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     """

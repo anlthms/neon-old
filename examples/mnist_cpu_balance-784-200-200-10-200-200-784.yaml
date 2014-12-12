@@ -12,7 +12,7 @@
 
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
@@ -24,18 +24,19 @@
     !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
+      sample_pct: 100,
     },
   ],
 
   # simple Balance model specification
   model: !obj:neon.models.balance.Balance {
+    serialized_path: './balance-simple.pkl',
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,
     layers: [
       !obj:neon.models.layer.LayerMultiPass {
-        name: h1,
+        name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
@@ -59,29 +60,29 @@
           scale: 0.01,
         },
       },
-      # !obj:neon.models.layer.LayerMultiPass {
-      #   name: h1,
-      #   backend: *be,
-      #   batch_size: *bs,
-      #   prev_names: [h0],
-      #   pos: 1,
-      #   learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-      #     name: outputlr,
-      #     lr_params: {
-      #       learning_rate: *lr,
-      #       backend: *be,
-      #       momentum_params: *mm,
-      #     },
-      #   },
-      #   nin: 201, # previous nout + 1 for the bias
-      #   nout: 200,
-      #   activation: !obj:neon.transforms.rectified.RectLin {},
-      #   weight_init: {
-      #     type: node_normalized,
-      #     scale: 4.0,
-      #     bias_init: 0.0,
-      #   },
-      # },
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h1,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h0],
+        pos: 1,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 201, # previous nout + 1 for the bias
+        nout: 200,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: node_normalized,
+          scale: .01,
+          bias_init: 0.0,
+        },
+      },
       &classlayer !obj:neon.models.layer.LayerMultiPass {
         name: classlayer,
         backend: *be,
@@ -103,7 +104,7 @@
         },
         weight_init: {
           type: node_normalized,
-          scale: 4.0,
+          scale: .01,
           bias_init: 0.0,
         },
       },
@@ -125,7 +126,7 @@
         nout: 2,
         weight_init: {
           type: node_normalized,
-          scale: 4.0,
+          scale: .01,
           bias_init: 0.0,
         },
       },
@@ -160,7 +161,7 @@
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
-          scale: 4.0,
+          scale: .01,
           bias_init: 0.0,
         },
       },
@@ -183,12 +184,12 @@
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
-          scale: 4.0,
+          scale: .01,
           bias_init: 0.0,
         },
       },
       &outlayer !obj:neon.models.layer.LayerMultiPass {
-        name: h5,
+        name: outlayer,
         backend: *be,
         batch_size: *bs,
         prev_names: [h4],
@@ -205,7 +206,7 @@
         nout: 784,
         weight_init: {
           type: node_normalized,
-          scale: 4.0,
+          scale: .01,
           bias_init: 0.0,
         },
       },
@@ -213,11 +214,11 @@
     cost: [
       !obj:neon.transforms.sum_squared.SumSquaredDiffs {
         olayer: *outlayer,
-        scale: .00001,
+        scale: 1,
       },
       !obj:neon.transforms.cross_entropy.CrossEntropy {
         olayer: *classlayer,
-        # scale: 50,
+        scale: 1,
         shortcut_deriv: True,
         use_binary: False,
       },

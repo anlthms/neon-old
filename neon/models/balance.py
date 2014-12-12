@@ -107,3 +107,28 @@ class Balance(MLP):
 
     def get_classifier_output(self):
         return self.ldict['classlayer'].output
+
+    def get_reconstruction_output(self):
+        # reshape the output_layer
+        return self.ldict['outlayer'].output
+
+    # def generate_balance_output(self, inputs, zparam=0.0):
+    #     vqueue = [self.input_layer]
+    #     y = inputs
+    #     while len(vqueue) != 0:
+    #         l = vqueue.pop(0)
+    #         l.fprop(y)
+    #         y = l.output
+    #         vqueue.extend(l.nexts)
+    #         if l.name is 'blayer':
+    #             y[]
+
+
+
+
+
+
+
+
+
+

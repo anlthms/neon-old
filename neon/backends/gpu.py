@@ -8,7 +8,7 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 if MPI_INSTALLED:
     from mpi4py import MPI
 import math
@@ -83,7 +83,10 @@ class GPUTensor(Tensor):
             numpy.ndarray: Representation of the underlying
                            `cudanet.CUDAMatrix` tensor
         """
-        return self._tensor.asarray()
+        if type(self._tensor) == cudanet.CUDAMatrix:
+            return self._tensor.asarray()
+        else:
+            return self._tensor
 
     def __setstate__(self, state):
         """
@@ -222,15 +225,18 @@ class GPUTensor(Tensor):
                     raise TooSlowToImplementError("arbitrary "
                                                   "indexing")
         else:
-            # 1-D index, check for form x[:] = value
+            # 1-D index, unless of form x[:] = value, we treat this as
+            # x[key, :] = value
             if isinstance(key, slice):
                 start, stop, stride = key.indices(self.shape[0])
                 if start == 0 and stop == self.shape[0]:
+                    # form x[:] = value
                     self._tensor.assign(value)
                 else:
-                    raise IndexError("1-D partial indexing unsupported")
+                    self._tensor.set_row_slice(start, stop, value)
             else:
-                raise IndexError("Invalid 1-D index type")
+                self._tensor.set_row_slice(key, key + 1, value)
+
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
@@ -914,7 +920,7 @@ class GPU(Backend):
         cudanet.xcov(a._tensor, b._tensor, out._tensor)
 
     def mean_norm(self, a, axis, out):
-        cudanet.mean_norm(a._tensor, axis, out._tensor)
+        a._tensor.mean_norm(axis, out._tensor)
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -1068,6 +1074,20 @@ class GPU(Backend):
             error._tensor, inputs._tensor, updates._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
+
+    def fprop_unpool(self, inputs, outputs, outputsbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        cudanet.unpool_forward(
+            smallMat=inputs._tensor, largeMat=outputs._tensor,
+            channels=nfm, sizeX=fshape[1], smallX=ifmshape[1],
+            largeX=ofmshape[1])
+
+    def bprop_unpool(self, inputs, outputs, error, berror, berrorbuf, links,
+                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+        cudanet.unpool_backward(
+            largeMat=inputs._tensor, smallMat=outputs._tensor,
+            channels=fshape[1], sizeX=fshape[1], smallX=ifmshape[1],
+            largeX=ofmshape[1])
 
     def fprop_mpool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
