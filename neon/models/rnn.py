@@ -142,12 +142,10 @@ class RNN(Model):
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                import numpy as np
-                print "unrolling", tau, "of", self.unrolls
-                print "in bprop, input", inputs.reshape((6,128,50)).argmax(1)[:,0]
-                print "backprop target", targets.reshape((6,128,50)).argmax(1)[:,0]
+                print "backprop target", tau, "of", self.unrolls, "is", targets[128*tau:128*(tau+1), :].argmax(0)[0]
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[128*tau:128*(tau+1), :])
+            #print "when tau", tau, "going to", 128*(tau+1)
             error /= float(error.shape[0] * error.shape[1])
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1],
