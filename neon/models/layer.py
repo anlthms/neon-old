@@ -448,7 +448,7 @@ class RecurrentLSMTLayer(Layer):
             self.updates += self.temp_in
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
         self.learning_rule.apply_rule_rec(self.weights_rec,
                                           self.updates_rec, epoch)
 

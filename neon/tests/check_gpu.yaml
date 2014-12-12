@@ -18,7 +18,7 @@
 
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 1,
+    num_epochs: 2,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
     layers: [
