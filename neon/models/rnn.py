@@ -43,7 +43,7 @@ class RNN(Model):
             self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
-                                                   / self.unrolls)) - 1
+                                                   / self.unrolls)) - 0
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -58,6 +58,7 @@ class RNN(Model):
             for batch in (0,1):# xrange(num_batches):
                 batch_inx = range(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
+                trace()
                 self.fprop(inputs[batch_inx, :], hidden_init,
                            debug=(True))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
