@@ -43,7 +43,7 @@ class RNN(Model):
             self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
-                                                   / self.unrolls)) - 2
+                                                   / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -55,11 +55,11 @@ class RNN(Model):
             suberror = self.backend.zeros(num_batches)
             hidden_init = self.backend.zeros((self.layers[1].nin,
                                              self.batch_size))
-            for batch in xrange(num_batches):
+            for batch in (0,1):# xrange(num_batches):
                 batch_inx = range(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
                 self.fprop(inputs[batch_inx, :], hidden_init,
-                           debug=(True if batch == 1 else False))
+                           debug=(True))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
                            debug=(True if batch == 1 else False))
                 hidden_init = self.layers[0].output_list[-1]
@@ -115,7 +115,9 @@ class RNN(Model):
             unrolls = self.unrolls
         if debug:
             import numpy as np
-            print "fprop input", inputs.reshape((6,128,50)).argmax(1)[:,0]
+            print "fprop input"
+            print inputs.reshape((6,128,50)).argmax(1)[:,0:10]
+            trace()
         y = hidden_init
         for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[128*tau:128*(tau+1), :], tau)
