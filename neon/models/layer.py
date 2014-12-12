@@ -273,10 +273,10 @@ class RecurrentOutputLayer(Layer):
         self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
         self.backend.update_fc(self.deltas_o[tau].transpose(),
                                inputs.transpose(), out=self.temp_out)
-        self.updates += self.temp_out
+        self.weight_updates += self.temp_out
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
 class RecurrentLSMTLayer(Layer):
@@ -502,7 +502,7 @@ class RecurrentHiddenLayer(Layer):
         self.backend.update_fc(self.deltas[1].transpose(),
                                inputs[batch_inx[:, tau - 1]].transpose(),
                                out=self.temp_in)
-        self.updates += self.temp_in
+        self.weight_updates += self.temp_in
         for layer in list(range(0, tau - 1))[::-1]:
             self.backend.bprop_fc(self.weights_rec,
                                   self.deltas[tau - layer - 1].transpose(),
@@ -515,10 +515,10 @@ class RecurrentHiddenLayer(Layer):
             self.backend.update_fc(self.deltas[tau - layer].transpose(),
                                    inputs[batch_inx[:, layer]].transpose(),
                                    out=self.temp_in)
-            self.updates += self.temp_in
+            self.weight_updates += self.temp_in
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
         self.learning_rule.apply_rule_rec(self.weights_rec,
                                           self.updates_rec, epoch)
 
@@ -739,7 +739,7 @@ class RBMLayer(Layer):
         self.backend.dot(self.p_hid_minus, self.x_minus.transpose(),
                          out=self.p_minus)
         self.backend.subtract(self.p_plus, self.p_minus, out=self.diff)
-        self.learning_rule.apply_rule(self.weights, self.diff, epoch)
+        self.learning_rule.apply_rule([self.weights], [self.diff], epoch)
 
 
 class LocalLayer(YAMLable):
