@@ -61,9 +61,11 @@ class GradientDescent(LearningRule):
             self.weight_decay = 0.0
 
     def apply_rule(self, params, updates, epoch):
-        self.backend.multiply(updates, self.backend.wrap(self.learning_rate),
-                              out=updates)
-        self.backend.subtract(params, updates, out=params)
+        for ps_item, us_item in zip(params, updates):
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
 class GradientDescentPretrain(GradientDescent):

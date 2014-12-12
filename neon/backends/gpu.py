@@ -489,10 +489,10 @@ class GPUTensor(Tensor):
             logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
-        else:
-            result = self._tensor.sum(axis=axis, target=out._tensor)
-            logger.debug('major change in functionality of sum')
-            return GPUTensor(result)
+
+        result = self._tensor.sum(axis=axis, target=out._tensor)
+        logger.debug('major change in functionality of sum')
+        return GPUTensor(result)
 
     def sumsq(self, axis=None):
         """
@@ -889,9 +889,9 @@ class GPU(Backend):
         elif order == 0:
             tmp = self.zeros(tsr.shape)
             self.not_equal(tsr, tmp, tmp)
-            res = tmp.sum(axis)
+            res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis)) ** (1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
         if out is None:
             out = res
         else:
