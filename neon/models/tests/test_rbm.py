@@ -45,7 +45,7 @@ class TestCudaRBM:
         activation = Logistic()
         self.layer = RBMLayer(conf['name'], backend=self.be, batch_size=100,
                               pos=0, learning_rule=thislr,
-                              nin=nin + 1, nout=conf['num_nodes'] + 1,
+                              nin=nin, nout=conf['num_nodes'],
                               activation=activation,
                               weight_init=conf['weight_init'])
         # create fake cost
@@ -53,14 +53,14 @@ class TestCudaRBM:
 
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
-        target = np.array([0.50785673,  0.50782728,  0.50173879],
+        target = np.array([0.50541031, 0.50804842],
                           dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_plus.raw()[:, 0], target)
 
     def test_cudanet_negative(self):
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
-        target = np.array([0.50395203,  0.50397301,  0.50088155],
+        target = np.array([0.50274211,  0.50407821],
                           dtype=np.float32)
         assert_tensor_near_equal(self.layer.p_hid_minus.raw()[:, 0], target)
 

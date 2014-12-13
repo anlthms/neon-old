@@ -3,6 +3,7 @@ neon.sublime-workspace
 *.pyc
 *.pkl
 *.so
+*.swp
 .DS_Store
 .tox
 neon.egg-info

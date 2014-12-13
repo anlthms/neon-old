@@ -76,7 +76,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 64, # previous nout + 1 for the bias
+        nin: 64,
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},

@@ -43,13 +43,14 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 200,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
       &covlayer !obj:neon.models.layer.Layer {
@@ -65,7 +66,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 201, # previous nout + 1 for the bias
+        nin: 200,
         nout: 200,
         activation: !obj:neon.transforms.rectified.Rectlin {},
         weight_init: {
@@ -94,7 +95,7 @@
                 momentum_params: *mm,
               },
             },
-            nin: 201, # previous nout + 1 for the bias
+            nin: 200,
             nout: 10,
             activation: !obj:neon.transforms.softmax.Softmax {},
             weight_init: {
@@ -116,7 +117,7 @@
                 momentum_params: *mm,
               },
             },
-            nin: 201, # previous nout + 1 for the bias
+            nin: 200,
             nout: 2,
             activation: !obj:neon.transforms.softmax.Softmax {},
             weight_init: {
@@ -140,7 +141,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 13, # previous nout + 1 for the bias
+        nin: 12,
         nout: 200,
         activation: !obj:neon.transforms.rectified.Rectlin {},
         weight_init: {
@@ -162,7 +163,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 201, # previous nout + 1 for the bias
+        nin: 200,
         nout: 200,
         activation: !obj:neon.transforms.rectified.Rectlin {},
         weight_init: {
@@ -184,7 +185,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 201, # previous nout + 1 for the bias
+        nin: 200,
         nout: 784,
         activation: !obj:neon.transforms.linear.Linear {},
         weight_init: {

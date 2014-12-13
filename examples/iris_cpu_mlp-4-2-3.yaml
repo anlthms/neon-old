@@ -42,13 +42,14 @@
             },
           },
         },
-        nin: 5, # input layer + 1 for the bias
+        nin: 4,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
       &lastlayer !obj:neon.models.layer.Layer {
@@ -64,13 +65,14 @@
             momentum_params: *mm,
           },
         },
-        nin: 3, # previous nout + 1 for the bias
+        nin: 2,
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
     ],

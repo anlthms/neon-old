@@ -43,13 +43,14 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
       &lastlayer !obj:neon.models.layer.Layer {
@@ -65,7 +66,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 101, # previous nout + 1 for the bias
+        nin: 100,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {

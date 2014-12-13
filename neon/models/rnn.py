@@ -168,9 +168,9 @@ class RNN(Model):
             self.backend.fill(self.layers[0].deltas[tau], 0)
             self.backend.fill(self.layers[1].deltas_o[tau], 0)
         # FOUND BUG: also should clear updates
-        self.backend.fill(self.layers[0].updates, 0)
+        self.backend.fill(self.layers[0].weight_updates, 0)
         self.backend.fill(self.layers[0].updates_rec, 0)
-        self.backend.fill(self.layers[1].updates, 0)
+        self.backend.fill(self.layers[1].weight_updates, 0)
 
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):

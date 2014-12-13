@@ -463,16 +463,6 @@ class CPU(Backend):
         """
         return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
 
-    def append_bias(self, x, dtype=np.float32):
-        """
-        Adds a bias row of ones to CPUTensor x,
-        returning a new CPUTensor.
-        """
-        return self.tensor_cls(np.concatenate((x._tensor,
-                                               np.ones((1, x.shape[1]),
-                                                       dtype)),
-                                              axis=0), dtype)
-
     def copy(self, a):
         return self.tensor_cls(np.copy(a))
 
@@ -671,8 +661,11 @@ class CPU(Backend):
     def fill(self, x, val):
         x._tensor.fill(val)
 
-    def sum(self, obj):
-        return obj._tensor.sum()
+    def sum(self, obj, axis=None, out=None):
+        if axis is None:
+            return np.sum(obj._tensor)
+        res = np.sum(obj._tensor, axis=axis, out=out._tensor, keepdims=True)
+        return self.tensor_cls(res)
 
     def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
@@ -1076,11 +1069,7 @@ class CPU(Backend):
             weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f',
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
+
         return weights
 
 

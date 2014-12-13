@@ -175,7 +175,7 @@
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,

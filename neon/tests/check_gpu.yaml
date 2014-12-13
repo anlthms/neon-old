@@ -18,7 +18,7 @@
 
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 1,
+    num_epochs: 2,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
     layers: [
@@ -75,16 +75,17 @@
             momentum_params: *mm,
           },
         },
-        nin: 3601,
+        nin: 3600,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.1,
           high: 0.1,
+          bias_init: 0.0,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,

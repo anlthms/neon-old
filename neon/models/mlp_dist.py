@@ -8,7 +8,7 @@ Simple multi-layer perceptron model.
 import logging
 
 from neon.models.mlp import MLP
-from neon.models.layer import LayerWithNoBiasDist, LayerDist
+from neon.models.layer import LayerDist
 from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,8 @@ class MLPDist(MLP):
         # MPI: call adjust_for_dist for each layer
         for i in range(0, self.nlayers):
             layer = self.layers[i]
-            layer_no_bias_dist = isinstance(layer, LayerWithNoBiasDist)
             layer_dist = isinstance(layer, LayerDist)
-            if layer_no_bias_dist or layer_dist:
+            if layer_dist:
                 # fully connected layer: no halo transfers needed
                 # layer.nout_ stores the non-dist layer.nout value
                 layer.nout_ = layer.nout
@@ -45,15 +44,11 @@ class MLPDist(MLP):
                     # layer.nout = (layer.nout // self.comm.size +
                     #     (layer.nout % self.comm.size >
                     #        self.comm.rank))
-                prev_layer_no_bias_dist = (
-                    isinstance(self.layers[i - 1], LayerWithNoBiasDist))
                 prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
-                if i == 0 or prev_layer_no_bias_dist or prev_layer_dist:
+                if i == 0 or prev_layer_dist:
                     # split the inputs nin across self.comm.size
                     start_idx = 0
                     nin = layer.nin
-                    if layer_dist:
-                        nin -= 1
                     for j in range(self.comm.rank):
                         start_idx += (nin // self.comm.size +
                                       (nin % self.comm.size > j))
@@ -62,15 +57,7 @@ class MLPDist(MLP):
                     layer.in_indices = range(start_idx, start_idx + layer.nin)
                     layer.out_indices = layer.in_indices
                     is_last_rank = (self.comm.rank == self.comm.size-1)
-                    if layer_dist and is_last_rank:
-                        # add the bias term for the last rank process
-                        layer.in_indices = range(start_idx,
-                                                 start_idx + layer.nin + 1)
-                        layer.nin += 1
-                    if prev_layer_no_bias_dist:
-                        layer.prev_layer = 'LayerWithNoBiasDist'
-                    elif prev_layer_dist:
-                        layer.prev_layer = 'LayerDist'
+                    layer.prev_layer = 'LayerDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
                                      'LayerWithNoBiasDist or LayerDist')
@@ -169,14 +156,10 @@ class MLPDist(MLP):
         error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        prev_layer_no_bias_dist = (
-            isinstance(self.layers[i - 1], LayerWithNoBiasDist))
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
         while i > 0:
-            prev_layer_no_bias_dist = (
-                isinstance(self.layers[i - 1], LayerWithNoBiasDist))
             prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
-            if prev_layer_dist or prev_layer_no_bias_dist:
+            if prev_layer_dist:
                 self.layers[i].bprop(error, self.layers[i - 1].output.
                                      take(self.layers[i].out_indices, axis=0))
             else:
