@@ -41,7 +41,10 @@ class GradientChecker(Experiment):
     def check_layer(self, layer, inputs, targets):
         # Check up to this many weights.
         nmax = 30
-        updates = layer.updates.raw().ravel()
+        if type(layer.updates) == list:
+            updates = layer.updates[0].raw().ravel()
+        else:
+            updates = layer.updates.raw().ravel()
         weights = layer.weights.raw().ravel()
         grads = np.zeros(weights.shape)
         inds = np.random.choice(np.arange(weights.shape[0]),

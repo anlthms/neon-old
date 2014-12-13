@@ -9,7 +9,7 @@ import logging
 
 from neon.models.mlp_dist import MLPDist
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
-from neon.models.layer import LayerWithNoBiasDist
+from neon.models.layer import LayerDist
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 
@@ -46,7 +46,7 @@ class ConvnetDist(MLPDist):
                                           w=self.layers[i - 1].ofmwidth)
                 top_mp_ifmheight = layer.ifmheight
                 top_mp_ifmwidth = layer.ifmwidth
-            elif isinstance(layer, LayerWithNoBiasDist):
+            elif isinstance(layer, LayerDist):
                 # fully connected layer: no halo transfers needed
                 # nout_ is the full size of the layer
                 # nout will be the split size of the layer
@@ -77,7 +77,7 @@ class ConvnetDist(MLPDist):
                     layer.ifmshape = mp_layer.ofmshape
                     layer.nifm = mp_layer.nifm
                     layer.prev_layer = 'MaxPoolingLayerDist'
-                elif isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+                elif isinstance(self.layers[i - 1], LayerDist):
                     # split the inputs nin across MPI.COMM_WORLD.size
                     if layer.nin % MPI.COMM_WORLD.size != 0:
                         raise ValueError('Unsupported layer.nin % '
@@ -86,10 +86,10 @@ class ConvnetDist(MLPDist):
                     layer.in_indices = range(MPI.COMM_WORLD.rank * layer.nin,
                                              (MPI.COMM_WORLD.rank + 1) *
                                              layer.nin)
-                    layer.prev_layer = 'LayerWithNoBiasDist'
+                    layer.prev_layer = 'LayerDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
-                                     'LayerWithNoBiasDist')
+                                     'LayerDist')
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
@@ -105,9 +105,9 @@ class ConvnetDist(MLPDist):
         # handle FC-> FC connections
         y = inputs
         for layer in self.layers:
-            if (isinstance(layer, LayerWithNoBiasDist) and
+            if (isinstance(layer, LayerDist) and
                 isinstance(self.layers[layer.pos - 1],
-                           LayerWithNoBiasDist)):
+                           LayerDist)):
                 y = y.take(layer.in_indices, axis=0)
             layer.fprop(y)
             y = layer.output
@@ -125,8 +125,8 @@ class ConvnetDist(MLPDist):
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        while isinstance(self.layers[i], LayerWithNoBiasDist):
-            if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+        while isinstance(self.layers[i], LayerDist):
+            if isinstance(self.layers[i - 1], LayerDist):
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
                                      take(self.layers[i].in_indices, axis=0))
@@ -135,7 +135,7 @@ class ConvnetDist(MLPDist):
                                      self.layers[i - 1].output)
             error = self.layers[i].berror
             i -= 1
-            if isinstance(self.layers[i], LayerWithNoBiasDist):
+            if isinstance(self.layers[i], LayerDist):
                 # extract self.layers[i].pre_act terms
                 self.layers[i].pre_act_ = self.layers[i].pre_act.take(
                     self.layers[i + 1].in_indices, axis=0)

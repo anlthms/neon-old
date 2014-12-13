@@ -478,7 +478,7 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None):
+    def sum(self, axis=None, out=None):
         """
         Sum elements of a GPUTensor. If axis is None, all elements are
         summed and a numpy scalar returned. If axis is 1 or 2, sum along that
@@ -489,10 +489,10 @@ class GPUTensor(Tensor):
             logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
-        else:
-            result = self._tensor.sum(axis=axis)
-            logger.debug('major change in functionality of sum')
-            return GPUTensor(result)
+
+        result = self._tensor.sum(axis=axis, target=out._tensor)
+        logger.debug('major change in functionality of sum')
+        return GPUTensor(result)
 
     def sumsq(self, axis=None):
         """
@@ -724,17 +724,6 @@ class GPU(Backend):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
 
-    def append_bias(self, x):
-        """
-        Adds a bias row to GPUTensor x, returning a new GPUTensor.
-        """
-        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
-        result.set_row_slice(0, x.shape[0], x._tensor)
-        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
-                             cudanet.CUDAMatrix.ones.slice(
-                                 0, x.shape[1]).reshape((1, x.shape[1])))
-        return GPUTensor(result)
-
     def copy(self, a):
         assert type(a) == GPUTensor
         return a.copy()
@@ -900,9 +889,9 @@ class GPU(Backend):
         elif order == 0:
             tmp = self.zeros(tsr.shape)
             self.not_equal(tsr, tmp, tmp)
-            res = tmp.sum(axis)
+            res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis)) ** (1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
         if out is None:
             out = res
         else:
@@ -938,12 +927,12 @@ class GPU(Backend):
         self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
-        x._tensor[:] = val
+        x[:] = val
 
-    def sum(self, x):
+    def sum(self, x, axis=None, out=None):
         if x is None:
             return float('NaN')
-        return x.sum()
+        return x.sum(axis=axis, out=out)
 
     def mean(self, x):
         if x is None:
@@ -1213,11 +1202,6 @@ class GPU(Backend):
             weights = numpy.random.uniform(-node_norm, node_norm, size)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f',
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
 
         return GPUTensor(numpy.array(weights, numpy.float32))
 

@@ -58,7 +58,7 @@ class RNN(Model):
             for batch in (0,1):# xrange(num_batches):
                 batch_inx = range(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
-                trace()
+                #race()
                 self.fprop(inputs[batch_inx, :], hidden_init,
                            debug=(True))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
@@ -118,7 +118,7 @@ class RNN(Model):
             import numpy as np
             print "fprop input"
             print inputs.reshape((6,128,50)).argmax(1)[:,0:10]
-            trace()
+            #trace()
         y = hidden_init
         for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[128*tau:128*(tau+1), :], tau)
@@ -138,9 +138,9 @@ class RNN(Model):
             self.backend.fill(self.layers[0].deltas[tau], 0)
             self.backend.fill(self.layers[1].deltas_o[tau], 0)
         # FOUND BUG: also should clear updates
-        self.backend.fill(self.layers[0].updates, 0)
+        self.backend.fill(self.layers[0].weight_updates, 0)
         self.backend.fill(self.layers[0].updates_rec, 0)
-        self.backend.fill(self.layers[1].updates, 0)
+        self.backend.fill(self.layers[1].weight_updates, 0)
 
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
