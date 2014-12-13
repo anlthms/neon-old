@@ -60,9 +60,9 @@ class RNN(Model):
                                   (batch+1)*128*self.unrolls+128)
                 #race()
                 self.fprop(inputs[batch_inx, :], hidden_init,
-                           debug=(True))
+                           debug=(True if batch ==-1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
-                           debug=(True if batch == 1 else False))
+                           debug=(True if batch == -1 else False))
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.layers[1].nin,
