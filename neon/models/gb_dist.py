@@ -11,7 +11,7 @@ import time
 
 from neon.models.gb import GB
 from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist
-from neon.models.layer import L2PoolingLayerDist, LayerWithNoBiasDist
+from neon.models.layer import L2PoolingLayerDist, LayerDist
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 
@@ -65,7 +65,7 @@ class GBDist(GB):
                                           )
                 top_lcn_ifmheight = layer.ifmheight
                 top_lcn_ifmwidth = layer.ifmwidth
-            elif isinstance(layer, LayerWithNoBiasDist):
+            elif isinstance(layer, LayerDist):
                 # fully connected layer: no halo transfers needed
                 lcn = self.layers[-2]
                 layer.top_left_row_output = (

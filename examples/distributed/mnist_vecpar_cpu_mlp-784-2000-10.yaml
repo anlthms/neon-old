@@ -38,7 +38,6 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.LayerDist {
@@ -70,7 +69,7 @@
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.LayerDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -93,6 +92,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig
