@@ -127,6 +127,7 @@ class Iris(Dataset):
     raw_onehot_targets[100:150, 2] = 1
 
     def __init__(self, **kwargs):
+        self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def load(self):
@@ -137,7 +138,7 @@ class Iris(Dataset):
         for name, l_idx, h_idx in (('train', 0, 30),
                                    ('validation', 30, 40),
                                    ('test', 40, 50)):
-            logger.info('loading: %s data' % name)
+            logger.info('loading: %s data', name)
             s_idcs = slice(l_idx, h_idx)
             v_idcs = slice(l_idx + 50, h_idx + 50)
             c_idcs = slice(l_idx + 100, h_idx + 100)

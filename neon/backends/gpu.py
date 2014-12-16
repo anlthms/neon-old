@@ -8,7 +8,7 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 if MPI_INSTALLED:
     from mpi4py import MPI
 import math
@@ -222,15 +222,17 @@ class GPUTensor(Tensor):
                     raise TooSlowToImplementError("arbitrary "
                                                   "indexing")
         else:
-            # 1-D index, check for form x[:] = value
+            # 1-D index, unless of form x[:] = value, we treat this as
+            # x[key, :] = value
             if isinstance(key, slice):
                 start, stop, stride = key.indices(self.shape[0])
                 if start == 0 and stop == self.shape[0]:
+                    # form x[:] = value
                     self._tensor.assign(value)
                 else:
-                    raise IndexError("1-D partial indexing unsupported")
+                    self._tensor.set_row_slice(start, stop, value)
             else:
-                raise IndexError("Invalid 1-D index type")
+                self._tensor.set_row_slice(key, key + 1, value)
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
@@ -476,7 +478,7 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None):
+    def sum(self, axis=None, out=None):
         """
         Sum elements of a GPUTensor. If axis is None, all elements are
         summed and a numpy scalar returned. If axis is 1 or 2, sum along that
@@ -487,8 +489,24 @@ class GPUTensor(Tensor):
             logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
+
+        result = self._tensor.sum(axis=axis, target=out._tensor)
+        logger.debug('major change in functionality of sum')
+        return GPUTensor(result)
+
+    def sumsq(self, axis=None):
+        """
+        Sum of squares of elements of a CudanetTensor. If axis is None,
+        all elements are summed and a numpy scalar returned. If axis is 1
+        or 2, sum along that axis and return a CudanetTensor.
+        """
+        if axis is None:
+            result = self._tensor.sumsq(axis=None)
+            logger.debug('Copying to host')
+            result.copy_to_host()
+            return result.numpy_array[0][0]
         else:
-            result = self._tensor.sum(axis=axis)
+            result = self._tensor.sumsq(axis=axis)
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
@@ -550,6 +568,8 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
+        # set cuda device to device 0 by default
+        cudanet.set_device_id(0)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
@@ -643,19 +663,22 @@ class GPU(Backend):
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
+        cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
+        return out
+
         # storage needed here is pretty atrocious.  Any way we could speed this
         # up?  Would iterating element wise be faster?
-        clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip values < a_min to a_min in out
-        a._tensor.less_than(a_min, clip_mask)
-        clip_vals.assign(a_min)
-        cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # clip values > a_max to a_max in out
-        out._tensor.greater_than(a_max, clip_mask)
-        clip_vals.assign(a_max)
-        cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        return out
+        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
+        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
+        # # clip values < a_min to a_min in out
+        # a._tensor.less_than(a_min, clip_mask)
+        # clip_vals.assign(a_min)
+        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
+        # # clip values > a_max to a_max in out
+        # out._tensor.greater_than(a_max, clip_mask)
+        # clip_vals.assign(a_max)
+        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
+        # return out
 
     def rng_init(self):
         seed = None
@@ -667,7 +690,7 @@ class GPU(Backend):
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
-                            "integer.  You specified: %s" % str(seed))
+                            "integer.  You specified: %s", str(seed))
             cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
@@ -686,29 +709,20 @@ class GPU(Backend):
         Returns:
             Tensor: Of specified size filled with these random numbers.
         """
-        # This is the slow version for checking via cpu generated randoms
-        a.raw(doHostCopy=False)[:] = numpy.array((numpy.random.uniform(
-            size=a._tensor.shape) < keepthresh) / keepthresh,
-            dtype=numpy.float32)
-        a.copy_to_device()
+        # This slow implementation is kept here in commented form should you
+        # need to ensure consistency with CPU generated random numbers:
+        # a.raw(dohostcopy=False)[:] = numpy.array((numpy.random.uniform(
+        #     size=a._tensor.shape) < keepthresh) / keepthresh,
+        #     dtype=numpy.float32)
+        # a.copy_to_device()
 
-        # This is the fast version using device generated random matrix
-        # a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+        # This implementation is faster but breaks consistency with CPU
+        # backend based random numbers:
+        a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
-
-    def append_bias(self, x):
-        """
-        Adds a bias row to GPUTensor x, returning a new GPUTensor.
-        """
-        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
-        result.set_row_slice(0, x.shape[0], x._tensor)
-        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
-                             cudanet.CUDAMatrix.ones.slice(
-                                 0, x.shape[1]).reshape((1, x.shape[1])))
-        return GPUTensor(result)
 
     def copy(self, a):
         assert type(a) == GPUTensor
@@ -875,9 +889,9 @@ class GPU(Backend):
         elif order == 0:
             tmp = self.zeros(tsr.shape)
             self.not_equal(tsr, tmp, tmp)
-            res = tmp.sum(axis)
+            res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr)**order).sum(axis))**(1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
         if out is None:
             out = res
         else:
@@ -886,6 +900,12 @@ class GPU(Backend):
             # TODO: decide how we want to handle differing dtypes
             out.dtype = res.dtype
         return out
+
+    def xcov(self, a, b, out):
+        cudanet.xcov(a._tensor, b._tensor, out._tensor)
+
+    def mean_norm(self, a, axis, out):
+        cudanet.mean_norm(a._tensor, axis, out._tensor)
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -896,6 +916,9 @@ class GPU(Backend):
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
 
+    def tanh(self, x, out):
+        cudanet.tanh(x._tensor, out._tensor)
+
     def rectlin(self, x, out):
         self.greater(x, self.wrap(0), out=out)
         self.multiply(x, out, out=out)
@@ -904,12 +927,12 @@ class GPU(Backend):
         self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
-        x._tensor[:] = val
+        x[:] = val
 
-    def sum(self, x):
+    def sum(self, x, axis=None, out=None):
         if x is None:
             return float('NaN')
-        return x.sum()
+        return x.sum(axis=axis, out=out)
 
     def mean(self, x):
         if x is None:
@@ -1002,6 +1025,12 @@ class GPU(Backend):
         assert obj.shape[0] % n == 0
         return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
 
+    def softmax(self, x, out):
+        cudanet.softmax(x._tensor, out._tensor)
+
+    def softmax_gradient(self, y, err, out):
+        cudanet.softmax_grad(y._tensor, err._tensor, out._tensor)
+
     def nonzero(self, x):
         res = x._tensor.copy()
         res.equals(0)
@@ -1049,7 +1078,7 @@ class GPU(Backend):
             inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta):
+                      ksize, alpha, beta, tempbuf):
         cudanet.crossmap_response_norm_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, nfm, ksize, alpha, beta)
@@ -1101,6 +1130,21 @@ class GPU(Backend):
         cudanet.sync_stream()
 
     def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
+
+        Arguments:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Returns:
+            GPUTensor: The initialized weights
+        """
         # FIXME: Get rid of duplication.
         weights = None
         if weight_params['type'] == 'uniform':
@@ -1110,8 +1154,8 @@ class GPU(Backend):
                 low = weight_params['low']
             if 'high' in weight_params:
                 high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
+                        str(size), low, high)
             weights = numpy.random.uniform(low, high, size)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
@@ -1121,51 +1165,67 @@ class GPU(Backend):
                 loc = weight_params['loc']
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
+                        str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
-            # TODO: Needs the numpyapply function to be implemented
-            raise NotImplementedError("TODO: linalg.eig call though numpy")
+            # initialization for RNNS as in Sutskever 2013
+            sparseness = 15
+            eigenvalue = 1.2
+            if 'sparseness' in weight_params:
+                sparseness = weight_params['sparseness']
+            if 'eigenvalue' in weight_params:
+                eigenvalue = weight_params['eigenvalue']
+            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
+                        (str(size), sparseness, eigenvalue))
+            elements = size[0]*size[1]
+            nonzeros = size[0] * sparseness
+            weights = numpy.zeros(size).flatten()
+            nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
+            weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
+            weights = weights.reshape(size).copy()
+            if size[0] == size[1]:
+                temp = numpy.linalg.eig(weights)
+                max_eig = numpy.max(numpy.absolute(temp[0]))
+                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
+                weights = eigenvalue * weights / max_eig
+            else:
+                logger.info('Matrix is non-square, no eigenvalue scaling.')
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
+            logger.info('generating %s node_normalized(%0.2f) weights.',
+                        str(size), scale)
             node_norm = scale * math.sqrt(6.0 / sum(size))
             weights = numpy.random.uniform(-node_norm, node_norm, size)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
 
         return GPUTensor(numpy.array(weights, numpy.float32))
 
 
 class GPUDataDist(GPU):
+
     """
     helper sub-class for data parallel implementations
     """
+
     def __init__(self, **kwargs):
         local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
         num_devices = cudanet.get_num_devices()
 
         if (local_size > num_devices):
-            logger.warning('Node %s: requested device: %d  max devices: %d' %
-                           (MPI.Get_processor_name(), local_size,
-                            num_devices))
+            logger.warning('Node %s: requested device: %d  max devices: %d',
+                           MPI.Get_processor_name(), local_size, num_devices)
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
 
         cudanet.set_device_id(local_rank)
-        logger.info('Setting Device on %s to %d' %
-                    (MPI.Get_processor_name(), local_rank))
+        logger.info('Setting Device on %s to %d',
+                    MPI.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
     def update_fc_dot(self, deltas, inputs, out):

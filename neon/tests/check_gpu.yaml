@@ -18,10 +18,9 @@
 
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 1,
+    num_epochs: 2,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer0,
@@ -76,16 +75,17 @@
             momentum_params: *mm,
           },
         },
-        nin: 3601,
+        nin: 3600,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: uniform,
           low: -0.1,
           high: 0.1,
+          bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -108,6 +108,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   logging: {

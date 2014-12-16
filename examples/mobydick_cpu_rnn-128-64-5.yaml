@@ -25,8 +25,7 @@
     num_epochs: 10,
     batch_size: &bs 50,
     unrolls: *ur,
-    make_plots: True,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    make_plots: False,
     layers: [
       # recurrent layer
       !obj:neon.models.layer.RecurrentHiddenLayer {
@@ -64,7 +63,7 @@
         },
       },
       # output layer
-      !obj:neon.models.layer.RecurrentOutputLayer {
+      &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -77,7 +76,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 64, # previous nout + 1 for the bias
+        nin: 64,
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
@@ -88,6 +87,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

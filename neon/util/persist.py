@@ -68,8 +68,8 @@ def obj_multi_constructor(loader, tag_suffix, node):
     try:
         res = cls(**loader.construct_mapping(node, deep=True))
     except TypeError as e:
-        logger.warning("Unable to construct '%s' instance.  Error: %s" %
-                       (cls.__name__, e.message))
+        logger.warning("Unable to construct '%s' instance.  Error: %s",
+                       cls.__name__, e.message)
         res = None
     return res
 
@@ -126,7 +126,7 @@ def deserialize(load_path):
     if not isinstance(load_path, file):
         load_path = file(load_path)
     fname = load_path.name
-    logger.info("deserializing object from:  %s" % fname)
+    logger.info("deserializing object from:  %s", fname)
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
         if not yaml_initialized:
             initialize_yaml()
@@ -158,7 +158,7 @@ def serialize(obj, save_path):
     See Also:
         deserialize
     """
-    logger.info("serializing %s to: %s" % (str(obj), save_path))
+    logger.info("serializing %s to: %s", str(obj), save_path)
     ensure_dirs_exist(save_path)
     pickle.dump(obj, open(save_path, 'wb'), -1)
 

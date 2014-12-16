@@ -13,7 +13,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10,
-      serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
+      # serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
     },
   ],
 
@@ -22,9 +22,8 @@
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -49,7 +48,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -72,7 +71,10 @@
         },
       },
     ],
-  },
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
+},
 
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):

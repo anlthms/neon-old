@@ -28,10 +28,8 @@
     pretraining: &pt True,
     visualize: False,
     spot_check: False,
-    pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.LocalFilteringLayer {
+      &ilayer !obj:neon.models.layer.LocalFilteringLayer {
         name: layer0,
         pretraining: *pt,
         sparsity: &sp 0.1,
@@ -172,7 +170,7 @@
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -198,6 +196,12 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
+    pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {
+      olayer: *ilayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

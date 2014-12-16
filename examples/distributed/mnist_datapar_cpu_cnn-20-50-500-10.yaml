@@ -34,7 +34,6 @@
     num_epochs: 2,
     dist_mode: *dm,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     # serialized_path: './cnn-small.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
@@ -103,7 +102,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -131,7 +130,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -154,6 +153,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig

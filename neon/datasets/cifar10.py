@@ -12,7 +12,7 @@ import os
 import tarfile
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.persist import deserialize
 
 
@@ -39,6 +39,7 @@ class CIFAR10(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
+        self.macro_batched = False
         self.__dict__.update(kwargs)
         if self.dist_flag:
             if MPI_INSTALLED:
@@ -60,7 +61,7 @@ class CIFAR10(Dataset):
 
         data_file = os.path.join(save_dir, 'cifar-10-batches-py', 'test_batch')
         if not os.path.exists(data_file):
-            logger.info('untarring: %s' % repo_gz_file)
+            logger.info('untarring: %s', repo_gz_file)
             infile = tarfile.open(repo_gz_file)
             infile.extractall(save_dir)
             infile.close()
@@ -112,7 +113,7 @@ class CIFAR10(Dataset):
             raise NotImplementedError('support for datapar not implemented')
 
     def load_file(self, filename, nclasses):
-        logger.info('loading: %s' % filename)
+        logger.info('loading: %s', filename)
         dict = deserialize(filename)
 
         full_image = np.float32(dict['data'])

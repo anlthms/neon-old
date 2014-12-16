@@ -28,7 +28,6 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
@@ -47,16 +46,17 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -69,7 +69,7 @@
             momentum_params: *mm,
           },
         },
-        nin: 2001, # previous nout + 1 for the bias
+        nin: 2000,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
@@ -79,6 +79,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

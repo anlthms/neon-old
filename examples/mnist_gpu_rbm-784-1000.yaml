@@ -23,10 +23,9 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    serialized_path: './rbm-cudanet60.pkl',
+    # serialized_path: './rbm-cudanet60.pkl',
     layers: [
-      !obj:neon.models.layer.RBMLayer {
+      &rlayer !obj:neon.models.layer.RBMLayer {
         name: vis2hid,
         backend: *be,
         batch_size: *bs,
@@ -38,8 +37,8 @@
             backend: *be,
           },
         },
-        nin: 785, # num inputs + 1 for bias
-        nout: 1001, # num outputs + 1 for bias
+        nin: 784,
+        nout: 1000,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,
@@ -48,6 +47,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {
+      olayer: *rlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

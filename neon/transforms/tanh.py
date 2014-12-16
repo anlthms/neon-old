@@ -8,78 +8,42 @@ Tanh transform functions and classes.
 from neon.transforms.activation import Activation
 
 
-def tanh(backend, inputs, outputs):
-    """
-    Applies tanh transform to the dataset passed.
-    (1.0 - np.exp(-2.0*x)) / (1.0 + np.exp(-2.0*x))
-
-    Arguments:
-        backend (Backend): The backend class to use for computation.
-        inputs (array_like): Input data to be transformed
-        outputs (array_like): Storage for the transformed output.
-    """
-
-    tmp = backend.zeros(inputs.shape)
-    backend.multiply(inputs, backend.wrap(-2.0), out=tmp)
-    backend.exp(tmp, out=tmp)
-    backend.subtract(backend.wrap(1.0), tmp, out=outputs)
-    backend.add(backend.wrap(1.0), tmp, out=tmp)
-    backend.divide(outputs, tmp, out=outputs)
-
-
-def tanh_derivative(backend, tanh, outputs):
-    """
-    Applies derivative of the tanh transform to the dataset passed.
-    1 - tanh**2
-
-    Arguments:
-        backend (Backend): The backend class to use for computation.
-        inputs (array_like): Input data to be transformed
-        outputs (array_like): Storage for the transformed output.
-    """
-
-    backend.multiply(tanh, tanh, out=outputs)
-    backend.subtract(backend.wrap(1.0), outputs, out=outputs)
-
-
-def tanh_and_derivative(backend, inputs, outputs):
-    """
-    Applies tanh function and its derivative to the dataset passed.
-
-    Arguments:
-        backend (Backend): The backend class to use for computation.
-        inputs (array_like): Input data to be transformed. This also acts as
-                             storage for the output of the derivative function.
-        outputs (array_like): Storage for the transformed output.
-    """
-
-    tanh(backend, inputs, outputs)
-    tanh_derivative(backend, outputs, inputs)
-
-
 class Tanh(Activation):
 
     """
     Embodiment of a tanh activation function.
     """
 
-    @staticmethod
-    def apply_function(backend, inputs, outputs):
+    def apply_function(self, backend, inputs, outputs):
         """
-        Apply the tanh activation function.
-        """
-        return tanh(backend, inputs, outputs)
+        Applies the hyperbolic tangent transform to the dataset passed.
 
-    @staticmethod
-    def apply_derivative(backend, inputs, outputs):
-        """
-        Apply the tanh activation function derivative.
-        """
-        return tanh_derivative(backend, inputs, outputs)
+        Arguments:
+            inputs (array_like): Input data to be transformed
 
-    @staticmethod
-    def apply_both(backend, inputs, outputs):
+        Returns:
+            array_like: Transformed copy of the inputs.  Will be in the same
+                        format as the input inputs.
         """
-        Apply the tanh activation function and its derivative.
+        backend.tanh(inputs, outputs)
+
+    def apply_derivative(self, backend, inputs, outputs):
         """
-        return tanh_and_derivative(backend, inputs, outputs)
+        Applies derivative of the hyperbolic tangent transform to the inputs
+        passed.
+
+        Arguments:
+            inputs (array_like): Input data to be transformed
+
+        Returns:
+            array_like: Transformed copy of the inputs.  Will be in the same
+                        format as the input inputs.
+        """
+        backend.tanh(inputs, outputs)
+        backend.multiply(outputs, outputs, outputs)
+        backend.subtract(backend.wrap(1.0), outputs, outputs)
+
+    def apply_both(self, backend, inputs, outputs):
+        backend.tanh(inputs, outputs)
+        backend.multiply(outputs, outputs, inputs)
+        backend.subtract(backend.wrap(1.0), inputs, inputs)

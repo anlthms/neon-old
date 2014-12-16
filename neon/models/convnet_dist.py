@@ -2,15 +2,15 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Simple multi-layer perceptron model.
+Convolution network using halopar
 """
 
 import logging
 
 from neon.models.mlp_dist import MLPDist
 from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
-from neon.models.layer import LayerWithNoBiasDist
-from neon.util.compat import MPI_INSTALLED
+from neon.models.layer import LayerDist
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class ConvnetDist(MLPDist):
         layer = self.layers[0]
         layer.input = GlobalArray(cur_layer=layer)
         layer.adjust_for_dist()
-        for i in xrange(1, self.nlayers):
+        for i in range(1, self.nlayers):
             layer = self.layers[i]
             logger.debug('layer= %d', i)
             if isinstance(layer, ConvLayerDist):
@@ -46,8 +46,10 @@ class ConvnetDist(MLPDist):
                                           w=self.layers[i - 1].ofmwidth)
                 top_mp_ifmheight = layer.ifmheight
                 top_mp_ifmwidth = layer.ifmwidth
-            elif isinstance(layer, LayerWithNoBiasDist):
+            elif isinstance(layer, LayerDist):
                 # fully connected layer: no halo transfers needed
+                # nout_ is the full size of the layer
+                # nout will be the split size of the layer
                 layer.nout_ = layer.nout
                 if i < self.nlayers - 1:
                     if layer.nout % MPI.COMM_WORLD.size != 0:
@@ -69,14 +71,13 @@ class ConvnetDist(MLPDist):
                         self.layers[i - 1].stride) + 1
                     layer.global_size = (layer.global_height *
                                          layer.global_width)
-                    logger.debug(
-                        'global_size=%d, global_width=%d', layer.global_size,
-                        layer.global_width)
+                    logger.debug('global_size=%d, global_width=%d',
+                                 layer.global_size, layer.global_width)
                     layer.nin = mp_layer.nout
                     layer.ifmshape = mp_layer.ofmshape
                     layer.nifm = mp_layer.nifm
                     layer.prev_layer = 'MaxPoolingLayerDist'
-                elif isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+                elif isinstance(self.layers[i - 1], LayerDist):
                     # split the inputs nin across MPI.COMM_WORLD.size
                     if layer.nin % MPI.COMM_WORLD.size != 0:
                         raise ValueError('Unsupported layer.nin % '
@@ -85,10 +86,10 @@ class ConvnetDist(MLPDist):
                     layer.in_indices = range(MPI.COMM_WORLD.rank * layer.nin,
                                              (MPI.COMM_WORLD.rank + 1) *
                                              layer.nin)
-                    layer.prev_layer = 'LayerWithNoBiasDist'
+                    layer.prev_layer = 'LayerDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
-                                     'LayerWithNoBiasDist')
+                                     'LayerDist')
             layer.adjust_for_dist()
 
         if self.num_epochs > 0:
@@ -104,41 +105,37 @@ class ConvnetDist(MLPDist):
         # handle FC-> FC connections
         y = inputs
         for layer in self.layers:
-            if (isinstance(layer, LayerWithNoBiasDist) and
+            if (isinstance(layer, LayerDist) and
                 isinstance(self.layers[layer.pos - 1],
-                           LayerWithNoBiasDist)):
+                           LayerDist)):
                 y = y.take(layer.in_indices, axis=0)
             layer.fprop(y)
             y = layer.output
 
-    def bprop(self, targets, inputs, epoch):
+    def bprop(self, targets, inputs):
         i = self.nlayers - 1
         lastlayer = self.layers[i]
 
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
         if MPI.COMM_WORLD.rank == 0:
-            error = self.cost.apply_derivative(self.backend,
-                                               lastlayer.output, targets,
-                                               self.temp)
+            error = self.cost.apply_derivative(targets)
             self.backend.divide(error, self.backend.wrap(targets.shape[1]),
                                 out=error)
         error._tensor = MPI.COMM_WORLD.bcast(error.raw())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
-        while isinstance(self.layers[i], LayerWithNoBiasDist):
-            if isinstance(self.layers[i - 1], LayerWithNoBiasDist):
+        while isinstance(self.layers[i], LayerDist):
+            if isinstance(self.layers[i - 1], LayerDist):
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
-                                     take(self.layers[i].in_indices, axis=0),
-                                     epoch)
+                                     take(self.layers[i].in_indices, axis=0))
             else:
                 self.layers[i].bprop(error,
-                                     self.layers[i - 1].output,
-                                     epoch)
+                                     self.layers[i - 1].output)
             error = self.layers[i].berror
             i -= 1
-            if isinstance(self.layers[i], LayerWithNoBiasDist):
+            if isinstance(self.layers[i], LayerDist):
                 # extract self.layers[i].pre_act terms
                 self.layers[i].pre_act_ = self.layers[i].pre_act.take(
                     self.layers[i + 1].in_indices, axis=0)
@@ -148,9 +145,7 @@ class ConvnetDist(MLPDist):
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
         # Following is for top MPL layer
-        self.layers[i].bprop(error,
-                             self.layers[i - 1].output,
-                             epoch)
+        self.layers[i].bprop(error, self.layers[i - 1].output)
         while i > 0:
             i -= 1
             # aggregate the berror terms at halo locations
@@ -160,5 +155,4 @@ class ConvnetDist(MLPDist):
                 self.layers[
                     i + 1].input.local_array.get_bprop_view(
                     self.layers[i + 1].berror),
-                self.layers[i].input.local_array.chunk,
-                epoch)
+                self.layers[i].input.local_array.chunk)
