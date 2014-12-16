@@ -17,8 +17,9 @@ import logging
 import sys
 
 import neon
+from neon.util.meta_persist import deserialize_and_cast, serialize
 from neon.util.persist import deserialize
-from neon.experiments.hyperopt import HyperOpt
+#from neon.experiments.hyperopt import HyperOpt
 from ipdb import set_trace as trace
 
 
@@ -38,24 +39,19 @@ def main():
     """
     # read in yaml configuration and initialize objects
     args = parse_args()
-    experiment = deserialize(args.yaml_file)
+    # parse the hyper-yaml and choose a set of parameters
+    experi = deserialize_and_cast(args.yaml_file)
+    # create a yaml to run on
+    i = 0
+    save_path = 'tempyaml' + str(i) + '.yaml'
+    serialize(experi, save_path)
+
+    # run the yaml that was created, but don't call neon, do it manually
+    # so it's easy to capture the result
+    experiment = deserialize(save_path)
+    result = experiment.run()
     trace()
 
-    # pick some parameters to use:
-    if experiment.hyperopt[0]['chooser'] is 'shotgun':
-        experiment.model.layers[0].learning_rule
-        experiment.model.layers[0].learning_rule.lr_params.learning_rate
-        # [BUG] problem - can't look inside the object where the range is.
-
-    # now serialize it again so
-
-    if hasattr(experiment, 'logging'):
-        logging.basicConfig(**experiment.logging)
-
-    # get parameter suggestions, run experiment with generated yaml, repeat:
-    mint = SpearMint()
-    mint.transfer(experiment)
-    result = mint.run()
     return experiment, result
 
 

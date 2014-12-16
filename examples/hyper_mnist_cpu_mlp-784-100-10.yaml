@@ -21,9 +21,10 @@
     },
   ],
 
-  hyperopt: [
-    chooser: "shotgun", # shotgun or spearmint optimizer
-  ],
+  # # talked to scott and we may not want this block
+  # hyperopt: [
+  #   chooser: "shotgun", # shotgun or spearmint optimizer
+  # ],
 
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
@@ -41,6 +42,7 @@
           name: h0lr,
           lr_params: {
             learning_rate: !range:float {
+              chooser: &ch shotgun,
               start: 0.1,
               end: 1,
             }, # range for HYPEROPT.
@@ -69,6 +71,7 @@
           name: outputlr,
           lr_params: {
             learning_rate: !range:float {
+              chooser: *ch,
               start: 0.1,
               end: 1,
             }, # range for HYPEROPT.

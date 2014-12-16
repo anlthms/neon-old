@@ -16,27 +16,23 @@ Simple random serach hyperparameter optimization.
 
 import logging
 import numpy as np
-
-from neon.datasets.synthetic import UniformRandom
-from neon.experiments.experiment import Experiment
 from ipdb import set_trace as trace
 
 
 logger = logging.getLogger(__name__)
 
 
-class HyperOpt(Experiment):
+def get_parameters(res):
     """
-    In this `Experiment`, a hyperyaml file is parsed to find parameter ranges,
-    then
+    cast range to number:
+    this function is a placeholder for calls to spearmint
+
+    (this should be wrapped in a class at some point)
     """
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-
-    def run(self):
-        """
-        Actually carry out each of the experiment steps.
-        """
-        pass
+    if res['chooser'] == 'shotgun':
+        out = (res['end'] - res['start']) * np.random.rand() + res['start']
+    else:
+        out = None
+        raise NotImplementedError('Unknown chooser for hyperpotimization')
+    return out
 
