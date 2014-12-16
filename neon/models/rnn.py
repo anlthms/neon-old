@@ -53,16 +53,16 @@ class RNN(Model):
         for epoch in range(self.num_epochs):
             error = 0
             suberror = self.backend.zeros(num_batches)
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                             self.batch_size))
+            hidden_init = None
             for batch in (0,1):# xrange(num_batches):
                 batch_inx = range(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
                 #race()
-                self.fprop(inputs[batch_inx, :], hidden_init,
-                           debug=(True if batch ==-1 else False))
-                self.bprop(targets[batch_inx, :], inputs[batch_inx, :], epoch,
+                self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
+                           debug=(True if batch ==1 else False))
+                self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
+                self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     hidden_init = self.backend.zeros((self.layers[1].nin,
@@ -90,28 +90,15 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-        # print the prediction
-        # self.example_prediction(datasets, viz)
 
-    # def example_prediction(self, datasets, viz):
-    #     """
-    #     Generate and print predictions on the given datasets.
-    #     [TODO] Still possible after refactor? Why not just look
-    #            at the first of 5o strings in minibatch? Because they
-    #            don't form a word...
-    #     """
-    #     inputs = datasets[0].get_inputs(test=True)['test']
-    #     hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
-    #     self.fprop(inputs[0:768,:], hidden_init)
-
-    #     viz.print_text(inputs[self.unrolls*128:(self.unrolls+1)*128, :],
-    #                    self.layers[1].output_list[self.unrolls-1])
-
-    def fprop(self, inputs, hidden_init, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init=None, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
         """
+        if hidden_init is None:
+            hidden_init = self.backend.zeros((self.layers[1].nin,
+                                              self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
@@ -125,7 +112,7 @@ class RNN(Model):
             y = self.layers[0].output_list[tau]
             self.layers[1].fprop(y, tau)
 
-    def bprop(self, targets, inputs, epoch, debug=False):
+    def bprop(self, targets, inputs, debug=False):
 
         full_unroll = True
         if full_unroll:
@@ -162,6 +149,7 @@ class RNN(Model):
                                   out=cerror)
             self.layers[0].bprop(cerror, inputs, tau)
 
+    def update(self, epoch):
         # apply updates
         for layer in self.layers:
             layer.update(epoch)
