@@ -54,3 +54,5 @@ class Softmax(Activation):
             if not self.tmp or self.tmp.shape != inputs.shape:
                 self.tmp = backend.ones(inputs.shape)
             backend.softmax_gradient(outputs, err=self.tmp, out=inputs)
+        else:
+            inputs[:] = 1.0
