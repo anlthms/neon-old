@@ -40,17 +40,30 @@ def main():
     # read in yaml configuration and initialize objects
     args = parse_args()
     # parse the hyper-yaml and choose a set of parameters
-    experi = deserialize_and_cast(args.yaml_file)
+    experi = deserialize_and_cast(args.yaml_file) # returns a dict
+    # experi = deserialize(args.yaml_file) # returns a class
     # create a yaml to run on
     i = 0
     save_path = 'tempyaml' + str(i) + '.yaml'
     serialize(experi, save_path)
 
+    # I have lost all patience and resort to the following hack to create a
+    # properly formated yaml file:
+    # use a hack to fix up the file:
+    with open(save_path, 'r') as f:
+        text = f.read()
+        text = text.replace('\'@@', '')
+        text = text.replace('@@\'', '')
+    with open(save_path, 'w') as f:
+        f.write(text)
+
+
+    trace()
+
     # run the yaml that was created, but don't call neon, do it manually
     # so it's easy to capture the result
     experiment = deserialize(save_path)
     result = experiment.run()
-    trace()
 
     return experiment, result
 
