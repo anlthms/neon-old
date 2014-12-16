@@ -7,6 +7,7 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 
 import logging
 import os
+import numpy as np
 
 from neon.backends.cpu import CPU
 from neon.util.compat import PY3, CUDA_GPU, range
@@ -158,6 +159,16 @@ class Dataset(object):
         if validation and self.inputs['validation'] is not None:
             res['validation'] = self.targets['validation']
         return res
+
+    def sample_training_data(self):
+        if self.sample_pct != 100:
+            train_idcs = np.arange(self.inputs['train'].shape[0])
+            ntrain_actual = (self.inputs['train'].shape[0] *
+                             int(self.sample_pct) / 100)
+            np.random.shuffle(train_idcs)
+            train_idcs = train_idcs[0:ntrain_actual]
+            self.inputs['train'] = self.inputs['train'][train_idcs]
+            self.targets['train'] = self.targets['train'][train_idcs]
 
     def transpose_batches(self, data):
         """
