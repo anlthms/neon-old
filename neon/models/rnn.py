@@ -255,13 +255,13 @@ class RNN(Model):
                     import numpy as np
                     misclass = tempbuf.transpose().reshape((-1,))
                     tmp = misclass[6000:6018].raw().astype(np.int8)
-                    logging.info("the target for %s is %s" % (
-                        item,  (tmp.view('c'))))
+                    logging.info("the target for %s is %s", item,
+                                 tmp.view('c'))
                     tmp = preds[item][6000:6018].raw().astype(np.int8)
-                    logging.info("prediction for %s is %s" % (
-                        item,  (tmp.view('c'))))
+                    logging.info("prediction for %s is %s", item,
+                                 tmp.view('c'))
                     ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%%" % (
-                        item, 100 * self.result))
+                    logging.info("%s set misclass rate: %0.5f%%", item,
+                                 100 * self.result)
         # TODO: return values instead?
