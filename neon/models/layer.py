@@ -977,14 +977,20 @@ class ConvLayer(LocalLayer):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_conv(self.berror, self.weights, error,
-                                    self.ofmshape, self.ofmlocs, self.ifmshape,
-                                    self.links, self.pad, self.stride,
-                                    self.nifm, 1, self.bpropbuf)
-        self.backend.update_conv(self.updates, inputs, self.weights, error,
-                                 self.ofmshape, self.ofmlocs, self.ifmshape,
-                                 self.links, self.pad, self.stride,
-                                 self.nifm, 1, self.fwidth, self.updatebuf)
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=self.pad, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
+        self.backend.update_conv(out=self.updates, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=self.pad,
+                                 stride=self.stride, ngroups=1,
+                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
@@ -1037,20 +1043,26 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_conv(self.berror, self.weights, error,
-                                    self.ofmshape, self.ofmlocs, self.ifmshape,
-                                    self.links, 0, self.stride,
-                                    self.nifm, 1, self.bpropbuf)
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=0, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
             self.updates.raw(), op=MPI.SUM, root=0)
         self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
-        self.backend.update_conv(self.updates, inputs, self.weights, error,
-                                 self.ofmshape, self.ofmlocs, self.ifmshape,
-                                 self.links, self.nifm, 0, self.stride, 1,
-                                 self.fwidth, self.updatebuf)
+        self.backend.update_conv(out=self.updates, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=0, stride=self.stride,
+                                 ngroups=1, fwidth=self.fwidth,
+                                 updatebuf=self.updatebuf)
 
     def update(self, epoch):
         # Update the filters after summing the weight updates.
