@@ -1,0 +1,162 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a CNN on NDSB.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.gpu.GPU {
+    rng_seed: 0,
+  },
+
+  datasets: [
+    # NDSB data
+    !obj:neon.datasets.ndsb.NDSB {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 20,
+      image_width: 64,
+      serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
+    },
+  ],
+
+  # CNN model specification
+  # essentially a multi-layer perceptron with convolutional and pooling layers
+  model: !obj:neon.models.mlp.MLP {
+    backend: *be,
+    num_epochs: 1,
+    batch_size: &bs 128,
+    layers: [
+      !obj:neon.models.layer.ConvLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer1lr,
+          lr_params: {
+            learning_rate: &lr 0.001,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant, # linear_monotone, nesterov
+              coef: 0.90,
+            },
+          },
+        },
+        nifm: 1,
+        nofm: 16,
+        ifmshape: [64, 64],
+        fshape: [5, 5],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nifm: 16,
+        ifmshape: [60, 60],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.ConvLayer {
+        name: layer3,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer3lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nifm: 16,
+        nofm: 32,
+        ifmshape: [30, 30],
+        fshape: [3, 3],
+        stride: 1,
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        nifm: 32,
+        ifmshape: [28, 28],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.Layer {
+        name: layer5,
+        backend: *be,
+        batch_size: *bs,
+        pos: 4,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer5lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 6272,
+        nout: 1000,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      &lastlayer !obj:neon.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 5,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 1000,
+        nout: 121,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+    ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
