@@ -20,8 +20,6 @@ if MPI_INSTALLED:
 
 logger = logging.getLogger(__name__)
 
-from ipdb import set_trace as trace
-
 
 class Layer(YAMLable):
 
@@ -127,7 +125,8 @@ class Layer(YAMLable):
                  w_dtype=self.weights.dtype))
 
     def fprop(self, inputs):
-        self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
+        self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
+                              weights=self.weights)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
@@ -138,9 +137,11 @@ class Layer(YAMLable):
             self.backend.multiply(error, self.pre_act, out=error)
 
         if self.pos > 0:
-            self.backend.bprop_fc(error, self.weights, out=self.berror)
+            self.backend.bprop_fc(out=self.berror, weights=self.weights,
+                                  deltas=error)
 
-        self.backend.update_fc(error, inputs, out=self.weight_updates)
+        self.backend.update_fc(out=self.weight_updates, inputs=inputs,
+                               deltas=error)
         if self.use_biases is True:
             self.backend.sum(error, axis=1, out=self.bias_updates)
 
@@ -196,7 +197,8 @@ class LayerDist(Layer):
             self.berror = self.backend.empty((self.nin, self.batch_size))
 
     def fprop(self, inputs):
-        self.backend.fprop_fc(inputs, self.weights, out=self.pre_act)
+        self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
+                              weights=self.weights)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
             self.pre_act.raw(), op=MPI.SUM, root=0)
@@ -226,16 +228,18 @@ class LayerDist(Layer):
             self.delta_._tensor = np.hstack(
                 np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
             if self.pos > 0:
-                self.backend.bprop_fc(self.delta_,
-                                      self.weights,
-                                      out=self.berror)
-            self.backend.update_fc(self.delta_, inputs, out=self.updates)
+                self.backend.bprop_fc(out=self.berror,
+                                      weights=self.weights,
+                                      deltas=self.delta_)
+            self.backend.update_fc(out=self.updates, inputs=inputs,
+                                   deltas=self.delta_)
         else:
             if self.pos > 0:
-                self.backend.bprop_fc(error,
-                                      self.weights,
-                                      out=self.berror)
-            self.backend.update_fc(error, inputs, out=self.weight_updates)
+                self.backend.bprop_fc(out=self.berror,
+                                      weights=self.weights,
+                                      deltas=error)
+            self.backend.update_fc(out=self.weight_updates, inputs=inputs,
+                                   deltas=error)
 
 
 class RecurrentOutputLayer(Layer):
@@ -252,28 +256,29 @@ class RecurrentOutputLayer(Layer):
         super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
                                                    learning_rule, activation)
-        self.pre_act_list = [self.backend.zeros((nout, batch_size),
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
-        self.output_list = [self.backend.zeros((nout, batch_size),
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
                                                output_dtype)
                             for k in range(unrolls)]
-        self.temp_out = self.backend.zeros((nout, nin))
-        self.deltas_o = [self.backend.zeros((nout, batch_size))
+        self.temp_out = self.backend.zeros((self.nout, self.nin))
+        self.deltas_o = [self.backend.zeros((self.batch_size, nout))
                          for k in range(unrolls + 1)]
         if pos > 0:
             self.berror = backend.zeros((batch_size, nin))
 
     def fprop(self, inputs, tau):
-        self.backend.fprop_fc(inputs, self.weights,
-                              out=self.pre_act_list[tau])
+        self.backend.fprop_fc(out=self.pre_act_list[tau],
+                              inputs=self.weights.transpose(), weights=inputs)
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.deltas_o[tau], inputs, out=self.temp_out)
+        self.backend.update_fc(out=self.temp_out, inputs=inputs.transpose(),
+                               deltas=self.deltas_o[tau].transpose())
         self.weight_updates += self.temp_out
 
     def update(self, epoch):
@@ -421,8 +426,10 @@ class RecurrentLSMTLayer(Layer):
         # old code from RNN
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
-        self.backend.fprop_fc(self.weights_rec.transpose(), y, out=z1)
-        self.backend.fprop_fc(self.weights.transpose(), inputs, out=z2)
+        self.backend.fprop_fc(out=z1, inputs=self.weights_rec.transpose(),
+                              weights=y)
+        self.backend.fprop_fc(out=z2, inputs=self.weights.transpose(),
+                              weights=inputs)
         self.pre_act_list[tau] = z1 + z2
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
@@ -430,22 +437,26 @@ class RecurrentLSMTLayer(Layer):
 
     def bprop(self, error, inputs, tau, batch_inx):
         self.deltas[1] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.deltas[1].transpose(),
-                               inputs[batch_inx[:, tau - 1]].transpose(),
-                               out=self.temp_in)
+        self.backend.update_fc(out=self.temp_in,
+                               inputs=inputs[batch_inx[:, tau - 1]].
+                               transpose(),
+                               deltas=self.deltas[1].transpose())
         self.updates += self.temp_in
         for layer in range(0, tau - 1)[::-1]:
-            self.backend.bprop_fc(self.weights_rec,
-                                  self.deltas[tau - layer - 1].transpose(),
-                                  out=self.berror)
+            self.backend.bprop_fc(out=self.berror,
+                                  weights=self.deltas[tau - layer - 1].
+                                  transpose(),
+                                  deltas=self.weights_rec)
             self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
-            self.backend.update_fc(self.deltas[tau - (layer + 1)].transpose(),
-                                   self.output_list[layer].transpose(),
-                                   out=self.temp_rec)
+            self.backend.update_fc(out=self.temp_rec,
+                                   inputs=self.output_list[layer].transpose(),
+                                   deltas=self.deltas[tau - (layer + 1)].
+                                   transpose())
             self.updates_rec += self.temp_rec
-            self.backend.update_fc(self.deltas[tau - layer].transpose(),
-                                   inputs[batch_inx[:, layer]].transpose(),
-                                   out=self.temp_in)
+            self.backend.update_fc(out=self.temp_in,
+                                   inputs=inputs[batch_inx[:, layer]].
+                                   transpose(),
+                                   deltas=self.deltas[tau - layer].transpose())
             self.updates += self.temp_in
 
     def update(self, epoch):
@@ -473,49 +484,55 @@ class RecurrentHiddenLayer(Layer):
         self.weights_rec = self.backend.gen_weights((nout, nout),
                                                     weight_init_rec,
                                                     weight_dtype)
-        self.pre_act_list = [self.backend.zeros((nout, batch_size),
+        self.pre_act_list = [self.backend.zeros((batch_size, self.nout),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
-        self.output_list = [self.backend.zeros((nout, batch_size),
+        self.output_list = [self.backend.zeros((batch_size, self.nout),
                                                output_dtype)
                             for k in range(unrolls)]
-        self.deltas = [self.backend.zeros((nout, batch_size))
+        self.deltas = [self.backend.zeros((self.batch_size, nout))
                        for k in range(unrolls + 1)]
-        self.updates_rec = self.backend.zeros((nout, nout))
-        self.temp_rec = self.backend.zeros((nout, nout))
-        self.temp_in = self.backend.zeros((nout, nin))
+        self.updates_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_rec = self.backend.zeros((self.nout, self.nout))
+        self.temp_in = self.backend.zeros((self.nout, self.nin))
         self.learning_rule.allocate_state_rec(self.updates_rec)
 
-        self.berror = backend.zeros((nout, batch_size))
+        self.berror = backend.zeros((batch_size, nout))
 
     def fprop(self, y, inputs, tau):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
-        self.backend.fprop_fc(y, self.weights_rec, out=z1)
-        self.backend.fprop_fc(inputs, self.weights, out=z2)
+        self.backend.fprop_fc(out=z1, inputs=self.weights_rec.transpose(),
+                              weights=y)
+        self.backend.fprop_fc(out=z2, inputs=self.weights.transpose(),
+                              weights=inputs)
         self.pre_act_list[tau] = z1 + z2
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
-    def bprop(self, error, inputs, tau):
+    def bprop(self, error, inputs, tau, batch_inx):
         self.deltas[1] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.deltas[1],
-                               inputs[(tau-1)*128:tau*128, :],
-                               out=self.temp_in)
+        self.backend.update_fc(out=self.temp_in,
+                               inputs=inputs[batch_inx[:, tau - 1]].
+                               transpose(),
+                               deltas=self.deltas[1].transpose())
         self.weight_updates += self.temp_in
         for layer in list(range(0, tau - 1))[::-1]:
-            self.backend.bprop_fc(self.deltas[tau - layer - 1],
-                                  self.weights_rec,
-                                  out=self.berror)
+            self.backend.bprop_fc(out=self.berror,
+                                  weights=self.deltas[tau - layer - 1].
+                                  transpose(),
+                                  deltas=self.weights_rec)
             self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
-            self.backend.update_fc(self.deltas[tau - layer - 1],
-                                   self.output_list[layer],
-                                   out=self.temp_rec)
+            self.backend.update_fc(out=self.temp_rec,
+                                   inputs=self.output_list[layer].transpose(),
+                                   deltas=self.deltas[tau - (layer + 1)].
+                                   transpose())
             self.updates_rec += self.temp_rec
-            self.backend.update_fc(self.deltas[tau - layer],  # (64, 50)
-                                   inputs[layer*128:(layer+1)*128, :],
-                                   out=self.temp_in)  # wrong out shape
+            self.backend.update_fc(out=self.temp_in,
+                                   inputs=inputs[batch_inx[:, layer]].
+                                   transpose(),
+                                   deltas=self.deltas[tau - layer].transpose())
             self.weight_updates += self.temp_in
 
     def update(self, epoch):
