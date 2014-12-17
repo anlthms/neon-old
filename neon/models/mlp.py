@@ -157,11 +157,26 @@ class MLP(Model):
         for layer in self.layers:
             layer.update(epoch)
 
-    def logloss(self, preds, targets):
-        self.backend.divide(preds, self.backend.wrap(self.backend.sum(preds)),
-                            preds)
+    def logloss(self, ds, preds, targets):
+        ceil = 1.0 - 1e-15
+        floor = 1e-15
+        self.backend.clip(preds, floor, ceil, out=preds)
         temp = self.backend.empty(preds.shape)
-        self.backend.log(preds, out=temp)
+        temp.nrows = preds.nrows
+
+        sums = self.backend.empty((1, self.batch_size))
+        for batch in range(targets.nbatches):
+            pred_batch = ds.get_batch(preds, batch)
+            temp_batch = ds.get_batch(temp, batch)
+            sums = self.backend.sum(pred_batch, axis=0, out=sums)
+
+            # XXX: work around lack of broadcasting in gpu backend.
+            for row in range(pred_batch.shape[0]):
+                temp_batch[row] = sums
+
+            self.backend.divide(pred_batch, temp_batch, temp_batch)
+
+        self.backend.log(temp, out=temp)
         self.backend.multiply(targets, temp, temp)
         return -self.backend.mean(temp)
 
@@ -198,7 +213,7 @@ class MLP(Model):
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
                                  item, 100 * self.result,
-                                 self.logloss(preds[item], targets[item]))
+                                 self.logloss(ds, preds[item], targets[item]))
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
