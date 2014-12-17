@@ -13,7 +13,6 @@ from neon.models.model import Model
 from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
-from ipdb import set_trace as trace
 
 
 class RNN(Model):
@@ -60,7 +59,7 @@ class RNN(Model):
             hidden_init = None
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
-                                  (batch+1)*128*self.unrolls+128)
+                                   (batch+1)*128*self.unrolls+128)
                 self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
@@ -93,29 +92,34 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-
     def fprop(self, inputs, hidden_init=None, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
         """
+        nin = self.layers[0].nin
+
         if hidden_init is None:
             hidden_init = self.backend.zeros((self.layers[1].nin,
                                               self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
-            import numpy as np
             print "fprop input"
-            print inputs.reshape((6,128,50)).argmax(1)[:,0:10]
-            #trace()
+            print inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]
         y = hidden_init
         for tau in range(0, unrolls):
-            self.layers[0].fprop(y, inputs[128*tau:128*(tau+1), :], tau)
+            self.layers[0].fprop(y, inputs[nin*tau:nin*(tau+1), :], tau)
             y = self.layers[0].output_list[tau]
             self.layers[1].fprop(y, tau)
 
     def bprop(self, targets, inputs, debug=False):
+        """
+        bprop for the RNN is a bit weird because the delta from the output
+        layer to the recurrent layer needs to dealt with outside the layer
+        code. Therefore there is a backend call to bprop_fc here.
+        """
+        nin = self.layers[0].nin
 
         full_unroll = True
         if full_unroll:
@@ -127,7 +131,6 @@ class RNN(Model):
         for tau in range(min_unroll, self.unrolls+1):
             self.backend.fill(self.layers[0].deltas[tau], 0)
             self.backend.fill(self.layers[1].deltas_o[tau], 0)
-        # FOUND BUG: also should clear updates
         self.backend.fill(self.layers[0].weight_updates, 0)
         self.backend.fill(self.layers[0].updates_rec, 0)
         self.backend.fill(self.layers[1].weight_updates, 0)
@@ -135,10 +138,10 @@ class RNN(Model):
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                print "backprop target", tau, "of", self.unrolls, "is", targets[128*tau:128*(tau+1), :].argmax(0)[0]
+                print "backprop target", tau, "of", self.unrolls,
+                print "is", targets[nin*tau:nin*(tau+1), :].argmax(0)[0]
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
-            error = self.cost.apply_derivative(targets[128*tau:128*(tau+1), :])
-            #print "when tau", tau, "going to", 128*(tau+1)
+            error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1],
@@ -153,7 +156,6 @@ class RNN(Model):
             self.layers[0].bprop(cerror, inputs, tau)
 
     def update(self, epoch):
-        # apply updates
         for layer in self.layers:
             layer.update(epoch)
 
@@ -169,7 +171,7 @@ class RNN(Model):
         outputs are computed as a 2000 x 50 matrix that is then flattened
         to return_buffer of 100000 records. This will be preds['train']
         """
-        nrecs = inputs.shape[0] # not sure what recs is, but no.
+        nrecs = inputs.shape[0]
         num_batches = int(math.floor((nrecs) / 128
                                              / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
@@ -192,7 +194,7 @@ class RNN(Model):
 
         return_buffer = self.backend.zeros(((num_batches+1)*self.unrolls,
                                             self.batch_size))
-        return_buffer[0:num_batches*self.unrolls,:] = outputs
+        return_buffer[0:num_batches*self.unrolls, :] = outputs
         return_buffer = return_buffer.transpose().reshape((-1,))
         return return_buffer
 
@@ -236,23 +238,27 @@ class RNN(Model):
         for idx in range(len(datasets)):
             ds = datasets[idx]
             preds = predictions[idx]
-            # targets = ds.get_targets(train=True, test=True, validation=False)
+            nin = self.layers[0].nin
             targets = ds.get_inputs(train=True, test=True, validation=False)
-            targets['train'] = targets['train'][128::, :]
-            targets['test'] = targets['test'][128::, :]
+            targets['train'] = targets['train'][nin::, :]
+            targets['test'] = targets['test'][nin::, :]
             for item in items:
                 if item in targets and item in preds:
-                    num_batches = targets[item].shape[0]/128
-                    misclass = ds.backend.zeros(num_batches*128) # 255872
-                    # argmax is now over a not cool direction.
-                    tempbuf = self.backend.zeros((num_batches+1,50))
+                    num_batches = targets[item].shape[0]/nin
+                    misclass = ds.backend.zeros(num_batches*nin)
+                    tempbuf = self.backend.zeros((num_batches+1,
+                                                  self.batch_size))
                     for i in range(num_batches):
-                        ds.backend.argmax(targets[item][i*128:(i+1)*128, :],
-                                          axis=0, out=tempbuf[i,:])
+                        ds.backend.argmax(targets[item][i*nin:(i+1)*nin, :],
+                                          axis=0, out=tempbuf[i, :])
                     import numpy as np
                     misclass = tempbuf.transpose().reshape((-1,))
-                    logging.info("the target for %s is %s" % (item,  (misclass[6000:6018].raw().astype(np.int8).view('c'))))
-                    logging.info("prediction for %s is %s" % (item,  (preds[item][6000:6018].raw().astype(np.int8).view('c'))))
+                    tmp = misclass[6000:6018].raw().astype(np.int8)
+                    logging.info("the target for %s is %s" % (
+                        item,  (tmp.view('c'))))
+                    tmp = preds[item][6000:6018].raw().astype(np.int8)
+                    logging.info("prediction for %s is %s" % (
+                        item,  (tmp.view('c'))))
                     ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (

@@ -14,7 +14,6 @@ from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
-from ipdb import set_trace as trace
 
 
 class MOBYDICK(Dataset):
@@ -78,7 +77,7 @@ class MOBYDICK(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = list(range(1000000))  # 1M letters from the 1.23 available
+            train_idcs = list(range(1000000))  # 1M letters out of 1.23M
             test_idcs = range(1000000, 1010000)
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
@@ -106,8 +105,7 @@ class MOBYDICK(Dataset):
                 idx_list = idx_list.reshape(self.batch_size, num_batches)
                 splay_3d = self.preinputs[dataset][:, idx_list.T]
                 splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
-                self.inputs[dataset] = self.backend.array(splay_3d)  # [:-128, :]
-                # self.targets[dataset] = self.backend.array(splay_3d)[128:, :]
+                self.inputs[dataset] = self.backend.array(splay_3d)
             # self.format()  # Mobydick does not need this
 
         else:
