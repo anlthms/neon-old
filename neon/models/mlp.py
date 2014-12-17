@@ -97,15 +97,18 @@ class MLP(Model):
                 logger.debug("%s", layer)
 
     def predict_set(self, ds, inputs):
-        preds = self.backend.empty((inputs.nbatches, self.batch_size))
+        nout = self.layers[-1].nout
+        preds = self.backend.empty((inputs.nbatches * nout, self.batch_size))
+        preds.nrows = nout
+
         for layer in self.layers:
             layer.set_train_mode(False)
 
         for batch in range(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
-            outputs = self.layers[-1].output
-            self.backend.argmax(outputs, axis=0, out=preds[batch:(batch + 1)])
+            outputs = self.layers[-1].output.copy()
+            preds[batch * nout:(batch + 1) * nout, :] = outputs
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -154,6 +157,14 @@ class MLP(Model):
         for layer in self.layers:
             layer.update(epoch)
 
+    def logloss(self, preds, targets):
+        self.backend.divide(preds, self.backend.wrap(self.backend.sum(preds)),
+                            preds)
+        temp = self.backend.empty(preds.shape)
+        self.backend.log(preds, out=temp)
+        self.backend.multiply(targets, temp, temp)
+        return -self.backend.mean(temp)
+
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
                       validation=True):
@@ -173,15 +184,21 @@ class MLP(Model):
                 if item in targets and item in preds:
                     labels = self.backend.empty((targets[item].nbatches,
                                                  self.batch_size))
+                    predlabels = self.backend.empty(labels.shape)
                     for batch in range(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         self.backend.argmax(targets_batch, axis=0,
                                             out=labels[batch:(batch + 1)])
-                    misclass = ds.backend.empty(preds[item].shape)
-                    ds.backend.not_equal(preds[item], labels, misclass)
+                        preds_batch = ds.get_batch(preds[item], batch)
+                        self.backend.argmax(preds_batch, axis=0,
+                                            out=predlabels[batch:(batch + 1)])
+
+                    misclass = ds.backend.empty(labels.shape)
+                    ds.backend.not_equal(predlabels, labels, misclass)
                     self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%%", item,
-                                 100 * self.result)
+                    logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                                 item, 100 * self.result,
+                                 self.logloss(preds[item], targets[item]))
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):

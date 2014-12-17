@@ -137,7 +137,7 @@ class NDSB(Dataset):
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()
 
-        endindex = inputs.shape[0] 
+        endindex = inputs.shape[0]
         endindex -= endindex % 128
         self.inputs['validation'] = inputs[inds[traincount:endindex]]
         self.targets['validation'] = targets[inds[traincount:endindex]]
