@@ -604,6 +604,52 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def fprop_fc(self, out, inputs, weights):
+        """
+        Forward propagate the inputs of a fully connected network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_fc(self, out, weights, deltas):
+        """
+        Backward propagate the error through a fully connected network layer.
+
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def update_fc(self, out, inputs, deltas):
+        """
+        Compute the updated gradient for a fully connected network layer.
+
+        Arguments:
+            out (Tensor): Where to store the updated gradient value.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            deltas (Tensor): The error values for this layer
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
 
 class Tensor(object):
     """
