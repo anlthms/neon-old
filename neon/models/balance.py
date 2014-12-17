@@ -6,18 +6,9 @@ Contains code to train Google Brain models and run inference.
 """
 
 import logging
-import math
-import os
-
 from neon.models.layer import BranchLayer
 from neon.models.mlp import MLP
-from neon.util.persist import ensure_dirs_exist
-from neon.transforms.sum_squared import SumSquaredDiffs
-from neon.transforms.xcov import XCovariance
 from neon.transforms.cross_entropy import CrossEntropy
-
-import numpy as np
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +55,6 @@ class Balance(MLP):
             if len(l.nexts) == 0:
                 self.output_layer = l
 
-        # for l in self.layers:
-        #     print l.name
-        #     for lp in l.prevs:
-        #         print '\t p ', lp.name
-        #     for ln in l.nexts:
-        #         print '\t n ', ln.name
-
-
     def get_error(self, targets, inputs):
         error = 0.0
         error += self.cost[0].apply_function(inputs)
@@ -91,7 +74,7 @@ class Balance(MLP):
     def bprop(self, targets, inputs):
         cost_inputs = [inputs, targets, targets]
         cost_errors = map(lambda x: x[0].apply_derivative(x[1]),
-                           zip(self.cost, cost_inputs))
+                          zip(self.cost, cost_inputs))
 
         # (c, err) = (self.cost[0], cost_errors[0])
         for c, err in zip(self.cost[:3], cost_errors[:3]):
@@ -111,7 +94,7 @@ class Balance(MLP):
                     l.bprop(berror, inputs)
 
     def get_classifier_output(self):
-        return self.ldict['outlayer'].output
+        return self.ldict['classlayer'].output
 
     def get_reconstruction_output(self):
         # reshape the output_layer
@@ -126,17 +109,4 @@ class Balance(MLP):
             y = l.output
             vqueue.extend(l.nexts)
             if l.name == "blayer":
-                y[10:] = self.backend.wrap(np.float32(zparam))
-
-
-
-
-
-
-
-
-
-
-
-
-
+                y[10:] = self.backend.wrap(zparam)

@@ -531,7 +531,7 @@ class Numpy(Backend):
         Numpy.divide(out, Numpy.wrap(a.shape[0]), out=out)
 
     def mean_norm(self, a, axis, out):
-        if (axis=-1 or axis=None):
+        if (axis == -1 or axis == None):
             out._tensor = a._tensor - a._tensor.mean()
         else:
             out._tensor = a._tensor - a._tensor.mean(axis, keepdims=True)

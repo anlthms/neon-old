@@ -160,8 +160,8 @@ class CrossEntropy(Cost):
             self.cd_function = shortcut_derivative
 
     def __str__(self):
-        return ("Cost Function: {bnry} {shrtct}\n".format
-        (bnry=self.use_binary, shrtct=shortcut_deriv))
+        return ("Cost Function: {bnry} {shrtct}\n".format(
+                bnry=self.use_binary, shrtct=self.shortcut_deriv))
 
     def set_outputbuf(self, databuf):
         if not self.outputbuf or self.outputbuf.shape != databuf.shape:

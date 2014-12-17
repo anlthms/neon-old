@@ -7,23 +7,13 @@ identities and facial expressions.
 http://aclab.ca/users/josh/TFD.html
 """
 
-import gzip
 import logging
-import numpy
 import os
-import struct
-import scipy
 import numpy as np
 from scipy.io import loadmat
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import PY3, MPI_INSTALLED
-
-
-if PY3:
-    from urllib.parse import urljoin as basejoin
-else:
-    from urllib import basejoin
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +37,6 @@ class TFD(Dataset):
         fold (int): 0-4 fold of data to use
         image_size (int): 48 or 96 pixel images
     """
-    train_input_48 = 'TFD_48x48.mat'
-    train_input_96 = 'TFD_96x96.mat'
     set_map = {'unlabeled': 0, 'train': 1, 'valid': 2, 'test': 3}
 
     def __init__(self, base_folder, fold=0, image_size=48, **kwargs):
@@ -57,11 +45,14 @@ class TFD(Dataset):
         self.dist_flag = False
         self.num_test_sample = 10000
         self.macro_batched = False
+        self.train_input_48 = 'TFD_48x48.mat'
+        self.train_input_96 = 'TFD_96x96.mat'
+        self.fold = fold
         self.__dict__.update(kwargs)
         if image_size == 48:
-            self.train_input = os.path.join(base_folder, train_input_48)
+            self.train_input = os.path.join(base_folder, self.train_input_48)
         elif image_size == 96:
-            self.train_input = os.path.join(base_folder, train_input_96)
+            self.train_input = os.path.join(base_folder, self.train_input_96)
         else:
             raise ValueError('image_size should be 48 or 96.')
         if self.dist_flag:
@@ -130,9 +121,8 @@ class TFD(Dataset):
         logger.info('loading: %s' % self.train_input)
         data = loadmat(self.train_input)
         for key in self.set_map.keys():
-            set_indices = data['folds'][:,fold] == self.set_map[key]
+            set_indices = data['folds'][:, self.fold] == self.set_map[key]
             self.inputs[key] = data['images'][set_indices].astype('float32')
             if key != 'unlabeled':
                 self.targets[key] = data['labs_ex'][set_indices]-1
                 self.targets[key+'_id'] = data['labs_id'][set_indices]
-

@@ -19,8 +19,6 @@ def xcov_cost_derivative(backend, outputs, targets, temp, blkidx,
     #temp[2] is k1 x k2
     #temp[3] is (k1+k2) x n
 
-    # TODO: make sure that the dots are consistent across backends for this
-    # arrangement
     n = outputs.shape[1]
     blk1 = outputs[0:blkidx]
     blk2 = outputs[blkidx:]

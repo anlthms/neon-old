@@ -1,23 +1,24 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-from nose.plugins.attrib import attr
 import numpy as np
 
 from neon.backends.cpu import CPU, CPUTensor
-from neon.transforms.xcov import (xcov_cost,
-                                           xcov_cost_derivative)
+from neon.transforms.xcov import (xcov_cost, xcov_cost_derivative)
 from neon.util.testing import assert_tensor_near_equal
 
-def xcc(x,y):
-    return (x-x.mean(axis=1, keepdims=True)).dot((y-y.mean(axis=1,keepdims=True)).T)/x.shape[1]
+
+def xcc(x, y):
+    return (x - x.mean(axis=1, keepdims=True)).dot(
+        (y - y.mean(axis=1, keepdims=True)).T)/x.shape[1]
+
 
 def test_xcov_cputensor():
     np.random.seed(0)
     n = 10
     k = 8
-    (k1, k2) = (3,5)
-    a = np.array(np.random.randn(k,n)*10, dtype=np.float32, order='C')
+    (k1, k2) = (3, 5)
+    a = np.array(np.random.randn(k, n)*10, dtype=np.float32, order='C')
     acc = xcc(a[:k1], a[k1:])
     expected_result = 0.5 * (acc**2.).sum()
 
@@ -44,19 +45,20 @@ def test_xcov_cputensor():
 #                                                             targets, temp),
 #                              tolerance=1e-6)
 
+
 def test_xcov_derivative_cputensor():
     np.random.seed(0)
     n = 10
     k = 8
-    (k1, k2) = (3,5)
-    a = np.array(np.random.randn(k,n), dtype=np.float32, order='C')
+    (k1, k2) = (3, 5)
+    a = np.array(np.random.randn(k, n), dtype=np.float32, order='C')
     s = np.zeros_like(a)
-    acc = xcc(a[:k1], a[k1:]) # k1 x k2
-    C1 = a[k1:] - a[k1:].mean(1,keepdims=True) # k2 x n
-    C2 = a[:k1] - a[:k1].mean(1,keepdims=True) # k1 x n
+    acc = xcc(a[:k1], a[k1:])  # k1 x k2
+    c1 = a[k1:] - a[k1:].mean(1, keepdims=True)  # k2 x n
+    c2 = a[:k1] - a[:k1].mean(1, keepdims=True)  # k1 x n
 
-    s[:k1] = acc.dot(C1)/n
-    s[k1:] = acc.T.dot(C2)/n
+    s[:k1] = acc.dot(c1)/n
+    s[k1:] = acc.T.dot(c2)/n
 
     be = CPU(rng_seed=0)
     outputs = CPUTensor(a.copy())

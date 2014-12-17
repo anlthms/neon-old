@@ -279,10 +279,10 @@ class LayerMultiPass(Layer):
                  weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         super(LayerMultiPass, self).__init__(name, backend, batch_size,
-                                              pos, nin, nout, weight_init,
-                                              learning_rule,
-                                              activation=activation,
-                                              prev_names=prev_names)
+                                             pos, nin, nout, weight_init,
+                                             learning_rule,
+                                             activation=activation,
+                                             prev_names=prev_names)
         self.utemp = self.backend.empty(self.weights.shape, updates_dtype)
         self.updates[:] = self.backend.wrap(0.0)
 
@@ -307,6 +307,7 @@ class LayerMultiPass(Layer):
         inputs = self.backend.append_bias(inputs)
         self.backend.update_fc(error, inputs, out=self.utemp)
         self.backend.add(self.utemp, self.updates, out=self.updates)
+
 
 class RecurrentOutputLayer(Layer):
 
@@ -761,8 +762,7 @@ class DropOutLayer(YAMLable):
         self.pos = pos
         if pos > 0:
             self.berror = backend.empty((nin, batch_size), berror_dtype)
-
-        self.prev_names  = prev_names
+        self.prev_names = prev_names
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -816,7 +816,7 @@ class DataLayer(YAMLable):
         if not self.partition:
             raise ValueError('Dataset partition must be selected prior to use')
 
-        if not self.partition in self.inputs:
+        if self.partition not in self.inputs:
             raise ValueError('Partition does not exist')
 
         raise NotImplementedError('Have to implement DataLayer')
@@ -945,7 +945,7 @@ class LocalLayer(YAMLable):
                                         self.ofmsize)).raw()
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
         for dst in xrange(self.ofmsize):
-            self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
+            self.ofmlocs[dst] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
         if pooling is True:
@@ -1181,11 +1181,14 @@ class ConvLayerMultiPass(Layer):
                  nofm, ifmshape, fshape, stride, weight_init, activation=None,
                  pad=0, prev_names=[]):
         super(ConvLayerMultiPass, self).__init__(name, backend, batch_size,
-                                        pos, learning_rule, nifm, nofm,
-                                        ifmshape, fshape, stride,
-                                        activation=activation,
-                                        pad=pad, prev_names=prev_names)
-        self.utemp = self.backend.empty(self.weights.shape, updates_dtype)
+                                                 pos, learning_rule,
+                                                 nifm, nofm, ifmshape,
+                                                 fshape, stride,
+                                                 activation=activation,
+                                                 pad=pad,
+                                                 prev_names=prev_names)
+        self.utemp = self.backend.empty(self.weights.shape,
+                                        self.updates_dtype)
         self.updates[:] = self.backend.wrap(0.0)
 
     def update(self, epoch):
@@ -1952,11 +1955,11 @@ class LCNLayer(YAMLable):
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, start_row:(canvas.shape[1] - start_row),
-               start_col:(canvas.shape[2] - start_col), :] = inset
+               start_col:(canvas.shape[2] - start_col)] = inset
 
     def copy_from_inset(self, canvas, start_row, start_col):
         return canvas[:, self.start_row:(canvas.shape[1] - start_row),
-                      self.start_col:(canvas.shape[2] - start_col), :]
+                      self.start_col:(canvas.shape[2] - start_col)]
 
     def fprop_sub_normalize(self, inputs):
         rinputs = inputs.reshape((self.nifm, self.ifmheight, self.ifmwidth,
@@ -1996,9 +1999,9 @@ class LCNLayer(YAMLable):
                 rflinks = self.conv.rlinks[dst]
                 loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
                 filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc, :], filt.transpose(),
+                self.backend.multiply(error[loc], filt.transpose(),
                                       out=self.prodbuf)
-                self.exerror[rflinks, :] -= self.prodbuf
+                self.exerror[rflinks] -= self.prodbuf
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
@@ -2029,15 +2032,15 @@ class LCNLayer(YAMLable):
                 frame = rrexinputs.take(rflinks, axis=0)
                 self.backend.multiply(frame, self.filters.transpose(),
                                       out=frame)
-                self.backend.multiply(frame, self.diverror[loc, :], out=frame)
+                self.backend.multiply(frame, self.diverror[loc], out=frame)
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
                 rframe[fm:(fm + 1),
-                       self.fheight / 2, self.fwidth / 2, :] -= divout
-                self.backend.multiply(error[loc, :].repeat(self.fsize, axis=0),
+                       self.fheight / 2, self.fwidth / 2] -= divout
+                self.backend.multiply(error[loc],
                                       frame, out=frame)
-                self.exerror[rflinks, :] -= frame
+                self.exerror[rflinks] -= frame
         self.reshape_error()
 
     def bprop(self, error, inputs):
@@ -2312,8 +2315,7 @@ class CrossMapPoolingLayer(YAMLable):
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
         self.activation = activation
-
-        self.prev_names=prev_names
+        self.prev_names = prev_names
         self.ofmshape = self.ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ifmsize
@@ -2388,20 +2390,28 @@ class CrossMapResponseNormLayer(YAMLable):
         self.pos = pos
         self.prev_names = prev_names
         self.ksize = ksize
-        self.alpha = alpha
+        self.alpha = alpha * 1.0 / ksize
         self.beta = beta
 
-        self.output = self.backend.zeros((self.nout, self.batch_size))
+        self.output = self.backend.empty((self.nout, self.batch_size))
         if self.pos > 0:
-            self.berror = self.backend.zeros((self.nin, self.batch_size))
+            self.berror = self.backend.empty((self.nin, self.batch_size))
+            self.tempbuf = self.backend.empty((ifmshape[0], ifmshape[1],
+                                              batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(inputs, self.output, self.ifmshape,
                                    self.nifm, self.ksize, self.alpha,
                                    self.beta)
 
-    def bprop(self, error, inputs, epoch):
+    def bprop(self, error, inputs):
         if self.pos > 0:
             self.backend.bprop_cmrnorm(inputs, self.output, error, self.berror,
                                        self.ifmshape, self.nifm, self.ksize,
-                                       self.alpha, self.beta)
+                                       self.alpha, self.beta, self.tempbuf)
+
+    def update(self, epoch):
+        pass
+
+    def set_train_mode(self, mode):
+        pass

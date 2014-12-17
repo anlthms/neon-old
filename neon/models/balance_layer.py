@@ -91,7 +91,7 @@ class BalanceLayer(Layer):
             Output state from the layer
         """
         self.X = x
-        #inputs = self.backend.append_bias(self.b)
+        # inputs = self.backend.append_bias(self.b)
         self.backend.fprop_fc_dot(self.X, self.W, self.pre_state)
         self.backend.add(self.pre_state, self.b, self.pre_state)
         self.nonlinear.apply_function(self.backend, self.prestate, self.state)

@@ -237,7 +237,6 @@ class GPUTensor(Tensor):
             else:
                 self._tensor.set_row_slice(key, key + 1, value)
 
-
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
@@ -670,20 +669,6 @@ class GPU(Backend):
         cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
         return out
 
-        # storage needed here is pretty atrocious.  Any way we could speed this
-        # up?  Would iterating element wise be faster?
-        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # # clip values < a_min to a_min in out
-        # a._tensor.less_than(a_min, clip_mask)
-        # clip_vals.assign(a_min)
-        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # # clip values > a_max to a_max in out
-        # out._tensor.greater_than(a_max, clip_mask)
-        # clip_vals.assign(a_max)
-        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        # return out
-
     def rng_init(self):
         seed = None
         if 'rng_seed' in self.__dict__:
@@ -1076,14 +1061,16 @@ class GPU(Backend):
             padding, stride, nifm, ngroups, ofmshape[0])
 
     def fprop_unpool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+                     ifmshape, ofmshape, fshape, padding, stride,
+                     nfm, maxinds):
         cudanet.unpool_forward(
             smallMat=inputs._tensor, largeMat=outputs._tensor,
             channels=nfm, sizeX=fshape[1], smallX=ifmshape[1],
             largeX=ofmshape[1])
 
-    def bprop_unpool(self, inputs, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
+    def bprop_unpool(self, inputs, outputs, error, berror, berrorbuf,
+                     links, ifmshape, ofmshape, fshape, padding, stride,
+                     nfm, maxinds):
         cudanet.unpool_backward(
             largeMat=inputs._tensor, smallMat=outputs._tensor,
             channels=fshape[1], sizeX=fshape[1], smallX=ifmshape[1],
@@ -1107,7 +1094,7 @@ class GPU(Backend):
             inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
 
     def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta):
+                      ksize, alpha, beta, tempbuf):
         cudanet.crossmap_response_norm_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, nfm, ksize, alpha, beta)
