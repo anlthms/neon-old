@@ -8,7 +8,6 @@ Visualization for recurrent neural networks
 import matplotlib.pyplot as plt
 plt.interactive(1)
 import numpy as np
-from ipdb import set_trace as trace
 from neon.util.compat import range
 
 

@@ -138,8 +138,8 @@ class RNN(Model):
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                logger.info("backprop target %d of %d is: %f", tau, 
-                            self.unrolls, 
+                logger.info("backprop target %d of %d is: %f", tau,
+                            self.unrolls,
                             targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
