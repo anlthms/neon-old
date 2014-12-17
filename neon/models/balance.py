@@ -14,6 +14,7 @@ from neon.models.mlp import MLP
 from neon.util.persist import ensure_dirs_exist
 from neon.transforms.sum_squared import SumSquaredDiffs
 from neon.transforms.xcov import XCovariance
+from neon.transforms.cross_entropy import CrossEntropy
 
 import numpy as np
 import time
@@ -63,19 +64,19 @@ class Balance(MLP):
             if len(l.nexts) == 0:
                 self.output_layer = l
 
-        for l in self.layers:
-            print l.name
-            for lp in l.prevs:
-                print '\t p ', lp.name
-            for ln in l.nexts:
-                print '\t n ', ln.name
+        # for l in self.layers:
+        #     print l.name
+        #     for lp in l.prevs:
+        #         print '\t p ', lp.name
+        #     for ln in l.nexts:
+        #         print '\t n ', ln.name
 
 
     def get_error(self, targets, inputs):
         error = 0.0
-        # error += self.cost[1].apply_function(targets)
-        for c,t in zip(self.cost, [inputs, targets, targets]):
-            error += c.apply_function(t)
+        error += self.cost[0].apply_function(inputs)
+        # for c,t in zip(self.cost, [inputs, targets, targets]):
+        #     error += c.apply_function(t)
         return error
 
     def fprop(self, inputs):
@@ -92,36 +93,43 @@ class Balance(MLP):
         cost_errors = map(lambda x: x[0].apply_derivative(x[1]),
                            zip(self.cost, cost_inputs))
 
-        for c, err in zip(self.cost, cost_errors):
+        # (c, err) = (self.cost[0], cost_errors[0])
+        for c, err in zip(self.cost[:3], cost_errors[:3]):
             self.backend.divide(err, self.bs, out=err)
             berror = err
             vqueue = [c.olayer]
             while len(vqueue) != 0:
                 l = vqueue.pop(0)
                 if len(l.prevs) > 0:
-                    l.bprop(berror, l.prevs[0].output)
+                    if (isinstance(c, CrossEntropy)) and l == c.olayer:
+                        l.bprop(berror, l.prevs[0].output, c.shortcut_deriv)
+                    else:
+                        l.bprop(berror, l.prevs[0].output)
                     berror = l.berror
                     vqueue.extend(l.prevs)
                 else:
                     l.bprop(berror, inputs)
 
     def get_classifier_output(self):
-        return self.ldict['classlayer'].output
+        return self.ldict['outlayer'].output
 
     def get_reconstruction_output(self):
         # reshape the output_layer
         return self.ldict['outlayer'].output
 
-    # def generate_balance_output(self, inputs, zparam=0.0):
-    #     vqueue = [self.input_layer]
-    #     y = inputs
-    #     while len(vqueue) != 0:
-    #         l = vqueue.pop(0)
-    #         l.fprop(y)
-    #         y = l.output
-    #         vqueue.extend(l.nexts)
-    #         if l.name is 'blayer':
-    #             y[]
+    def generate_output(self, inputs, zparam=0.0):
+        vqueue = [self.input_layer]
+        y = inputs
+        while len(vqueue) != 0:
+            l = vqueue.pop(0)
+            l.fprop(y)
+            y = l.output
+            vqueue.extend(l.nexts)
+            if l.name == "blayer":
+                y[10:] = self.backend.wrap(np.float32(zparam))
+
+
+
 
 
 

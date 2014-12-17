@@ -290,8 +290,13 @@ class LayerMultiPass(Layer):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
         self.updates[:] = self.backend.wrap(0.0)
 
-    def bprop(self, error, inputs):
-        if self.activation is not None:
+    def bprop(self, error, inputs, useshortcut=False):
+      # If we are back propagating error from more than one cost through the
+      # network, and they do not cancel out nicely (softmax with mCE) then we
+      # should do a full multiply against the activation derivative. otherwise
+      # just pass the error right through.
+
+        if self.activation is not None and useshortcut is False:
             self.backend.multiply(error, self.pre_act, out=error)
 
         if self.pos > 0:

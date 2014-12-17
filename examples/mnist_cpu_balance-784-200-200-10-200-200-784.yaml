@@ -11,7 +11,9 @@
 # h5
 
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+# !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+ !obj:neon.experiments.generate_output.GenOutputExperiment {
+  zparam: 0.0,
   backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     seterr_handling: {
@@ -32,7 +34,7 @@
   model: !obj:neon.models.balance.Balance {
     serialized_path: './balance-simple.pkl',
     backend: *be,
-    num_epochs: 5,
+    num_epochs: 100,
     batch_size: &bs 100,
     layers: [
       !obj:neon.models.layer.LayerMultiPass {
@@ -40,15 +42,12 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.1,
+          lr_params: &lrp {
+            epsilon: 0.000001,
+            rho: 0.95,
             backend: *be,
-            momentum_params: &mm {
-              type: constant, #constant, nesterov
-              initial_coef: 0.90,
-            },
           },
         },
         nin: 785, # input layer + 1 for the bias
@@ -66,17 +65,13 @@
         batch_size: *bs,
         prev_names: [h0],
         pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        # activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
           scale: .01,
@@ -89,18 +84,14 @@
         batch_size: *bs,
         prev_names: [h1],
         pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 10,
         activation: !obj:neon.transforms.softmax.Softmax {
-          shortcut_deriv: True,
+          shortcut_deriv: False,
         },
         weight_init: {
           type: node_normalized,
@@ -114,13 +105,9 @@
         batch_size: *bs,
         prev_names: [h1],
         pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 2,
@@ -148,17 +135,13 @@
         batch_size: *bs,
         prev_names: [blayer],
         pos: 3,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 13, # previous nout + 1 for the bias
         nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        # activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
           scale: .01,
@@ -171,20 +154,16 @@
         batch_size: *bs,
         prev_names: [h3],
         pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 200,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: node_normalized,
-          scale: .01,
+          scale: 4.0,
           bias_init: 0.0,
         },
       },
@@ -194,19 +173,15 @@
         batch_size: *bs,
         prev_names: [h4],
         pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 201, # previous nout + 1 for the bias
         nout: 784,
         weight_init: {
           type: node_normalized,
-          scale: .01,
+          scale: 0.4,
           bias_init: 0.0,
         },
       },
@@ -218,14 +193,14 @@
       },
       !obj:neon.transforms.cross_entropy.CrossEntropy {
         olayer: *classlayer,
-        scale: 1,
+        scale: 10,
         shortcut_deriv: True,
         use_binary: False,
       },
       !obj:neon.transforms.xcov.XCovariance {
         olayer: *blayer,
         blkidx: 10,
-        scale: 100,
+        scale: 10,
       },
     ],
   },
