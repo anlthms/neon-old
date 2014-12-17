@@ -87,8 +87,8 @@ class RNN(Model):
                                      self.layers[1].pre_act_list,
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
-            logger.info('epoch: %d, total training error per element: %0.5f' %
-                        (epoch, error))
+            logger.info('epoch: %d, total training error per element: %0.5f',
+                        epoch, error)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -105,8 +105,8 @@ class RNN(Model):
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
-            print "fprop input"
-            print inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]
+            logger.info("fprop input\n%s",
+                        str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
         y = hidden_init
         for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[nin*tau:nin*(tau+1), :], tau)
@@ -138,8 +138,9 @@ class RNN(Model):
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                print "backprop target", tau, "of", self.unrolls,
-                print "is", targets[nin*tau:nin*(tau+1), :].argmax(0)[0]
+                logger.info("backprop target %d of %d is: %f", tau, 
+                            self.unrolls, 
+                            targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
