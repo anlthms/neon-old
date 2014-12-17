@@ -102,6 +102,7 @@ GB
    :toctree: generated/
 
    neon.models.gb.GB
+   neon.models.gb_dist.GBDist
 
 
 Transforms
@@ -160,12 +161,20 @@ Iris
    neon.datasets.iris.Iris
 
 Sparsenet
-----------
+---------
 
 .. autosummary::
    :toctree: generated/
 
    neon.datasets.sparsenet.SPARSENET
+
+ImageNet
+--------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.i1k.I1K
 
 Synthetic
 ---------

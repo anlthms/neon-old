@@ -1067,33 +1067,112 @@ class GPU(Backend):
         Compute the updated gradient for a fully connected network layer.
 
         Arguments:
-            out (CPUTensor): Where to store the updated gradient value.
-            inputs (CPUTensor): Will be either the dataset input values (first
+            out (GPUTensor): Where to store the updated gradient value.
+            inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
-            deltas (CPUTensor): The error values for this layer
+            deltas (GPUTensor): The error values for this layer
         """
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
-    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).  For this
+                              backend we expect these values to be square.
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  convolved outputs for a single receptive
+                                  field.  Not used for this backend.
+        """
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(
-            weights._tensor, inputs._tensor, outputs._tensor,
+            weights._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
             ngroups)
 
-    def bprop_conv(self, weights, error, berror, links,  ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
         cudanet.deconvolve_errors(
-            weights._tensor, error._tensor,
-            berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
+            weights._tensor, deltas._tensor,
+            out._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
             padding, stride, nifm, ngroups)
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the updated gradient value.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (GPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
         cudanet.deconvolve_wts(
-            error._tensor, inputs._tensor, updates._tensor,
+            deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
 
@@ -1267,16 +1346,16 @@ class GPUDataDist(GPU):
 
         out.copy_to_device()
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        super(GPUDataDist, self).update_conv(weights, inputs, error, updates,
-                                             links, ifmshape, ofmshape,
-                                             ofmlocs, padding, stride, nifm,
+        super(GPUDataDist, self).update_conv(out, inputs, weights, deltas,
+                                             ofmshape, ofmlocs, ifmshape,
+                                             links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
 
-        updates.raw(False)[:] = MPI.COMM_WORLD.reduce(updates.raw(),
-                                                      op=MPI.SUM, root=0)
-        updates.raw(False)[:] = MPI.COMM_WORLD.bcast(updates.raw(False))
+        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
+                                                  root=0)
+        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
 
-        updates.copy_to_device()
+        out.copy_to_device()

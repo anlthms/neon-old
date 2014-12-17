@@ -814,38 +814,116 @@ class CPU(Backend):
         """
         self.dot(deltas, inputs.transpose(), out)
 
-    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  convolved outputs for a single receptive
+                                  field.
+        """
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
             self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
-                     out=prodbuf)
-            outputs[ofmlocs[dst]] = prodbuf
+                     out=fpropbuf)
+            out[ofmlocs[dst]] = fpropbuf
 
-    def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
-        self.fill(berror, 0.0)
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
+            self.dot(weights, deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
-            self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
-            berror[rflinks] = bpropbuf
+            self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
+            out[rflinks] = bpropbuf
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        self.fill(updates, 0.0)
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (CPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
+        self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
-            eslice = error.take(ofmlocs[dst], axis=0)
+            eslice = deltas.take(ofmlocs[dst], axis=0)
             self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
                      out=updatebuf)
-            self.add(updates, updatebuf, out=updates)
+            self.add(out, updatebuf, out=out)
 
     def fprop_mpool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
@@ -1095,13 +1173,12 @@ class CPUDataDist(CPU):
         #                    out=error)
         out._tensor = MPI.COMM_WORLD.bcast(out.raw())
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        super(CPUDataDist, self).update_conv(weights, inputs, error, updates,
-                                             links, ifmshape, ofmshape,
-                                             ofmlocs, padding, stride, nifm,
+        super(CPUDataDist, self).update_conv(out, inputs, weights, deltas,
+                                             ofmshape, ofmlocs, ifmshape,
+                                             links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
-        updates._tensor = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
-                                                root=0)
-        updates._tensor = MPI.COMM_WORLD.bcast(updates.raw())
+        out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        out._tensor = MPI.COMM_WORLD.bcast(out.raw())

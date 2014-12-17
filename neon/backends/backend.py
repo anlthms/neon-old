@@ -650,6 +650,105 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (Tensor): Temporary storage buffer used to hold the
+                               convolved outputs for a single receptive field.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (Tensor): Temporary storage buffer used to hold the
+                               backpropagated error for a single receptive
+                               field
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
+                    updatebuf):
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (Tensor): Where to store the updated gradient value.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (Tensor): Temporary storage buffer used to hold the
+                                updated gradient for a single receptive
+                                field
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
 
 class Tensor(object):
     """

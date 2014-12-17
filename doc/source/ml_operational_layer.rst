@@ -137,3 +137,11 @@ Fully Connected Neural Network Layer
    neon.backends.backend.Backend.fprop_fc
    neon.backends.backend.Backend.bprop_fc
    neon.backends.backend.Backend.update_fc
+
+Convolutional Neural Network Layer
+----------------------------------
+.. autosummary::
+
+   neon.backends.backend.Backend.fprop_conv
+   neon.backends.backend.Backend.bprop_conv
+   neon.backends.backend.Backend.update_conv
