@@ -81,6 +81,8 @@ class NDSB(Dataset):
         maxheight = 0
         maxwidth = 0
         imagecount = 0
+        sumheight = 0
+        sumwidth = 0
         for dirname in dirs:
             filetree[classind] = []
             print 'walking', dirname
@@ -89,14 +91,21 @@ class NDSB(Dataset):
                     assert filename[-4:] == '.jpg'
                     img = np.float32(io.imread(os.path.join(dirname, filename),
                                                as_grey=True))
+                    # Invert the greyscale.
+                    img = 255.0 - img
                     filetree[classind].append(img)
-                    imagecount += 1
                     if img.shape[0] > maxheight:
                         maxheight = img.shape[0]
                     if img.shape[1] > maxwidth:
                         maxwidth = img.shape[1]
+                    sumheight += img.shape[0]
+                    sumwidth += img.shape[1]
+                    imagecount += 1
             classind += 1
 
+        logger.info('Mean height %d mean width %d max height %d max width %d',
+                    sumheight / imagecount, sumwidth / imagecount,
+                    maxheight, maxwidth)
         if maxheight > self.image_width or maxwidth > self.image_width:
             # The image width specified in the configuration file is too small.
             logger.warning('Clipping %dx%d images to %dx%d',
