@@ -56,7 +56,6 @@ class MLPDist(MLP):
                                  (nin % self.comm.size > self.comm.rank))
                     layer.in_indices = range(start_idx, start_idx + layer.nin)
                     layer.out_indices = layer.in_indices
-                    is_last_rank = (self.comm.rank == self.comm.size-1)
                     layer.prev_layer = 'LayerDist'
                 else:
                     raise ValueError('Unsupported previous layer for '
