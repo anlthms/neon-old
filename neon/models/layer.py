@@ -14,6 +14,7 @@ from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray import gdist_consts as gc
 from neon.util.distarray.local_array import LocalArray
 from neon.util.persist import YAMLable
+from ipdb import set_trace as trace
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -284,147 +285,187 @@ class RecurrentOutputLayer(Layer):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
-class RecurrentLSMTLayer(Layer):
+class RecurrentLSTMLayer(Layer):
 
     """
     Hidden layer with LSTM gates.
+    This is a plug in replacement for RecurrentHiddenLayer()
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
-                 activation, weight_init, weight_init_rec, learning_rule,
+                 activation, gate_activation, weight_init, weight_init_rec,
+                 learning_rule,
                  weight_dtype=None, delta_dtype=None, updates_dtype=None,
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+        """
+        In this section, create buffers for the 8 weight matrices:
+        two kind of inputs (x_t and h_t-1) feeding into 4 gates (input, output,
+        forget, cell). In addition to weights, create buffers for preactivation
+        values and for the intermediate values computed in the LSTM cell.
+
+        """
         # super calls into Layer.__init__() for weight init.
-        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
+        print "SUCCESS: Initializing LSTM init with nin", nin
+        super(RecurrentLSTMLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
                                                    learning_rule, activation)
+
+        # things that are not initalized by the super class
+        self.gate_activation = gate_activation
+
+
         # create weight matrices
-        self.Wxi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
+        self.Wix = self.backend.gen_weights((nout, nin), weight_init_rec,
                                             weight_dtype)
-        self.Whi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
+        self.Wfx = self.Wix.copy()
+        self.Wox = self.Wix.copy()
+        self.Wcx = self.Wix.copy()
+        self.Wih = self.backend.gen_weights((nout, nout), weight_init_rec,
                                             weight_dtype)
-        self.Wxf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxo = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Who = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
+        self.Wfh = self.Wih.copy()
+        self.Woh = self.Wih.copy()
+        self.Wch = self.Wih.copy()
 
         # initialize buffers for intermediate values
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.f_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.o_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.g_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.c_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.h_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
+        #in_sze = (batch_size, self.nin) # tuple with activation size.
+        #out_sze = (batch_size, self.nout) # tuple with activation size.
+        net_sze = (self.nout, batch_size) # tuple with activation size.
+        print "NET SIZE", net_sze
+        self.i_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.f_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.o_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.g_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        # and for higher up entities in the LSTM cell.
+        self.c_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.c_old = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.c_p = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.output_list = [self.backend.zeros(net_sze) for k in range(unrolls)]
 
-        # preactivation -- do we really need to store this across unrolls?
-        self.net_ix = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ih = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ox = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_oh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
+        # pre-allocate preactivation buffers
+        self.temp_x = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.temp_h = [self.backend.zeros(net_sze) for k in range(unrolls)]
 
-        # misc
-        self.deltas = [self.backend.zeros((self.batch_size, nout))
-                       for k in range(unrolls + 1)]
-        self.updates_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_in = self.backend.zeros((self.nout, self.nin))
-        self.learning_rule.allocate_state_rec(self.updates_rec)
+        self.net_i = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.net_f = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.net_o = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.net_g = [self.backend.zeros(net_sze) for k in range(unrolls)]
 
-        self.berror = backend.zeros((batch_size, nout))
+
+        # misc, the are left overs from
+        # self.deltas = [self.backend.zeros((self.batch_size, nout))
+        #                for k in range(unrolls + 1)]
+        # self.updates_rec = self.backend.zeros((self.nout, self.nout))
+        # self.temp_rec = self.backend.zeros((self.nout, self.nout))
+        # self.temp_in = self.backend.zeros((self.nout, self.nin))
+        # self.learning_rule.allocate_state_rec(self.updates_rec)
+
+        # self.berror = backend.zeros((batch_size, nout))
 
     def fprop(self, y, inputs, tau):
         """
+        Forward pass for the google-style LSTM cell with forget gates, no
+        peepholes.
+
+        In math notiation, forward pass:
+            i_t = s(Wix*x + Wih*h +b_i)
+            f_t = s(Wpx*x + Wfh*h +b_f)
+            o_t = s(Wox*x + Woh*h +b_o)
+            g_t = s(Wcx*x + Wch*h +b_c)
+            c_t = f_t .* c_t-1 + i_t .* g_t
+            h_t = o_t .* phi(c_t)
+            ------ output layer -----
+            y_t = s(W_yh * h_t)
+            e_t = xEnt(y, t)
         In numpy pseudocode, the forward pass is:
-            de_dW = dot((y-t) / (y * (1-y)), dy_dW)     # d/dW CE(y,t)
-            dy_dW = dot(sig_prime(dot(Wyh, h)), dh_dW)  # d/dW sigm(Wyh*h)
-            dh_dW = o .* dp_dW + tanh(c) .* do_dW       # d/dW o .* tanh(c)
-            do_dWxo = sigmoid_prime(dot(Wxo, x) +
-                                    dot(Who, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
-            dp_dW = dot(tanh_prime(c), dc_dW)           # d/dW phi(c)
-            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW   # d/dW (f.*c_ + i.*g)
-            df_dWxf = sigmoid_prime(dot(Wxf, x) +
-                                    dot(Whf, h) + b) x  # d/dW s(Wfx*x+Wfh*h+b)
-            dg_dWxc = sigmoid_prime(dot(Wxc, x) +
-                                    dot(Whc, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
-            di_dWxi = sigmoid_prime(dot(Wxi, x) +
-                                    dot(Whi, h) + b) x  # d/dW s(Wix*x+Wih*h+b)
-        Start by computing the sigmoids and go up from there.
-        This is for the d/dWx, but d/dWh follows the same schema.
+            i_t = sigmoid(dot(Wix,x) + dot(Wih,h) + b_i)
+            f_t = sigmoid(dot(Wfx,x) + dot(Wfh,h) + b_f)
+            o_t = sigmoid(dot(Wox,x) + dot(Woh,h) + b_o)
+            g_t = sigmoid(dot(Wcx,x) + dot(Wch,h) + b_c)
+            c_t = f_t * c_old + i_t * g_t
+            h_t = o_t .* tanh(c_t)
+            ------ output layer -----
+            y_t = sigmoid(W_yh * h_t)
+            e_t = cross_entropy(y, t)
+        The values are computed and stored for all unrolls so they can be
+        used in bprop. Possibly some of the things that are stored, will
+        not be needed.
         """
         batch_size = self.batch_size
-        unrolls = self.unrolls
+        be = self.backend  # shorthand
+        phi = self.activation # tanh
+        sig = self.gate_activation # logistic
+        b_i = b_f = b_o = b_c = 0 # [TODO] ignoring bias for now
 
-        self.net_ix = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ih = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ox = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_oh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
+        # input gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wix)
+        be.fprop_fc(self.temp_h[tau], y, self.Wih)
+        self.net_i[tau] = self.temp_x[tau] + self.temp_h[tau] + b_i
+        sig.apply_both(be, self.net_i[tau], self.i_t[tau])
 
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.f_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.o_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.g_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.c_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.h_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
+        # forget gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wfx)
+        be.fprop_fc(self.temp_h[tau], y, self.Wfh)
+        self.net_f[tau] = self.temp_x[tau] + self.temp_h[tau] + b_f
+        sig.apply_both(be, self.net_f[tau], self.f_t[tau])
 
-        # old code from RNN
+        # output gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wox)
+        be.fprop_fc(self.temp_h[tau], y, self.Woh)
+        self.net_o[tau] = self.temp_x[tau] + self.temp_h[tau] + b_o
+        sig.apply_both(be, self.net_o[tau], self.o_t[tau])
+
+        # input to cell - uses tanh not logistic
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wcx)
+        be.fprop_fc(self.temp_h[tau], y, self.Wch)
+        self.net_g[tau] = self.temp_x[tau] + self.temp_h[tau] + b_c
+        phi.apply_both(be, self.net_g[tau], self.g_t[tau])
+
+        # compute cell output
+        self.c_old[tau] = self.c_t[tau]  # [TODO] fiure out how to initialize
+        self.c_t[tau] = self.f_t[tau] * self.c_old[tau] \
+                      + self.i_t[tau] * self.g_t[tau]
+        phi.apply_both(be, self.c_p[tau], self.c_t[tau])
+        self.output_list[tau] = self.o_t[tau] * self.c_p[tau] # this is h_t
+
+        # trace()
+        # cross entropy will be handled in the next layer
+
 
     def bprop(self, error, inputs, tau, batch_inx):
+        """
+        The entire backprop inside the LSTM cell happens here. Alternatively,
+        the LSTM cell could be split up into "layers" corresponding to the
+        different gating stages, but it seems clearer to use just the time
+        unrolling as layers.
+
+        In math, backward pass:
+            de_dW = d/dW CE(y,t)
+            dy_dW = d/dW sigm(Wyh*h)
+            ------ hidden layer -----
+            dh_dW = d/dW o .* tanh(c)
+            do_dWxo = d/dW s(Wcx*x+Wch*h+b)
+            dp_dW = d/dW phi(c)
+            dc_dW = d/dW (f.*c_ + i.*g)
+            df_dWxf = d/dW s(Wfx*x+Wfh*h+b)
+            dg_dWxc = d/dW s(Wcx*x+Wch*h+b)
+            di_dWix = d/dW s(Wix*x+Wih*h+b)
+
+        In numpy pseudocode, the backward pass is:
+            where gs indicates sigmoid_prime
+            de_dW = dot((y-t) / (y * (1-y)), dy_dW)
+            dy_dW = dot(gs(dot(Wyh, h)), dh_dW)
+            ------ hidden layer -----
+            dh_dW = o .* dp_dW + tanh(c) .* do_dW
+            do_dWxo = gs(dot(Wxo, x) + dot(Who, h) + b) x
+            dp_dW = dot(tanh_prime(c), dc_dW)
+            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW
+            df_dWxf = gs(dot(Wxf, x) + dot(Whf, h) + b) x
+            dg_dWxc = gs(dot(Wxc, x) + dot(Whc, h) + b) x
+            di_dWix = gs(dot(Wix, x) + dot(Whi, h) + b) x
+        Start by computing the sigmoids and go up from there.
+        This is d/dWx only, but d/dWh follows the same schema.
+
+        """
         pass
 
     def update(self, epoch):
