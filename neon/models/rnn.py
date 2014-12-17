@@ -147,9 +147,9 @@ class RNN(Model):
         cerror = self.backend.zeros((self.layers[0].nout, self.batch_size))
         for tau in range(min_unroll, self.unrolls+1):
             # need to bprop from the output layer before calling bprop
-            self.backend.bprop_fc(self.layers[1].deltas_o[tau],
+            self.backend.bprop_fc(cerror,
                                   self.layers[1].weights,
-                                  out=cerror)
+                                  self.layers[1].deltas_o[tau])
             self.layers[0].bprop(cerror, inputs, tau)
 
     def update(self, epoch):
