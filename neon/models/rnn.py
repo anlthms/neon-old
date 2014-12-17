@@ -171,7 +171,7 @@ class RNN(Model):
         """
         nrecs = inputs.shape[0] # not sure what recs is, but no.
         num_batches = int(math.floor((nrecs) / 128
-                                             / self.unrolls)) - 2
+                                             / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
         hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
@@ -189,9 +189,11 @@ class RNN(Model):
                                     axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
-        return_buffer = self.backend.zeros(nrecs/128*50)
-        nrecs_eff = num_batches*self.unrolls*self.batch_size
-        return_buffer[0:nrecs_eff] = outputs.transpose().reshape((-1,))
+
+        return_buffer = self.backend.zeros(((num_batches+1)*self.unrolls,
+                                            self.batch_size))
+        return_buffer[0:num_batches*self.unrolls,:] = outputs
+        return_buffer = return_buffer.transpose().reshape((-1,))
         return return_buffer
 
     def predict(self, datasets, train=True, test=True, validation=False):
@@ -239,7 +241,6 @@ class RNN(Model):
             targets['train'] = targets['train'][128::, :]
             targets['test'] = targets['test'][128::, :]
             for item in items:
-                print "item:", item
                 if item in targets and item in preds:
                     num_batches = targets[item].shape[0]/128
                     misclass = ds.backend.zeros(num_batches*128) # 255872
@@ -250,8 +251,8 @@ class RNN(Model):
                                           axis=0, out=tempbuf[i,:])
                     import numpy as np
                     misclass = tempbuf.transpose().reshape((-1,))
-                    print "the target for", item, "is", misclass[00:18].raw().astype(np.int8).view('c')
-                    print "prediction for", item, "is", preds[item][00:18].raw().astype(np.int8).view('c')
+                    logging.info("the target for %s is %s" % (item,  (misclass[6000:6018].raw().astype(np.int8).view('c'))))
+                    logging.info("prediction for %s is %s" % (item,  (preds[item][6000:6018].raw().astype(np.int8).view('c'))))
                     ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
