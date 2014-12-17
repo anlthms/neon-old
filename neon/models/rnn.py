@@ -37,13 +37,17 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s", str(layer))
         inputs = datasets[0].get_inputs(train=True)['train']
+        # append an extra zero element to account for overflow
+        # inputs = self.backend.zeros((inputset.shape[0]+1, inputset.shape[1]))
+        # inputs[0:inputset.shape[0], 0:inputset.shape[1]] = inputset
+        # no idea how to do this for the new data format!
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
-                                                   / self.unrolls)) - 0
+                                                   / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -54,12 +58,11 @@ class RNN(Model):
             error = 0
             suberror = self.backend.zeros(num_batches)
             hidden_init = None
-            for batch in (0,1):# xrange(num_batches):
-                batch_inx = range(batch*128*self.unrolls,
+            for batch in xrange(num_batches):
+                batch_inx = xrange(batch*128*self.unrolls,
                                   (batch+1)*128*self.unrolls+128)
-                #race()
                 self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
-                           debug=(True if batch ==1 else False))
+                           debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
                 self.update(epoch)
@@ -247,8 +250,8 @@ class RNN(Model):
                                           axis=0, out=tempbuf[i,:])
                     import numpy as np
                     misclass = tempbuf.transpose().reshape((-1,))
-                    print "the target for", item, "is", misclass[100:118].raw().astype(np.int8).view('c')
-                    print "prediction for", item, "is", preds[item][0:18].raw().astype(np.int8).view('c')
+                    print "the target for", item, "is", misclass[00:18].raw().astype(np.int8).view('c')
+                    print "prediction for", item, "is", preds[item][00:18].raw().astype(np.int8).view('c')
                     ds.backend.not_equal(preds[item], misclass, misclass)
                     self.result = ds.backend.mean(misclass)
                     logging.info("%s set misclass rate: %0.5f%%" % (
