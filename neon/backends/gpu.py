@@ -1037,6 +1037,43 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
+    def fprop_fc(self, out, inputs, weights):
+        """
+        Forward propagate the inputs of a fully connected network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+        """
+        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
+
+    def bprop_fc(self, out, weights, deltas):
+        """
+        Backward propagate the error through a fully connected network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+        """
+        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
+
+    def update_fc(self, out, inputs, deltas):
+        """
+        Compute the updated gradient for a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
+
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
@@ -1107,15 +1144,6 @@ class GPU(Backend):
                              target=berror, sizeX=fshape[0],
                              paddingStart=padding, moduleStride=stride,
                              numModulesX=ofmshape[0])
-
-    def fprop_fc(self, inputs, weights, out):
-        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
-
-    def bprop_fc(self, deltas, weights, out):
-        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
-
-    def update_fc(self, deltas, inputs, out):
-        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         raise NotImplementedError("TODO!")
@@ -1228,8 +1256,8 @@ class GPUDataDist(GPU):
                     MPI.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
-    def update_fc_dot(self, deltas, inputs, out):
-        super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+    def update_fc(self, out, inputs, deltas):
+        super(GPUDataDist, self).update_fc(out, inputs, deltas)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params

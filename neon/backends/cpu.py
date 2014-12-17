@@ -777,6 +777,43 @@ class CPU(Backend):
         np.subtract(err._tensor, a[np.newaxis], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
+    def fprop_fc(self, out, inputs, weights):
+        """
+        Forward propagate the inputs of a fully connected network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+        """
+        self.dot(weights, inputs, out)
+
+    def bprop_fc(self, out, weights, deltas):
+        """
+        Backward propagate the error through a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        self.dot(weights.transpose(), deltas, out)
+
+    def update_fc(self, out, inputs, deltas):
+        """
+        Compute the updated gradient for a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        self.dot(deltas, inputs.transpose(), out)
+
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         for dst in range(ofmshape[0] * ofmshape[1]):
@@ -833,40 +870,6 @@ class CPU(Backend):
             inds = rflinks.take(maxinds[dst], axis=0)
             berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
-
-    # Alternate implementation of max pooling fprop. To be deleted.
-    def fprop_mpool2(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm, maxinds):
-        ifmsize = ifmshape[0] * ifmshape[1]
-        ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in range(nfm):
-            ifm = inputs[fmind * ifmsize:(fmind + 1) * ifmsize]
-            ofm = outputs[fmind * ofmsize:(fmind + 1) * ofmsize]
-            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in range(ofmsize):
-                # For this output unit, get the corresponding receptive field
-                # within the input feature map.
-                rf = ifm.take(links[dst], axis=0)
-                # Save the index of the maximum value.
-                maxfm[dst] = rf.argmax(axis=0)
-                # Set the pre-activations to the maximum value.
-                maxvals = rf[maxinds[dst], range(rf.shape[1])]
-                ofm[dst] = maxvals
-
-    # Alternate implementation of max pooling bprop. To be deleted.
-    def bprop_mpool2(self, inputs, outputs, error, berror, links, ifmshape,
-                     ofmshape, fshape, padding, stride, nfm, maxinds):
-        self.fill(berror, 0.0)
-        ifmsize = ifmshape[0] * ifmshape[1]
-        ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in range(nfm):
-            ifm = berror[fmind * ifmsize:(fmind + 1) * ifmsize]
-            ofm = error[fmind * ofmsize:(fmind + 1) * ofmsize]
-            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in range(ofmsize):
-                rflinks = links[dst]
-                inds = rflinks.take(maxfm[dst], axis=0)
-                ifm[inds, range(ifm.shape[1])] += ofm[dst]
 
     def fprop_apool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm):
@@ -959,17 +962,7 @@ class CPU(Backend):
                 if i == j:
                     self.add(tempbuf, itemp[i], out=tempbuf)
                 self.add(rberror[i], tempbuf, out=rberror[i])
-
         self.multiply(error, berror, out=berror)
-
-    def fprop_fc(self, inputs, weights, out):
-        self.dot(weights, inputs, out)
-
-    def bprop_fc(self, deltas, weights, out):
-        self.dot(weights.transpose(), deltas, out)
-
-    def update_fc(self, deltas, inputs, out):
-        self.dot(deltas, inputs.transpose(), out)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         for ofmind in range(weights.shape[1]):
@@ -1089,8 +1082,8 @@ class CPUDataDist(CPU):
     helper sub-class for data parallel implementations
     """
 
-    def update_fc(self, deltas, inputs, out):
-        super(CPUDataDist, self).update_fc(deltas, inputs, out)
+    def update_fc(self, out, inputs, deltas):
+        super(CPUDataDist, self).update_fc(out, inputs, deltas)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
