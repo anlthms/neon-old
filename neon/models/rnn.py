@@ -61,13 +61,13 @@ class RNN(Model):
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
                                    (batch+1)*128*self.unrolls+128)
-                print "rnn.fit calling fprop"
+                #print "rnn.fit calling fprop"
                 self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
                            debug=(True if batch == -1 else False))
-                print "rnn.fit calling bprop"
+                #print "rnn.fit calling bprop"
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
-                print "rnn.fit calling update"
+                #print "rnn.fit calling update"
                 self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically

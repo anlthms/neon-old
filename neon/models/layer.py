@@ -450,17 +450,62 @@ class RecurrentLSTMLayer(Layer):
             dy_dW = dot(gs(dot(Wyh, h)), dh_dW)
             ------ hidden layer -----
             dh_dW = o .* dp_dW + tanh(c) .* do_dW
-            do_dWxo = gs(dot(Wxo, x) + dot(Who, h) + b) x
             dp_dW = dot(tanh_prime(c), dc_dW)
             dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW
-            df_dWxf = gs(dot(Wxf, x) + dot(Whf, h) + b) x
-            dg_dWxc = gs(dot(Wxc, x) + dot(Whc, h) + b) x
-            di_dWix = gs(dot(Wix, x) + dot(Whi, h) + b) x
+
+            di_dWix = gs(dot(Wix, x) + dot(Wih, h) + b) x
+            di_dWih = gs(dot(Wix, x) + dot(Wih, h) + b) h
+            di_dWfx = 0
+            di_dWfh = 0
+            di_dWox = 0
+            di_dWoh = 0
+            di_dWcx = 0
+            di_dWch = 0
+
+            df_dWix = 0
+            df_dWih = 0
+            df_dWfx = gs(dot(Wxf, x) + dot(Whf, h) + b) x
+            df_dWfh = gs(dot(Wxf, x) + dot(Whf, h) + b) h
+            df_dWox = 0
+            df_dWoh = 0
+            df_dWcx = 0
+            df_dWch = 0
+
+            do_dWix = 0
+            do_dWih = 0
+            do_dWfx = 0
+            do_dWfh = 0
+            do_dWox = gs(dot(Wxo, x) + dot(Who, h) + b) x
+            do_dWoh = gs(dot(Wxo, x) + dot(Who, h) + b) h
+            do_dWcx = 0
+            do_dWch = 0
+
+            dg_dWix = 0
+            dg_dWih = 0
+            dg_dWfx = 0
+            dg_dWfh = 0
+            dg_dWox = 0
+            dg_dWoh = 0
+            dg_dWcx = gs(dot(Wxc, x) + dot(Whc, h) + b) x
+            dg_dWch = gs(dot(Wxc, x) + dot(Whc, h) + b) h
+
+
         Start by computing the sigmoids and go up from there.
         This is d/dWx only, but d/dWh follows the same schema.
 
         """
-        pass
+        # input gate delta - use precomp g'() in net
+        self.di_dWix = self.net_i[tau] * inputs
+        self.df_dWfx = self.net_f[tau] * inputs
+        self.do_dWox = self.net_o[tau] * inputs
+        self.dg_dWcx = self.net_g[tau] * inputs
+
+        self.di_dWih = self.net_i[tau] * self.inputs
+        self.df_dWfh = self.net_f[tau] * self.inputs
+        self.do_dWoh = self.net_o[tau] * self.inputs
+        self.dg_dWch = self.net_g[tau] * self.inputs
+
+
 
     def update(self, epoch):
         pass
@@ -511,23 +556,27 @@ class RecurrentHiddenLayer(Layer):
                                    self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas[1] = error * self.pre_act_list[tau - 1]
+        # separate input weight update. external error from ouput layer.
+        self.deltas[tau-1] = error * self.pre_act_list[tau - 1]
         self.backend.update_fc(self.temp_in,
                                inputs[(tau-1)*128:tau*128, :],
-                               self.deltas[1])
+                               self.deltas[tau-1])
         self.weight_updates += self.temp_in
-        for layer in list(range(0, tau - 1))[::-1]:
+        for layer in list(range(0, tau - 1))[::-1]:  # 4 3 2 1 0
+            # common delta
             self.backend.bprop_fc(self.berror,
                                   self.weights_rec,
-                                  self.deltas[tau - layer - 1])
-            self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
+                                  self.deltas[layer + 1])
+            self.deltas[layer] = self.berror * self.pre_act_list[layer]
+            # recurrent weight update
             self.backend.update_fc(self.temp_rec,
                                    self.output_list[layer],
-                                   self.deltas[tau - layer - 1])
+                                   self.deltas[layer + 1])
             self.updates_rec += self.temp_rec
+            # input weight update
             self.backend.update_fc(self.temp_in,
                                    inputs[layer*128:(layer+1)*128, :],
-                                   self.deltas[tau - layer])
+                                   self.deltas[layer])
             self.weight_updates += self.temp_in
 
     def update(self, epoch):
