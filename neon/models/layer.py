@@ -2137,8 +2137,8 @@ class CrossMapPoolingLayer(YAMLable):
             self.pre_act = self.output
 
     def fprop(self, inputs):
-        self.backend.fprop_cmpool(inputs, self.weights, self.ifmsize,
-                                  out=self.pre_act)
+        self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,
+                                  weights=self.weights, ifmshape=self.ifmshape)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -2146,10 +2146,11 @@ class CrossMapPoolingLayer(YAMLable):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_cmpool(error, self.weights, self.ifmsize,
-                                      out=self.berror)
-        self.backend.update_cmpool(error, inputs, self.ifmsize,
-                                   self.updatebuf, out=self.updates)
+            self.backend.bprop_cmpool(out=self.berror, weights=self.weights,
+                                      deltas=error, ifmshape=self.ifmshape)
+        self.backend.update_cmpool(out=self.updates, inputs=inputs,
+                                   deltas=error, ifmshape=self.ifmshape,
+                                   updatebuf=self.updatebuf)
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)

@@ -1122,7 +1122,21 @@ class CPU(Backend):
                 self.add(rout[i], bpropbuf, out=rout[i])
         self.multiply(deltas, out, out=out)
 
-    def fprop_cmpool(self, inputs, weights, fmsize, out):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+        """
+        Forward propagate the inputs of a CrossMap Pooling layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(weights.shape[1]):
             ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             self.fill(ofm, 0.0)
@@ -1130,11 +1144,36 @@ class CPU(Backend):
                 ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
                 ofm += ifm * weights[ifmind, ofmind]
 
-    def bprop_cmpool(self, deltas, weights, fmsize, out):
-        self.fprop_cmpool(deltas, weights.transpose(), fmsize, out)
+    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+        """
+        Backward propagate the error through a CrossMap pooling layer.
 
-    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+
+    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+        """
+        Compute the updated gradient for a CrossMap pooling layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            updatebuf (CPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
         self.fill(out, 0.0)
+        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(out.shape[1]):
             ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             for ifmind in range(out.shape[0]):
