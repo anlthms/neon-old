@@ -1040,51 +1040,87 @@ class CPU(Backend):
                 raise AttributeError("unexpected pooling op type: %s", op)
         out[:] = self.vstack_maps(bpropbuf, nifm)
 
-    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
-                      beta):
+    def fprop_cmrnorm(self, out, inputs, ifmshape, nifm, ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a CrossMap response normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed across feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs._tensor.reshape((nfm, H, W, N))
-        routputs = outputs._tensor.reshape((nfm, H, W, N))
-        for i in range(nfm):
-            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
-            np.square(x).sum(axis=0, out=routputs[i])
-        self.multiply(outputs, self.wrap(alpha), out=outputs)
-        self.add(outputs, self.wrap(1.0), out=outputs)
-        self.power(outputs, self.wrap(-beta), out=outputs)
-        self.multiply(inputs, outputs, out=outputs)
+        rinputs = inputs._tensor.reshape((nifm, H, W, N))
+        rout = out._tensor.reshape((nifm, H, W, N))
+        for i in range(nifm):
+            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nifm)]
+            np.square(x).sum(axis=0, out=rout[i])
+        self.multiply(out, self.wrap(alpha), out=out)
+        self.add(out, self.wrap(1.0), out=out)
+        self.power(out, self.wrap(-beta), out=out)
+        self.multiply(inputs, out, out=out)
 
-    def bprop_cmrnorm_approx(self, inputs, outputs, error, berror, ifmshape,
-                             nfm, ksize, alpha, beta, tempbuf):
-        berror[:] = error
+    def bprop_cmrnorm(self, out, fouts, inputs, deltas, ifmshape, nifm, ksize,
+                      alpha, beta, bpropbuf):
+        """
+        Backward propagate the error through a CrossMap response normalization
+        layer.
 
-    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta, tempbuf):
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): The forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs.reshape((nfm, H, W, N))
-        rberror = berror.reshape((nfm, H, W, N))
-        routputs = outputs.reshape((nfm, H, W, N))
-
-        otemp = routputs.copy()
-        # We can do this because rinputs[routputs == 0].sum() == 0
+        rinputs = inputs.reshape((nifm, H, W, N))
+        rout = out.reshape((nifm, H, W, N))
+        rfouts = fouts.reshape((nifm, H, W, N))
+        otemp = rfouts.copy()
+        # We can do this because rinputs[rfouts == 0].sum() == 0
         otemp[otemp._tensor == 0] = 1.0
         self.divide(rinputs, otemp, out=otemp)
         itemp = rinputs.copy()
-        # We can do this because routputs[rinputs == 0].sum() == 0
+        # We can do this because rfouts[rinputs == 0].sum() == 0
         itemp[itemp._tensor == 0] = 1.0
-        self.divide(routputs, itemp, out=itemp)
-
+        self.divide(rfouts, itemp, out=itemp)
         self.power(otemp, self.wrap(1.0 / beta), out=otemp)
-        self.multiply(otemp, routputs, out=otemp)
+        self.multiply(otemp, rfouts, out=otemp)
         self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
-        self.fill(rberror, 0.0)
-
-        for i in range(nfm):
-            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
-                self.multiply(otemp[i], rinputs[j], out=tempbuf)
+        self.fill(rout, 0.0)
+        for i in range(nifm):
+            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nifm)):
+                self.multiply(otemp[i], rinputs[j], out=bpropbuf)
                 if i == j:
-                    self.add(tempbuf, itemp[i], out=tempbuf)
-                self.add(rberror[i], tempbuf, out=rberror[i])
-        self.multiply(error, berror, out=berror)
+                    self.add(bpropbuf, itemp[i], out=bpropbuf)
+                self.add(rout[i], bpropbuf, out=rout[i])
+        self.multiply(deltas, out, out=out)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         for ofmind in range(weights.shape[1]):

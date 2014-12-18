@@ -834,8 +834,8 @@ class Backend(YAMLable):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
-            ksize (int): Kernel size.  This defines the channel indices to sum
-                                       over.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
             alpha (int): scalar multiplier to multiply the normalization
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
@@ -862,8 +862,8 @@ class Backend(YAMLable):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
-            ksize (int): Kernel size.  This defines the channel indices to sum
-                                       over.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
             alpha (int): scalar multiplier to multiply the normalization
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
