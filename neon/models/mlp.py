@@ -157,7 +157,7 @@ class MLP(Model):
         for layer in self.layers:
             layer.update(epoch)
 
-    def logloss(self, ds, preds, targets):
+    def logloss(self, ds, preds, targets, eps=1e-15):
         self.backend.clip(preds, eps, 1.0 - eps, out=preds)
         temp = self.backend.empty(preds.shape)
         temp.nrows = preds.nrows

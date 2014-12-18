@@ -609,9 +609,9 @@ class DropOutLayer(YAMLable):
     def fprop(self, inputs):
         if (self.train_mode):
             self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, inputs, out=self.output)
+            self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
-            self.backend.multiply(self.backend.wrap(self.keep), inputs,
+            self.backend.multiply(inputs, self.backend.wrap(self.keep),
                                   out=self.output)
 
     def bprop(self, error, inputs):
