@@ -7,6 +7,7 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 
 import logging
 import os
+import numpy as np
 
 from neon.backends.cpu import CPU
 from neon.util.compat import PY3, CUDA_GPU, range
@@ -166,18 +167,16 @@ class Dataset(object):
         bs = self.batch_size
         nbatches = (data.shape[0] + bs - 1) / bs
         nrows = data.shape[1]
-        batchwise = self.backend.zeros((nbatches * nrows, bs))
+        batchwise = np.zeros((nbatches * nrows, bs))
         for batch in range(nbatches):
             batchdata = data[batch * bs:(batch + 1) * bs].transpose()
-            if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
-                batchdata = batchdata.copy()
             ncols = batchdata.shape[1]
             assert ncols == bs
-            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = (
-                self.backend.array(batchdata))
-        batchwise.nbatches = nbatches
-        batchwise.nrows = nrows
-        return batchwise
+            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = batchdata
+        batchtensor = self.backend.array(batchwise)
+        batchtensor.nbatches = nbatches
+        batchtensor.nrows = nrows
+        return batchtensor
 
     def format(self):
         """
