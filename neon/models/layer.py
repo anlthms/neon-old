@@ -556,28 +556,26 @@ class RecurrentHiddenLayer(Layer):
                                    self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        # separate input weight update. external error from ouput layer.
-        self.deltas[tau-1] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.temp_in,
-                               inputs[(tau-1)*128:tau*128, :],
-                               self.deltas[tau-1])
-        self.weight_updates += self.temp_in
-        for layer in list(range(0, tau - 1))[::-1]:  # 4 3 2 1 0
-            # common delta
-            self.backend.bprop_fc(self.berror,
-                                  self.weights_rec,
-                                  self.deltas[layer + 1])
+        self.berror = error
+        for layer in list(range(0, tau - 0))[::-1]:  # 4 3 2 1 0
+            if layer != (tau - 1):
+                # error
+                self.backend.bprop_fc(self.berror,
+                                      self.weights_rec,
+                                      self.deltas[layer + 1])
+                # recurrent weight update
+                self.backend.update_fc(self.temp_rec,
+                                       self.output_list[layer],
+                                       self.deltas[layer + 1])
+                self.updates_rec += self.temp_rec
+            # delta
             self.deltas[layer] = self.berror * self.pre_act_list[layer]
-            # recurrent weight update
-            self.backend.update_fc(self.temp_rec,
-                                   self.output_list[layer],
-                                   self.deltas[layer + 1])
-            self.updates_rec += self.temp_rec
             # input weight update
             self.backend.update_fc(self.temp_in,
                                    inputs[layer*128:(layer+1)*128, :],
                                    self.deltas[layer])
             self.weight_updates += self.temp_in
+
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
