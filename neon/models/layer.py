@@ -307,12 +307,11 @@ class RecurrentLSTMLayer(Layer):
         # super calls into Layer.__init__() for weight init.
         print "SUCCESS: Initializing LSTM init with nin", nin
         super(RecurrentLSTMLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, weight_init,
-                                                   learning_rule, activation)
+                                                 pos, nin, nout, weight_init,
+                                                 learning_rule, activation)
 
         # things that are not initalized by the super class
         self.gate_activation = gate_activation
-
 
         # create weight matrices
         self.Wix = self.backend.gen_weights((nout, nin), weight_init_rec,
@@ -327,10 +326,7 @@ class RecurrentLSTMLayer(Layer):
         self.Wch = self.Wih.copy()
 
         # initialize buffers for intermediate values
-        #in_sze = (batch_size, self.nin) # tuple with activation size.
-        #out_sze = (batch_size, self.nout) # tuple with activation size.
-        net_sze = (self.nout, batch_size) # tuple with activation size.
-        print "NET SIZE", net_sze
+        net_sze = (self.nout, batch_size)  # tuple with activation size.
         self.i_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.f_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.o_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
@@ -339,7 +335,8 @@ class RecurrentLSTMLayer(Layer):
         self.c_t = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.c_old = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.c_p = [self.backend.zeros(net_sze) for k in range(unrolls)]
-        self.output_list = [self.backend.zeros(net_sze) for k in range(unrolls)]
+        self.output_list = [self.backend.zeros(net_sze)
+                            for k in range(unrolls)]
 
         # pre-allocate preactivation buffers
         self.temp_x = [self.backend.zeros(net_sze) for k in range(unrolls)]
@@ -349,7 +346,6 @@ class RecurrentLSTMLayer(Layer):
         self.net_f = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.net_o = [self.backend.zeros(net_sze) for k in range(unrolls)]
         self.net_g = [self.backend.zeros(net_sze) for k in range(unrolls)]
-
 
         # misc, the are left overs from
         # self.deltas = [self.backend.zeros((self.batch_size, nout))
@@ -390,11 +386,10 @@ class RecurrentLSTMLayer(Layer):
         used in bprop. Possibly some of the things that are stored, will
         not be needed.
         """
-        batch_size = self.batch_size
         be = self.backend  # shorthand
-        phi = self.activation # tanh
-        sig = self.gate_activation # logistic
-        b_i = b_f = b_o = b_c = 0 # [TODO] ignoring bias for now
+        phi = self.activation  # tanh
+        sig = self.gate_activation  # logistic
+        b_i = b_f = b_o = b_c = 0  # [TODO] ignoring bias for now
 
         # input gate
         be.fprop_fc(self.temp_x[tau], inputs, self.Wix)
@@ -425,11 +420,10 @@ class RecurrentLSTMLayer(Layer):
         self.c_t[tau] = self.f_t[tau] * self.c_old[tau] \
                       + self.i_t[tau] * self.g_t[tau]
         phi.apply_both(be, self.c_p[tau], self.c_t[tau])
-        self.output_list[tau] = self.o_t[tau] * self.c_p[tau] # this is h_t
+        self.output_list[tau] = self.o_t[tau] * self.c_p[tau]  # this is h_t
 
         # trace()
         # cross entropy will be handled in the next layer
-
 
     def bprop(self, error, inputs, tau, batch_inx):
         """
