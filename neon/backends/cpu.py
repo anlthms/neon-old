@@ -925,76 +925,120 @@ class CPU(Backend):
                      out=updatebuf)
             self.add(out, updatebuf, out=out)
 
-    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        rinputs = self.hstack_maps(inputs, nfm)
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  pooled outputs for a single receptive field.
+        """
+        rinputs = self.hstack_maps(inputs, nifm)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
-            # Save the index of the maximum value within the receptive fields.
-            maxinds[dst] = rf.argmax(axis=0)
-            # Set the pre-activations to the maximum value.
-            maxvals = rf[maxinds[dst], range(rf.shape[1])]
-            outputsbuf[dst] = maxvals
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
+            if op.lower() == "max":
+                # Save the index of the maximum value within the receptive
+                # fields.
+                ofmlocs[dst] = rf.argmax(axis=0)
+                # Set the pre-activations to the maximum value.
+                maxvals = rf[ofmlocs[dst], range(rf.shape[1])]
+                fpropbuf[dst] = maxvals
+            elif op.lower() == "avg" or op.lower() == "mean":
+                fpropbuf[dst] = rf.mean(axis=0)
+            elif op.lower() == "l2":
+                fpropbuf[dst] = self.norm(rf, 2, axis=0)
+            else:
+                raise AttributeError("unexpected pooling op type: %s", op)
+        out[:] = self.vstack_maps(fpropbuf, nifm)
 
-    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        self.fill(berrorbuf, 0.0)
-        rerror = self.hstack_maps(error, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            rflinks = links[dst]
-            inds = rflinks.take(maxinds[dst], axis=0)
-            berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
 
-    def fprop_apool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        rinputs = self.hstack_maps(inputs, nfm)
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): Forward propagated outputs from the previous
+                               layer.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        op = op.lower()
+        self.fill(bpropbuf, 0.0)
+        if op == "avg" or op == "mean":
+            deltas /= fshape[0] * fshape[1]
+        rdeltas = self.hstack_maps(deltas, nifm)
+        if op == "l2":
+            rinputs = self.hstack_maps(inputs, nifm)
+            rfouts = self.hstack_maps(fouts, nifm)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst] = rf.mean(axis=0)
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
-
-    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        self.fill(berrorbuf, 0.0)
-        error /= fshape[0] * fshape[1]
-        rerror = self.hstack_maps(error, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            berrorbuf[links[dst]] += rerror[dst]
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
-
-    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride, nfm):
-        rinputs = self.hstack_maps(inputs, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst] = self.norm(rf, 2, axis=0)
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
-
-    def bprop_l2pool(self, inputs, outputs, error, berror, berrorbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride,
-                     nfm, prodbuf):
-        rinputs = self.hstack_maps(inputs, nfm)
-        routputs = self.hstack_maps(outputs, nfm)
-        rerror = self.hstack_maps(error, nfm)
-        self.fill(berrorbuf, 0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            inds = links[dst]
-            rf = rinputs.take(inds, axis=0)
-            denom = routputs[dst].copy()
-            # If the L2 norm is zero, the entire receptive field must be
-            # zeros. In that case, we set the L2 norm to 1 before using
-            # it to normalize the receptive field.
-            denom[denom.raw() == 0] = 1
-            self.divide(rf, denom, out=rf)
-            self.multiply(
-                rerror[dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=0),
-                rf, out=prodbuf)
-            berrorbuf[inds] += prodbuf
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
+            if op == "max":
+                rflinks = links[dst]
+                inds = rflinks.take(ofmlocs[dst], axis=0)
+                bpropbuf[inds, range(bpropbuf.shape[1])] += rdeltas[dst]
+            elif op == "avg" or op == "mean":
+                bpropbuf[links[dst]] += rdeltas[dst]
+            elif op == "l2":
+                inds = links[dst]
+                rf = rinputs.take(inds, axis=0)
+                denom = rfouts[dst].copy()
+                # If the L2 norm is zero, the entire receptive field must be
+                # zeros. In that case, we set the L2 norm to 1 before using
+                # it to normalize the receptive field.
+                denom[denom.raw() == 0] = 1
+                self.divide(rf, denom, out=rf)
+                self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
+                                                            fshape[1],
+                                                            axis=0),
+                              rf, out=ofmlocs)
+                bpropbuf[inds] += ofmlocs
+            else:
+                raise AttributeError("unexpected pooling op type: %s", op)
+        out[:] = self.vstack_maps(bpropbuf, nifm)
 
     def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
                       beta):

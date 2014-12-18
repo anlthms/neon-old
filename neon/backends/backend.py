@@ -749,8 +749,8 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, ifmshape, links,
-                   nifm, padding, stride, fpropbuf):
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
         """
         Forward propagate the inputs of a Pooling network layer to
         produce output pre-activations (ready for transformation by an
@@ -766,6 +766,8 @@ class Backend(YAMLable):
                               number of height and width neurons).
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             links (Tensor): Input receptive field indices.
@@ -783,13 +785,15 @@ class Backend(YAMLable):
         raise NotImplementedError()
 
     def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
-                   ifmshape, links, nifm, padding, stride, bpropbuf):
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
         """
         Backward propagate the error through a pooling network layer.
 
         Arguments:
             out (Tensor): Where to store the backward propagated errors.
             fouts (Tensor): Forward propagated outputs from the previous layer.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
             deltas (Tensor): The error values for this layer
             op (string): The type of pooling operation to apply.  We support
                          "max", "avg", "l2" currently.
@@ -797,6 +801,8 @@ class Backend(YAMLable):
                               height and width).
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
             links (Tensor): Input receptive field indices.

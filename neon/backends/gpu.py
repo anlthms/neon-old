@@ -1176,17 +1176,100 @@ class GPU(Backend):
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
             padding, stride, nifm, ngroups, ofmshape[0])
 
-    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        cudanet.max_pool(
-            inputs._tensor, outputs._tensor, nfm, fshape[1],
-            padding, stride, ofmshape[1])
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
 
-    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        cudanet.max_pool_undo(
-            inputs._tensor, error._tensor, outputs._tensor,
-            berror._tensor, fshape[1], padding, stride, ofmshape[1])
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  pooled outputs for a single receptive field.
+        """
+        op = op.lower()
+        if op == "max":
+            cudanet.max_pool(inputs._tensor, out._tensor, nifm, fshape[1],
+                             padding, stride, ofmshape[1])
+        elif op == "avg" or op == "mean":
+            cudanet.avg_pool(imgs=inputs, target=out, channels=nifm,
+                             sizeX=fshape[0], paddingStart=padding,
+                             moduleStride=stride, numModulesX=ofmshape[0])
+        elif op == "l2":
+            cudanet.l2_pool(imgs=inputs, target=out, channels=nifm,
+                            sizeX=fshape[0], paddingStart=padding,
+                            moduleStride=stride, numModulesX=ofmshape[0])
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
+
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            fouts (GPUTensor): Forward propagated outputs from the previous
+                               layer.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (GPUTensor): The error values for this layer
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            bpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        op = op.lower()
+        if op == "max":
+            cudanet.max_pool_undo(inputs._tensor, deltas._tensor,
+                                  fouts._tensor, out._tensor, fshape[1],
+                                  padding, stride, ofmshape[1])
+        elif op == "avg" or op == "mean":
+            cudanet.avg_pool_undo(avgGrads=deltas, target=out,
+                                  sizeX=fshape[0], paddingStart=padding,
+                                  moduleStride=stride, numModulesX=ofmshape[0],
+                                  imgSizeX=ifmshape[0])
+        elif op == "l2":
+            cudanet.l2_pool_undo(imgs=inputs, l2Grads=deltas, l2Acts=fouts,
+                                 target=out, sizeX=fshape[0],
+                                 paddingStart=padding, moduleStride=stride,
+                                 numModulesX=ofmshape[0])
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
 
     def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
                       beta):
@@ -1198,31 +1281,6 @@ class GPU(Backend):
         cudanet.crossmap_response_norm_undo(
             inputs._tensor, error._tensor, outputs._tensor,
             berror._tensor, nfm, ksize, alpha, beta)
-
-    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        cudanet.avg_pool(imgs=inputs, target=outputs, channels=nfm,
-                         sizeX=fshape[0], paddingStart=padding,
-                         moduleStride=stride, numModulesX=ofmshape[0])
-
-    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        cudanet.avg_pool_undo(avgGrads=error, target=berror, sizeX=fshape[0],
-                              paddingStart=padding, moduleStride=stride,
-                              numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
-
-    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm):
-        cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
-                        sizeX=fshape[0], paddingStart=padding,
-                        moduleStride=stride, numModulesX=ofmshape[0])
-
-    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
-                     ofmshape, fshape, padding, stride, nfm, prodbuf):
-        cudanet.l2_pool_undo(imgs=inputs, l2Grads=error, l2Acts=outputs,
-                             target=berror, sizeX=fshape[0],
-                             paddingStart=padding, moduleStride=stride,
-                             numModulesX=ofmshape[0])
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         raise NotImplementedError("TODO!")

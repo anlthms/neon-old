@@ -1425,18 +1425,22 @@ class MaxPoolingLayer(LocalLayer):
                  self.backend.max(self.output)))
 
     def fprop(self, inputs):
-        self.backend.fprop_mpool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape, 0,
-            self.stride, self.nifm, self.maxinds)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="max",
+                                ofmshape=self.ofmshape, ofmlocs=self.maxinds,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_mpool(
-                inputs, self.output,
-                error, self.berror, self.berrorbuf, self.links,
-                self.ifmshape, self.ofmshape, self.fshape, 0, self.stride,
-                self.nifm, self.maxinds)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="max",
+                                    ofmshape=self.ofmshape,
+                                    ofmlocs=self.maxinds, fshape=self.fshape,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    nifm=self.nifm, padding=0,
+                                    stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
@@ -1493,17 +1497,22 @@ class L2PoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        self.backend.fprop_l2pool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape,
-            0, self.stride, self.nifm)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="l2",
+                                ofmshape=self.ofmshape, ofmlocs=None,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_l2pool(
-                inputs, self.output, error, self.berror, self.berrorbuf,
-                self.links, self.ifmshape, self.ofmshape, self.fshape,
-                0, self.stride, self.nifm, self.prodbuf)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="l2",
+                                    ofmshape=self.ofmshape,
+                                    ofmlocs=self.prodbuf, fshape=self.fshape,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    nifm=self.nifm, padding=0,
+                                    stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
@@ -1564,17 +1573,21 @@ class AveragePoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        self.backend.fprop_apool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape,
-            0, self.stride, self.nifm)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="avg",
+                                ofmshape=self.ofmshape, ofmlocs=None,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_apool(
-                self.output, error, self.berror, self.berrorbuf, self.links,
-                self.ifmshape, self.ofmshape, self.fshape,
-                0, self.stride, self.nifm)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="avg",
+                                    ofmshape=self.ofmshape, ofmlocs=None,
+                                    fshape=self.fshape, ifmshape=self.ifmshape,
+                                    links=self.links, nifm=self.nifm,
+                                    padding=0, stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
