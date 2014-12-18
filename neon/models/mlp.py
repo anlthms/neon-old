@@ -11,7 +11,7 @@ import math
 from neon.models.model import Model
 from neon.models.layer import DropOutLayer
 from neon.util.compat import MPI_INSTALLED
-from collections import deque
+import Queue
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -71,7 +71,13 @@ class MLP(Model):
                     (ds.end_train_batch - ds.start_train_batch + 1)
             ds.cur_train_macro_batch = ds.start_train_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-
+            ds.file_name_queue = Queue.Queue()
+            ds.macro_batch_queue = Queue.Queue()
+            # mini batch queue
+            ds.mini_batch_queue = Queue.Queue()
+            # gpu/backend queue
+            ds.gpu_queue = Queue.Queue()
+            
         assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
         for epoch in xrange(self.num_epochs):
@@ -200,9 +206,10 @@ class MLP(Model):
 
         for batch_type in ['training', 'validation']:
             # todo: temporary; change batch_type from here instead
-            dataset.macro_batch_queue = deque([])
-            dataset.mini_batch_queue = deque([])
-            dataset.gpu_queue = deque([])
+            dataset.file_name_queue = Queue.Queue()
+            dataset.macro_batch_queue = Queue.Queue()
+            dataset.mini_batch_queue = Queue.Queue()
+            dataset.gpu_queue = Queue.Queue()
             if batch_type == 'training':
                 nrecs = dataset.output_batch_size * \
                     (dataset.end_train_batch - dataset.start_train_batch + 1)
