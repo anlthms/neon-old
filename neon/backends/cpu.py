@@ -814,157 +814,329 @@ class CPU(Backend):
         """
         self.dot(deltas, inputs.transpose(), out)
 
-    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  convolved outputs for a single receptive
+                                  field.
+        """
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
             self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
-                     out=prodbuf)
-            outputs[ofmlocs[dst]] = prodbuf
+                     out=fpropbuf)
+            out[ofmlocs[dst]] = fpropbuf
 
-    def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
-        self.fill(berror, 0.0)
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
+            self.dot(weights, deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
-            self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
-            berror[rflinks] = bpropbuf
+            self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
+            out[rflinks] = bpropbuf
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        self.fill(updates, 0.0)
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (CPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
+        self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
-            eslice = error.take(ofmlocs[dst], axis=0)
+            eslice = deltas.take(ofmlocs[dst], axis=0)
             self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
                      out=updatebuf)
-            self.add(updates, updatebuf, out=updates)
+            self.add(out, updatebuf, out=out)
 
-    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        rinputs = self.hstack_maps(inputs, nfm)
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  pooled outputs for a single receptive field.
+        """
+        rinputs = self.hstack_maps(inputs, nifm)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
-            # Save the index of the maximum value within the receptive fields.
-            maxinds[dst] = rf.argmax(axis=0)
-            # Set the pre-activations to the maximum value.
-            maxvals = rf[maxinds[dst], range(rf.shape[1])]
-            outputsbuf[dst] = maxvals
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
+            if op.lower() == "max":
+                # Save the index of the maximum value within the receptive
+                # fields.
+                ofmlocs[dst] = rf.argmax(axis=0)
+                # Set the pre-activations to the maximum value.
+                maxvals = rf[ofmlocs[dst], range(rf.shape[1])]
+                fpropbuf[dst] = maxvals
+            elif op.lower() == "avg" or op.lower() == "mean":
+                fpropbuf[dst] = rf.mean(axis=0)
+            elif op.lower() == "l2":
+                fpropbuf[dst] = self.norm(rf, 2, axis=0)
+            else:
+                raise AttributeError("unexpected pooling op type: %s", op)
+        out[:] = self.vstack_maps(fpropbuf, nifm)
 
-    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        self.fill(berrorbuf, 0.0)
-        rerror = self.hstack_maps(error, nfm)
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): Forward propagated outputs from the previous
+                               layer.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (CPUTensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (CPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        op = op.lower()
+        self.fill(bpropbuf, 0.0)
+        if op == "avg" or op == "mean":
+            deltas /= fshape[0] * fshape[1]
+        rdeltas = self.hstack_maps(deltas, nifm)
+        if op == "l2":
+            rinputs = self.hstack_maps(inputs, nifm)
+            rfouts = self.hstack_maps(fouts, nifm)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            rflinks = links[dst]
-            inds = rflinks.take(maxinds[dst], axis=0)
-            berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
+            if op == "max":
+                rflinks = links[dst]
+                inds = rflinks.take(ofmlocs[dst], axis=0)
+                bpropbuf[inds, range(bpropbuf.shape[1])] += rdeltas[dst]
+            elif op == "avg" or op == "mean":
+                bpropbuf[links[dst]] += rdeltas[dst]
+            elif op == "l2":
+                inds = links[dst]
+                rf = rinputs.take(inds, axis=0)
+                denom = rfouts[dst].copy()
+                # If the L2 norm is zero, the entire receptive field must be
+                # zeros. In that case, we set the L2 norm to 1 before using
+                # it to normalize the receptive field.
+                denom[denom.raw() == 0] = 1
+                self.divide(rf, denom, out=rf)
+                self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
+                                                            fshape[1],
+                                                            axis=0),
+                              rf, out=ofmlocs)
+                bpropbuf[inds] += ofmlocs
+            else:
+                raise AttributeError("unexpected pooling op type: %s", op)
+        out[:] = self.vstack_maps(bpropbuf, nifm)
 
-    def fprop_apool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        rinputs = self.hstack_maps(inputs, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst] = rf.mean(axis=0)
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
+    def fprop_cmrnorm(self, out, inputs, ifmshape, nifm, ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a CrossMap response normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed across feature
+        maps at each pixel point.  The output will be same size as input.
 
-    def bprop_apool(self, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm):
-        self.fill(berrorbuf, 0.0)
-        error /= fshape[0] * fshape[1]
-        rerror = self.hstack_maps(error, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            berrorbuf[links[dst]] += rerror[dst]
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
-
-    def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride, nfm):
-        rinputs = self.hstack_maps(inputs, nfm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            rf = rinputs.take(links[dst], axis=0)
-            outputsbuf[dst] = self.norm(rf, 2, axis=0)
-        outputs[:] = self.vstack_maps(outputsbuf, nfm)
-
-    def bprop_l2pool(self, inputs, outputs, error, berror, berrorbuf, links,
-                     ifmshape, ofmshape, fshape, padding, stride,
-                     nfm, prodbuf):
-        rinputs = self.hstack_maps(inputs, nfm)
-        routputs = self.hstack_maps(outputs, nfm)
-        rerror = self.hstack_maps(error, nfm)
-        self.fill(berrorbuf, 0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
-            inds = links[dst]
-            rf = rinputs.take(inds, axis=0)
-            denom = routputs[dst].copy()
-            # If the L2 norm is zero, the entire receptive field must be
-            # zeros. In that case, we set the L2 norm to 1 before using
-            # it to normalize the receptive field.
-            denom[denom.raw() == 0] = 1
-            self.divide(rf, denom, out=rf)
-            self.multiply(
-                rerror[dst:(dst + 1)].repeat(fshape[0] * fshape[1], axis=0),
-                rf, out=prodbuf)
-            berrorbuf[inds] += prodbuf
-        berror[:] = self.vstack_maps(berrorbuf, nfm)
-
-    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
-                      beta):
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            fpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs._tensor.reshape((nfm, H, W, N))
-        routputs = outputs._tensor.reshape((nfm, H, W, N))
-        for i in range(nfm):
-            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
-            np.square(x).sum(axis=0, out=routputs[i])
-        self.multiply(outputs, self.wrap(alpha), out=outputs)
-        self.add(outputs, self.wrap(1.0), out=outputs)
-        self.power(outputs, self.wrap(-beta), out=outputs)
-        self.multiply(inputs, outputs, out=outputs)
+        rinputs = inputs._tensor.reshape((nifm, H, W, N))
+        rout = out._tensor.reshape((nifm, H, W, N))
+        for i in range(nifm):
+            x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nifm)]
+            np.square(x).sum(axis=0, out=rout[i])
+        self.multiply(out, self.wrap(alpha), out=out)
+        self.add(out, self.wrap(1.0), out=out)
+        self.power(out, self.wrap(-beta), out=out)
+        self.multiply(inputs, out, out=out)
 
-    def bprop_cmrnorm_approx(self, inputs, outputs, error, berror, ifmshape,
-                             nfm, ksize, alpha, beta, tempbuf):
-        berror[:] = error
+    def bprop_cmrnorm(self, out, fouts, inputs, deltas, ifmshape, nifm, ksize,
+                      alpha, beta, bpropbuf):
+        """
+        Backward propagate the error through a CrossMap response normalization
+        layer.
 
-    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta, tempbuf):
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): The forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            bpropbuf (CPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs.reshape((nfm, H, W, N))
-        rberror = berror.reshape((nfm, H, W, N))
-        routputs = outputs.reshape((nfm, H, W, N))
-
-        otemp = routputs.copy()
-        # We can do this because rinputs[routputs == 0].sum() == 0
+        rinputs = inputs.reshape((nifm, H, W, N))
+        rout = out.reshape((nifm, H, W, N))
+        rfouts = fouts.reshape((nifm, H, W, N))
+        otemp = rfouts.copy()
+        # We can do this because rinputs[rfouts == 0].sum() == 0
         otemp[otemp._tensor == 0] = 1.0
         self.divide(rinputs, otemp, out=otemp)
         itemp = rinputs.copy()
-        # We can do this because routputs[rinputs == 0].sum() == 0
+        # We can do this because rfouts[rinputs == 0].sum() == 0
         itemp[itemp._tensor == 0] = 1.0
-        self.divide(routputs, itemp, out=itemp)
-
+        self.divide(rfouts, itemp, out=itemp)
         self.power(otemp, self.wrap(1.0 / beta), out=otemp)
-        self.multiply(otemp, routputs, out=otemp)
+        self.multiply(otemp, rfouts, out=otemp)
         self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
-        self.fill(rberror, 0.0)
-
-        for i in range(nfm):
-            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
-                self.multiply(otemp[i], rinputs[j], out=tempbuf)
+        self.fill(rout, 0.0)
+        for i in range(nifm):
+            for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nifm)):
+                self.multiply(otemp[i], rinputs[j], out=bpropbuf)
                 if i == j:
-                    self.add(tempbuf, itemp[i], out=tempbuf)
-                self.add(rberror[i], tempbuf, out=rberror[i])
-        self.multiply(error, berror, out=berror)
+                    self.add(bpropbuf, itemp[i], out=bpropbuf)
+                self.add(rout[i], bpropbuf, out=rout[i])
+        self.multiply(deltas, out, out=out)
 
-    def fprop_cmpool(self, inputs, weights, fmsize, out):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+        """
+        Forward propagate the inputs of a CrossMap Pooling layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(weights.shape[1]):
             ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             self.fill(ofm, 0.0)
@@ -972,11 +1144,36 @@ class CPU(Backend):
                 ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
                 ofm += ifm * weights[ifmind, ofmind]
 
-    def bprop_cmpool(self, deltas, weights, fmsize, out):
-        self.fprop_cmpool(deltas, weights.transpose(), fmsize, out)
+    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+        """
+        Backward propagate the error through a CrossMap pooling layer.
 
-    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+
+    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+        """
+        Compute the updated gradient for a CrossMap pooling layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            updatebuf (CPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
         self.fill(out, 0.0)
+        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(out.shape[1]):
             ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             for ifmind in range(out.shape[0]):
@@ -1095,13 +1292,12 @@ class CPUDataDist(CPU):
         #                    out=error)
         out._tensor = MPI.COMM_WORLD.bcast(out.raw())
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        super(CPUDataDist, self).update_conv(weights, inputs, error, updates,
-                                             links, ifmshape, ofmshape,
-                                             ofmlocs, padding, stride, nifm,
+        super(CPUDataDist, self).update_conv(out, inputs, weights, deltas,
+                                             ofmshape, ofmlocs, ifmshape,
+                                             links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
-        updates._tensor = MPI.COMM_WORLD.reduce(updates.raw(), op=MPI.SUM,
-                                                root=0)
-        updates._tensor = MPI.COMM_WORLD.bcast(updates.raw())
+        out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        out._tensor = MPI.COMM_WORLD.bcast(out.raw())

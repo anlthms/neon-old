@@ -24,7 +24,6 @@ else:
 
 
 class GBDist(GB):
-
     """
     MPI Distributed Google Brain class
     """

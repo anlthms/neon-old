@@ -964,10 +964,12 @@ class ConvLayer(LocalLayer):
                  self.backend.max(self.weights)))
 
     def fprop(self, inputs):
-        self.backend.fprop_conv(self.weights, inputs, self.pre_act,
-                                self.rlinks, self.ifmshape, self.ofmshape,
-                                self.ofmlocs, self.pad, self.stride, self.nifm,
-                                1, self.prodbuf)
+        self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
+                                weights=self.weights, ofmshape=self.ofmshape,
+                                ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
+                                links=self.rlinks, nifm=self.nifm,
+                                padding=self.pad, stride=self.stride,
+                                ngroups=1, fpropbuf=self.prodbuf)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -975,14 +977,20 @@ class ConvLayer(LocalLayer):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_conv(self.weights, error, self.berror,
-                                    self.links, self.ifmshape, self.ofmshape,
-                                    self.ofmlocs, self.pad, self.stride,
-                                    self.nifm, 1, self.bpropbuf)
-        self.backend.update_conv(self.weights, inputs, error, self.updates,
-                                 self.links, self.ifmshape, self.ofmshape,
-                                 self.ofmlocs, self.pad, self.stride,
-                                 self.nifm, 1, self.fwidth, self.updatebuf)
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=self.pad, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
+        self.backend.update_conv(out=self.updates, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=self.pad,
+                                 stride=self.stride, ngroups=1,
+                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
@@ -1035,20 +1043,26 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_conv(self.weights, error, self.berror,
-                                    self.links, self.ifmshape, self.ofmshape,
-                                    self.ofmlocs, 0, self.stride, self.nifm,
-                                    1, self.bpropbuf)
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=0, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
             self.updates.raw(), op=MPI.SUM, root=0)
         self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
-        self.backend.update_conv(self.weights, inputs, error, self.updates,
-                                 self.links, self.ifmshape, self.ofmshape,
-                                 self.ofmlocs, 0, self.stride, self.nifm,
-                                 1, self.fwidth, self.updatebuf)
+        self.backend.update_conv(out=self.updates, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=0, stride=self.stride,
+                                 ngroups=1, fwidth=self.fwidth,
+                                 updatebuf=self.updatebuf)
 
     def update(self, epoch):
         # Update the filters after summing the weight updates.
@@ -1411,18 +1425,22 @@ class MaxPoolingLayer(LocalLayer):
                  self.backend.max(self.output)))
 
     def fprop(self, inputs):
-        self.backend.fprop_mpool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape, 0,
-            self.stride, self.nifm, self.maxinds)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="max",
+                                ofmshape=self.ofmshape, ofmlocs=self.maxinds,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_mpool(
-                inputs, self.output,
-                error, self.berror, self.berrorbuf, self.links,
-                self.ifmshape, self.ofmshape, self.fshape, 0, self.stride,
-                self.nifm, self.maxinds)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="max",
+                                    ofmshape=self.ofmshape,
+                                    ofmlocs=self.maxinds, fshape=self.fshape,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    nifm=self.nifm, padding=0,
+                                    stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
@@ -1479,17 +1497,22 @@ class L2PoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        self.backend.fprop_l2pool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape,
-            0, self.stride, self.nifm)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="l2",
+                                ofmshape=self.ofmshape, ofmlocs=None,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_l2pool(
-                inputs, self.output, error, self.berror, self.berrorbuf,
-                self.links, self.ifmshape, self.ofmshape, self.fshape,
-                0, self.stride, self.nifm, self.prodbuf)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="l2",
+                                    ofmshape=self.ofmshape,
+                                    ofmlocs=self.prodbuf, fshape=self.fshape,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    nifm=self.nifm, padding=0,
+                                    stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
@@ -1550,17 +1573,21 @@ class AveragePoolingLayer(LocalLayer):
                  self.backend.__class__.__name__))
 
     def fprop(self, inputs):
-        self.backend.fprop_apool(
-            inputs, self.output, self.outputbuf, self.links,
-            self.ifmshape, self.ofmshape, self.fshape,
-            0, self.stride, self.nifm)
+        self.backend.fprop_pool(out=self.output, inputs=inputs, op="avg",
+                                ofmshape=self.ofmshape, ofmlocs=None,
+                                fshape=self.fshape, ifmshape=self.ifmshape,
+                                links=self.links, nifm=self.nifm, padding=0,
+                                stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_apool(
-                self.output, error, self.berror, self.berrorbuf, self.links,
-                self.ifmshape, self.ofmshape, self.fshape,
-                0, self.stride, self.nifm)
+            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+                                    inputs=inputs, deltas=error, op="avg",
+                                    ofmshape=self.ofmshape, ofmlocs=None,
+                                    fshape=self.fshape, ifmshape=self.ifmshape,
+                                    links=self.links, nifm=self.nifm,
+                                    padding=0, stride=self.stride,
+                                    bpropbuf=self.berrorbuf)
 
     def update(self, epoch):
         pass
@@ -2110,8 +2137,8 @@ class CrossMapPoolingLayer(YAMLable):
             self.pre_act = self.output
 
     def fprop(self, inputs):
-        self.backend.fprop_cmpool(inputs, self.weights, self.ifmsize,
-                                  out=self.pre_act)
+        self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,
+                                  weights=self.weights, ifmshape=self.ifmshape)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -2119,10 +2146,11 @@ class CrossMapPoolingLayer(YAMLable):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_cmpool(error, self.weights, self.ifmsize,
-                                      out=self.berror)
-        self.backend.update_cmpool(error, inputs, self.ifmsize,
-                                   self.updatebuf, out=self.updates)
+            self.backend.bprop_cmpool(out=self.berror, weights=self.weights,
+                                      deltas=error, ifmshape=self.ifmshape)
+        self.backend.update_cmpool(out=self.updates, inputs=inputs,
+                                   deltas=error, ifmshape=self.ifmshape,
+                                   updatebuf=self.updatebuf)
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
@@ -2173,15 +2201,18 @@ class CrossMapResponseNormLayer(YAMLable):
                                               batch_size))
 
     def fprop(self, inputs):
-        self.backend.fprop_cmrnorm(inputs, self.output, self.ifmshape,
-                                   self.nifm, self.ksize, self.alpha,
-                                   self.beta)
+        self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
+                                   ifmshape=self.ifmshape, nifm=self.nifm,
+                                   ksize=self.ksize, alpha=self.alpha,
+                                   beta=self.beta)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.bprop_cmrnorm(inputs, self.output, error, self.berror,
-                                       self.ifmshape, self.nifm, self.ksize,
-                                       self.alpha, self.beta, self.tempbuf)
+            self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
+                                       inputs=inputs, deltas=error,
+                                       ifmshape=self.ifmshape, nifm=self.nifm,
+                                       ksize=self.ksize, alpha=self.alpha,
+                                       beta=self.beta, bpropbuf=self.tempbuf)
 
     def update(self, epoch):
         pass
