@@ -1162,6 +1162,13 @@ class GPU(Backend):
     def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
         raise NotImplementedError("TODO!")
 
+    def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
+                   rho, epsilon):
+        cudanet.adadelta_update(us_item._tensor, gs_item._tensor,
+                                ds_item._tensor, ls_item._tensor, rho,
+                                epsilon)
+        self.add(ps_item, ls_item, out=ps_item)
+
     def sync_stream(self):
         cudanet.sync_stream()
 

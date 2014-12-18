@@ -995,6 +995,31 @@ class CPU(Backend):
                 self.dot(ofmd, ifm, updatebuf)
                 out[ifmind, ofmind] = updatebuf
 
+    def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
+                   rho, epsilon):
+        # Accumulate E[Grad^2]
+        self.multiply(gs_item, self.wrap(rho), out=gs_item)
+        self.multiply(us_item, us_item, out=ss_item)
+        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.add(gs_item, ss_item, out=gs_item)
+
+        # Calculate Updates
+        self.add(gs_item, self.wrap(epsilon), out=ss_item)
+        self.add(ds_item, self.wrap(epsilon), out=ls_item)
+        self.divide(ls_item, ss_item, out=ls_item)
+        self.sqrt(ls_item, out=ls_item)
+        self.multiply(ls_item, self.wrap(-1.0), out=ls_item)
+        self.multiply(ls_item, us_item, out=ls_item)
+
+        # Accumulate E[Delt^2]
+        self.multiply(ds_item, self.wrap(rho), out=ds_item)
+        self.multiply(ls_item, ls_item, out=ss_item)
+        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.add(ds_item, ss_item, out=ds_item)
+
+        # Final update to the params
+        self.add(ps_item, ls_item, out=ps_item)
+
     def gen_weights(self, size, weight_params, dtype=None):
         """
         Different types of weight initializations.  Includes:
