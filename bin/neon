@@ -12,7 +12,7 @@ import sys
 
 import neon
 from neon.util.persist import deserialize
-
+from neon.util.trace import Tracer
 
 
 def parse_args():
@@ -29,6 +29,11 @@ def parse_args():
                               'specified.  Or stdout if empty string.'))
     parser.add_argument('-d', '--debug', action='store_true',
                         help='call ipython debugger on uncaught exception')
+    parser.add_argument('-t', '--trace', action='store', nargs=2,
+                        metavar=('file_filter', 'output_file'),
+                        help='Trace through function calls. Optional argument '
+                             'is a regex filter on the name of the source files '
+                             'to confine the trace to.')
     return(parser.parse_args())
 
 
@@ -44,16 +49,18 @@ def main():
         import cProfile
         p = cProfile.Profile()
         p.enable()
-        logging.info("Profiling code to: %s" % (
-                     args.profile if args.profile != "" else "stdout"))
+        logging.info("Profiling code to: %s",
+                     args.profile if args.profile != "" else "stdout")
+    if args.trace is not None:
+        tracer = Tracer.setup(args.trace[0], args.trace[1])
     try:
         experiment = deserialize(args.yaml_file)
         if hasattr(experiment, 'logging'):
             logger = logging.getLogger()
             handler = logger.handlers[0]
             if "filename" in experiment.logging:
-                logging.info("replacing console logging with file logging: %s"
-                             % experiment.logging["filename"])
+                logging.info("replacing console logging with file logging: %s",
+                             experiment.logging["filename"])
                 logger.removeHandler(handler)
                 handler = logging.FileHandler(experiment.logging["filename"])
                 logger.addHandler(handler)
@@ -61,7 +68,7 @@ def main():
                 formatter = logging.Formatter(experiment.logging["format"])
                 handler.setFormatter(formatter)
             if "level" in experiment.logging:
-                logging.info("setting log level to: %d" %
+                logging.info("setting log level to: %d",
                              experiment.logging["level"])
                 logger.setLevel(experiment.logging["level"])
         # carry out the experiment

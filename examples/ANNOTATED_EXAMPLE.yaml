@@ -22,7 +22,7 @@
 # A common source of error is forgetting ',' between parameters belonging to
 # the same object
 #
-# To save on explicit repitition, you can reference parameters by assigning a
+# To save on explicit repetition, you can reference parameters by assigning a
 # variable alias, then dereference them where needed later.  The syntax for
 # doing so is:
 #     key: &var_ref value  # creates a reference for key named var_ref
@@ -41,7 +41,7 @@
 #                              evaluate performance
 # GradientChecker - Use finite differences to check the gradients of an
 #                   experiment.  Currently this can be carried out using
-#                   the separately provided ``test`` executable
+#                   the separately provided ``grad`` executable
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   # Fit*Experiment parameters:
   # --------------------------
@@ -153,6 +153,8 @@
         #               scale - standard deviation for gaussian random number
         #                       init, or multiplier in node_normalized random
         #                       number init (see Glorot2010).
+        #               bias_init - indicates that biases should be used and
+        #                           provides the initial value.
         name: h0,
         backend: *be,
         batch_size: 30,
@@ -198,13 +200,14 @@
             },
           },
         },
-        nin: 5, # input layer + 1 for the bias
+        nin: 4,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
       &lastlayer !obj:neon.models.layer.Layer {
@@ -220,13 +223,14 @@
             momentum_params: *mm,
           },
         },
-        nin: 3, # previous nout + 1 for the bias
+        nin: 2, # previous nout
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -1,
           high: 1,
+          bias_init: 0.0,
         },
       },
     ],
@@ -242,7 +246,8 @@
     # logging parameters:
     # -------------------
     # level - numeric threshold that controls the types of messages that get
-    #         displayed.  All logging types higher than this value will appear.
+    #         displayed.  All logging types with values greater than or equal
+    #         to this value will appear.
     #         types of logging are:
     #         0 - NOTSET
     #         10 - DEBUG

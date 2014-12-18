@@ -25,9 +25,8 @@
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerDist {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -55,7 +54,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -78,6 +77,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

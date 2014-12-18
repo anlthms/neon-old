@@ -61,9 +61,11 @@ class GradientDescent(LearningRule):
             self.weight_decay = 0.0
 
     def apply_rule(self, params, updates, epoch):
-        self.backend.multiply(updates, self.backend.wrap(self.learning_rate),
-                              out=updates)
-        self.backend.subtract(params, updates, out=params)
+        for ps_item, us_item in zip(params, updates):
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
 class GradientDescentPretrain(GradientDescent):
@@ -88,9 +90,11 @@ class GradientDescentPretrain(GradientDescent):
             self.learning_rate = self.train_learning_rate
 
     def apply_rule(self, params, updates, epoch):
-        self.backend.multiply(updates, self.backend.wrap(self.learning_rate),
-                              out=updates)
-        self.backend.subtract(params, updates, out=params)
+        for ps_item, us_item in zip(params, updates):
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
 class GradientDescentMomentum(GradientDescent):
@@ -104,14 +108,14 @@ class GradientDescentMomentum(GradientDescent):
             self.momentum_params = lr_params['momentum_params']
         else:
             raise AttributeError("Missing required momentum parameters")
-        self.velocity = None
+        self.velocity = []
         self.velocity_rec = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
-        if self.velocity is None or self.velocity.shape != params.shape:
-            self.velocity = self.backend.zeros(params.shape,
-                                               self.velocity_dtype)
+        for item in params:
+            self.velocity.append(self.backend.zeros(item.shape,
+                                                    self.velocity_dtype))
 
     def allocate_state_rec(self, params):
         """For recurrent layer, need an extra velocity """
@@ -143,13 +147,15 @@ class GradientDescentMomentum(GradientDescent):
         4. update the actual weights.
         """
         momentum_coef = self.get_momentum_coef(epoch)
-        self.backend.multiply(self.velocity, self.backend.wrap(momentum_coef),
-                              out=self.velocity)
-        self.backend.multiply(updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=updates)
-        self.backend.subtract(self.velocity, updates, out=self.velocity)
-        self.backend.add(params, self.velocity, out=params)
+        for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            self.backend.multiply(vs_item,
+                                  self.backend.wrap(momentum_coef),
+                                  out=vs_item)
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            self.backend.add(ps_item, vs_item, out=ps_item)
 
     def get_momentum_coef(self, epoch):
         """
@@ -230,58 +236,55 @@ class AdaDelta(LearningRule):
         self.scratch_space_dtype = param_dtype
         self.lrates_dtype = param_dtype
         self.lrates_dtype = param_dtype
-        self.exp_gradsq = None
-        self.exp_deltsq = None
-        self.lrates = None
-        self.scratch_space = None
+        self.exp_gradsq = []
+        self.exp_deltsq = []
+        self.lrates = []
+        self.scratch_space = []
 
     def allocate_state(self, params):
-
-        if self.exp_gradsq is None:
-            self.exp_gradsq = self.backend.zeros(params.shape,
-                                                 self.exp_gradsq_dtype)
-        if self.exp_deltsq is None:
-            self.exp_deltsq = self.backend.zeros(params.shape,
-                                                 self.exp_deltsq_dtype)
-        if self.lrates is None:
-            self.lrates = self.backend.zeros(params.shape, self.lrates_dtype)
-        if self.scratch_space is None:
-            self.scratch_space = self.backend.zeros(params.shape,
-                                                    self.scratch_space_dtype)
+        assert len(self.exp_gradsq) == 0
+        for item in params:
+            self.exp_gradsq.append(self.backend.zeros(item.shape,
+                                                      self.exp_gradsq_dtype))
+            self.exp_deltsq.append(self.backend.zeros(item.shape,
+                                                      self.exp_deltsq_dtype))
+            self.lrates.append(self.backend.zeros(item.shape,
+                                                  self.lrates_dtype))
+            self.scratch_space.append(self.backend.zeros(
+                item.shape, self.scratch_space_dtype))
 
     def apply_rule(self, params, updates, epoch):
-        # Accumulate E[Grad^2]
-        self.backend.multiply(self.exp_gradsq, self.backend.wrap(self.rho),
-                              out=self.exp_gradsq)
-        self.backend.multiply(updates, updates,
-                              out=self.scratch_space)
-        self.backend.multiply(self.scratch_space,
-                              self.backend.wrap(1.0 - self.rho),
-                              out=self.scratch_space)
-        self.backend.add(self.exp_gradsq, self.scratch_space,
-                         out=self.exp_gradsq)
+        for ps_item, us_item, gs_item, ds_item, ls_item, ss_item in zip(
+                params, updates, self.exp_gradsq,
+                self.exp_deltsq, self.lrates, self.scratch_space):
+            # Accumulate E[Grad^2]
+            self.backend.multiply(gs_item, self.backend.wrap(self.rho),
+                                  out=gs_item)
+            self.backend.multiply(us_item, us_item, out=ss_item)
+            self.backend.multiply(ss_item,
+                                  self.backend.wrap(1.0 - self.rho),
+                                  out=ss_item)
+            self.backend.add(gs_item, ss_item, out=gs_item)
 
-        # Calculate Updates
-        self.backend.add(self.exp_gradsq, self.backend.wrap(self.epsilon),
-                         out=self.scratch_space)
-        self.backend.add(self.exp_deltsq, self.backend.wrap(self.epsilon),
-                         out=self.lrates)
-        self.backend.divide(self.lrates, self.scratch_space, out=self.lrates)
-        self.backend.sqrt(self.lrates, out=self.lrates)
-        self.backend.multiply(self.lrates, self.backend.wrap(-1.0),
-                              out=self.lrates)
-        self.backend.multiply(self.lrates, updates, out=self.lrates)
+            # Calculate Updates
+            self.backend.add(gs_item, self.backend.wrap(self.epsilon),
+                             out=ss_item)
+            self.backend.add(ds_item, self.backend.wrap(self.epsilon),
+                             out=ls_item)
+            self.backend.divide(ls_item, ss_item, out=ls_item)
+            self.backend.sqrt(ls_item, out=ls_item)
+            self.backend.multiply(ls_item, self.backend.wrap(-1.0),
+                                  out=ls_item)
+            self.backend.multiply(ls_item, us_item, out=ls_item)
 
-        # Accumulate E[Delt^2]
-        self.backend.multiply(self.exp_deltsq, self.backend.wrap(self.rho),
-                              out=self.exp_deltsq)
-        self.backend.multiply(self.lrates, self.lrates,
-                              out=self.scratch_space)
-        self.backend.multiply(self.scratch_space,
-                              self.backend.wrap(1.0 - self.rho),
-                              out=self.scratch_space)
-        self.backend.add(self.exp_deltsq, self.scratch_space,
-                         out=self.exp_deltsq)
+            # Accumulate E[Delt^2]
+            self.backend.multiply(ds_item, self.backend.wrap(self.rho),
+                                  out=ds_item)
+            self.backend.multiply(ls_item, ls_item, out=ss_item)
+            self.backend.multiply(ss_item,
+                                  self.backend.wrap(1.0 - self.rho),
+                                  out=ss_item)
+            self.backend.add(ds_item, ss_item, out=ds_item)
 
-        # Final update to the params
-        self.backend.add(params, self.lrates, out=params)
+            # Final update to the params
+            self.backend.add(ps_item, ls_item, out=ps_item)

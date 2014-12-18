@@ -11,7 +11,7 @@ import numpy
 import os
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,8 @@ class MOBYDICK(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            train_idcs = range(1000000)  # 1M letters
-            predict_idcs = range(1, 1000000+1)
+            train_idcs = list(range(1000000))  # 1M letters out of 1.23M
             test_idcs = range(1000000, 1010000)
-            testtarget_idcs = range(1000000+self.unrolls, 1010000+self.unrolls)
-            testtarget_idcs = range(1000000+1, 1010000+1)
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
                     self.sample_pct /= 100.0
@@ -90,7 +87,6 @@ class MOBYDICK(Dataset):
                     # numpy.random.shuffle(train_idcs)
                     pass
                 train_idcs = train_idcs[0:int(1000000 * self.sample_pct)]
-                predict_idcs = predict_idcs[0:int(1000000 * self.sample_pct)]
             url = self.raw_base_url
             name = os.path.basename(url).rstrip('.txt')
             repo_file = os.path.join(save_dir, name + '.txt')
@@ -98,13 +94,20 @@ class MOBYDICK(Dataset):
                 self.download_to_repo(url, save_dir)
             logger.info('loading: %s' % name)
             indat = self.read_txt_file(repo_file, 'float32')
-            indat = self.backend.array(indat)
-            self.inputs['train'] = indat[:, train_idcs].transpose()
-            self.targets['train'] = indat[:, predict_idcs].transpose()
-            self.inputs['test'] = indat[:, test_idcs].transpose()
-            self.targets['test'] = indat[:, testtarget_idcs].transpose()
 
-            # self.format()  # Mobydick does not support new batch format yet.
+            self.preinputs = dict()
+            self.preinputs['train'] = indat[:, train_idcs]
+            self.preinputs['test'] = indat[:, test_idcs]
+
+            for dataset in ('train', 'test'):
+                num_batches = self.preinputs[dataset].shape[1]/self.batch_size
+                idx_list = numpy.arange(num_batches * self.batch_size)
+                idx_list = idx_list.reshape(self.batch_size, num_batches)
+                splay_3d = self.preinputs[dataset][:, idx_list.T]
+                splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
+                self.inputs[dataset] = self.backend.array(splay_3d)
+            # self.format()  # Mobydick does not need this
+
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?

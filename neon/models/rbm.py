@@ -7,6 +7,7 @@ Simple restricted Boltzmann Machine model.
 
 import logging
 from neon.models.model import Model
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,11 @@ class RBM(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            logger.info("%s" % str(layer))
+            logger.info("%s", str(layer))
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         nrecs = inputs.shape[1]
-        nin = self.layers[0].nin-1
+        nin = self.layers[0].nin
         self.nlayers = len(self.layers)
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -44,19 +45,16 @@ class RBM(Model):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(inputs.nbatches):
+            for batch in range(inputs.nbatches):
                 inputs_batch = ds.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)
-                # x_minus = self.layers[0].x_minus
-                # nrows = x_minus.shape[0] - 1
-                # self.layers.output[:] = x_minus[:nrows]
                 error += self.cost.apply_function(inputs_batch)
                 self.update(epoch)
-            logger.info('epoch: %d, total training error: %0.5f' %
-                        (epoch, error / inputs.nbatches))
+            logger.info('epoch: %d, total training error: %0.5f', epoch,
+                        error / inputs.nbatches)
 
     def positive(self, inputs):
         """Wrapper for RBMLayer.positive"""

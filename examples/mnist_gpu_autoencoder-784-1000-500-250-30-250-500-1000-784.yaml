@@ -24,7 +24,7 @@
     batch_size: &bs 100,
     # serialized_path: './ae-cudanet.pkl',
     layers: [
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: enc1,
         backend: *be,
         batch_size: *bs,
@@ -48,7 +48,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: enc2,
         backend: *be,
         batch_size: *bs,
@@ -69,7 +69,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: enc3,
         backend: *be,
         batch_size: *bs,
@@ -90,7 +90,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: enc4,
         backend: *be,
         batch_size: *bs,
@@ -110,7 +110,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: dec1,
         backend: *be,
         batch_size: *bs,
@@ -131,7 +131,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: dec2,
         backend: *be,
         batch_size: *bs,
@@ -152,7 +152,7 @@
           scale: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: dec3,
         backend: *be,
         batch_size: *bs,
@@ -173,7 +173,7 @@
           scale: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: dec4,
         backend: *be,
         batch_size: *bs,

@@ -9,7 +9,7 @@ wraps :mod:`numpy` ndarray and related operations
 import logging
 import math
 import numpy as np
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 
 from neon.backends.backend import Backend, Tensor
 
@@ -403,7 +403,7 @@ class CPU(Backend):
         # support numpy.seterr settings:
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
         if 'seterr_handling' in self.__dict__:
-            logger.info("Updating numpy.seterr settings: %s" %
+            logger.info("Updating numpy.seterr settings: %s",
                         str(self.seterr_handling))
             np.seterr(**self.seterr_handling)
 
@@ -411,7 +411,7 @@ class CPU(Backend):
         seed = None
         if 'rng_seed' in self.__dict__:
             seed = self.rng_seed
-            logger.info("Seeding random number generator with: %s" % str(seed))
+            logger.info("Seeding random number generator with: %s", str(seed))
         np.random.seed(seed)
 
     def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
@@ -462,16 +462,6 @@ class CPU(Backend):
             Tensor: Of specified size filled with these random numbers.
         """
         return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
-
-    def append_bias(self, x, dtype=np.float32):
-        """
-        Adds a bias row of ones to CPUTensor x,
-        returning a new CPUTensor.
-        """
-        return self.tensor_cls(np.concatenate((x._tensor,
-                                               np.ones((1, x.shape[1]),
-                                                       dtype)),
-                                              axis=0), dtype)
 
     def copy(self, a):
         return self.tensor_cls(np.copy(a))
@@ -671,8 +661,11 @@ class CPU(Backend):
     def fill(self, x, val):
         x._tensor.fill(val)
 
-    def sum(self, obj):
-        return obj._tensor.sum()
+    def sum(self, obj, axis=None, out=None):
+        if axis is None:
+            return np.sum(obj._tensor)
+        res = np.sum(obj._tensor, axis=axis, out=out._tensor, keepdims=True)
+        return self.tensor_cls(res)
 
     def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
         if x is None:
@@ -783,9 +776,46 @@ class CPU(Backend):
         np.subtract(err._tensor, a[np.newaxis], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
+    def fprop_fc(self, out, inputs, weights):
+        """
+        Forward propagate the inputs of a fully connected network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (CPUTensor): The weight coefficient values for this layer.
+        """
+        self.dot(weights, inputs, out)
+
+    def bprop_fc(self, out, weights, deltas):
+        """
+        Backward propagate the error through a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            weights (CPUTensor): The weight coefficient values for this layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        self.dot(weights.transpose(), deltas, out)
+
+    def update_fc(self, out, inputs, deltas):
+        """
+        Compute the updated gradient for a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        self.dot(deltas, inputs.transpose(), out)
+
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
@@ -797,7 +827,7 @@ class CPU(Backend):
     def bprop_conv(self, weights, error, berror, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
         self.fill(berror, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             self.dot(weights, error.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, berror.take(rflinks, axis=0), out=bpropbuf)
@@ -807,7 +837,7 @@ class CPU(Backend):
                     ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
                     updatebuf):
         self.fill(updates, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
@@ -829,7 +859,7 @@ class CPU(Backend):
     def fprop_mpool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
@@ -844,50 +874,16 @@ class CPU(Backend):
                     ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
         self.fill(berrorbuf, 0.0)
         rerror = self.hstack_maps(error, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rflinks = links[dst]
             inds = rflinks.take(maxinds[dst], axis=0)
             berrorbuf[inds, range(berrorbuf.shape[1])] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
-    # Alternate implementation of max pooling fprop. To be deleted.
-    def fprop_mpool2(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm, maxinds):
-        ifmsize = ifmshape[0] * ifmshape[1]
-        ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in xrange(nfm):
-            ifm = inputs[fmind * ifmsize:(fmind + 1) * ifmsize]
-            ofm = outputs[fmind * ofmsize:(fmind + 1) * ofmsize]
-            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in xrange(ofmsize):
-                # For this output unit, get the corresponding receptive field
-                # within the input feature map.
-                rf = ifm.take(links[dst], axis=0)
-                # Save the index of the maximum value.
-                maxfm[dst] = rf.argmax(axis=0)
-                # Set the pre-activations to the maximum value.
-                maxvals = rf[maxinds[dst], range(rf.shape[1])]
-                ofm[dst] = maxvals
-
-    # Alternate implementation of max pooling bprop. To be deleted.
-    def bprop_mpool2(self, inputs, outputs, error, berror, links, ifmshape,
-                     ofmshape, fshape, padding, stride, nfm, maxinds):
-        self.fill(berror, 0.0)
-        ifmsize = ifmshape[0] * ifmshape[1]
-        ofmsize = ofmshape[0] * ofmshape[1]
-        for fmind in xrange(nfm):
-            ifm = berror[fmind * ifmsize:(fmind + 1) * ifmsize]
-            ofm = error[fmind * ofmsize:(fmind + 1) * ofmsize]
-            maxfm = maxinds[fmind * ofmsize:(fmind + 1) * ofmsize]
-            for dst in xrange(ofmsize):
-                rflinks = links[dst]
-                inds = rflinks.take(maxfm[dst], axis=0)
-                ifm[inds, range(ifm.shape[1])] += ofm[dst]
-
     def fprop_apool(self, inputs, outputs, outputsbuf, links,
                     ifmshape, ofmshape, fshape, padding, stride, nfm):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
             outputsbuf[dst] = rf.mean(axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
@@ -897,14 +893,14 @@ class CPU(Backend):
         self.fill(berrorbuf, 0.0)
         error /= fshape[0] * fshape[1]
         rerror = self.hstack_maps(error, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             berrorbuf[links[dst]] += rerror[dst]
         berror[:] = self.vstack_maps(berrorbuf, nfm)
 
     def fprop_l2pool(self, inputs, outputs, outputsbuf, links,
                      ifmshape, ofmshape, fshape, padding, stride, nfm):
         rinputs = self.hstack_maps(inputs, nfm)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             rf = rinputs.take(links[dst], axis=0)
             outputsbuf[dst] = self.norm(rf, 2, axis=0)
         outputs[:] = self.vstack_maps(outputsbuf, nfm)
@@ -916,7 +912,7 @@ class CPU(Backend):
         routputs = self.hstack_maps(outputs, nfm)
         rerror = self.hstack_maps(error, nfm)
         self.fill(berrorbuf, 0.0)
-        for dst in xrange(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmshape[0] * ofmshape[1]):
             inds = links[dst]
             rf = rinputs.take(inds, axis=0)
             denom = routputs[dst].copy()
@@ -936,7 +932,7 @@ class CPU(Backend):
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nfm, H, W, N))
         routputs = outputs._tensor.reshape((nfm, H, W, N))
-        for i in xrange(nfm):
+        for i in range(nfm):
             x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nfm)]
             np.square(x).sum(axis=0, out=routputs[i])
         self.multiply(outputs, self.wrap(alpha), out=outputs)
@@ -969,23 +965,13 @@ class CPU(Backend):
         self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
         self.fill(rberror, 0.0)
 
-        for i in xrange(nfm):
+        for i in range(nfm):
             for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nfm)):
                 self.multiply(otemp[i], rinputs[j], out=tempbuf)
                 if i == j:
                     self.add(tempbuf, itemp[i], out=tempbuf)
                 self.add(rberror[i], tempbuf, out=rberror[i])
-
         self.multiply(error, berror, out=berror)
-
-    def fprop_fc(self, inputs, weights, out):
-        self.dot(weights, inputs, out)
-
-    def bprop_fc(self, deltas, weights, out):
-        self.dot(weights.transpose(), deltas, out)
-
-    def update_fc(self, deltas, inputs, out):
-        self.dot(deltas, inputs.transpose(), out)
 
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         for ofmind in range(weights.shape[1]):
@@ -1035,8 +1021,8 @@ class CPU(Backend):
                 low = weight_params['low']
             if 'high' in weight_params:
                 high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
+                        str(size), low, high)
             weights = self.uniform(low, high, size, dtype)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
@@ -1046,8 +1032,8 @@ class CPU(Backend):
                 loc = weight_params['loc']
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
+                        str(size), loc, scale)
             weights = self.normal(loc, scale, size, dtype)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
@@ -1079,17 +1065,13 @@ class CPU(Backend):
             scale = 1.0
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
+            logger.info('generating %s node_normalized(%0.2f) weights.',
+                        str(size), scale)
             node_norm = scale * math.sqrt(6.0 / sum(size))
             weights = self.uniform(-node_norm, node_norm, size, dtype)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
+
         return weights
 
 
@@ -1109,8 +1091,8 @@ class CPUDataDist(CPU):
     helper sub-class for data parallel implementations
     """
 
-    def update_fc(self, deltas, inputs, out):
-        super(CPUDataDist, self).update_fc(deltas, inputs, out)
+    def update_fc(self, out, inputs, deltas):
+        super(CPUDataDist, self).update_fc(out, inputs, deltas)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params

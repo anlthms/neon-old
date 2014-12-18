@@ -481,7 +481,7 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None):
+    def sum(self, axis=None, out=None):
         """
         Sum elements of a GPUTensor. If axis is None, all elements are
         summed and a numpy scalar returned. If axis is 1 or 2, sum along that
@@ -492,10 +492,10 @@ class GPUTensor(Tensor):
             logger.debug('Copying to host')
             result.copy_to_host()
             return result.numpy_array[0][0]
-        else:
-            result = self._tensor.sum(axis=axis)
-            logger.debug('major change in functionality of sum')
-            return GPUTensor(result)
+
+        result = self._tensor.sum(axis=axis, target=out._tensor)
+        logger.debug('major change in functionality of sum')
+        return GPUTensor(result)
 
     def sumsq(self, axis=None):
         """
@@ -679,7 +679,7 @@ class GPU(Backend):
         except TypeError:
             if seed is not None:
                 logger.warn("Must seed random number generator with an "
-                            "integer.  You specified: %s" % str(seed))
+                            "integer.  You specified: %s", str(seed))
             cudanet.cudanet_init_random(0)
 
     def uniform(self, low=0.0, high=1.0, size=1):
@@ -712,17 +712,6 @@ class GPU(Backend):
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
         return GPUTensor(numpy.array(seq, dtype=numpy.float32))
-
-    def append_bias(self, x):
-        """
-        Adds a bias row to GPUTensor x, returning a new GPUTensor.
-        """
-        result = cudanet.empty((x.shape[0] + 1, x.shape[1]))
-        result.set_row_slice(0, x.shape[0], x._tensor)
-        result.set_row_slice(x.shape[0], (x.shape[0] + 1),
-                             cudanet.CUDAMatrix.ones.slice(
-                                 0, x.shape[1]).reshape((1, x.shape[1])))
-        return GPUTensor(result)
 
     def copy(self, a):
         assert type(a) == GPUTensor
@@ -889,9 +878,9 @@ class GPU(Backend):
         elif order == 0:
             tmp = self.zeros(tsr.shape)
             self.not_equal(tsr, tmp, tmp)
-            res = tmp.sum(axis)
+            res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis)) ** (1.0 / order)
+            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
         if out is None:
             out = res
         else:
@@ -927,12 +916,12 @@ class GPU(Backend):
         self.greater(x, self.wrap(0), out=out)
 
     def fill(self, x, val):
-        x._tensor[:] = val
+        x[:] = val
 
-    def sum(self, x):
+    def sum(self, x, axis=None, out=None):
         if x is None:
             return float('NaN')
-        return x.sum()
+        return x.sum(axis=axis, out=out)
 
     def mean(self, x):
         if x is None:
@@ -1037,6 +1026,43 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
+    def fprop_fc(self, out, inputs, weights):
+        """
+        Forward propagate the inputs of a fully connected network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+        """
+        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
+
+    def bprop_fc(self, out, weights, deltas):
+        """
+        Backward propagate the error through a fully connected network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+        """
+        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
+
+    def update_fc(self, out, inputs, deltas):
+        """
+        Compute the updated gradient for a fully connected network layer.
+
+        Arguments:
+            out (CPUTensor): Where to store the updated gradient value.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (CPUTensor): The error values for this layer
+        """
+        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
+
     def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
                    ofmlocs, padding, stride, nifm, ngroups, prodbuf):
         assert ifmshape[0] == ifmshape[1]
@@ -1127,15 +1153,6 @@ class GPU(Backend):
             target=berror._tensor, sizeX=fshape[0], paddingStart=padding,
             moduleStride=stride, numModulesX=ofmshape[0])
 
-    def fprop_fc(self, inputs, weights, out):
-        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
-
-    def bprop_fc(self, deltas, weights, out):
-        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
-
-    def update_fc(self, deltas, inputs, out):
-        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
-
     def fprop_cmpool(self, inputs, weights, fmsize, out):
         raise NotImplementedError("TODO!")
 
@@ -1173,8 +1190,8 @@ class GPU(Backend):
                 low = weight_params['low']
             if 'high' in weight_params:
                 high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.' %
-                        (str(size), low, high))
+            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
+                        str(size), low, high)
             weights = numpy.random.uniform(low, high, size)
         elif (weight_params['type'] == 'gaussian' or
               weight_params['type'] == 'normal'):
@@ -1184,8 +1201,8 @@ class GPU(Backend):
                 loc = weight_params['loc']
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.' %
-                        (str(size), loc, scale))
+            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
+                        str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
@@ -1215,17 +1232,12 @@ class GPU(Backend):
             scale = 1.0
             if 'scale' in weight_params:
                 scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.' %
-                        (str(size), scale))
+            logger.info('generating %s node_normalized(%0.2f) weights.',
+                        str(size), scale)
             node_norm = scale * math.sqrt(6.0 / sum(size))
             weights = numpy.random.uniform(-node_norm, node_norm, size)
         else:
             raise AttributeError("invalid weight_params specified")
-        if 'bias_init' in weight_params:
-            # per append_bias() bias weights are in the last column
-            logger.info('separately initializing bias weights to %0.2f' %
-                        weight_params['bias_init'])
-            weights[:, -1] = weight_params['bias_init']
 
         return GPUTensor(numpy.array(weights, numpy.float32))
 
@@ -1242,19 +1254,18 @@ class GPUDataDist(GPU):
         num_devices = cudanet.get_num_devices()
 
         if (local_size > num_devices):
-            logger.warning('Node %s: requested device: %d  max devices: %d' %
-                           (MPI.Get_processor_name(), local_size,
-                            num_devices))
+            logger.warning('Node %s: requested device: %d  max devices: %d',
+                           MPI.Get_processor_name(), local_size, num_devices)
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
 
         cudanet.set_device_id(local_rank)
-        logger.info('Setting Device on %s to %d' %
-                    (MPI.Get_processor_name(), local_rank))
+        logger.info('Setting Device on %s to %d',
+                    MPI.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
-    def update_fc_dot(self, deltas, inputs, out):
-        super(GPUDataDist, self).update_fc_dot(deltas, inputs, out)
+    def update_fc(self, out, inputs, deltas):
+        super(GPUDataDist, self).update_fc(out, inputs, deltas)
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params

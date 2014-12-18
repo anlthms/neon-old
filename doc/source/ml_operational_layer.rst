@@ -130,4 +130,10 @@ Initialization and Setup
 Higher Level Operation Support
 ==============================
 
-TODO: determine what to include here
+Fully Connected Neural Network Layer
+------------------------------------
+.. autosummary::
+
+   neon.backends.backend.Backend.fprop_fc
+   neon.backends.backend.Backend.bprop_fc
+   neon.backends.backend.Backend.update_fc

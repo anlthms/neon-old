@@ -5,7 +5,7 @@
 # MNIST.  Can serve as a template for Deep Belief Network (DBN) layers.
 
 !obj:neon.experiments.fit.FitExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
 
@@ -37,8 +37,8 @@
             backend: *be,
           },
         },
-        nin: 785, # num inputs + 1 for bias
-        nout: 1001, # num outputs + 1 for bias
+        nin: 784,
+        nout: 1000,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,
