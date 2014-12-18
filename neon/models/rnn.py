@@ -112,6 +112,7 @@ class RNN(Model):
             logger.info("fprop input\n%s",
                         str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
         y = hidden_init
+        # fprop does a single full unroll
         for tau in range(0, unrolls):
             self.layers[0].fprop(y, inputs[nin*tau:nin*(tau+1), :], tau)
             y = self.layers[0].output_list[tau]
@@ -139,12 +140,16 @@ class RNN(Model):
         self.backend.fill(self.layers[0].updates_rec, 0)
         self.backend.fill(self.layers[1].weight_updates, 0)
 
-        # fill deltas
+        # this loop is a property of t-BPTT through different depth.
+        # inside this loop, go through the input-hidden-output stack.
+        cerror = self.backend.zeros((self.layers[0].nout, self.batch_size))
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                logger.info("backprop target %d of %d is: %f", tau,
-                            self.unrolls,
+                logger.info("backprop target %d of %d is: %f",
+                            tau, self.unrolls,
                             targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
+
+            # output layers[1]:
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
@@ -152,12 +157,13 @@ class RNN(Model):
                                  self.layers[0].output_list[tau - 1],
                                  tau)
 
-        cerror = self.backend.zeros((self.layers[0].nout, self.batch_size))
-        for tau in range(min_unroll, self.unrolls+1):
-            # need to bprop from the output layer before calling bprop
+            # recurrent layers[0]:
+            # 1. error=W*delta  2. bprop(error, inputs)
+            # extra bprop from the output layer before calling bprop
             self.backend.bprop_fc(cerror,
                                   self.layers[1].weights,
                                   self.layers[1].deltas_o[tau])
+            # this bprop contains a for loop. Just put it here!
             self.layers[0].bprop(cerror, inputs, tau)
 
     def update(self, epoch):

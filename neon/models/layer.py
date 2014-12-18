@@ -500,7 +500,7 @@ class RecurrentLSTMLayer(Layer):
         # the main thing is that the split into h and w happens at the bottom,
         # after all the funky gating is out of the way.
 
-        for tau range(tau):
+        for layer in range(tau):
             # bottom level terms
             be.update_fc(self.di_dWix, self.net_i[tau], inputs) # sig'() * x
             be.update_fc(self.di_dWih, self.net_i[tau], self.output_list) # sig'() * h
@@ -536,14 +536,14 @@ class RecurrentLSTMLayer(Layer):
             # top level
             # o .* dp_dW + tanh(c) .* do_dW
             # c_phi is phi(c).
-            dh_dWix = self.o_t[tau] .* dp_dWix
-            dh_dWih = self.o_t[tau] .* dp_dWih
-            dh_dWfx = self.o_t[tau] .* dp_dWfx
-            dh_dWfh = self.o_t[tau] .* dp_dWfh
-            dh_dWox = self.c_phi[tau] .* do_dWox
-            dh_dWoh = self.c_phi[tau] .* do_dWoh
-            dh_dWgx = self.o_t[tau] .* dp_dWgx
-            dh_dWgh = self.o_t[tau] .* dp_dWgh
+            dh_dWix = self.o_t[tau] * dp_dWix
+            dh_dWih = self.o_t[tau] * dp_dWih
+            dh_dWfx = self.o_t[tau] * dp_dWfx
+            dh_dWfh = self.o_t[tau] * dp_dWfh
+            dh_dWox = self.c_phi[tau] * do_dWox
+            dh_dWoh = self.c_phi[tau] * do_dWoh
+            dh_dWgx = self.o_t[tau] * dp_dWgx
+            dh_dWgh = self.o_t[tau] * dp_dWgh
 
 
             # updates: Probably incorrect since dh/dW counts, not di/dW etc.
