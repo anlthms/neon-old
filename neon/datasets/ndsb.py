@@ -80,15 +80,14 @@ class NDSB(Dataset):
         classind = 0
         maxheight = 0
         maxwidth = 0
-        imagecount = 0
         sumheight = 0
         sumwidth = 0
+        imagecount = 0
         for dirname in dirs:
             filetree[classind] = []
-            print 'walking', dirname
+            logger.debug('walking', dirname)
             for walkresult in os.walk(dirname):
                 for filename in walkresult[2]:
-                    assert filename[-4:] == '.jpg'
                     img = np.float32(io.imread(os.path.join(dirname, filename),
                                                as_grey=True))
                     # Invert the greyscale.

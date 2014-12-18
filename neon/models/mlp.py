@@ -106,9 +106,9 @@ class MLP(Model):
 
         for batch in range(inputs.nbatches):
             inputs_batch = ds.get_batch(inputs, batch)
+            preds_batch = ds.get_batch(preds, batch)
             self.fprop(inputs_batch)
-            outputs = self.layers[-1].output.copy()
-            preds[batch * nout:(batch + 1) * nout, :] = outputs
+            preds_batch[:] = self.layers[-1].output
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -158,9 +158,7 @@ class MLP(Model):
             layer.update(epoch)
 
     def logloss(self, ds, preds, targets):
-        ceil = 1.0 - 1e-15
-        floor = 1e-15
-        self.backend.clip(preds, floor, ceil, out=preds)
+        self.backend.clip(preds, eps, 1.0 - eps, out=preds)
         temp = self.backend.empty(preds.shape)
         temp.nrows = preds.nrows
 
@@ -178,7 +176,7 @@ class MLP(Model):
 
         self.backend.log(temp, out=temp)
         self.backend.multiply(targets, temp, temp)
-        return -self.backend.mean(temp)
+        return -self.backend.sum(temp) / (self.batch_size * targets.nbatches)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
