@@ -33,6 +33,18 @@ class Dataset(object):
     inputs = {'train': None, 'test': None, 'validation': None}
     targets = {'train': None, 'test': None, 'validation': None}
 
+    class MinibatchList(list):
+        def __init__(self, *args):
+            list.__init__(self, *args)
+            self.nbtaches = 0
+            self.nrows = 0
+
+        def sum(self):
+            sumval = 0
+            for item in self:
+                sumval += item.sum()
+            return sumval
+
     def __getstate__(self):
         """
         Defines what and how we go about serializing an instance of this class.
@@ -167,16 +179,15 @@ class Dataset(object):
         bs = self.batch_size
         nbatches = (data.shape[0] + bs - 1) / bs
         nrows = data.shape[1]
-        batchwise = np.zeros((nbatches * nrows, bs))
+        batchwise = Dataset.MinibatchList()
         for batch in range(nbatches):
             batchdata = data[batch * bs:(batch + 1) * bs].transpose()
             ncols = batchdata.shape[1]
             assert ncols == bs
-            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = batchdata
-        batchtensor = self.backend.array(batchwise)
-        batchtensor.nbatches = nbatches
-        batchtensor.nrows = nrows
-        return batchtensor
+            batchwise.append(self.backend.array(batchdata))
+        batchwise.nbatches = nbatches
+        batchwise.nrows = nrows
+        return batchwise
 
     def format(self):
         """
@@ -195,4 +206,4 @@ class Dataset(object):
                 self.targets[key] = self.transpose_batches(item)
 
     def get_batch(self, data, batch):
-        return data[batch * data.nrows:(batch + 1) * data.nrows]
+        return data[batch]
