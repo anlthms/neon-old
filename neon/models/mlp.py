@@ -226,7 +226,6 @@ class MLP(Model):
         # Not clear that this is good for shallow models
         szlist = []
         wlist = []
-        dtype = None
         for l in self.layers:
             if hasattr(l, 'weights'):
                 szlist.append(l.weights.shape[1])
