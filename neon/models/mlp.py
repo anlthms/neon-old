@@ -97,7 +97,7 @@ class MLP(Model):
                 logger.debug("%s", layer)
 
     def predict_set(self, ds, inputs):
-        preds = self.backend.empty((inputs.nbatches, self.batch_size))
+        preds = []
         for layer in self.layers:
             layer.set_train_mode(False)
 
@@ -105,7 +105,9 @@ class MLP(Model):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
-            self.backend.argmax(outputs, axis=0, out=preds[batch:(batch + 1)])
+            preds_batch = self.backend.empty((1, self.batch_size))
+            self.backend.argmax(outputs, axis=0, out=preds_batch)
+            preds.append(preds_batch)
         return preds
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -171,15 +173,18 @@ class MLP(Model):
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
                 if item in targets and item in preds:
-                    labels = self.backend.empty((targets[item].nbatches,
-                                                 self.batch_size))
+                    labels = self.backend.empty((1, self.batch_size))
+                    misclass = self.backend.empty((1, self.batch_size))
+                    misclass_sum = 0
                     for batch in range(targets[item].nbatches):
                         targets_batch = ds.get_batch(targets[item], batch)
-                        self.backend.argmax(targets_batch, axis=0,
-                                            out=labels[batch:(batch + 1)])
-                    misclass = ds.backend.empty(preds[item].shape)
-                    ds.backend.not_equal(preds[item], labels, misclass)
-                    self.result = ds.backend.mean(misclass)
+                        preds_batch = ds.get_batch(preds[item], batch)
+                        self.backend.argmax(targets_batch, axis=0, out=labels)
+                        self.backend.not_equal(preds_batch, labels, misclass)
+                        misclass_sum += ds.backend.sum(misclass)
+
+                    self.result = misclass_sum / (
+                        targets[item].nbatches * self.batch_size)
                     logging.info("%s set misclass rate: %0.5f%%", item,
                                  100 * self.result)
         # TODO: return values instead?
