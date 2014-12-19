@@ -53,7 +53,7 @@ class MLP(Model):
         if not ds.macro_batched:
             inputs = ds.get_inputs(train=True)['train']
             targets = ds.get_targets(train=True)['train']
-            num_batches = inputs.nbatches
+            num_batches = len(inputs)
         else:
             if ds.start_train_batch == -1:
                 nrecs = ds.max_file_index
@@ -67,7 +67,7 @@ class MLP(Model):
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in range(num_batches):  # inputs.nbatches
+            for batch in range(num_batches):
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
                     logger.info('loading mb %d', batch)
@@ -89,7 +89,7 @@ class MLP(Model):
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 epoch,
-                                error / inputs.nbatches / MPI.COMM_WORLD.size)
+                                error / num_batches / MPI.COMM_WORLD.size)
             else:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
                             error / num_batches)
@@ -101,7 +101,8 @@ class MLP(Model):
         for layer in self.layers:
             layer.set_train_mode(False)
 
-        for batch in range(inputs.nbatches):
+        num_batches = len(inputs)
+        for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             outputs = self.layers[-1].output
@@ -176,7 +177,8 @@ class MLP(Model):
                     labels = self.backend.empty((1, self.batch_size))
                     misclass = self.backend.empty((1, self.batch_size))
                     misclass_sum = 0
-                    for batch in range(targets[item].nbatches):
+                    num_batches = len(targets[item])
+                    for batch in range(num_batches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         preds_batch = ds.get_batch(preds[item], batch)
                         self.backend.argmax(targets_batch, axis=0, out=labels)
@@ -184,7 +186,7 @@ class MLP(Model):
                         misclass_sum += ds.backend.sum(misclass)
 
                     self.result = misclass_sum / (
-                        targets[item].nbatches * self.batch_size)
+                        num_batches * self.batch_size)
                     logging.info("%s set misclass rate: %0.5f%%", item,
                                  100 * self.result)
         # TODO: return values instead?
