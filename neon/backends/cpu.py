@@ -1020,6 +1020,12 @@ class CPU(Backend):
         # Final update to the params
         self.add(ps_item, ls_item, out=ps_item)
 
+    def set_weights(self, dev_weights, host_weights):
+        """
+        copies the host_weights into dev_weights
+        """
+        dev_weights[:] = host_weights
+
     def gen_weights(self, size, weight_params, dtype=None):
         """
         Different types of weight initializations.  Includes:
@@ -1060,6 +1066,11 @@ class CPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.',
                         str(size), loc, scale)
             weights = self.normal(loc, scale, size, dtype)
+        elif (weight_params['type'] == 'autoscale'):
+            low = 1.0/math.sqrt(size[1])
+            if 'relu' in weight_params:
+                low = low * math.sqrt(2)
+            weights = self.uniform(-low, low, size, dtype)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
             sparseness = 15
@@ -1084,7 +1095,6 @@ class CPU(Backend):
             else:
                 logger.info('Matrix is non-square, no eigenvalue scaling.')
                 weights = self.tensor_cls(weights)
-
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0

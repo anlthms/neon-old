@@ -13,6 +13,10 @@ class RectLin(Activation):
     Embodiment of a rectified linear activation function.
     """
 
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.gain = 1.4142136
+
     def apply_function(self, backend, inputs, outputs):
         """
         Apply the rectified linear activation function.

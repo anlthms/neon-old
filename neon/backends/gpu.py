@@ -1172,6 +1172,12 @@ class GPU(Backend):
     def sync_stream(self):
         cudanet.sync_stream()
 
+    def set_weights(self, dev_weights, host_weights):
+        """
+        sets the GPUTensor dev_weights to the values in host_weights
+        """
+        dev_weights = GPUTensor(numpy.array(host_weights, numpy.float32))
+
     def gen_weights(self, size, weight_params, dtype=None):
         """
         Different types of weight initializations.  Includes:
@@ -1211,6 +1217,11 @@ class GPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.',
                         str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
+        elif (weight_params['type'] == 'autoscale'):
+            low = 1.0/math.sqrt(size[0])
+            if 'relu' in weight_params:
+                low = low * math.sqrt(2)
+            weights = numpy.random.uniform(-low, low, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
             sparseness = 15

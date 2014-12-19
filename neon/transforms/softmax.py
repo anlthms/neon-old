@@ -13,6 +13,7 @@ class Softmax(Activation):
     def __init__(self, shortcut_deriv=False):
         self.shortcutDeriv = shortcut_deriv
         self.tmp = None
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """

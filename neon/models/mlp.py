@@ -7,7 +7,7 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
-
+import numpy as np
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 
@@ -216,3 +216,27 @@ class MLP(Model):
 
     def get_classifier_output(self):
         return self.layers[-1].output
+
+    def orth_weight_init(self):
+        # Go through the layers with weights and initialize them with
+        # orthogonal random matrices
+        # How to handle for convolutional/local layers?
+        szlist = []
+        wlist = []
+        dtype = None
+        for l in self.layers:
+            if hasattr(l, 'weights'):
+                szlist.append(l.weights.shape[0])
+                wlist.append(l)
+        szlist.append(self.layers[-1].shape[1])
+
+        rr = map(lambda sz: np.linalg.qr(
+                 np.normal(0.0, 1.0, (sz, sz), dtype)),
+                 szlist)
+
+        for l, r1, r2 in zip(wlist, rr[:-1], rr[1:]):
+            indim = min(r1.shape[0], r2.shape[0])
+            wts = np.dot(r1[:, :indim], r2[:, :indim].T)
+            if l.activation is not None:
+                np.multiply(l.weights, l.activation.gain, out=wts)
+            self.backend.set_weights(l.weights, wts)

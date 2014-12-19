@@ -13,6 +13,9 @@ class Tanh(Activation):
     """
     Embodiment of a tanh activation function.
     """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """
