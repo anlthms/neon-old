@@ -15,20 +15,23 @@ Our in-house developed python machine learning library.
 
 
 ### Required Dependencies ###
-We want to strive to have as few of these as possible
+We strive to have as few of these as possible
 * python 2.7 or higher
 * [numpy](http://www.numpy.org/) for certain backends and dataset parsing
 * [pyyaml](http://pyyaml.org/) for config file parsing
 
 ### Optional Dependencies ###
+These provide additional functionality, and assist developers
 * [nose](https://nose.readthedocs.org/en/latest/) for running tests
 * [sphinx](http://sphinx-doc.org/) for documentation generation
   * sphinxcontrib-napoleon for google style autodoc parsing
 * [flake8](https://flake8.readthedocs.org/) for style checking
   * [pep8-naming](https://pypi.python.org/pypi/pep8-naming) plugin for variable
     name checking
-* [cuda-convnet2](https://code.google.com/p/cuda-convnet2/),
-* [Cython](http://cython.org/) for fixedpoint backend compilation
+* [Nervana cuda-convnet2](http://gitlab.localdomain/algorithms/cuda-convnet2/)
+  our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
+  that powers our GPU backend.
+* [Cython](http://cython.org/) for FlexPoint CPU backend compilation
 * [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
   calculations
 * [matplotlib](http://matplotlib.org) for Google Brain feature visualization
