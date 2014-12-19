@@ -80,7 +80,8 @@ class MLPDist(MLP):
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in range(inputs.nbatches):
+            num_batches = len(inputs)
+            for batch in range(num_batches):
                 if self.comm.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -92,23 +93,24 @@ class MLPDist(MLP):
                 self.update(epoch)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
-                            error / inputs.nbatches)
+                            error / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
     def predict_set(self, ds, inputs, predsdict, setname):
+        num_batches = len(inputs[setname])
         if self.comm.rank == 0:
-            preds = self.backend.empty((inputs[setname].nbatches,
-                                       self.batch_size))
+            preds = []
             predsdict[setname] = preds
 
-        for batch in range(inputs[setname].nbatches):
+        for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs[setname], batch)
             self.fprop(inputs_batch)
             if self.comm.rank == 0:
                 outputs = self.layers[-1].output
-                self.backend.argmax(outputs, axis=0,
-                                    out=preds[batch:(batch+1)])
+                preds_batch = self.backend.empty((1, self.batch_size))
+                self.backend.argmax(outputs, axis=0, out=preds_batch)
+                preds.append(preds_batch)
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
