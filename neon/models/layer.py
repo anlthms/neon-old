@@ -246,7 +246,7 @@ class LayerDist(Layer):
 class LayerMultiPass(Layer):
 
     """
-    Single NNet layer that accumulates backpropagated error.  
+    Single NNet layer that accumulates backpropagated error.
 
     Multipass indicates that multiple back propagation passes can be made
     (each corresponding to different cost), and the gradient will be
@@ -1061,7 +1061,7 @@ class ConvLayer(LocalLayer):
 class ConvLayerMultiPass(Layer):
 
     """
-    Convolutional layer that accumulates backpropagated error.  
+    Convolutional layer that accumulates backpropagated error.
 
     Multipass indicates that multiple back propagation passes can be made
     (each corresponding to different cost), and the gradient will be
