@@ -33,8 +33,6 @@ class MLP(Model):
         self.nlayers = len(self.layers)
         self.result = 0
         assert self.layers[-1].nout <= 2 ** 15
-        if hasattr(self, 'orthogonal_weights'):
-            self.orth_weight_init()
 
     def fit(self, datasets):
         """
@@ -218,27 +216,3 @@ class MLP(Model):
 
     def get_classifier_output(self):
         return self.layers[-1].output
-
-    def orth_weight_init(self):
-        # Go through the layers with weights and initialize them with
-        # orthogonal random matrices
-        # How to handle for convolutional/local layers?
-        # Not clear that this is good for shallow models
-        szlist = []
-        wlist = []
-        for l in self.layers:
-            if hasattr(l, 'weights'):
-                szlist.append(l.weights.shape[1])
-                wlist.append(l)
-        szlist.append(self.layers[-1].weights.shape[0])
-        print szlist
-        rr = map(lambda sz: np.linalg.qr(
-                 np.random.normal(0.0, 1.0, (sz, sz)))[0],
-                 szlist)
-
-        for l, r1, r2 in zip(wlist, rr[:-1], rr[1:]):
-            indim = min(r1.shape[0], r2.shape[0])
-            wts = np.dot(r2[:, :indim], r1[:, :indim].T)
-            if l.activation is not None:
-                np.multiply(wts, l.activation.gain, out=wts)
-            self.backend.set_weights(l.weights, wts)

@@ -2,7 +2,9 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Contains code to train Google Brain models and run inference.
+Contains code to train a balance network, containing both supervised and 
+unsupervised branches and multiple cost functions.  
+Requires model to specify prev layers at each layer to build the layer graph
 """
 
 import logging

@@ -3,17 +3,12 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
-# h0
-# h1
-# blayer [classlayer stylelayer]
-# h3
-# h4
-# h5
 
-
-# !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
  !obj:neon.experiments.generate_output.GenOutputExperiment {
   zparam: 0.0,
+  olayout: [12, 6],
+  fshape: [28, 28],
+  figure_filename: 'ofn.png',
   backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     seterr_handling: {
@@ -34,7 +29,7 @@
   model: !obj:neon.models.balance.Balance {
     serialized_path: './balance-simple.pkl',
     backend: *be,
-    num_epochs: 100,
+    num_epochs: 10,
     batch_size: &bs 100,
     layers: [
       !obj:neon.models.layer.LayerMultiPass {
