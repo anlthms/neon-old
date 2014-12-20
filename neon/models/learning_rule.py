@@ -257,34 +257,5 @@ class AdaDelta(LearningRule):
         for ps_item, us_item, gs_item, ds_item, ls_item, ss_item in zip(
                 params, updates, self.exp_gradsq,
                 self.exp_deltsq, self.lrates, self.scratch_space):
-            # Accumulate E[Grad^2]
-            self.backend.multiply(gs_item, self.backend.wrap(self.rho),
-                                  out=gs_item)
-            self.backend.multiply(us_item, us_item, out=ss_item)
-            self.backend.multiply(ss_item,
-                                  self.backend.wrap(1.0 - self.rho),
-                                  out=ss_item)
-            self.backend.add(gs_item, ss_item, out=gs_item)
-
-            # Calculate Updates
-            self.backend.add(gs_item, self.backend.wrap(self.epsilon),
-                             out=ss_item)
-            self.backend.add(ds_item, self.backend.wrap(self.epsilon),
-                             out=ls_item)
-            self.backend.divide(ls_item, ss_item, out=ls_item)
-            self.backend.sqrt(ls_item, out=ls_item)
-            self.backend.multiply(ls_item, self.backend.wrap(-1.0),
-                                  out=ls_item)
-            self.backend.multiply(ls_item, us_item, out=ls_item)
-
-            # Accumulate E[Delt^2]
-            self.backend.multiply(ds_item, self.backend.wrap(self.rho),
-                                  out=ds_item)
-            self.backend.multiply(ls_item, ls_item, out=ss_item)
-            self.backend.multiply(ss_item,
-                                  self.backend.wrap(1.0 - self.rho),
-                                  out=ss_item)
-            self.backend.add(ds_item, ss_item, out=ds_item)
-
-            # Final update to the params
-            self.backend.add(ps_item, ls_item, out=ps_item)
+            self.backend.ada_update(ps_item, us_item, gs_item, ds_item,
+                                    ls_item, ss_item, self.rho, self.epsilon)

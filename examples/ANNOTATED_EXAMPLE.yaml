@@ -225,7 +225,9 @@
         },
         nin: 2, # previous nout
         nout: 3,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: uniform,
           low: -1,
@@ -237,6 +239,10 @@
     # cost - the objective function transform.  Current types are:
     #        CrossEntropy - typically used to measure the difference between two
     #                       probability distributions
+    #                       The default is the binomial version
+    #                       When binomial version is paired with a logistic
+    #                       activation in the previous layer, shortcut_deriv
+    #                       is True
     #        SumSquaredDiffs - computes the sum of squared differences.
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
       olayer: *lastlayer,

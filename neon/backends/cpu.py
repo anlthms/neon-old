@@ -624,7 +624,7 @@ class CPU(Backend):
         a0 = a._tensor - a._tensor.mean(1, keepdims=True)
         b0 = b._tensor - b._tensor.mean(1, keepdims=True)
         np.dot(a0, b0.T, out._tensor)
-        self.divide(out, self.wrap(a.shape[0]), out=out)
+        self.divide(out, self.wrap(a.shape[1]), out=out)
 
     def mean_norm(self, a, axis, out):
         if (axis == -1 or not axis):
@@ -764,7 +764,6 @@ class CPU(Backend):
         return self.tensor_cls(np.vstack(np.hsplit(obj._tensor, nfm)))
 
     def softmax(self, x, out):
-        x._tensor.max(axis=0, out=out._tensor[0])
         np.subtract(x._tensor, x._tensor.max(axis=0, keepdims=True),
                     out._tensor)
         np.exp(out._tensor, out._tensor)
@@ -1183,6 +1182,37 @@ class CPU(Backend):
                 self.dot(ofmd, ifm, updatebuf)
                 out[ifmind, ofmind] = updatebuf
 
+    def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
+                   rho, epsilon):
+        # Accumulate E[Grad^2]
+        self.multiply(gs_item, self.wrap(rho), out=gs_item)
+        self.multiply(us_item, us_item, out=ss_item)
+        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.add(gs_item, ss_item, out=gs_item)
+
+        # Calculate Updates
+        self.add(gs_item, self.wrap(epsilon), out=ss_item)
+        self.add(ds_item, self.wrap(epsilon), out=ls_item)
+        self.divide(ls_item, ss_item, out=ls_item)
+        self.sqrt(ls_item, out=ls_item)
+        self.multiply(ls_item, self.wrap(-1.0), out=ls_item)
+        self.multiply(ls_item, us_item, out=ls_item)
+
+        # Accumulate E[Delt^2]
+        self.multiply(ds_item, self.wrap(rho), out=ds_item)
+        self.multiply(ls_item, ls_item, out=ss_item)
+        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.add(ds_item, ss_item, out=ds_item)
+
+        # Final update to the params
+        self.add(ps_item, ls_item, out=ps_item)
+
+    def set_weights(self, dev_weights, host_weights):
+        """
+        copies the host_weights into dev_weights
+        """
+        dev_weights[:] = host_weights
+
     def gen_weights(self, size, weight_params, dtype=None):
         """
         Different types of weight initializations.  Includes:
@@ -1223,6 +1253,11 @@ class CPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.',
                         str(size), loc, scale)
             weights = self.normal(loc, scale, size, dtype)
+        elif (weight_params['type'] == 'autoscale'):
+            low = 1.0/math.sqrt(size[1])
+            if 'relu' in weight_params:
+                low = low * math.sqrt(2)
+            weights = self.uniform(-low, low, size, dtype)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
             sparseness = 15
@@ -1247,7 +1282,6 @@ class CPU(Backend):
             else:
                 logger.info('Matrix is non-square, no eigenvalue scaling.')
                 weights = self.tensor_cls(weights)
-
         elif weight_params['type'] == 'node_normalized':
             # initialization is as discussed in Glorot2010
             scale = 1.0
