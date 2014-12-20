@@ -165,13 +165,15 @@ class Dataset(object):
         Transpose each minibatch within the dataset.
         """
         bs = self.batch_size
-        nbatches = (data.shape[0] + bs - 1) / bs
+        if data.shape[0] % bs != 0:
+            logger.warning('Incompatible batch size. Discarding %d samples...',
+                           data.shape[0] % bs)
+        nbatches = data.shape[0] / bs
+        batchdata = np.empty((data.shape[1], bs))
         batchwise = []
         for batch in range(nbatches):
-            batchdata = data[batch * bs:(batch + 1) * bs].transpose()
-            ncols = batchdata.shape[1]
-            assert ncols == bs
-            batchwise.append(self.backend.array(batchdata))
+            batchdata[...] = data[batch * bs:(batch + 1) * bs].transpose()
+            batchwise.append(self.backend.wrap(batchdata))
         return batchwise
 
     def format(self):
