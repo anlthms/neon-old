@@ -23,8 +23,9 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 20,
+    num_epochs: 5,
     batch_size: &bs 128,
+    serialized_path: '/usr/local/data/NDSB/ndsb-deep-model.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
@@ -65,7 +66,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
-        name: layer3,
+        name: cmrn,
         backend: *be,
         batch_size: *bs,
         pos: 200,
@@ -111,7 +112,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
-        name: layer3,
+        name: cmrn,
         backend: *be,
         batch_size: *bs,
         pos: 200,
@@ -165,7 +166,7 @@
         stride: 2,
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
-        name: layer3,
+        name: cmrn,
         backend: *be,
         batch_size: *bs,
         pos: 200,

@@ -25,6 +25,7 @@
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 128,
+    serialized_path: '/usr/local/data/NDSB/ndsb-model.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,

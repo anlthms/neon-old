@@ -209,9 +209,10 @@ class MLP(Model):
                     misclass = ds.backend.empty(labels.shape)
                     ds.backend.not_equal(predlabels, labels, misclass)
                     self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                                 item, 100 * self.result,
-                                 self.logloss(ds, preds[item], targets[item]))
+                    logging.info(
+                        "%s set misclass rate: %0.5f%% logloss %0.5f", item,
+                        100 * self.result,
+                        self.logloss(ds, preds[item], targets[item], 0.001))
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
