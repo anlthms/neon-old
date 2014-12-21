@@ -246,12 +246,7 @@ class LayerDist(Layer):
 class LayerMultiPass(Layer):
 
     """
-    Single NNet layer that accumulates backpropagated error.  
-
-    Multipass indicates that multiple back propagation passes can be made
-    (each corresponding to different cost), and the gradient will be
-    accumulated until an update is called, at which point the gradients will
-    be cleared
+    Single NNet layer that accumulate backpropagated error
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
@@ -276,10 +271,10 @@ class LayerMultiPass(Layer):
             uparam[:] = self.backend.wrap(0.0)
 
     def bprop(self, error, inputs, useshortcut=False):
-        # If we are back propagating error from more than one cost through the
-        # network, and they do not cancel out nicely (softmax with mCE) then we
-        # should do a full multiply against the activation derivative.
-        # Otherwise just pass the error right through.
+      # If we are back propagating error from more than one cost through the
+      # network, and they do not cancel out nicely (softmax with mCE) then we
+      # should do a full multiply against the activation derivative. otherwise
+      # just pass the error right through.
 
         if self.activation is not None and useshortcut is False:
             self.backend.multiply(error, self.pre_act, out=error)
@@ -328,9 +323,10 @@ class RecurrentOutputLayer(Layer):
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau],
                               inputs, self.weights)
-        self.activation.apply_both(self.backend,
-                                   self.pre_act_list[tau],
-                                   self.output_list[tau])
+        if self.activation is not None:
+            self.activation.apply_both(self.backend,
+                                       self.pre_act_list[tau],
+                                       self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
@@ -528,9 +524,10 @@ class RecurrentHiddenLayer(Layer):
         self.backend.fprop_fc(z1, y, self.weights_rec)
         self.backend.fprop_fc(z2, inputs, self.weights)
         self.pre_act_list[tau] = z1 + z2
-        self.activation.apply_both(self.backend,
-                                   self.pre_act_list[tau],
-                                   self.output_list[tau])
+        if self.activation is not None:
+            self.activation.apply_both(self.backend,
+                                       self.pre_act_list[tau],
+                                       self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas[1] = error * self.pre_act_list[tau - 1]
@@ -1061,12 +1058,7 @@ class ConvLayer(LocalLayer):
 class ConvLayerMultiPass(Layer):
 
     """
-    Convolutional layer that accumulates backpropagated error.  
-
-    Multipass indicates that multiple back propagation passes can be made
-    (each corresponding to different cost), and the gradient will be
-    accumulated until an update is called, at which point the gradients will
-    be cleared
+    Single NNet layer that accumulate backpropagated error
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
@@ -1091,14 +1083,20 @@ class ConvLayerMultiPass(Layer):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
-            self.backend.bprop_conv(self.weights, error, self.berror,
-                                    self.links, self.ifmshape, self.ofmshape,
-                                    self.ofmlocs, self.pad, self.stride,
-                                    self.nifm, 1, self.bpropbuf)
-        self.backend.update_conv(self.weights, inputs, error, self.utemp,
-                                 self.links, self.ifmshape, self.ofmshape,
-                                 self.ofmlocs, self.pad, self.stride,
-                                 self.nifm, 1, self.fwidth, self.updatebuf)
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=self.pad, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
+        self.backend.update_conv(out=self.utemp, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=self.pad,
+                                 stride=self.stride, ngroups=1,
+                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
         self.backend.add(self.utemp, self.updates, out=self.updates)
 
 
