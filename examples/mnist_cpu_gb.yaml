@@ -188,7 +188,9 @@
         },
         nin: 1800, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_dtype: &dt 'float32',
         updates_dtype: *dt,
         pre_act_dtype: *dt,
