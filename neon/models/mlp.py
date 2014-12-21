@@ -7,7 +7,6 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
-import numpy as np
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 

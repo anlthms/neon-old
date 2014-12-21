@@ -33,6 +33,7 @@ def test_xcov_cputensor():
     my_result = xcov_cost(be, outputs, [], temp, k1)
     assert_tensor_near_equal(expected_result, my_result)
 
+
 @attr('cuda')
 def test_xcov_gputensor():
     np.random.seed(0)
@@ -53,6 +54,7 @@ def test_xcov_gputensor():
     temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
     my_result = xcov_cost(be, outputs, [], temp, k1)
     assert_tensor_near_equal(expected_result, my_result)
+
 
 def test_xcov_derivative_cputensor():
     np.random.seed(0)
@@ -78,6 +80,7 @@ def test_xcov_derivative_cputensor():
     my_result = xcov_cost_derivative(be, outputs, [], temp, k1)
     expected_result = CPUTensor(s)
     assert_tensor_near_equal(expected_result, my_result)
+
 
 @attr('cuda')
 def test_xcov_derivative_gputensor():
@@ -105,4 +108,3 @@ def test_xcov_derivative_gputensor():
     my_result = xcov_cost_derivative(be, outputs, [], temp, k1)
     expected_result = GPUTensor(s)
     assert_tensor_near_equal(expected_result, my_result)
-
