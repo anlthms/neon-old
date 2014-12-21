@@ -48,7 +48,7 @@ class Layer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout,
-                 weight_init, learning_rule, activation=None,
+                 weight_init, learning_rule, prev_names=[], activation=None,
                  weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
                  output_dtype=None, berror_dtype=None):
         self.name = name
@@ -64,6 +64,7 @@ class Layer(YAMLable):
                                                  updates_dtype)
         self.updates_dtype = updates_dtype
         self.output = self.backend.zeros((self.nout, batch_size), output_dtype)
+        self.prev_names = prev_names
         if activation is not None:
             self.pre_act = self.backend.zeros(self.output.shape,
                                               pre_act_dtype)
@@ -242,6 +243,62 @@ class LayerDist(Layer):
                                    deltas=error)
 
 
+class LayerMultiPass(Layer):
+
+    """
+    Single NNet layer that accumulates backpropagated error.
+
+    Multipass indicates that multiple back propagation passes can be made
+    (each corresponding to different cost), and the gradient will be
+    accumulated until an update is called, at which point the gradients will
+    be cleared
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nin, nout,
+                 weight_init, learning_rule, prev_names=[], activation=None,
+                 weight_dtype=None, updates_dtype=None, pre_act_dtype=None,
+                 output_dtype=None, berror_dtype=None):
+        super(LayerMultiPass, self).__init__(name, backend, batch_size,
+                                             pos, nin, nout, weight_init,
+                                             learning_rule,
+                                             activation=activation,
+                                             prev_names=prev_names)
+        for uparam in self.updates:
+            uparam[:] = self.backend.wrap(0.0)
+
+        self.utemp = map(lambda x:
+                         self.backend.empty(x.shape, self.updates_dtype),
+                         self.params)
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
+        for uparam in self.updates:
+            uparam[:] = self.backend.wrap(0.0)
+
+    def bprop(self, error, inputs, useshortcut=False):
+        # If we are back propagating error from more than one cost through the
+        # network, and they do not cancel out nicely (softmax with mCE) then we
+        # should do a full multiply against the activation derivative.
+        # Otherwise just pass the error right through.
+
+        if self.activation is not None and useshortcut is False:
+            self.backend.multiply(error, self.pre_act, out=error)
+
+        if self.pos > 0:
+            self.backend.bprop_fc(out=self.berror, weights=self.weights,
+                                  deltas=error)
+
+        self.backend.update_fc(out=self.utemp[0], inputs=inputs,
+                               deltas=error)
+        self.backend.add(self.utemp[0], self.weight_updates,
+                         out=self.weight_updates)
+
+        if self.use_biases is True:
+            self.backend.sum(error, axis=1, out=self.utemp[1])
+            self.backend.add(self.utemp[1], self.bias_updates,
+                             out=self.bias_updates)
+
+
 class RecurrentOutputLayer(Layer):
 
     """
@@ -271,9 +328,10 @@ class RecurrentOutputLayer(Layer):
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau],
                               inputs, self.weights)
-        self.activation.apply_both(self.backend,
-                                   self.pre_act_list[tau],
-                                   self.output_list[tau])
+        if self.activation is not None:
+            self.activation.apply_both(self.backend,
+                                       self.pre_act_list[tau],
+                                       self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
@@ -471,9 +529,10 @@ class RecurrentHiddenLayer(Layer):
         self.backend.fprop_fc(z1, y, self.weights_rec)
         self.backend.fprop_fc(z2, inputs, self.weights)
         self.pre_act_list[tau] = z1 + z2
-        self.activation.apply_both(self.backend,
-                                   self.pre_act_list[tau],
-                                   self.output_list[tau])
+        if self.activation is not None:
+            self.activation.apply_both(self.backend,
+                                       self.pre_act_list[tau],
+                                       self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
         self.deltas[1] = error * self.pre_act_list[tau - 1]
@@ -511,7 +570,7 @@ class BranchLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, sublayers,
-                 output_dtype=None, berror_dtype=None):
+                 output_dtype=None, berror_dtype=None, prev_names=[]):
         self.name = name
         self.backend = backend
         self.nin = nin
@@ -520,6 +579,8 @@ class BranchLayer(YAMLable):
         self.nsublayers = len(self.sublayers)
         self.startidx = [0]*len(self.sublayers)
         self.endidx = [0]*len(self.sublayers)
+        self.prev_names = prev_names
+        self.batch_size = batch_size
 
         for i in range(self.nsublayers):
             self.nout += self.sublayers[i].nout
@@ -550,8 +611,7 @@ class BranchLayer(YAMLable):
                 self.backend.add(self.berror, sublayer.berror, out=self.berror)
 
     def update(self, epoch):
-        for sublayer in self.sublayers:
-            sublayer.update(epoch)
+        pass
 
     def set_train_mode(self, mode):
         for sublayer in self.sublayers:
@@ -570,7 +630,7 @@ class DropOutLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, keep,
-                 output_dtype=None, berror_dtype=None):
+                 output_dtype=None, berror_dtype=None, prev_names=[]):
         self.name = name
         self.backend = backend
         self.activation = None
@@ -583,6 +643,7 @@ class DropOutLayer(YAMLable):
         self.pos = pos
         if pos > 0:
             self.berror = backend.empty((nin, batch_size), berror_dtype)
+        self.prev_names = prev_names
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -658,10 +719,11 @@ class RBMLayer(Layer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nin,
-                 nout, activation, weight_init, learning_rule):
+                 nout, activation, weight_init, learning_rule, prev_names=[]):
         super(RBMLayer, self).__init__(name, backend, batch_size, pos,
                                        nin, nout, weight_init,
-                                       learning_rule, activation)
+                                       learning_rule, activation=activation,
+                                       prev_names=prev_names)
         self.p_hid_plus = backend.empty((self.nout, batch_size))
         self.s_hid_plus = backend.empty((self.nout, batch_size))
         self.p_hid_minus = backend.empty((self.nout, batch_size))
@@ -728,7 +790,7 @@ class LocalLayer(YAMLable):
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
-                 activation=None, pad=0):
+                 activation=None, pad=0, prev_names=[]):
         self.name = name
         self.backend = backend
         self.activation = activation
@@ -742,6 +804,7 @@ class LocalLayer(YAMLable):
         self.fheight, self.fwidth = fshape
         self.stride = stride
         self.learning_rule = learning_rule
+        self.prev_names = prev_names
 
         self.ofmheight = np.int(
             np.ceil((self.ifmheight - self.fheight + 2. * pad) / stride)) + 1
@@ -820,7 +883,7 @@ class LocalLayerDist(LocalLayer):
     """
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
-                 activation=None, pad=0):
+                 activation=None, pad=0, prev_names=[]):
         self.name = name
         self.backend = backend
         self.activation = activation
@@ -845,6 +908,7 @@ class LocalLayerDist(LocalLayer):
         self.fsize = nifm * self.fheight * self.fwidth
         self.stride = stride
         self.pooling = pooling
+        self.prev_names = prev_names
 
     def adjust_for_dist(self, ifmshape):
         """
@@ -931,14 +995,14 @@ class ConvLayer(LocalLayer):
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, weight_init, activation=None,
-                 pad=0):
+                 pad=0, prev_names=[]):
         if pad != 0 and isinstance(backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
         super(ConvLayer, self).__init__(name, backend, batch_size, pos,
                                         learning_rule, nifm, nofm,
                                         ifmshape, fshape, stride,
                                         activation=activation,
-                                        pad=pad)
+                                        pad=pad, prev_names=prev_names)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
@@ -996,6 +1060,56 @@ class ConvLayer(LocalLayer):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
 
 
+class ConvLayerMultiPass(Layer):
+
+    """
+    Convolutional layer that accumulates backpropagated error.
+
+    Multipass indicates that multiple back propagation passes can be made
+    (each corresponding to different cost), and the gradient will be
+    accumulated until an update is called, at which point the gradients will
+    be cleared
+    """
+
+    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
+                 nofm, ifmshape, fshape, stride, weight_init, activation=None,
+                 pad=0, prev_names=[]):
+        super(ConvLayerMultiPass, self).__init__(name, backend, batch_size,
+                                                 pos, learning_rule,
+                                                 nifm, nofm, ifmshape,
+                                                 fshape, stride,
+                                                 activation=activation,
+                                                 pad=pad,
+                                                 prev_names=prev_names)
+        self.utemp = self.backend.empty(self.weights.shape,
+                                        self.updates_dtype)
+        self.updates[:] = self.backend.wrap(0.0)
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
+        self.updates[:] = self.backend.wrap(0.0)
+
+    def bprop(self, error, inputs):
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act, out=error)
+        if self.pos > 0:
+            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=self.pad, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf)
+        self.backend.update_conv(out=self.utemp, inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=self.pad,
+                                 stride=self.stride, ngroups=1,
+                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
+        self.backend.add(self.utemp, self.updates, out=self.updates)
+
+
 class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     """
@@ -1004,13 +1118,14 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
 
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, weight_init, activation=None,
-                 pad=0):
+                 pad=0, prev_names=[]):
         if pad != 0:
             raise NotImplementedError('Pad != 0, for ConvLayerDist')
         super(ConvLayerDist, self).__init__(name, backend, batch_size, pos,
                                             learning_rule, nifm, nofm,
                                             ifmshape, fshape, stride,
-                                            activation=activation, pad=pad)
+                                            activation=activation, pad=pad,
+                                            prev_names=prev_names)
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
@@ -1078,11 +1193,12 @@ class LocalFilteringLayer(LocalLayer):
 
     def __init__(self, name, backend, batch_size, pos, learning_rule,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
-                 pretraining, sparsity, tied_weights):
+                 pretraining, sparsity, tied_weights, prev_names=[]):
         super(LocalFilteringLayer, self).__init__(name, backend, batch_size,
                                                   pos, learning_rule,
                                                   nifm, nofm, ifmshape, fshape,
-                                                  stride)
+                                                  stride,
+                                                  prev_names=prev_names)
         self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nout = self.ofmsize * nofm
         self.output = backend.empty((self.nout, batch_size))
@@ -1264,12 +1380,13 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
 
     def __init__(self, name, backend, batch_size, pos, learning_rule,
                  nifm, nofm, ifmshape, fshape, stride, weight_init,
-                 pretraining, sparsity, tied_weights):
+                 pretraining, sparsity, tied_weights, prev_names=[]):
         super(
             LocalFilteringLayerDist, self).__init__(name, backend, batch_size,
                                                     pos, learning_rule,
                                                     nifm, nofm, ifmshape,
-                                                    fshape, stride)
+                                                    fshape, stride,
+                                                    prev_names=prev_names)
         self.nout = self.ofmsize * nofm
         self.weight_init = weight_init
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
@@ -1400,10 +1517,10 @@ class MaxPoolingLayer(LocalLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(MaxPoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
-            fshape, stride, pooling=True)
+            fshape, stride, pooling=True, prev_names=prev_names)
         self.maxinds = backend.empty((self.ofmsize, batch_size * nifm),
                                      dtype='i16')
         self.nout = self.nifm * self.ofmsize
@@ -1453,10 +1570,10 @@ class MaxPoolingLayerDist(LocalLayerDist, MaxPoolingLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(MaxPoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm, ifmshape,
-            fshape, stride, pooling=True)
+            fshape, stride, pooling=True, prev_names=prev_names)
         self.maxinds = backend.empty((self.ofmsize, batch_size * nifm),
                                      dtype='i16')
         self.nout = self.nifm * self.ofmsize
@@ -1481,10 +1598,10 @@ class L2PoolingLayer(LocalLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(L2PoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride, pooling=True)
+            ifmshape, fshape, stride, pooling=True, prev_names=prev_names)
         self.prodbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
                                            batch_size * nifm))
         self.nout = self.nifm * self.ofmsize
@@ -1526,10 +1643,10 @@ class L2PoolingLayerDist(LocalLayerDist, L2PoolingLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(L2PoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride, pooling=True)
+            ifmshape, fshape, stride, pooling=True, prev_names=prev_names)
         self.prodbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
                                            batch_size * nifm))
         self.nout = self.nifm * self.ofmsize
@@ -1559,10 +1676,10 @@ class AveragePoolingLayer(LocalLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(AveragePoolingLayer, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride, pooling=True)
+            ifmshape, fshape, stride, pooling=True, prev_names=prev_names)
         self.nout = nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, batch_size))
 
@@ -1600,10 +1717,10 @@ class AveragePoolingLayerDist(LocalLayerDist, AveragePoolingLayer):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         super(AveragePoolingLayerDist, self).__init__(
             name, backend, batch_size, pos, 0.0, nifm, nifm,
-            ifmshape, fshape, stride, pooling=True)
+            ifmshape, fshape, stride, pooling=True, prev_names=prev_names)
         self.prodbuf = self.backend.empty((batch_size * nifm,
                                            self.fshape[0] * self.fshape[1]))
         self.nout = self.nifm * self.ofmsize
@@ -1657,7 +1774,7 @@ class LCNLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, nifm, ifmshape, fshape,
-                 stride):
+                 stride, prev_names=[]):
         self.name = name
         self.backend = backend
         self.ifmshape = ifmshape
@@ -1669,6 +1786,7 @@ class LCNLayer(YAMLable):
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.nin = nifm * self.ifmsize
         self.nout = self.nin
+        self.prev_names = prev_names
 
         self.filters = self.normalized_gaussian_filters(nifm, fshape)
         # self.fpeakdiff = 1.0 - self.fpeak
@@ -2104,7 +2222,8 @@ class CrossMapPoolingLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, learning_rule,
-                 nifm, nofm, ifmshape, weight_init, activation=None):
+                 nifm, nofm, ifmshape, weight_init, activation=None,
+                 prev_names=[]):
         self.name = name
         self.backend = backend
         self.batch_size = batch_size
@@ -2115,7 +2234,7 @@ class CrossMapPoolingLayer(YAMLable):
         self.ifmheight, self.ifmwidth = ifmshape
         self.ifmshape = ifmshape
         self.activation = activation
-
+        self.prev_names = prev_names
         self.ofmshape = self.ifmshape
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ifmsize
@@ -2177,7 +2296,7 @@ class CrossMapResponseNormLayer(YAMLable):
     """
 
     def __init__(self, name, backend, batch_size, pos, ifmshape,
-                 nifm, ksize, alpha, beta):
+                 nifm, ksize, alpha, beta, prev_names=[]):
 
         self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nifm = nifm
@@ -2189,7 +2308,7 @@ class CrossMapResponseNormLayer(YAMLable):
         self.ifmshape = ifmshape
         self.batch_size = batch_size
         self.pos = pos
-
+        self.prev_names = prev_names
         self.ksize = ksize
         self.alpha = alpha * 1.0 / ksize
         self.beta = beta

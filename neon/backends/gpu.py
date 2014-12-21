@@ -83,7 +83,10 @@ class GPUTensor(Tensor):
             numpy.ndarray: Representation of the underlying
                            `cudanet.CUDAMatrix` tensor
         """
-        return self._tensor.asarray()
+        if type(self._tensor) == cudanet.CUDAMatrix:
+            return self._tensor.asarray()
+        else:
+            return self._tensor
 
     def __setstate__(self, state):
         """
@@ -666,20 +669,6 @@ class GPU(Backend):
         cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
         return out
 
-        # storage needed here is pretty atrocious.  Any way we could speed this
-        # up?  Would iterating element wise be faster?
-        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # # clip values < a_min to a_min in out
-        # a._tensor.less_than(a_min, clip_mask)
-        # clip_vals.assign(a_min)
-        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # # clip values > a_max to a_max in out
-        # out._tensor.greater_than(a_max, clip_mask)
-        # clip_vals.assign(a_max)
-        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        # return out
-
     def rng_init(self):
         seed = None
         if 'rng_seed' in self.__dict__:
@@ -905,7 +894,7 @@ class GPU(Backend):
         cudanet.xcov(a._tensor, b._tensor, out._tensor)
 
     def mean_norm(self, a, axis, out):
-        cudanet.mean_norm(a._tensor, axis, out._tensor)
+        a._tensor.mean_norm(axis, out._tensor)
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -1211,13 +1200,19 @@ class GPU(Backend):
             cudanet.max_pool(inputs._tensor, out._tensor, nifm, fshape[1],
                              padding, stride, ofmshape[1])
         elif op == "avg" or op == "mean":
-            cudanet.avg_pool(imgs=inputs, target=out, channels=nifm,
-                             sizeX=fshape[0], paddingStart=padding,
-                             moduleStride=stride, numModulesX=ofmshape[0])
+            cudanet.avg_pool(
+                imgs=inputs._tensor, target=out._tensor, channels=nifm,
+                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
         elif op == "l2":
-            cudanet.l2_pool(imgs=inputs, target=out, channels=nifm,
-                            sizeX=fshape[0], paddingStart=padding,
-                            moduleStride=stride, numModulesX=ofmshape[0])
+            cudanet.l2_pool(
+                imgs=inputs._tensor, target=out._tensor, channels=nifm,
+                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
+        elif op == "unpool":
+            cudanet.unpool_forward(
+                smallMat=inputs._tensor, largeMat=out._tensor, channels=nifm,
+                sizeX=fshape[1], smallX=ifmshape[1], largeX=ofmshape[1])
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
@@ -1259,15 +1254,21 @@ class GPU(Backend):
                                   fouts._tensor, out._tensor, fshape[1],
                                   padding, stride, ofmshape[1])
         elif op == "avg" or op == "mean":
-            cudanet.avg_pool_undo(avgGrads=deltas, target=out,
-                                  sizeX=fshape[0], paddingStart=padding,
-                                  moduleStride=stride, numModulesX=ofmshape[0],
-                                  imgSizeX=ifmshape[0])
+            cudanet.avg_pool_undo(
+                avgGrads=deltas._tensor, target=out._tensor, sizeX=fshape[0],
+                paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
         elif op == "l2":
-            cudanet.l2_pool_undo(imgs=inputs, l2Grads=deltas, l2Acts=fouts,
-                                 target=out, sizeX=fshape[0],
-                                 paddingStart=padding, moduleStride=stride,
-                                 numModulesX=ofmshape[0])
+            cudanet.l2_pool_undo(
+                imgs=inputs._tensor, l2Grads=deltas._tensor,
+                l2Acts=fouts._tensor, target=out._tensor, sizeX=fshape[0],
+                paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
+        elif op == "unpool":
+            cudanet.unpool_backward(
+                largeMat=inputs._tensor, smallMat=out._tensor,
+                channels=nifm, sizeX=fshape[1], smallX=ifmshape[1],
+                largeX=ofmshape[1])
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
@@ -1371,8 +1372,21 @@ class GPU(Backend):
         """
         raise NotImplementedError("TODO!")
 
+    def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
+                   rho, epsilon):
+        cudanet.adadelta_update(us_item._tensor, gs_item._tensor,
+                                ds_item._tensor, ls_item._tensor, rho,
+                                epsilon)
+        self.add(ps_item, ls_item, out=ps_item)
+
     def sync_stream(self):
         cudanet.sync_stream()
+
+    def set_weights(self, dev_weights, host_weights):
+        """
+        sets the GPUTensor dev_weights to the values in host_weights
+        """
+        dev_weights[:] = GPUTensor(numpy.array(host_weights, numpy.float32))
 
     def gen_weights(self, size, weight_params, dtype=None):
         """
@@ -1413,6 +1427,11 @@ class GPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.',
                         str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
+        elif (weight_params['type'] == 'autoscale'):
+            low = 1.0/math.sqrt(size[0])
+            if 'relu' in weight_params:
+                low = low * math.sqrt(2)
+            weights = numpy.random.uniform(-low, low, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
             sparseness = 15

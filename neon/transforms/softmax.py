@@ -13,6 +13,7 @@ class Softmax(Activation):
     def __init__(self, shortcut_deriv=False):
         self.shortcutDeriv = shortcut_deriv
         self.tmp = None
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -54,3 +55,5 @@ class Softmax(Activation):
             if not self.tmp or self.tmp.shape != inputs.shape:
                 self.tmp = backend.ones(inputs.shape)
             backend.softmax_gradient(outputs, err=self.tmp, out=inputs)
+        else:
+            inputs[:] = 1.0
