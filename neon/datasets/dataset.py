@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 from neon.backends.cpu import CPU
-from neon.util.compat import PY3, CUDA_GPU, range
+from neon.util.compat import PY3, range
 
 if PY3:
     import urllib.request as urllib
@@ -18,10 +18,6 @@ else:
     import urllib
 
 logger = logging.getLogger(__name__)
-
-if CUDA_GPU:
-    logger.info("CUDA_GPU is set")
-    import neon.backends.gpu
 
 
 class Dataset(object):
