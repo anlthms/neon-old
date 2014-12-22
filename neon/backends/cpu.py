@@ -9,9 +9,9 @@ wraps :mod:`numpy` ndarray and related operations
 import logging
 import math
 import numpy as np
-from neon.util.compat import MPI_INSTALLED, range
 
 from neon.backends.backend import Backend, Tensor
+from neon.util.compat import MPI_INSTALLED, range
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -93,147 +93,6 @@ class CPUTensor(Tensor):
 
     def __float__(self):
         return float(self._tensor)
-
-    def __add__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
-
-        Returns:
-            self.__class__: containing the element-wise sum values.
-        """
-        if isinstance(other, self.__class__):
-            return self.__class__(self._tensor + other._tensor)
-        else:
-            return self.__class__(self._tensor + other)
-
-    def __radd__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
-
-        Returns:
-            self.__class__: containing the element-wise sum values.
-        """
-        if isinstance(other, self.__class__):
-            return self.__class__(other._tensor + self._tensor)
-        else:
-            return self.__class__(other + self._tensor)
-
-    def __iadd__(self, other):
-        """
-        Perform element-wise in-place addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same dimensions
-                            as this Tensor, or be broadcastable as such.
-
-        Returns:
-            self.__class__: containing the element-wise sum values.
-        """
-        if isinstance(other, self.__class__):
-            self._tensor += other._tensor
-        else:
-            self._tensor += other
-        return self
-
-    def __sub__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(self._tensor - other._tensor)
-        else:
-            return self.__class__(self._tensor - other)
-
-    def __rsub__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(other._tensor - self._tensor)
-        else:
-            return self.__class__(other - self._tensor)
-
-    def __isub__(self, other):
-        if isinstance(other, self.__class__):
-            self._tensor -= other._tensor
-        else:
-            self._tensor -= other
-        return self
-
-    def __mul__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(self._tensor * other._tensor)
-        else:
-            return self.__class__(self._tensor * other)
-
-    def __rmul__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(other._tensor * self._tensor)
-        else:
-            return self.__class__(other * self._tensor)
-
-    def __imul__(self, other):
-        if isinstance(other, self.__class__):
-            self._tensor *= other._tensor
-        else:
-            self._tensor *= other
-        return self
-
-    def __div__(self, other):
-        # python2 floor rounded division
-        return self.__truediv__(other)
-
-    def __truediv__(self, other):
-        # python3 fractional division
-        if isinstance(other, self.__class__):
-            return self.__class__(self._tensor / other._tensor)
-        else:
-            return self.__class__(self._tensor / other)
-
-    def __rdiv__(self, other):
-        return self.__rtruediv__(other)
-
-    def __rtruediv__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(other._tensor / self._tensor)
-        else:
-            return self.__class__(other / self._tensor)
-
-    def __idiv__(self, other):
-        if isinstance(other, self.__class__):
-            self._tensor /= other._tensor
-        else:
-            self._tensor /= other
-        return self
-
-    def __itruediv__(self, other):
-        if isinstance(other, self.__class__):
-            self._tensor /= other._tensor
-        else:
-            self._tensor /= other
-        return self
-
-    def __pow__(self, other, modulo=None):
-        # TODO: determine how ternary modulo needs to be handled
-        if isinstance(other, self.__class__):
-            return self.__class__(self._tensor ** other._tensor)
-        else:
-            return self.__class__(self._tensor ** other)
-
-    def __rpow__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__class__(other._tensor ** self._tensor)
-        else:
-            return self.__class__(other ** self._tensor)
-
-    def __ipow__(self, other):
-        if isinstance(other, self.__class__):
-            self._tensor **= other._tensor
-        else:
-            self._tensor **= other
-        return self
 
     def copy(self):
         return self.__class__(np.copy(self._tensor),
@@ -390,6 +249,16 @@ class CPU(Backend):
         return self.tensor_cls(np.ones(shape, dtype), dtype)
 
     def wrap(self, obj, dtype=None):
+        """
+        Convert obj to a CPUTensor (if it is not already).  Useful for
+        transforming scalars like ints and floats.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to convert.
+
+        Returns:
+            GPUTensor: Potentially converted object.
+        """
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(obj, dtype)
 
@@ -469,17 +338,73 @@ class CPU(Backend):
     def dot(self, a, b, out):
         np.dot(a._tensor, b._tensor, out._tensor)
 
-    def add(self, a, b, out):
-        np.add(a._tensor, b._tensor, out._tensor)
+    def add(self, left, right, out):
+        """
+        Perform element-wise addition on the operands left and right, storing
+        the result in the CPUTensor out.  Each operand and out is assumed to
+        have identical shape, or be broadcastable as such.
 
-    def subtract(self, a, b, out):
-        np.subtract(a._tensor, b._tensor, out._tensor)
+        Arguments:
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
 
-    def multiply(self, a, b, out):
-        np.multiply(a._tensor, b._tensor, out._tensor)
+        Returns:
+            CPUTensor: reference to out
+        """
+        # TODO: support for scalar operands
+        np.add(left._tensor, right._tensor, out._tensor)
 
-    def divide(self, a, b, out):
-        np.divide(a._tensor, b._tensor, out._tensor)
+    def subtract(self, left, right, out):
+        """
+        Perform element-wise subtraction on the operands left and right,
+        storing the result in the CPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
+
+        Arguments:
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        # TODO: support for scalar operands
+        np.subtract(left._tensor, right._tensor, out._tensor)
+
+    def multiply(self, left, right, out):
+        """
+        Perform element-wise multiplication on operands left and right,
+        storing the result in the CPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
+
+        Arguments:
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        # TODO: support for scalar operands
+        np.multiply(left._tensor, right._tensor, out._tensor)
+
+    def divide(self, left, right, out):
+        """
+        Perform element-wise division on the operands left and right, storing
+        the resultant values in the CPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
+
+        Arguments:
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        # TODO: support for scalar operands
+        np.divide(left._tensor, right._tensor, out._tensor)
 
     def reciprocal(self, a, out):
         np.divide(1.0, a._tensor, out._tensor)

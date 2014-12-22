@@ -1848,7 +1848,8 @@ class LCNLayer(YAMLable):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
-                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
+                fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
+                self.backend.subtract(fm_filt, 1.0, fm_filt)
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
