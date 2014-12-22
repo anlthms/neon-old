@@ -7,7 +7,6 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
-
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 
@@ -76,13 +75,13 @@ class MLP(Model):
                     logger.info('done loading mb %d', batch)
                     self.fprop(inputs)
                     self.bprop(targets, inputs)
-                    error += self.cost.apply_function(targets)
+                    error += self.get_error(targets, inputs)
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
                     self.fprop(inputs_batch)
                     self.bprop(targets_batch, inputs_batch)
-                    error += self.cost.apply_function(targets_batch)
+                    error += self.get_error(targets_batch, inputs_batch)
                 self.update(epoch)
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
@@ -105,7 +104,7 @@ class MLP(Model):
         for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
-            outputs = self.layers[-1].output
+            outputs = self.get_classifier_output()
             preds_batch = self.backend.empty((1, self.batch_size))
             self.backend.argmax(outputs, axis=0, out=preds_batch)
             preds.append(preds_batch)
@@ -132,6 +131,9 @@ class MLP(Model):
                 logger.error("must specify >=1 of: train, test, validation")
             res.append(preds)
         return res
+
+    def get_error(self, targets, inputs):
+        return self.cost.apply_function(targets)
 
     def fprop(self, inputs):
         y = inputs
@@ -210,10 +212,13 @@ class MLP(Model):
                 inputs, targets = dataset.get_mini_batch(
                     self.batch_size, batch_type, raw_targets=True)
                 self.fprop(inputs)
-                dataset.backend.argmax(self.layers[-1].output,
+                dataset.backend.argmax(self.get_classifier_output(),
                                        axis=0,
                                        out=preds)
                 dataset.backend.not_equal(targets, preds, preds)
                 err += dataset.backend.sum(preds)
             logging.info("%s set misclass rate: %0.5f%%" % (
                 batch_type, 100 * err / nrecs))
+
+    def get_classifier_output(self):
+        return self.layers[-1].output

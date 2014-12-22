@@ -15,6 +15,8 @@ class Logistic(Activation):
     """
     def __init__(self, use_binary=True, shortcut_deriv=False):
         self.tmp = None
+        self.shortcut_deriv = shortcut_deriv
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -61,3 +63,5 @@ class Logistic(Activation):
         # inputs
         backend.subtract(backend.wrap(1.0), outputs, out=inputs)
         backend.multiply(inputs, outputs, out=inputs)
+        if self.shortcut_deriv:
+            inputs[:] = 1.0

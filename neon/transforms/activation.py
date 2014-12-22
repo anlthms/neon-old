@@ -14,6 +14,7 @@ class Activation(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """

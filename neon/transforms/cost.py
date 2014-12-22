@@ -25,10 +25,14 @@ class Cost(object):
         if not hasattr(self, 'temp_dtype'):
             self.temp_dtype = None
 
+        if not hasattr(self, 'scale'):
+            self.scale = 1.0
+
         if not hasattr(self, 'batch_size'):
             self.batch_size = self.olayer.batch_size
 
         self.outputbuf = None
+        self.temp = None
         if not hasattr(self, 'olayer_data'):
             self.set_outputbuf(getattr(self.olayer, 'output'))
         else:
