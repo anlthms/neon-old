@@ -12,7 +12,7 @@ echo "" > "$OUT_FILE"
 for f in *.yaml
 do
   echo "Running: $f" >> "$OUT_FILE"
-  (time PYTHONPATH=".." $NEON_EXE "$f") >> "$OUT_FILE" 2>&1
+  (time PYTHONPATH=..:$PYTHONPATH $NEON_EXE "$f") >> "$OUT_FILE" 2>&1
   echo -e "\n\n\n" >> "$OUT_FILE"
 done
 

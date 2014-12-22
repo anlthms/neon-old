@@ -100,9 +100,9 @@ class GradientChecker(Experiment):
             self.datasets[0].set_batch_size(self.model.batch_size)
             self.datasets[0].backend = self.model.backend
             self.datasets[0].load()
-
-        inputs = self.datasets[0].get_inputs(train=True)['train']
-        targets = self.datasets[0].get_targets(train=True)['train']
+        ds = self.datasets[0]
+        inputs = ds.get_batch(ds.get_inputs(train=True)['train'], 0)
+        targets = ds.get_batch(ds.get_targets(train=True)['train'], 0)
 
         self.model.fprop(inputs)
         self.model.bprop(targets, inputs)
