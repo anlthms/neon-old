@@ -23,7 +23,7 @@ class RNN(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['layers']:
+        for req_param in ['layers', 'batch_size']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
@@ -42,8 +42,6 @@ class RNN(Model):
         # no idea how to do this for the new data format!
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
                                                    / self.unrolls)) - 1

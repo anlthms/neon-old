@@ -13,6 +13,7 @@ echo "" > "$OUT_FILE"
 for f in ${THIS_DIR}/*.yaml ${THIS_DIR}/distributed/*.yaml
 do
   echo "Running: $f" >> "$OUT_FILE"
-  (time PYTHONPATH="${THIS_DIR}/.." $NEON_EXE "$f") >> "$OUT_FILE" 2>&1
+  (time PYTHONPATH="${THIS_DIR}/..:${PYTHONPATH}" $NEON_EXE "$f") \
+    >> "$OUT_FILE" 2>&1
   echo -e "\n\n\n" >> "$OUT_FILE"
 done

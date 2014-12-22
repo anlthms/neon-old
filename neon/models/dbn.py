@@ -22,7 +22,7 @@ class DBN(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['layers']:
+        for req_param in ['layers', 'batch_size']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
@@ -36,8 +36,6 @@ class DBN(Model):
         inputs = datasets[0].get_inputs(train=True)['train']
         nrecs, nin = inputs.shape
         self.nlayers = len(self.layers)
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
         self.temp = self.backend.zeros((self.batch_size, nin))
 
         logger.info('commencing model fitting')
