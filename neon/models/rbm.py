@@ -20,7 +20,7 @@ class RBM(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['layers']:
+        for req_param in ['layers', 'batch_size']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
@@ -35,7 +35,6 @@ class RBM(Model):
         inputs = ds.get_inputs(train=True)['train']
         nin = self.layers[0].nin
         self.nlayers = len(self.layers)
-        assert 'batch_size' in self.__dict__
         if 'temp_dtype' not in self.__dict__:
             self.temp_dtype = None
         self.temp = self.backend.empty((nin, self.batch_size), self.temp_dtype)

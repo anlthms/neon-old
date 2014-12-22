@@ -170,7 +170,6 @@ class GB(MLP):
         self.nrecs = len(inputs) * self.batch_size
         self.nin = inputs[0].shape[0]
         self.nlayers = len(self.layers)
-        assert 'batch_size' in self.__dict__
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]

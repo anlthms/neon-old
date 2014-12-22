@@ -73,7 +73,6 @@ class MLPDist(MLP):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_targets(train=True)['train']
-        assert 'batch_size' in self.__dict__
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.

@@ -93,8 +93,6 @@ class GBDist(GB):
         inputs = datasets[0].get_inputs(train=True)['train']
         self.nrecs, self.nin = inputs.shape
         self.nlayers = len(self.layers)
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = self.nrecs
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]

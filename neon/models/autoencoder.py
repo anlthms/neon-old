@@ -27,7 +27,6 @@ class Autoencoder(MLP):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_inputs(train=True)['train']
-        assert 'batch_size' in self.__dict__
 
         num_batches = len(inputs)
         logger.info('commencing model fitting')

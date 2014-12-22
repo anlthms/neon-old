@@ -25,7 +25,7 @@ class MLP(Model):
     def __init__(self, **kwargs):
         self.dist_mode = None
         self.__dict__.update(kwargs)
-        for req_param in ['layers']:
+        for req_param in ['layers', 'batch_size']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
@@ -62,7 +62,6 @@ class MLP(Model):
             ds.cur_train_macro_batch = ds.start_train_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
 
-        assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
             error = 0.0
