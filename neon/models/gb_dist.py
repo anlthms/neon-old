@@ -121,7 +121,7 @@ class GBDist(GB):
     def pretrain(self, inputs, ds):
         start_time = time.time()
         logger.info('commencing unsupervised pretraining')
-        num_batches = inputs.nbatches
+        num_batches = len(inputs)
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
@@ -180,10 +180,10 @@ class GBDist(GB):
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((targets.nrows, self.batch_size))
+        tempbuf = self.backend.zeros((targets[0].shape[0], self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
-        num_batches = inputs.nbatches
+        num_batches = len(inputs)
         for epoch in range(self.num_epochs):
             error = 0.0
             for batch in range(num_batches):
@@ -283,10 +283,10 @@ class GBDist(GB):
                     self.layers[i].input.local_array.chunk)
 
     def predict_set(self, ds, inputs):
-        nrecs = inputs.nbatches * self.batch_size
+        num_batches = len(inputs)
+        nrecs = num_batches * self.batch_size
         if MPI.COMM_WORLD.rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
-        num_batches = inputs.nbatches
         for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
