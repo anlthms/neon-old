@@ -267,18 +267,24 @@ class RecurrentOutputLayer(Layer):
         self.deltas_o = [self.backend.zeros((nout, batch_size))
                          for k in range(unrolls + 1)]
         if pos > 0:
-            self.berror = backend.zeros((batch_size, nin))
+            self.berror = backend.zeros((self.nin, self.batch_size))
 
     def fprop(self, inputs, tau):
-        self.backend.fprop_fc(self.pre_act_list[tau],
-                              inputs, self.weights)
+        self.backend.fprop_fc(out=self.pre_act_list[tau],
+                              inputs=inputs,
+                              weights=self.weights)
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
+        error = error * self.pre_act_list[tau - 1]
+        self.backend.bprop_fc(self.berror,  # moved here from rnn because it uses output weights, but the error is only used later.
+                              self.weights,
+                              error)
+        self.backend.update_fc(out=self.temp_out,
+                               inputs=inputs,
+                               deltas=error)
         self.weight_updates += self.temp_out
 
     def update(self, epoch):
@@ -416,7 +422,7 @@ class RecurrentLSTMLayer(Layer):
         phi.apply_both(be, self.net_g[tau], self.g_t[tau])
 
         # compute cell output
-        self.c_old[tau] = self.c_t[tau]  # [TODO] fiure out how to initialize
+        self.c_old[tau] = 0 if (tau==0) else self.c_t[tau-1]  # [TODO] self-connection
         self.c_t[tau] = self.f_t[tau] * self.c_old[tau] \
                       + self.i_t[tau] * self.g_t[tau]
         phi.apply_both(be, self.c_t[tau], self.c_phi[tau]) # c_t=g' c_phi=g
@@ -425,48 +431,70 @@ class RecurrentLSTMLayer(Layer):
         # trace()
         # cross entropy will be handled in the next layer
 
-    def bprop(self, error, inputs, tau, batch_inx):
+    def bprop(self, error, inputs, tau_tot, tau):
         """
-        The entire backprop inside the LSTM cell happens here. Alternatively,
-        the LSTM cell could be split up into "layers" corresponding to the
-        different gating stages, but it seems clearer to use just the time
-        unrolling as layers.
-
-        Target computation is only dh_dW, everything else is aux deltas! But
-        I want to ignore that they are aux deltas and just do the math.
-
         In math, backward pass:
-            de_dW = d/dW CE(y,t)
-            dy_dW = d/dW sigm(Wyh*h)
+            de_dJ = d/dJ CE(y,t)
+            dy_dJ = d/dJ sigm(Wyh*h)
             ------ hidden layer -----
-            dh_dW = d/dW o .* tanh(c)
-            do_dWxo = d/dW s(Wcx*x+Wch*h+b)
-            dp_dW = d/dW phi(c)
-            dc_dW = d/dW (f.*c_ + i.*g)
-            df_dWxf = d/dW s(Wfx*x+Wfh*h+b)
-            dg_dWxc = d/dW s(Wcx*x+Wch*h+b)
-            di_dWix = d/dW s(Wix*x+Wih*h+b)
+            dh_dJ = d/dJ o .* tanh(c)
+            dp_dJ = d/dJ phi(c)
+            dc_dJ = d/dJ (f.*c_ + i.*g)
+            di_dJ = d/dJ s(Wix*x+Wih*h+b)
+            df_dJ = d/dJ s(Wfx*x+Wfh*h+b)
+            do_dJ = d/dJ s(Wcx*x+Wch*h+b)
+            dg_dJ = d/dJ s(Wcx*x+Wch*h+b)
 
         In numpy pseudocode, the backward pass is:
             where gs indicates sigmoid_prime
-            de_dW = dot((y-t) / (y * (1-y)), dy_dW)
-            dy_dW = dot(gs(dot(Wyh, h)), dh_dW)
+            de_dJ = dot((y-t) / (y * (1-y)), dy_dJ)
+            dy_dJ = dot(gs(dot(Wyh, h)), dh_dJ)
             ------ hidden layer -----
-            dh_dW = o .* dp_dW + tanh(c) .* do_dW
-            dp_dW = dot(tanh_prime(c), dc_dW)
-            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW
-        Non-zero, bottom-level terms
-            di_dWix = gs(dot(Wix, x) + dot(Wih, h) + b) x
-            di_dWih = gs(dot(Wix, x) + dot(Wih, h) + b) h
+            dh_dJ = o .* dp_dJ + tanh(c) .* do_dJ
+            dp_dJ = dot(tanh_prime(c), dc_dJ)
+            dc_dJ = c_.*df_dJ + i.*dg_dJ + g .* di_dJ
 
-            df_dWfx = gs(dot(Wxf, x) + dot(Whf, h) + b) x
-            df_dWfh = gs(dot(Wxf, x) + dot(Whf, h) + b) h
+        Specific derivatives for (non-zero) bottom-level terms
+            di_dWix = gs(dot(Wix, x) + dot(Wih, h) + b) x     # i_prime x
+            di_dWih = gs(dot(Wix, x) + dot(Wih, h) + b) h     # i_prime h
+            di_dx   = gs(dot(Wix, x) + dot(Wih, h) + b) Wxi   # i_prime Wxi
+            di_dh   = gs(dot(Wix, x) + dot(Wih, h) + b) Whi   # i_prime Whi
 
-            do_dWox = gs(dot(Wxo, x) + dot(Who, h) + b) x
-            do_dWoh = gs(dot(Wxo, x) + dot(Who, h) + b) h
+            df_dWfx = gs(dot(Wxf, x) + dot(Whf, h) + b) x     # f_prime x
+            df_dWfh = gs(dot(Wxf, x) + dot(Whf, h) + b) h     # f_prime h
+            df_dx   = gs(dot(Wxf, x) + dot(Whf, h) + b) Wxf   # f_prime Wxf
+            df_dh   = gs(dot(Wxf, x) + dot(Whf, h) + b) Whf   # f_prime Whf
 
-            dg_dWcx = gs(dot(Wxc, x) + dot(Whc, h) + b) x
-            dg_dWch = gs(dot(Wxc, x) + dot(Whc, h) + b) h
+            do_dWox = gs(dot(Wxo, x) + dot(Who, h) + b) x     # o_prime x
+            do_dWoh = gs(dot(Wxo, x) + dot(Who, h) + b) h     # o_prime h
+            do_dx   = gs(dot(Wxo, x) + dot(Who, h) + b) Wxo   # o_prime Wxo
+            do_dh   = gs(dot(Wxo, x) + dot(Who, h) + b) Who   # o_prime Who
+
+            dg_dWcx = gs(dot(Wxc, x) + dot(Whc, h) + b) x     # g_prime x
+            dg_dWch = gs(dot(Wxc, x) + dot(Whc, h) + b) h     # g_prime h
+            dg_dx   = gs(dot(Wxc, x) + dot(Whc, h) + b) Wxc   # g_prime Wxc
+            dg_dh   =  gs(dot(Wxc, x) + dot(Whc, h) + b) Whc  # g_prime Whc
+
+        Putting everything together at the top-level:
+            dh_dWix = o .* dp_dJ + tanh(c) .* do_dJ   # delta_ * y
+            dh_dWih = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWfx = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWfh = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWox = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWoh = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWgx = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dWgh = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dx = o .* dp_dJ + tanh(c) .* do_dJ
+            dh_dh = o .* dp_dJ + tanh(c) .* do_dJ
+
+        Expand one example -- simply plug in the relevant bottom level terms.
+            dh_dWix = o .* dot(tanh_prime(c), c_.*df_d... + i.*dg_d... + g .* di_d...) + tanh(c) .* do_d...
+
+        Writing things as deltas
+            error_h = o .* error_p + tanh(c) .* error_o
+            error_p = dot(tanh_prime(c), error_c)
+            error_c = c_.*error_f + i.*error_g + g .* error_i
+        d/d is just replaced by error, not really a big deal. I think we can work from here.
 
 
         Start by computing the sigmoids and go up from there.
@@ -474,88 +502,102 @@ class RecurrentLSTMLayer(Layer):
 
         """
         be = self.backend
-        # working with code from the non-LSTM layer:
-        self.berror = error
-        for layer in list(range(0, tau))[::-1]:
-            if layer != (tau - 1):
-                # error
-                self.backend.bprop_fc(self.berror,
-                                      self.weights_rec,
-                                      self.deltas[layer + 1])
-                # recurrent weight update -- _dWx terms
-                self.backend.update_fc(self.temp_rec,
-                                       self.output_list[layer],
-                                       self.deltas[layer + 1])
-                self.updates_rec += self.temp_rec
-            # This comes first (for top layer, berror=error)
-            # delta
-            self.deltas[layer] = self.berror * self.pre_act_list[layer]
-            # input weight update -- _dWh terms
-            self.backend.update_fc(self.temp_in,
-                                   inputs[layer*128:(layer+1)*128, :],
-                                   self.deltas[layer])
+
+        """
+        RNN layer:
+        """
+        if 0: # this is from RNN
+            error = self.pre_act_list[t] * error
+            if (t > 0): # can be moved down for a single if().
+                # compute error (apply prev. delta)
+                self.backend.bprop_fc(out=self.berror, weights=self.weights_rec, deltas=error)
+            # input weight update (apply curr. delta)
+            self.backend.update_fc(out=self.temp_in, inputs=inputs[t*128:(t+1)*128, :], deltas=error)
             self.weight_updates += self.temp_in
+            if (t > 0):
+                # recurrent weight update (apply prev. delta)
+                self.backend.update_fc(out=self.temp_rec, inputs=self.output_list[t - 1], deltas=error)
+                self.updates_rec += self.temp_rec
 
-        # LSTM Additions:
-        # the main thing is that the split into h and w happens at the bottom,
-        # after all the funky gating is out of the way.
-
-        for layer in range(tau):
-            # bottom level terms
-            be.update_fc(self.di_dWix, self.net_i[tau], inputs) # sig'() * x
-            be.update_fc(self.di_dWih, self.net_i[tau], self.output_list) # sig'() * h
-
-            be.update_fc(self.df_dWfx, self.net_f[tau], inputs)
-            be.update_fc(self.df_dWfh, self.net_f[tau], self.output_list)
-
-            be.update_fc(self.do_dWox, self.net_o[tau], inputs)
-            be.update_fc(self.do_dWoh, self.net_o[tau], self.output_list)
-
-            be.update_fc(self.dg_dWcx, self.net_g[tau], inputs)
-            be.update_fc(self.dg_dWch, self.net_g[tau], self.output_list)
-
-            # cell input terms (f, g, i) term
-            # c_.*df_dW + i.*dg_dW + g .* di_dW
-            dc_dWix = g_t[tau] * di_dWix
-            dc_dWih = g_t[tau] * di_dWih
-            dc_dWfx = c_old[tau] * df_dWfx
-            dc_dWfh = c_old[tau] * df_dWfh
-            dc_dWgx = i_t[tau] * dg_dWgx
-            dc_dWgh = i_t[tau] * dg_dWgh
-
-            # cell output
-            # dot(tanh_prime(c), dc_dW)
-            # hopefully c_t has precomputed prime.
-            be.dot(dp_dWix, self.c_t[tau], dc_dWix)
-            be.dot(dp_dWih, self.c_t[tau], dc_dWih)
-            be.dot(dp_dWfx, self.c_t[tau], dc_dWfx)
-            be.dot(dp_dWfh, self.c_t[tau], dc_dWfh)
-            be.dot(dp_dWgx, self.c_t[tau], dc_dWgx)
-            be.dot(dp_dWgh, self.c_t[tau], dc_dWgh)
-
-            # top level
-            # o .* dp_dW + tanh(c) .* do_dW
-            # c_phi is phi(c).
-            dh_dWix = self.o_t[tau] * dp_dWix
-            dh_dWih = self.o_t[tau] * dp_dWih
-            dh_dWfx = self.o_t[tau] * dp_dWfx
-            dh_dWfh = self.o_t[tau] * dp_dWfh
-            dh_dWox = self.c_phi[tau] * do_dWox
-            dh_dWoh = self.c_phi[tau] * do_dWoh
-            dh_dWgx = self.o_t[tau] * dp_dWgx
-            dh_dWgh = self.o_t[tau] * dp_dWgh
+        """
+        # LSTM start over:
+        # 1. propagating h_t down to to the 4 inputs.
+        # 2. use the delta and h to compute 4x W_rec
+        # 3. use the delta and x to compute 4x W_in
+        # 4. use the detas and W_rec to compute output delta
+        """
+        # will flip the order of these later.
+        self.berror = dh2dh1 * error # canonical backprop formula
+        # express in terms of elusive, generic
+        dh2dh1 = dh2dJ * dJdh1 # J is a generic mid-level term, h1 specific for new berror
+        dh2dh1 = o * dphi_dh1 + self.c_phi * do_dh1 # c_phi is phi(c)
+        be.dot(out=dphi_dh1, a=self.c_t, b=dc_dh1) # c_t -> g'(c_t)
+        dc_dJ = self.c_t[tau-1] * df_dh1 + self.i_t[tau] * dg_dh1 + self.g_t[tau] * di_dh1
+        # these terms depend on what J actually is.
+        be.dot(out=do_dh1, a=self.net_o[tau], b=Who)
+        be.dot(out=df_dh1, a=self.net_f[tau], b=Whf)
+        be.dot(out=dg_dh1, a=self.net_g[tau], b=Whg)
+        be.dot(out=di_dh1, a=self.net_i[tau], b=Whi)
 
 
-            # updates: Probably incorrect since dh/dW counts, not di/dW etc.
-            self.Wix_updates += self.dh_dWix
-            self.Wfx_updates += self.dh_dWfx
-            self.Wox_updates += self.dh_dWox
-            self.Wcx_updates += self.dh_dWcx
-            #
-            self.Wih_updates += self.dh_dWih
-            self.Wfh_updates += self.dh_dWfh
-            self.Woh_updates += self.dh_dWoh
-            self.Wch_updates += self.dh_dWch
+        """
+        # LSTM some possibly useful terms
+        """
+        # bottom level terms -- will need these first.
+        be.update_fc(self.di_dWix, self.net_i[tau], inputs)            # sig'() * x
+        be.update_fc(self.di_dWih, self.net_i[tau], self.output_list)  # sig'() * h
+
+        be.update_fc(self.df_dWfx, self.net_f[tau], inputs)
+        be.update_fc(self.df_dWfh, self.net_f[tau], self.output_list)
+
+        be.update_fc(self.do_dWox, self.net_o[tau], inputs)
+        be.update_fc(self.do_dWoh, self.net_o[tau], self.output_list)
+
+        be.update_fc(self.dg_dWcx, self.net_g[tau], inputs)
+        be.update_fc(self.dg_dWch, self.net_g[tau], self.output_list)
+
+        # cell input terms (f, g, i) term
+        # c_.*df_dW + i.*dg_dW + g .* di_dW
+        dc_dWix = g_t[tau] * di_dWix
+        dc_dWih = g_t[tau] * di_dWih
+        dc_dWfx = c_old[tau] * df_dWfx
+        dc_dWfh = c_old[tau] * df_dWfh
+        dc_dWgx = i_t[tau] * dg_dWgx
+        dc_dWgh = i_t[tau] * dg_dWgh
+
+        # cell output
+        # dot(tanh_prime(c), dc_dW)
+        # hopefully c_t has precomputed prime.
+        be.dot(dp_dWix, self.c_t[tau], dc_dWix)
+        be.dot(dp_dWih, self.c_t[tau], dc_dWih)
+        be.dot(dp_dWfx, self.c_t[tau], dc_dWfx)
+        be.dot(dp_dWfh, self.c_t[tau], dc_dWfh)
+        be.dot(dp_dWgx, self.c_t[tau], dc_dWgx)
+        be.dot(dp_dWgh, self.c_t[tau], dc_dWgh)
+
+        # top level
+        # o .* dp_dW + tanh(c) .* do_dW
+        # c_phi is phi(c).
+        dh_dWix = self.o_t[tau] * dp_dWix
+        dh_dWih = self.o_t[tau] * dp_dWih
+        dh_dWfx = self.o_t[tau] * dp_dWfx
+        dh_dWfh = self.o_t[tau] * dp_dWfh
+        dh_dWox = self.c_phi[tau] * do_dWox
+        dh_dWoh = self.c_phi[tau] * do_dWoh
+        dh_dWgx = self.o_t[tau] * dp_dWgx
+        dh_dWgh = self.o_t[tau] * dp_dWgh
+
+
+        # updates: Probably incorrect since dh/dW counts, not di/dW etc.
+        self.Wix_updates += self.dh_dWix
+        self.Wfx_updates += self.dh_dWfx
+        self.Wox_updates += self.dh_dWox
+        self.Wcx_updates += self.dh_dWcx
+        #
+        self.Wih_updates += self.dh_dWih
+        self.Wfh_updates += self.dh_dWfh
+        self.Woh_updates += self.dh_dWoh
+        self.Wch_updates += self.dh_dWch
 
 
 
@@ -563,6 +605,103 @@ class RecurrentLSTMLayer(Layer):
 
     def update(self, epoch):
         pass
+
+
+class RecurrentMRNNLayer(Layer):
+
+    """
+    Multiplicative RNN with what amounts to an output gate.
+    """
+
+    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
+                 activation, weight_init, weight_init_rec, learning_rule,
+                 weight_dtype=None, delta_dtype=None, updates_dtype=None,
+                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+        # super calls into Layer.__init__() for weight init.
+        nn = self.backend
+        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
+                                                   pos, nin, nout, weight_init,
+                                                   learning_rule, activation)
+        self.weights_rec = self.backend.gen_weights((nout, nout),
+                                                    weight_init_rec,
+                                                    weight_dtype)
+
+        self.net_c = [nn.zeros((nout, batch_size), pre_act_dtype)
+                      for k in range(unrolls)]
+        self.net_i = [nn.zeros((nout, batch_size), pre_act_dtype)
+                      for k in range(unrolls)]
+        self.c_t = [nn.zeros((nout, batch_size), output_dtype)
+                    for k in range(unrolls)]
+        self.i_t = [nn.zeros((nout, batch_size), output_dtype)
+                    for k in range(unrolls)]
+
+        self.updates_rec = self.backend.zeros((nout, nout))
+        self.temp_rec = self.backend.zeros((nout, nout))
+        self.temp_in = self.backend.zeros((nout, nin))
+        self.learning_rule.allocate_state_rec(self.updates_rec)
+
+        self.berror = backend.zeros((nout, batch_size))
+
+    def fprop(self, y, inputs, tau):
+        """
+        Forward pass is
+        c_t = phi(W_cx x + W_ch h)
+        i_t = sig(W_ix x + W_ih h)
+        h_t = c_t * i_t  # c is the cell, i is the gate
+        plain and simple
+        """
+        nn = self.backend
+        # buffers for pre-activations
+        z_cx = self.backend.zeros(self.pre_act_list[tau].shape)
+        z_ch = z_cx.copy()
+        z_ix = z_cx.copy()
+        z_ih = z_cx.copy()
+
+        nn.fprop_fc(out=z_ch, inputs=y, weights=self.W_ch)
+        nn.fprop_fc(out=z_cx, inputs=inputs, weights=self.W_cx)
+        nn.fprop_fc(out=z_ih, inputs=y, weights=self.W_ih)
+        nn.fprop_fc(out=z_ix, inputs=inputs, weights=self.W_ix)
+        self.net_c[tau] = z_ch + z_cx  # store for use in bprop
+        self.activation.apply_both(self.backend,
+                                   self.net_c[tau],
+                                   self.c_t[tau])
+        self.pre_act_list[tau] = z_ih + z_ix
+        self.activation.apply_both(self.backend,
+                                   self.net_i[tau],
+                                   self.i_t[tau])
+
+    def bprop(self, error, inputs, tau, t):
+        """
+        Backward pass is a fucking mess:
+
+        """
+        # called with t = 4, 3, 2, 1, 0
+        error = self.pre_act_list[t] * error
+        if (t > 0): # can be moved down for a single if().
+            # compute error (apply prev. delta)
+            self.backend.bprop_fc(out=self.berror,
+                                  weights=self.weights_rec,
+                                  deltas=error)
+
+        # input weight update (apply curr. delta)
+        self.backend.update_fc(out=self.temp_in,
+                               inputs=inputs[t*128:(t+1)*128, :],
+                               deltas=error)
+        self.weight_updates += self.temp_in
+
+        if (t > 0):
+            # recurrent weight update (apply prev. delta)
+            self.backend.update_fc(out=self.temp_rec,
+                                   inputs=self.output_list[t - 1],
+                                   deltas=error)
+            self.updates_rec += self.temp_rec
+
+
+
+    def update(self, epoch):
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
+        self.learning_rule.apply_rule_rec(self.weights_rec,
+                                          self.updates_rec, epoch)
 
 
 class RecurrentHiddenLayer(Layer):
@@ -590,8 +729,6 @@ class RecurrentHiddenLayer(Layer):
         self.output_list = [self.backend.zeros((nout, batch_size),
                                                output_dtype)
                             for k in range(unrolls)]
-        self.deltas = [self.backend.zeros((nout, batch_size))
-                       for k in range(unrolls + 1)]
         self.updates_rec = self.backend.zeros((nout, nout))
         self.temp_rec = self.backend.zeros((nout, nout))
         self.temp_in = self.backend.zeros((nout, nin))
@@ -602,33 +739,42 @@ class RecurrentHiddenLayer(Layer):
     def fprop(self, y, inputs, tau):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
-        self.backend.fprop_fc(z1, y, self.weights_rec)
-        self.backend.fprop_fc(z2, inputs, self.weights)
+        self.backend.fprop_fc(out=z1, inputs=y, weights=self.weights_rec)
+        self.backend.fprop_fc(out=z2, inputs=inputs, weights=self.weights)
         self.pre_act_list[tau] = z1 + z2
         self.activation.apply_both(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
-    def bprop(self, error, inputs, tau):
-        self.berror = error
-        for layer in list(range(0, tau))[::-1]:
-            if layer != (tau - 1):
-                # error
-                self.backend.bprop_fc(self.berror,
-                                      self.weights_rec,
-                                      self.deltas[layer + 1])
-                # recurrent weight update
-                self.backend.update_fc(self.temp_rec,
-                                       self.output_list[layer],
-                                       self.deltas[layer + 1])
-                self.updates_rec += self.temp_rec
-            # delta
-            self.deltas[layer] = self.berror * self.pre_act_list[layer]
-            # input weight update
-            self.backend.update_fc(self.temp_in,
-                                   inputs[layer*128:(layer+1)*128, :],
-                                   self.deltas[layer])
-            self.weight_updates += self.temp_in
+    def bprop(self, error, inputs, tau, t):
+        """
+        This function has been refactored quite a bit:
+        [done] remove duplicate code
+        [done] remove the loop altogether.
+        [done] swich order to be exactly like MLP code.
+        [done] get rid of "delta", call it "error" to be consistent.
+        """
+        # called with t = 4, 3, 2, 1, 0
+        error = self.pre_act_list[t] * error # finish computing error used here
+        if (t > 0): # can be moved down for a single if().
+            # compute error (apply prev. delta)
+            self.backend.bprop_fc(out=self.berror, # output for next iteration
+                                  weights=self.weights_rec,
+                                  deltas=error)
+
+        # input weight update (apply curr. delta)
+        self.backend.update_fc(out=self.temp_in,
+                               inputs=inputs[t*128:(t+1)*128, :],
+                               deltas=error)
+        self.weight_updates += self.temp_in
+
+        if (t > 0):
+            # recurrent weight update (apply prev. delta)
+            self.backend.update_fc(out=self.temp_rec,
+                                   inputs=self.output_list[t - 1],
+                                   deltas=error)
+            self.updates_rec += self.temp_rec
+
 
 
     def update(self, epoch):

@@ -28,7 +28,7 @@
     make_plots: True,
     layers: [
       # recurrent layer, can be RecurrentHiddenLayer or RecurrentLSTMLayer
-      !obj:neon.models.layer.RecurrentHiddenLayer { # was RecurrentHiddenLayer
+      !obj:neon.models.layer.RecurrentHiddenLayer { #
         name: recurrent,
         backend: *be,
         batch_size: *bs,

@@ -122,7 +122,13 @@ class RNN(Model):
         """
         bprop for the RNN is a bit weird because the delta from the output
         layer to the recurrent layer needs to dealt with outside the layer
-        code. Therefore there is a backend call to bprop_fc here.
+        code. Therefore there is a backend call to bprop_fc here. NOT COOL!
+        Refactor:
+        This bprop has an OUTER FOOR LOOP over t-BPTT unrollings
+            for a given unrolling depth (say full), we go output-hidden-hidden-input
+            which breaks down as:
+                  layers[1].bprop -- output layer
+
         """
         nin = self.layers[0].nin
 
@@ -132,21 +138,16 @@ class RNN(Model):
         else:
             min_unroll = self.unrolls
 
-        # clear deltas
-        for tau in range(min_unroll, self.unrolls+1):
-            self.backend.fill(self.layers[0].deltas[tau], 0)
-            self.backend.fill(self.layers[1].deltas_o[tau], 0)
+        # clear updates
         self.backend.fill(self.layers[0].weight_updates, 0)
         self.backend.fill(self.layers[0].updates_rec, 0)
         self.backend.fill(self.layers[1].weight_updates, 0)
 
         # this loop is a property of t-BPTT through different depth.
         # inside this loop, go through the input-hidden-output stack.
-        cerror = self.backend.zeros((self.layers[0].nout, self.batch_size))
         for tau in range(min_unroll, self.unrolls+1):
             if debug:
-                logger.info("backprop target %d of %d is: %f",
-                            tau, self.unrolls,
+                logger.info("bprop target %d of %d is: %f", tau, self.unrolls,
                             targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
 
             # output layers[1]:
@@ -154,17 +155,13 @@ class RNN(Model):
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             error /= float(error.shape[0] * error.shape[1])
             self.layers[1].bprop(error,
-                                 self.layers[0].output_list[tau - 1],
-                                 tau)
+                                 self.layers[0].output_list[tau - 1], tau)
 
-            # recurrent layers[0]:
-            # 1. error=W*delta  2. bprop(error, inputs)
-            # extra bprop from the output layer before calling bprop
-            self.backend.bprop_fc(cerror,
-                                  self.layers[1].weights,
-                                  self.layers[1].deltas_o[tau])
-            # this bprop contains a for loop. Just put it here!
-            self.layers[0].bprop(cerror, inputs, tau)
+            # recurrent layers[0]: loop over different unrolling sizes
+            error = self.layers[1].berror
+            for t in list(range(0, tau))[::-1]:
+                self.layers[0].bprop(error, inputs, tau,t)
+                error = self.layers[0].berror
 
     def update(self, epoch):
         for layer in self.layers:
