@@ -10,11 +10,16 @@ CPU := $(strip $(shell grep -i '^ *CPU *=' setup.cfg | cut -f 2 -d '='))
 GPU := $(strip $(shell grep -i '^ *GPU *=' setup.cfg | cut -f 2 -d '='))
 DIST := $(strip $(shell grep -i '^ *DIST *=' setup.cfg | cut -f 2 -d '='))
 
+# get release version info
+RELEASE := $(strip $(shell grep '^VERSION *=' setup.py | cut -f 2 -d '=' \
+	                         | tr -d "\'"))
+
 # these variables control where we publish Sphinx docs to
 DOC_DIR := doc
-DOC_PUB_HOST := atlas.localdomain
-DOC_PUB_USER := neon
-DOC_PUB_PATH := /home/neon/public/
+DOC_PUB_HOST := stagecoach.dreamhost.com
+DOC_PUB_USER := amikho1
+DOC_PUB_PATH := /home/amikho1/framework.nervanasys.com/docs
+DOC_PUB_RELEASE_PATH := $(DOC_PUB_PATH)/$(RELEASE)
 
 # these control test options and attribute filters
 NOSE_FLAGS := ""  # --pdb --pdb-failures
@@ -149,7 +154,11 @@ dist:
 
 publish_doc: doc
 	@-cd $(DOC_DIR)/build/html && \
-		rsync -avz -essh --perms --chmod=ugo+rX . $(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_PATH)
+		rsync -avz -essh --perms --chmod=ugo+rX . \
+		$(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_RELEASE_PATH)
+	@-ssh $(DOC_PUB_USER)@$(DOC_PUB_HOST) \
+		'rm -f $(DOC_PUB_PATH)/latest && \
+		 ln -sf $(DOC_PUB_RELEASE_PATH) $(DOC_PUB_PATH)/latest'
 
 release: publish_doc
 	@gitchangelog > ChangeLog

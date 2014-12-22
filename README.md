@@ -77,9 +77,9 @@ See docs for full details.
 
 
 ## Documentation ##
-* [Main Source](http://atlas.localdomain:5700)
-* [Developer Guide](http://atlas.localdomain:5700/developing_neon.html)
-* [API](http://atlas.localdomain:5700/api.html)
+* [Main Source](http://framework.nervanasys.com/docs/latest)
+* [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_neon.html)
+* [API](http://framework.nervanasys.com/docs/latest/api.html)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
 * [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)

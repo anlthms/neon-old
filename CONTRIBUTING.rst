@@ -66,7 +66,7 @@ Neon Contribution Process
 
     make doc         # builds documentation locally
     make publish_doc # builds documentation and publishes to:
-                     # http://atlas.localdomain:5700
+                     # http://framework.nervanasys.com/docs/<version>
 
 7. Commit your changes and push your feature branch to gitlab.  Be sure to
    add a descriptive message and reference the JIRA issue associated with
