@@ -14,16 +14,29 @@ import tarfile
 import cPickle
 from PIL import Image
 from StringIO import StringIO
-import scipy.io
+#import scipy.io #importing this breaks multiprocessing!
 from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
+from neon.backends.gpu import GPU, GPUTensor
 from neon.util.compat import MPI_INSTALLED
 import sys
 import threading
 import Queue
+import multiprocessing as mp
+#from multiprocessing import sharedctypes
+import shmarray
+import ctypes as ct
 
 logger = logging.getLogger(__name__)
+
+# global queues to start threads
+macroq = Queue.Queue()
+miniq = Queue.Queue()
+gpuq = Queue.Queue()
+macroq_flag=False
+miniq_flag=False
+gpuq_flag=False
 
 def my_pickle(filename, data):
         with open(filename, "w") as fo:
@@ -49,11 +62,65 @@ class LoadFile(threading.Thread):
         self.macro_batch_queue.put(my_unpickle(fname))
         logger.info('%s: done loading file', fname)
         self.file_name_queue.task_done()
+        if not macroq.empty():
+            t = macroq.get()
+            t.start()
+            macroq.task_done()
+        else:
+            global macroq_flag
+            macroq_flag = False
+
+class ResizeImages(mp.Process):
+    def __init__(self, output_image_size):
+        mp.Process.__init__(self)
+        self.output_image_size = output_image_size
+
+    def resize_jpeg(self, jpeg_strings, as_string=False):
+        if as_string:
+            tgt = []
+        else:
+            # as numpy array, row order
+            tgt = np.empty(
+                (len(jpeg_strings), (self.output_image_size ** 2) * 3),
+                dtype='float32')
+        for i, jpeg_string in enumerate(jpeg_strings):
+            img = Image.open(StringIO(jpeg_string))
+
+            # resize
+            min_dim = np.min(img.size)
+            scale_factor = np.float(self.output_image_size) / min_dim
+            new_w = np.int(np.rint(scale_factor * img.size[0]))
+            new_h = np.int(np.rint(scale_factor * img.size[1]))
+            img = img.resize((new_w, new_h))  # todo: interp mode?
+
+            # crop
+            if self.crop_to_square:
+                crop_start_x = (new_w - self.output_image_size) / 2
+                crop_start_y = (new_h - self.output_image_size) / 2
+                img = img.crop((crop_start_x, crop_start_y,
+                                crop_start_x + self.output_image_size,
+                                crop_start_y + self.output_image_size))
+            else:
+                raise NotImplementedError
+            if as_string:
+                f = StringIO()
+                img.save(f, "JPEG")
+                tgt.append(f.getvalue())
+            else:
+                # this is still in row order
+                if img.mode == 'L':  # greyscale
+                    logger.debug('greyscale image found... tiling')
+                    tgt[i] = np.tile(
+                        np.array(img, dtype='float32').reshape((1, -1)), 3)
+                else:
+                    tgt[i] = np.array(img, dtype='float32').reshape((1, -1))
+
+        return tgt
 
 class DecompressImages(threading.Thread):
     def __init__(self, mb_id, mini_batch_queue,
                  batch_size, output_image_size,
-                 jpeg_strings, targets_macro, backend):
+                 jpeg_strings, targets_macro, backend, num_processes):
         threading.Thread.__init__(self)
         self.mb_id = mb_id
         #mini-batch queue
@@ -63,46 +130,101 @@ class DecompressImages(threading.Thread):
         self.jpeg_strings = jpeg_strings
         self.targets_macro = targets_macro
         self.backend = backend
-        
-    def run(self):
-        logger.info('mini-batch decompress start %d', self.mb_id)
-        # provide mini batch from macro batch
-        inputs = np.empty(
-            ((self.output_image_size ** 2) * 3, self.batch_size),
-            dtype='float32')
-        start_idx = self.mb_id * self.batch_size
-        end_idx = (self.mb_id + 1) * self.batch_size
+        self.inputs = shmarray.create(
+             ((self.output_image_size ** 2) * 3, self.batch_size), dtype='float32')
+        self.num_processes = num_processes
 
+    
+    def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
+        #logger.info('jpeg decode start mb %d %d', start_id, offset)
+
         for i, jpeg_string in enumerate(
-                self.jpeg_strings['data'][start_idx:end_idx]):
+                self.jpeg_strings['data'][start_id:end_id]):
             img = Image.open(StringIO(jpeg_string))
             if img.mode == 'L':  # greyscale
                 logger.debug('greyscale image found... tiling')
-                inputs[:, i, np.newaxis] = np.tile(
+                self.inputs[:, i+offset, np.newaxis] = np.tile(
                     np.array(img, dtype='float32').reshape((-1, 1)), (3, 1))
             else:
-                inputs[:, i, np.newaxis] = np.array(
+                self.inputs[:, i+offset, np.newaxis] = np.array(
                     img, dtype='float32').reshape((-1, 1))
+        #logger.info('jpeg decode end mb %d %d', start_id, offset)
 
+    def run(self):
+        logger.info('mini-batch decompress start %d', self.mb_id)
+        # provide mini batch from macro batch
+        start_idx = self.mb_id * self.batch_size
+        end_idx = (self.mb_id + 1) * self.batch_size
+
+        start_list = range(start_idx, end_idx, self.batch_size/self.num_processes)
+        end_list = range(start_idx + self.batch_size/self.num_processes, end_idx+1, self.batch_size/self.num_processes)
+        offset_list = range(0, self.batch_size, self.batch_size/self.num_processes)
+        #print [(self.mb_id, x1, x2, x3) for (x1,x2,x3) in zip(start_list, end_list, offset_list)]
+        
+        procs = [mp.Process(target=self.jpeg_decoder, args=[x1,x2,x3]) for (x1,x2,x3) in zip(start_list, end_list,offset_list)]
+        for proc in procs:
+            proc.daemon=True
+            proc.start()
+        
         targets = self.targets_macro[:, start_idx:end_idx]
+        [proc.join() for proc in procs]
+        
         logger.info('mini-batch decompress end %d', self.mb_id)
         
-        #self.mini_batch_queue.put([inputs, targets])
-        logger.info('backend mini-batch transfer start %d', self.mb_id)
-        inputs_backend = self.backend.array(inputs)
-        targets_backend = self.backend.array(targets)
-        logger.info('backend mini-batch transfer done %d', self.mb_id)
-        self.mini_batch_queue.put([inputs_backend, targets_backend])
+        self.mini_batch_queue.put([self.inputs, targets])
+        if not miniq.empty():
+            di = miniq.get()
+            di.start()
+            miniq.task_done()
+        else:
+            global miniq_flag
+            miniq_flag = False
         
+# ring buffer for GPU backend
+class RingBuffer(object):
+    def __init__(self, max_size, batch_size, num_targets, num_input_dims):
+        self.max_size = max_size
+        self.id = 0
+        self.prev_id = 0
+        tmp_input = np.empty((num_input_dims, batch_size), dtype='float32')
+        tmp_target = np.empty((num_targets, batch_size), dtype='float32')
+        
+        self.inputs_backend = []
+        self.targets_backend = []
+        for i in range(max_size):
+            self.inputs_backend.append(GPUTensor(tmp_input))
+            self.targets_backend.append(GPUTensor(tmp_target))
+
+    def add_item(self, inputs, targets):
+        self.prev_id = self.id
+        logger.info('start add_item')
+        
+        #using ring buffer
+        self.inputs_backend[self.id].set_host_mat(inputs)
+        self.targets_backend[self.id].set_host_mat(targets)
+        logger.info('done with set_host_mat')
+        self.inputs_backend[self.id].copy_to_device()
+        logger.info('done with input copy_to_device')
+        self.targets_backend[self.id].copy_to_device()
+
+        #self.inputs_backend[self.id] = inputs
+        #self.targets_backend[self.id] = targets
+
+        logger.info('end add_item')
+        self.id += 1
+        if self.id == self.max_size:
+            self.id = 0
+
 
 class GPUTransfer(threading.Thread):
-    def __init__(self, mb_id, mini_batch_queue, gpu_queue, backend):
+    def __init__(self, mb_id, mini_batch_queue, gpu_queue, backend, ring_buffer):
         threading.Thread.__init__(self)
         self.mb_id = mb_id
         self.mini_batch_queue = mini_batch_queue
         self.gpu_queue = gpu_queue
         self.backend = backend
+        self.ring_buffer = ring_buffer
 
     def run(self):
         logger.info('backend mini-batch transfer start %d', self.mb_id)
@@ -112,11 +234,26 @@ class GPUTransfer(threading.Thread):
         inputs, targets = self.mini_batch_queue.get(block=True)
         logger.info("popped mini_batch_queue")
         
-        inputs_backend = self.backend.array(inputs)
-        targets_backend = self.backend.array(targets)
+        if isinstance(self.backend, GPU):
+            #logger.info("using GPU backend")
+            self.ring_buffer.add_item(inputs, targets)
+            self.gpu_queue.put([self.ring_buffer.inputs_backend[self.ring_buffer.prev_id],
+                                self.ring_buffer.targets_backend[self.ring_buffer.prev_id]])
+            #logger.info('put ring buffer %d %d %d %d %d', self.mb_id, self.ring_buffer.inputs_backend[self.ring_buffer.prev_id].shape[0], self.ring_buffer.inputs_backend[self.ring_buffer.prev_id].shape[1], self.ring_buffer.targets_backend[self.ring_buffer.prev_id].shape[0], self.ring_buffer.targets_backend[self.ring_buffer.prev_id].shape[1])
+        else:
+            inputs_backend = self.backend.array(inputs)
+            targets_backend = self.backend.array(targets)
+            self.gpu_queue.put([inputs_backend, targets_backend])
         logger.info('backend mini-batch transfer done %d', self.mb_id)
-        self.gpu_queue.put([inputs_backend, targets_backend])
         self.mini_batch_queue.task_done()
+        
+        if not gpuq.empty():
+            gt = gpuq.get()
+            gt.start()
+            gpuq.task_done()
+        else:
+            global gpuq_flag
+            gpuq_flag = False
 
 class I1K(Dataset):
 
@@ -156,13 +293,6 @@ class I1K(Dataset):
             else:
                 raise AttributeError("dist_flag set but mpi4py not installed")
         if self.macro_batched:
-            # self.file_name_queue = Queue.Queue()
-            # # macro batch queue
-            # self.macro_batch_queue = Queue.Queue()
-            # # mini batch queue
-            # self.mini_batch_queue = Queue.Queue()
-            # # gpu/backend queue
-            # self.gpu_queue = Queue.Queue()
             if self.start_train_batch != -1:
                 # number of batches to train for this yaml file (<= total available)
                 self.n_train_batches = self.end_train_batch - self.start_train_batch + 1
@@ -232,18 +362,15 @@ class I1K(Dataset):
                 self.crop_to_square = True
                 # todo: Number of threads to use for JPEG decompression and
                 # image resizing.
-                self.num_worker_threads = 8
                 # macro batch size
-                self.output_batch_size = 512 #3072
-                self.max_file_index = 512 #3072
+                self.output_batch_size = 3072
+                self.max_file_index = 3072
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
 
-                self.val_max_file_index = 512 #3072
+                self.val_max_file_index = 3072
                 val_label_sample = validation_labels[0:self.val_max_file_index]
 
-                # todo 2: implement macro batching [will require changing model
-                # code]
                 if self.macro_batched:
                     # Write training batches
                     self.num_train_macro_batches = self.write_batches(
@@ -366,40 +493,35 @@ class I1K(Dataset):
                 next_macro_batch_id = self.start_val_batch
         return next_macro_batch_id
 
-    def get_macro_batch(self, batch_type, macro_batch_index,
-                        raw_targets=False):
+    def get_macro_batch(self, macro_batch_index):
         batch_path = os.path.join(
             self.save_dir, 'macro_batches_' + str(self.output_image_size),
-            '%s_batch_%d' % (batch_type, macro_batch_index))
+            '%s_batch_%d' % (self.batch_type, macro_batch_index))
         j = 0
         num_iter = 1
         if self.macro_batch_queue.empty():
-            num_iter = 3
-            # if batch_type == 'training':
-            #                 if self.n_train_batches < 3:
-            #                     num_iter = self.n_train_batches
-            #                 else:
-            #                     num_iter = 3
-            #             elif batch_type == 'validation':
-            #                 if self.n_val_batches < 3:
-            #                     num_iter = self.n_val_batches
-            #                 else:
-            #                     num_iter = 3
-            #load 2 + 1 macro batches
+            # using same buffer size as ring buffer for macro batch (host mem)
+            num_iter = self.ring_buffer_size
             self.macro_batch_onque = macro_batch_index
         else:
-            self.macro_batch_onque = self.get_next_macro_batch_id(batch_type,
+            self.macro_batch_onque = self.get_next_macro_batch_id(self.batch_type,
                 self.macro_batch_onque)
                 
         for i in range(num_iter):
             if i > 0:
-                self.macro_batch_onque = self.get_next_macro_batch_id(batch_type,
+                self.macro_batch_onque = self.get_next_macro_batch_id(self.batch_type,
                     macro_batch_index)
             self.file_name_queue.put(os.path.join(batch_path, '%s_batch_%d.%d' % (
-                batch_type, self.macro_batch_onque, j / self.output_batch_size)))
+                self.batch_type, self.macro_batch_onque, j / self.output_batch_size)))
             t = LoadFile(self.file_name_queue, self.macro_batch_queue)
             t.setDaemon(True)
-            t.start()
+            global macroq_flag
+            if macroq_flag:
+                macroq.put(t)
+            else:
+                t.start()
+                macroq_flag = True
+                
 
     def get_next_mini_batch_id(self, batch_type, mini_batch_index):
         next_mini_batch_id = mini_batch_index + 1
@@ -411,46 +533,74 @@ class I1K(Dataset):
                 next_mini_batch_id = 0
         return next_mini_batch_id
 
-    def get_mini_batch(self, batch_size, batch_type, raw_targets=False):
+    def init_mini_batch_producer(self, batch_size, batch_type,
+                                 raw_targets=False, ring_buffer_size=2):
+        self.batch_size = batch_size
+        self.batch_type = batch_type
+        self.raw_targets = raw_targets
+        self.ring_buffer_size = ring_buffer_size
         if self.output_batch_size % batch_size != 0:
             raise ValueError('self.output_batch_size % batch_size != 0')
         else:
             self.num_minibatches_in_macro = self.output_batch_size / batch_size
+        if isinstance(self.backend, GPU):
+            if raw_targets:
+                self.ring_buffer = RingBuffer(max_size=ring_buffer_size,
+                                          batch_size=batch_size,
+                                          num_targets=1,
+                                          num_input_dims=(self.output_image_size ** 2) * 3)
+            else:
+                self.ring_buffer = RingBuffer(max_size=ring_buffer_size,
+                                          batch_size=batch_size,
+                                          num_targets=self.nclasses,
+                                          num_input_dims=(self.output_image_size ** 2) * 3)
+        self.file_name_queue = Queue.Queue()
+        self.macro_batch_queue = Queue.Queue()
+        self.mini_batch_queue = Queue.Queue()
+        self.gpu_queue = Queue.Queue()
+        global macroq, miniq, gpuq, macroq_flag, miniq_flag, gpuq_flag
+        macroq = Queue.Queue()
+        miniq = Queue.Queue()
+        gpuq = Queue.Queue()
+        macroq_flag=False
+        miniq_flag=False
+        gpuq_flag=False
 
+    def get_mini_batch(self):
         # keep track of most recent batch and return the next batch
-        if batch_type == 'training':
+        if self.batch_type == 'training':
             cur_mini_batch_id = self.cur_train_mini_batch
             if cur_mini_batch_id == 0:
                 # when cur_mini_batch is 0 enque a macro batch
                 logger.info("train processing macro batch: %d",
                             self.cur_train_macro_batch)
-                self.get_macro_batch(
-                    batch_type, self.cur_train_macro_batch, raw_targets)
+                self.get_macro_batch(self.cur_train_macro_batch)
                 self.cur_train_macro_batch = self.get_next_macro_batch_id(
                     'training', self.cur_train_macro_batch)
-        elif batch_type == 'validation':
+        elif self.batch_type == 'validation':
             cur_mini_batch_id = self.cur_val_mini_batch
             if cur_mini_batch_id == 0:
                 logger.info(
                     "val processing macro batch: %d", self.cur_val_macro_batch)
-                self.get_macro_batch(
-                    batch_type, self.cur_val_macro_batch, raw_targets)
+                self.get_macro_batch(self.cur_val_macro_batch)
                 self.cur_val_macro_batch = self.get_next_macro_batch_id(
                     'validation', self.cur_val_macro_batch)
         else:
             raise ValueError('Invalid batch_type in get_batch')
 
+        num_iter_mini = 1
+        num_iter_gpu = 1
         if cur_mini_batch_id == 0:
-            # todo: assuming at least 3 mini batches in macro
-            num_iter = 3
+            # assuming at least num_iter mini batches in macro
+            num_iter_mini = self.ring_buffer_size
+            num_iter_gpu = self.ring_buffer_size
             self.mini_batch_onque = cur_mini_batch_id
             self.gpu_batch_onque = cur_mini_batch_id
         else:
-            self.mini_batch_onque = self.get_next_mini_batch_id(batch_type,
+            self.mini_batch_onque = self.get_next_mini_batch_id(self.batch_type,
                 self.mini_batch_onque)
-            self.gpu_batch_onque = self.get_next_mini_batch_id(batch_type,
+            self.gpu_batch_onque = self.get_next_mini_batch_id(self.batch_type,
                 self.gpu_batch_onque)
-            num_iter = 1
         
         # deque next macro batch
         if self.mini_batch_onque == 0:
@@ -463,7 +613,7 @@ class I1K(Dataset):
             # todo: this part could also be threaded for speedup
             # during run time extract labels
             labels = self.jpeg_strings['labels']
-            if not raw_targets:
+            if not self.raw_targets:
                 self.targets_macro = np.zeros(
                     (self.nclasses, self.output_batch_size), dtype='float32')
                 for col in range(self.nclasses):
@@ -471,45 +621,53 @@ class I1K(Dataset):
             else:
                 self.targets_macro = np.asarray(labels).reshape((1, -1))
         
-        for i in range(num_iter):
+        for i in range(num_iter_mini):
             if i > 0:
-                self.mini_batch_onque = self.get_next_mini_batch_id(batch_type,
+                self.mini_batch_onque = self.get_next_mini_batch_id(self.batch_type,
                     self.mini_batch_onque)
             di = DecompressImages(self.mini_batch_onque, self.mini_batch_queue,
-                                  batch_size, self.output_image_size,
-                                  self.jpeg_strings, self.targets_macro, self.backend)
+                                  self.batch_size, self.output_image_size,
+                                  self.jpeg_strings, self.targets_macro,
+                                  self.backend, self.num_processes)
             di.setDaemon(True)
-            di.start()
+            global miniq_flag
+            if miniq_flag:
+                miniq.put(di)
+            else:
+                di.start()
+                miniq_flag=True
 
-        # serialize
         # todo:
         # test file reading speeds 3M, 30M, 90M, 300M
-        # multithreaded reads
         # multiple MPI processes reading diff files from same disk
 
         # TODO: resize 256x256 image to 224x224 here
 
         # todo: run this with page locked memory
         # thread host -> gpu transfers onto a queue
-        # for i in range(num_iter):
-        #             if i > 0:
-        #                 self.gpu_batch_onque = self.get_next_mini_batch_id(batch_type,
-        #                     self.gpu_batch_onque)
-        #             gt = GPUTransfer(self.gpu_batch_onque,
-        #                     self.mini_batch_queue, self.gpu_queue, self.backend)
-        #             gt.setDaemon(True)
-        #             gt.start()
+        for i in range(num_iter_gpu):
+            if i > 0:
+                self.gpu_batch_onque = self.get_next_mini_batch_id(self.batch_type,
+                    self.gpu_batch_onque)
+            gt = GPUTransfer(self.gpu_batch_onque,
+                    self.mini_batch_queue, self.gpu_queue, self.backend, self.ring_buffer)
+            gt.setDaemon(True)
+            global gpuq_flag
+            if gpuq_flag:
+                gpuq.put(gt)
+            else:
+                gt.start()
+                gpuq_flag=True
 
-        if batch_type == 'training':
-            self.cur_train_mini_batch = self.get_next_mini_batch_id(batch_type, cur_mini_batch_id)
-        elif batch_type == 'validation':
-            self.cur_val_mini_batch = self.get_next_mini_batch_id(batch_type, cur_mini_batch_id)
+        if self.batch_type == 'training':
+            self.cur_train_mini_batch = self.get_next_mini_batch_id(self.batch_type, cur_mini_batch_id)
+        elif self.batch_type == 'validation':
+            self.cur_val_mini_batch = self.get_next_mini_batch_id(self.batch_type, cur_mini_batch_id)
 
-        # inputs_backend, targets_backend = self.gpu_queue.get(block=True)
-        # self.gpu_queue.task_done()
-            
-        inputs_backend, targets_backend = self.mini_batch_queue.get(block=True)
-        self.mini_batch_queue.task_done()
+        inputs_backend, targets_backend = self.gpu_queue.get(block=True)
+        self.gpu_queue.task_done()
+#        logger.info('pop ring buffer %d %d %d %d %d', cur_mini_batch_id, inputs_backend.shape[0], inputs_backend.shape[1], targets_backend.shape[0], targets_backend.shape[1])
+        
         return inputs_backend, targets_backend
 
     # code below from Alex Krizhevsky's cuda-convnet2 library, make-data.py
@@ -543,6 +701,11 @@ class I1K(Dataset):
         tf = self.open_tar(ilsvrc_devkit_tar, 'devkit tar')
         fmeta = tf.extractfile(
             tf.getmember('ILSVRC2012_devkit_t12/data/meta.mat'))
+        import scipy.io
+        # manually reset number of cores to use if using multiprocessing
+        pool_size = mp.cpu_count()
+        os.system('taskset -cp 0-%d %s' % (pool_size, os.getpid()))
+
         meta_mat = scipy.io.loadmat(StringIO(fmeta.read()))
         labels_dic = dict((m[0][1][0], m[0][0][0][
                           0] - 1) for m in meta_mat['synsets']

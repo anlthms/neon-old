@@ -26,6 +26,11 @@ def cross_entropy(backend, outputs, targets, temp):
         array_like: Calculated cross entropy values for each element.  Will
                     have the same shape and type as outputs.
     """
+    # backend.log(outputs, out=temp[1])
+    # backend.multiply(targets, temp[1], out=temp[1])
+    # backend.multiply(temp[1], backend.wrap(-1.0), out=temp[0])
+    # return backend.sum(temp[0])
+
     # Compute (t-1)*log(1-y).
     backend.add(targets, backend.wrap(-1.0), out=temp[0])
     backend.subtract(backend.wrap(1.0), outputs, out=temp[1])

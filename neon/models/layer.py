@@ -9,6 +9,7 @@ backend.
 import logging
 import numpy as np
 from neon.backends.cpu import CPU
+from neon.backends.gpu import GPU
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.compat import MPI_INSTALLED
 from neon.util.distarray import gdist_consts as gc
@@ -784,40 +785,48 @@ class LocalLayer(YAMLable):
             self.ofmlocs[dst, :] = backend.wrap(ofmstarts + dst)
 
         # Figure out the connections with the previous layer.
-        if pooling is True:
-            self.links = backend.empty(
-                (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
-            self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
-            if pos > 0:
-                self.berrorbuf = backend.empty((self.ifmsize,
-                                                batch_size * nifm))
-        else:
-            self.links = backend.empty(
-                (self.ofmsize, self.fsize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in xrange(self.ofmsize):
-            # Collect the column indices for the
-            # entire receptive field.
-            colinds = []
-            for row in xrange(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            fminds = colinds[:]
-            if pooling is False:
-                for ifm in xrange(1, nifm):
-                    colinds += [x + ifm * self.ifmsize for x in fminds]
+        if isinstance(backend, GPU):
+          self.rlinks = []
+          if pooling is True:
+            self.links = []
+            self.outputbuf = []
+            if pos>0:
+              self.berrorbuf = []
+          else:
+            self.links = []
+        else:  
+          if pooling is True:
+              self.links = backend.empty(
+                  (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+              self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
+          else:
+              self.links = backend.empty(
+                  (self.ofmsize, self.fsize), dtype='i32')
 
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter to the right by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the filter down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst, :] = backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
+          # This variable tracks the top left corner of the receptive field.
+          src = 0
+          for dst in xrange(self.ofmsize):
+              # Collect the column indices for the
+              # entire receptive field.
+              colinds = []
+              for row in xrange(self.fheight):
+                  start = src + row * self.ifmwidth
+                  colinds += range(start, start + self.fwidth)
+              fminds = colinds[:]
+              if pooling is False:
+                  for ifm in xrange(1, nifm):
+                      colinds += [x + ifm * self.ifmsize for x in fminds]
+
+              if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
+                  # Slide the filter to the right by the stride value.
+                  src += stride
+              else:
+                  # We hit the right edge of the input image.
+                  # Shift the filter down by one stride.
+                  src += stride * self.ifmwidth - src % self.ifmwidth
+                  assert src % self.ifmwidth == 0
+              self.links[dst, :] = backend.array(colinds, dtype='i32')
+          self.rlinks = self.links.raw()
 
     def normalize_weights(self, weights):
         norms = self.backend.norm(weights, order=2, axis=1)
@@ -959,9 +968,15 @@ class ConvLayer(LocalLayer):
                                            weight_init)
         self.output = backend.empty((self.nout, batch_size))
         self.updates = backend.empty(self.weights.shape)
-        self.prodbuf = backend.empty((nofm, batch_size))
-        self.bpropbuf = backend.empty((self.fsize, batch_size))
-        self.updatebuf = backend.empty(self.weights.shape)
+        if isinstance(backend, GPU):
+          self.prodbuf = []
+          self.bpropbuf = []
+          self.updatebuf = []
+        else:
+          self.prodbuf = backend.empty((nofm, batch_size))
+          self.bpropbuf = backend.empty((self.fsize, batch_size))
+          self.updatebuf = backend.empty(self.weights.shape)
+
         self.learning_rule.allocate_state(self.updates)
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))

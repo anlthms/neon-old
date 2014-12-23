@@ -19,6 +19,8 @@
       macro_batched: True,
       output_image_size: &ois 224,
       max_tar_file: 4,
+      #number of cpu processes for image resizing and decompression
+      num_processes: 4,
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
       start_train_batch: 0,
@@ -33,8 +35,10 @@
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 1,
-    batch_size: &bs 128,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    batch_size: &bs 256,
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      use_binary: True,
+      },
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: conv1,

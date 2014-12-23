@@ -37,7 +37,7 @@ class GPUTensor(Tensor):
     """
     _tensor = None
 
-    def __init__(self, obj, dtype=None):
+    def __init__(self, obj, dtype=None, copy_to_device=True):
         if type(obj) == cudanet.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape
@@ -59,7 +59,7 @@ class GPUTensor(Tensor):
                     logger.debug('Dtype %s is unsupported in GPU '
                                  'backend, defaulting float32', dtype)
                     obj = numpy.array(obj, dtype=numpy.float32)
-                self._tensor = cudanet.CUDAMatrix(obj)
+                self._tensor = cudanet.CUDAMatrix(obj, copy_to_device)
                 self.shape = self._tensor.shape
             else:
                 self._tensor = obj
@@ -431,6 +431,13 @@ class GPUTensor(Tensor):
             cudanet.pow(self._tensor, other)
         return self
 
+    def set_host_mat(self, newarray):
+        """
+        Changes the host pointer for this tensor to point to a new numpy array
+        and its associated data. newarray must be a numpy array
+        """
+        self._tensor.set_host_mat(newarray)
+
     def copy(self):
         return GPUTensor(self._tensor.copy())
 
@@ -641,6 +648,12 @@ class GPU(Backend):
 
     def wrap(self, obj):
         return GPUTensor(obj)
+
+    # def clip(self, a, a_min, a_max, out=None):
+    #    if out is None:
+    #        out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
+    #    cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
+    #    return out
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:

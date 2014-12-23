@@ -71,29 +71,27 @@ class MLP(Model):
                     (ds.end_train_batch - ds.start_train_batch + 1)
             ds.cur_train_macro_batch = ds.start_train_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-            ds.file_name_queue = Queue.Queue()
-            ds.macro_batch_queue = Queue.Queue()
-            # mini batch queue
-            ds.mini_batch_queue = Queue.Queue()
-            # gpu/backend queue
-            ds.gpu_queue = Queue.Queue()
             
         assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
+        ds.init_mini_batch_producer(batch_size=self.batch_size, batch_type='training')
         for epoch in xrange(self.num_epochs):
             error = 0.0
             for batch in xrange(num_batches):  # inputs.nbatches
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
                     logger.info('get mb %d', batch)
-                    inputs, targets = ds.get_mini_batch(
-                        self.batch_size, 'training')
+                    inputs, targets = ds.get_mini_batch()
                     logger.info('done get mb %d', batch)
                     self.fprop(inputs)
+                    logger.info('finished fprop')
                     self.bprop(targets, inputs, epoch)
+                    logger.info('finished bprop')
+                    # todo: this is time consuming, is shortcut fixing this issue?
                     error += self.cost.apply_function(
                         self.backend, self.layers[-1].output,
                         targets, self.temp)
+                    logger.info('finished error calc')
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
@@ -103,7 +101,6 @@ class MLP(Model):
                         self.backend, self.layers[-1].output,
                         targets_batch,
                         self.temp)
-
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
@@ -205,11 +202,11 @@ class MLP(Model):
     def predict_and_error(self, dataset):
 
         for batch_type in ['training', 'validation']:
-            # todo: temporary; change batch_type from here instead
-            dataset.file_name_queue = Queue.Queue()
-            dataset.macro_batch_queue = Queue.Queue()
-            dataset.mini_batch_queue = Queue.Queue()
-            dataset.gpu_queue = Queue.Queue()
+            dataset.init_mini_batch_producer(batch_size=self.batch_size, batch_type=batch_type, raw_targets=True)
+            # dataset.file_name_queue = Queue.Queue()
+            # dataset.macro_batch_queue = Queue.Queue()
+            # dataset.mini_batch_queue = Queue.Queue()
+            # dataset.gpu_queue = Queue.Queue()
             if batch_type == 'training':
                 nrecs = dataset.output_batch_size * \
                     (dataset.end_train_batch - dataset.start_train_batch + 1)
@@ -223,8 +220,7 @@ class MLP(Model):
             preds = dataset.backend.empty((1, self.batch_size))
             err = 0.
             for batch in xrange(num_batches):
-                inputs, targets = dataset.get_mini_batch(
-                    self.batch_size, batch_type, raw_targets=True)
+                inputs, targets = dataset.get_mini_batch()
                 self.fprop(inputs)
                 dataset.backend.argmax(self.layers[-1].output,
                                        axis=0,

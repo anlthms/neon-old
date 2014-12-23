@@ -64,19 +64,21 @@ class FitExperiment(Experiment):
                 if os.path.exists(ds.serialized_path):
                     set_batches = False
                     if hasattr(self.datasets[ds_idx], 'start_train_batch'):
-                        [tmp1, tmp2, tmp3, tmp4] = [
+                        [tmp1, tmp2, tmp3, tmp4, tmp5] = [
                             self.datasets[ds_idx].start_train_batch,
                             self.datasets[ds_idx].end_train_batch,
                             self.datasets[ds_idx].start_val_batch,
-                            self.datasets[ds_idx].end_val_batch]
+                            self.datasets[ds_idx].end_val_batch,
+                            self.datasets[ds_idx].num_processes]
                         set_batches = True
                     self.datasets[ds_idx] = deserialize(ds.serialized_path)
                     if set_batches:
                         [self.datasets[ds_idx].start_train_batch,
                          self.datasets[ds_idx].end_train_batch,
                          self.datasets[ds_idx].start_val_batch,
-                         self.datasets[ds_idx].end_val_batch] = [
-                            tmp1, tmp2, tmp3, tmp4]
+                         self.datasets[ds_idx].end_val_batch,
+                         self.datasets[ds_idx].num_processes] = [
+                            tmp1, tmp2, tmp3, tmp4, tmp5]
                 else:
                     ds.load()
                     serialize(ds, ds.serialized_path)
