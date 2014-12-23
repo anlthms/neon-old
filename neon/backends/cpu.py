@@ -10,7 +10,6 @@ import logging
 import math
 import numpy as np
 from neon.util.compat import MPI_INSTALLED, range
-from autodiff import function, gradient
 
 from neon.backends.backend import Backend, Tensor
 
