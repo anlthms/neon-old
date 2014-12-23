@@ -43,19 +43,21 @@ def main():
     logging.basicConfig(level=30)
     # read in yaml configuration and initialize objects
     args = parse_args()
+    load_path = args.yaml_file.name
     # parse the hyper-yaml and choose a set of parameters
+    list_path = 'hyper_experiment.txt'
+    with open(list_path, 'w') as h:
+        h.write("Logging hyperoptimization experiment for " + load_path)
     for i in range(3):
         print "testing i", i
-        load_path = args.yaml_file.name
         save_path = 'tempyaml' + str(i) + '.yaml'
-        list_path = 'hyper_experiment.txt'
         with open(load_path, 'r') as f:
             with open(save_path, 'w') as g:
-                with (open(list_path, 'w') as h:
+                with open(list_path, 'a') as h:
                     for line in f:
                         if 'hyperopt' in line:
                             line = parse_line(line)
-                            h.write(str(i)+line)
+                            h.write(str(i) + ": " + line)
                         g.write(line)
 
         # run the yaml that was created
