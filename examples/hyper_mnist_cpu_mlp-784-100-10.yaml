@@ -21,17 +21,11 @@
     },
   ],
 
-  # # talked to scott and we may not want this block
-  # hyperopt: [
-  #   chooser: "shotgun", # shotgun or spearmint optimizer
-  # ],
-
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 30,
+    num_epochs: 10,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -41,11 +35,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h0lr,
           lr_params: {
-            learning_rate: !range:float {
-              chooser: &ch shotgun,
-              start: 0.1,
-              end: 1,
-            }, # range for HYPEROPT.
+            learning_rate: !hyperopt:shotgun {float, 0.05, 0.2}, # range for HYPEROPT.
             backend: *be,
             momentum_params: &mm {
               type: constant, #constant, nesterov, linear_monotone
@@ -53,16 +43,17 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -70,16 +61,12 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
-            learning_rate: !range:float {
-              chooser: *ch,
-              start: 0.1,
-              end: 1,
-            }, # range for HYPEROPT.
+            learning_rate: !hyperopt:shotgun {float, 0.05, 0.2}, # range for HYPEROPT.
             backend: *be,
             momentum_params: *mm,
           },
         },
-        nin: 101, # previous nout + 1 for the bias
+        nin: 100,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
@@ -89,6 +76,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

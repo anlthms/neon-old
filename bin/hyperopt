@@ -19,9 +19,8 @@ import sys
 import neon
 from neon.util.meta_persist import deserialize_and_cast, serialize
 from neon.util.persist import deserialize
-#from neon.experiments.hyperopt import HyperOpt
 from ipdb import set_trace as trace
-
+from neon.experiments.hyperopt import parse_line
 
 def parse_args():
     """
@@ -33,37 +32,49 @@ def parse_args():
     return(parser.parse_args())
 
 
+
+
+
+
 def main():
     """
     Point of code entry.
     """
+    logging.basicConfig(level=30)
     # read in yaml configuration and initialize objects
     args = parse_args()
     # parse the hyper-yaml and choose a set of parameters
-    experi = deserialize_and_cast(args.yaml_file) # returns a dict
-    # experi = deserialize(args.yaml_file) # returns a class
-    # create a yaml to run on
-    i = 0
-    save_path = 'tempyaml' + str(i) + '.yaml'
-    serialize(experi, save_path)
+    for i in range(3):
+        print "testing i", i
+        load_path = args.yaml_file.name
+        save_path = 'tempyaml' + str(i) + '.yaml'
+        with open(load_path, 'r') as f:
+            with open(save_path, 'w') as g:
+                for line in f:
+                    if 'hyperopt' in line:
+                        line = parse_line(line)
+                    g.write(line)
 
-    # I have lost all patience and resort to the following hack to create a
-    # properly formated yaml file:
-    # use a hack to fix up the file:
-    with open(save_path, 'r') as f:
-        text = f.read()
-        text = text.replace('\'@@', '')
-        text = text.replace('@@\'', '')
-    with open(save_path, 'w') as f:
-        f.write(text)
+        # run the yaml that was created
+        experiment = deserialize(save_path)
+        if hasattr(experiment, 'logging'):
+            logger = logging.getLogger()
+            handler = logger.handlers[0]
+            if "filename" in experiment.logging:
+                logging.info("replacing console logging with file logging: %s",
+                             experiment.logging["filename"])
+                logger.removeHandler(handler)
+                handler = logging.FileHandler(experiment.logging["filename"])
+                logger.addHandler(handler)
+            if "format" in experiment.logging:
+                formatter = logging.Formatter(experiment.logging["format"])
+                handler.setFormatter(formatter)
+            if "level" in experiment.logging:
+                logging.info("setting log level to: %d",
+                             experiment.logging["level"])
+                logger.setLevel(experiment.logging["level"])
 
-
-    trace()
-
-    # run the yaml that was created, but don't call neon, do it manually
-    # so it's easy to capture the result
-    experiment = deserialize(save_path)
-    result = experiment.run()
+        result = experiment.run()
 
     return experiment, result
 
