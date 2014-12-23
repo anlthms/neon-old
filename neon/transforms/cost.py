@@ -34,6 +34,8 @@ class Cost(object):
         self.outputbuf = None
         self.temp = None
         if not hasattr(self, 'olayer_data'):
+            print self.olayer.name
+            print self.olayer.__dict__.keys()
             self.set_outputbuf(getattr(self.olayer, 'output'))
         else:
             if not hasattr(self.olayer, self.olayer_data):

@@ -6,7 +6,7 @@ Logistic transform functions and classes.
 """
 
 from neon.transforms.activation import Activation
-
+from autodiff import function, gradient
 
 class Logistic(Activation):
 
