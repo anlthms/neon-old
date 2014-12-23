@@ -226,13 +226,14 @@ class LayerDist(Layer):
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
-            self.delta_._tensor = np.hstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            self.delta_._tensor = np.vstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=1))
+
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.berror,
                                       weights=self.weights,
                                       deltas=self.delta_)
-            self.backend.update_fc(out=self.updates, inputs=inputs,
+            self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                    deltas=self.delta_)
         else:
             if self.pos > 0:
