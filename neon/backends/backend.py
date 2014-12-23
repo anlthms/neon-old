@@ -293,8 +293,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): input to be transformed.
-            power (numeric): exponentiated value to be applied to element.
-                             Examples include 2 (square), 0.5 (sqaure root).
+            power (Tensor, numeric): exponentiated value to be applied to
+                                     element.  Examples include 2 (square),
+                                     0.5 (sqaure root).
             out (Tensor): where the result will be stored.
 
         Returns:

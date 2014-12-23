@@ -254,13 +254,32 @@ class CPU(Backend):
         transforming scalars like ints and floats.
 
         Arguments:
-            obj (int, float, GPUTensor): The object to convert.
+            obj (int, float, CPUTensor): The object to convert.
 
         Returns:
-            GPUTensor: Potentially converted object.
+            CPUTensor: Potentially converted object.
         """
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(obj, dtype)
+
+    def _unwrap(self, obj):
+        """
+        Helper that extracts and returns the raw data underlying obj (if it is
+        a CPUTensor), otherwise returns the existing structure.
+
+        Arguments:
+            obj (int, float, CPUTensor): The object to extract raw data from
+
+        Returns:
+            int, float, numpyarray: raw data from object.
+
+        See Also:
+            `wrap`
+        """
+        if isinstance(obj, self.tensor_cls):
+            return obj._tensor
+        else:
+            return obj
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
@@ -352,8 +371,7 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        # TODO: support for scalar operands
-        np.add(left._tensor, right._tensor, out._tensor)
+        return np.add(self._unwrap(left), self._unwrap(right), out._tensor)
 
     def subtract(self, left, right, out):
         """
@@ -369,8 +387,8 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        # TODO: support for scalar operands
-        np.subtract(left._tensor, right._tensor, out._tensor)
+        return np.subtract(self._unwrap(left), self._unwrap(right),
+                           out._tensor)
 
     def multiply(self, left, right, out):
         """
@@ -386,8 +404,8 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        # TODO: support for scalar operands
-        np.multiply(left._tensor, right._tensor, out._tensor)
+        return np.multiply(self._unwrap(left), self._unwrap(right),
+                           out._tensor)
 
     def divide(self, left, right, out):
         """
@@ -403,8 +421,25 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        # TODO: support for scalar operands
-        np.divide(left._tensor, right._tensor, out._tensor)
+        return np.divide(self._unwrap(left), self._unwrap(right), out._tensor)
+
+    def power(self, tsr, power, out):
+        """
+        Perform element-wise raise of tsr values to specified power,
+        storing the result in CPUTensor out.  Both CPUTensor's should have
+        identical shape.
+
+        Arguments:
+            tsr (CPUTensor): input to be transformed.
+            power (CPUTensor, numeric): exponentiated value to be applied to
+                                        elements.  Examples include 2 (square),
+                                        0.5 (sqaure root).
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.power(tsr._tensor, self._unwrap(power), out._tensor)
 
     def reciprocal(self, a, out):
         np.divide(1.0, a._tensor, out._tensor)
@@ -549,7 +584,7 @@ class CPU(Backend):
         a0 = a._tensor - a._tensor.mean(1, keepdims=True)
         b0 = b._tensor - b._tensor.mean(1, keepdims=True)
         np.dot(a0, b0.T, out._tensor)
-        self.divide(out, self.wrap(a.shape[1]), out=out)
+        self.divide(out, a.shape[1], out=out)
 
     def mean_norm(self, a, axis, out):
         if (axis == -1 or not axis):
@@ -564,9 +599,9 @@ class CPU(Backend):
         np.log(x._tensor, out=out._tensor)
 
     def logistic(self, x, out):
-        self.multiply(x, self.wrap(-1.0), out=out)
+        self.multiply(x, -1.0, out=out)
         self.exp(out, out=out)
-        self.add(out, self.wrap(1.0), out=out)
+        self.add(out, 1.0, out=out)
         self.reciprocal(out, out=out)
 
     def tanh(self, x, out):
@@ -668,9 +703,6 @@ class CPU(Backend):
     def cube(self, x, out):
         np.multiply(x._tensor, x._tensor, out._tensor)
         np.multiply(out._tensor, x._tensor, out._tensor)
-
-    def power(self, x, a, out):
-        np.power(x._tensor, a._tensor, out._tensor)
 
     # Not part of the API - can be moved to a utility class.
     def hstack_maps(self, obj, nfm):
@@ -934,7 +966,7 @@ class CPU(Backend):
         op = op.lower()
         self.fill(bpropbuf, 0.0)
         if op == "avg" or op == "mean":
-            deltas /= fshape[0] * fshape[1]
+            self.divide(deltas, fshape[0] * fshape[1], deltas)
         rdeltas = self.hstack_maps(deltas, nifm)
         if op == "l2":
             rinputs = self.hstack_maps(inputs, nifm)
@@ -943,9 +975,11 @@ class CPU(Backend):
             if op == "max":
                 rflinks = links[dst]
                 inds = rflinks.take(ofmlocs[dst], axis=0)
-                bpropbuf[inds, range(bpropbuf.shape[1])] += rdeltas[dst]
+                bpropbuf_slice = bpropbuf[inds, range(bpropbuf.shape[1])]
+                self.add(bpropbuf_slice, rdeltas[dst], bpropbuf_slice)
             elif op == "avg" or op == "mean":
-                bpropbuf[links[dst]] += rdeltas[dst]
+                bpropbuf_slice = bpropbuf[links[dst]]
+                self.add(bpropbuf_slice, rdeltas[dst], bpropbuf_slice)
             elif op == "l2":
                 inds = links[dst]
                 rf = rinputs.take(inds, axis=0)
@@ -959,7 +993,8 @@ class CPU(Backend):
                                                             fshape[1],
                                                             axis=0),
                               rf, out=ofmlocs)
-                bpropbuf[inds] += ofmlocs
+                bpropbuf_slice = bpropbuf[inds]
+                self.add(bpropbuf_slice, ofmlocs, bpropbuf_slice)
             else:
                 raise AttributeError("unexpected pooling op type: %s", op)
         out[:] = self.vstack_maps(bpropbuf, nifm)
@@ -993,9 +1028,9 @@ class CPU(Backend):
         for i in range(nifm):
             x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nifm)]
             np.square(x).sum(axis=0, out=rout[i])
-        self.multiply(out, self.wrap(alpha), out=out)
-        self.add(out, self.wrap(1.0), out=out)
-        self.power(out, self.wrap(-beta), out=out)
+        self.multiply(out, alpha, out=out)
+        self.add(out, 1.0, out=out)
+        self.power(out, -beta, out=out)
         self.multiply(inputs, out, out=out)
 
     def bprop_cmrnorm(self, out, fouts, inputs, deltas, ifmshape, nifm, ksize,
@@ -1034,9 +1069,9 @@ class CPU(Backend):
         # We can do this because rfouts[rinputs == 0].sum() == 0
         itemp[itemp._tensor == 0] = 1.0
         self.divide(rfouts, itemp, out=itemp)
-        self.power(otemp, self.wrap(1.0 / beta), out=otemp)
+        self.power(otemp, 1.0 / beta, out=otemp)
         self.multiply(otemp, rfouts, out=otemp)
-        self.multiply(otemp, self.wrap(-2 * alpha * beta), out=otemp)
+        self.multiply(otemp, -2 * alpha * beta, out=otemp)
         self.fill(rout, 0.0)
         for i in range(nifm):
             for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nifm)):
@@ -1061,12 +1096,14 @@ class CPU(Backend):
                               number of height and width neurons).
         """
         fmsize = ifmshape[0] * ifmshape[1]
+        tmp = self.empty([fmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
             ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
             self.fill(ofm, 0.0)
             for ifmind in range(weights.shape[0]):
                 ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
-                ofm += ifm * weights[ifmind, ofmind]
+                self.multiply(ifm, weights[ifmind, ofmind], tmp)
+                self.add(ofm, tmp, ofm)
 
     def bprop_cmpool(self, out, weights, deltas, ifmshape):
         """
@@ -1110,23 +1147,23 @@ class CPU(Backend):
     def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
                    rho, epsilon):
         # Accumulate E[Grad^2]
-        self.multiply(gs_item, self.wrap(rho), out=gs_item)
+        self.multiply(gs_item, rho, out=gs_item)
         self.multiply(us_item, us_item, out=ss_item)
-        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.multiply(ss_item, 1.0 - rho, out=ss_item)
         self.add(gs_item, ss_item, out=gs_item)
 
         # Calculate Updates
-        self.add(gs_item, self.wrap(epsilon), out=ss_item)
-        self.add(ds_item, self.wrap(epsilon), out=ls_item)
+        self.add(gs_item, epsilon, out=ss_item)
+        self.add(ds_item, epsilon, out=ls_item)
         self.divide(ls_item, ss_item, out=ls_item)
         self.sqrt(ls_item, out=ls_item)
-        self.multiply(ls_item, self.wrap(-1.0), out=ls_item)
+        self.multiply(ls_item, -1.0, out=ls_item)
         self.multiply(ls_item, us_item, out=ls_item)
 
         # Accumulate E[Delt^2]
-        self.multiply(ds_item, self.wrap(rho), out=ds_item)
+        self.multiply(ds_item, rho, out=ds_item)
         self.multiply(ls_item, ls_item, out=ss_item)
-        self.multiply(ss_item, self.wrap(1.0 - rho), out=ss_item)
+        self.multiply(ss_item, 1.0 - rho, out=ss_item)
         self.add(ds_item, ss_item, out=ds_item)
 
         # Final update to the params
@@ -1245,9 +1282,7 @@ class CPUDataDist(CPU):
         # of the params
         out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
         # This division by comm.size corresponds to following line in mlp bprop
-        # self.backend.divide(error,
-        #                    self.backend.wrap(targets.shape[
-        #                                      targets.major_axis()]),
+        # self.backend.divide(error, targets.shape[targets.major_axis()],
         #                    out=error)
         out._tensor = MPI.COMM_WORLD.bcast(out.raw())
 

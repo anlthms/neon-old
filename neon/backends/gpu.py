@@ -485,6 +485,25 @@ class GPU(Backend):
         """
         return GPUTensor(obj)
 
+    def _unwrap(self, obj):
+        """
+        Helper that extracts and returns the raw data underlying obj (if it is
+        a GPUTensor), otherwise returns the existing structure.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to extract raw data from
+
+        Returns:
+            int, float, cudanet.CUDAMatrix: raw data from object.
+
+        See Also:
+            `wrap`
+        """
+        if isinstance(obj, self.tensor_cls):
+            return obj._tensor
+        else:
+            return obj
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
@@ -559,9 +578,11 @@ class GPU(Backend):
         if isinstance(left, self.tensor_cls):
             left._tensor.add(self._unwrap(right), out._tensor)
         elif isinstance(right, self.tensor_cls):
-            right._tensor.add(self._unwrap(left), out._tensor)
+            right._tensor.add(left, out._tensor)
         else:
-            left._tensor.add(right._tensor, out._tensor)
+            left = self.wrap(left)
+            left._tensor.add(right, out._tensor)
+        return out
 
     def subtract(self, left, right, out):
         """
@@ -577,11 +598,15 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        if type(left._tensor) != cudanet.CUDAMatrix:
-            right._tensor.subtract(left._tensor, out._tensor)
+        if isinstance(left, self.tensor_cls):
+            left._tensor.subtract(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.subtract(left, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
-            left._tensor.subtract(right._tensor, out._tensor)
+            left = self.wrap(left)
+            left._tensor.subtract(right, out._tensor)
+        return out
 
     def multiply(self, left, right, out):
         """
@@ -597,10 +622,14 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        if type(left._tensor) != cudanet.CUDAMatrix:
-            right._tensor.mult(left._tensor, out._tensor)
+        if isinstance(left, self.tensor_cls):
+            left._tensor.mult(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.mult(left, out._tensor)
         else:
-            left._tensor.mult(right._tensor, out._tensor)
+            left = self.wrap(left)
+            left._tensor.mult(right, out._tensor)
+        return out
 
     def divide(self, left, right, out):
         """
@@ -616,7 +645,31 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.divide(right._tensor, out._tensor)
+        if isinstance(left, self.tensor_cls):
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        return out
+
+    def power(self, tsr, power, out):
+        """
+        Perform element-wise raise of tsr values to specified power,
+        storing the result in GPUTensor out.  Both GPUTensor's should have
+        identical shape.
+
+        Arguments:
+            tsr (GPUTensor): input to be transformed.
+            power (GPUTensor, numeric): Exponentiated value to be applied to
+                                        elements.  Examples include 2 (square),
+                                        0.5 (sqaure root).
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        cudanet.pow(tsr._tensor, self._unwrap(power), out._tensor)
+        return out
 
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
@@ -759,7 +812,10 @@ class GPU(Backend):
             self.not_equal(tsr, tmp, tmp)
             res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
+            tmp = self.empty(tsr.shape)
+            self.power(self.fabs(tsr), order, tmp)
+            res = tmp.sum(axis, out)
+            self.power(res, (1.0 / order), res)
         if out is None:
             out = res
         else:
