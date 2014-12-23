@@ -33,3 +33,10 @@ try:
     MPI_INSTALLED = True
 except ImportError:
     logger.warning('mpi4py not found')
+
+# keep range calls consistent between python 2 and 3
+# note: if you need a list and not an iterator you can do list(range(x))
+range = range
+if not PY3:
+    logger.info("using xrange as range")
+    range = xrange

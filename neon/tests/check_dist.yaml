@@ -18,10 +18,9 @@
 
   model: !obj:neon.models.convnet_dist.ConvnetDist {
     backend: *be,
-    num_epochs: 1,
+    num_epochs: 2,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.ConvLayerDist {
         name: layer0,
@@ -63,7 +62,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      !obj:neon.models.layer.LayerDist {
         name: layer6,
         backend: *be,
         batch_size: *bs,
@@ -85,7 +84,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBiasDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -100,7 +99,9 @@
         },
         nin: 100,
         nout: 2,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: uniform,
           low: -0.1,
@@ -108,6 +109,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   logging: {

@@ -36,9 +36,6 @@
     backend: *be,
     num_epochs: 1,
     batch_size: &bs 256,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      use_binary: True,
-      },
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: conv1,
@@ -225,7 +222,7 @@
         fshape: [3, 3],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: fc4096a,
         backend: *be,
         batch_size: *bs,
@@ -255,7 +252,7 @@
         pos: 11,
         nin: 4096,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: fc4096b,
         backend: *be,
         batch_size: *bs,
@@ -285,7 +282,7 @@
         pos: 13,
         nin: 4096,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: fc1000,
         backend: *be,
         batch_size: *bs,
@@ -301,7 +298,9 @@
         nin: 4096,
         nout: 1000,
         # todo this needs to be softmax
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: uniform,
           low: -0.01,
@@ -309,6 +308,10 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+      use_binary: True,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

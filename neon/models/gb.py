@@ -12,6 +12,7 @@ import os
 from neon.models.layer import LocalFilteringLayer
 from neon.models.mlp import MLP
 from neon.util.persist import ensure_dirs_exist
+from neon.util.compat import range
 import time
 
 logger = logging.getLogger(__name__)
@@ -24,22 +25,23 @@ class GB(MLP):
     """
 
     def pretrain(self, ds, inputs):
+        num_batches = len(inputs)
         start_time = time.time()
         logger.debug('commencing unsupervised pretraining')
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
-            for epoch in xrange(self.num_pretrain_epochs):
+            for epoch in range(self.num_pretrain_epochs):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in xrange(inputs.nbatches):
-                    logger.debug('batch = %d' % (batch))
+                for batch in range(num_batches):
+                    logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
-                    for i in xrange(self.trainable_layers[ind]):
+                    for i in range(self.trainable_layers[ind]):
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
                     rcost, spcost = layer.pretrain(output,
@@ -49,17 +51,17 @@ class GB(MLP):
                     tspcost += spcost
                 tcost = trcost + tspcost
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
-                            ' %0.2f' % (self.trainable_layers[ind], epoch,
-                                        trcost / inputs.nbatches,
-                                        tspcost / inputs.nbatches,
-                                        tcost / inputs.nbatches))
+                            ' %0.2f', self.trainable_layers[ind], epoch,
+                            trcost / num_batches,
+                            tspcost / num_batches,
+                            tcost / num_batches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
         end_time = time.time()
-        logger.info('Time taken: %0.2f' % (end_time - start_time))
+        logger.info('Time taken: %0.2f', end_time - start_time)
 
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
@@ -70,29 +72,31 @@ class GB(MLP):
         """
         Learn model weights on the given datasets.
         """
+        num_batches = len(inputs)
         logger.info('commencing supervised training')
-        tempbuf = self.backend.empty((targets.nrows, self.batch_size))
+        tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in xrange(inputs.nbatches):
-                logger.debug('batch = %d' % (batch))
+            for batch in range(num_batches):
+                logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
                 if epoch < self.num_initial_epochs:
-                    self.bprop_last(targets_batch, inputs_batch, epoch)
+                    self.bprop_last(targets_batch, inputs_batch)
                 else:
-                    self.bprop_last(targets_batch, inputs_batch, epoch)
-                error += self.cost.apply_function(self.backend,
-                                                  self.layers[-1].output,
-                                                  targets_batch,
-                                                  self.temp)
-            logger.info('epoch: %d, training error: %0.5f' %
-                        (epoch, error / inputs.nbatches))
+                    self.bprop(targets_batch, inputs_batch)
+                error += self.cost.apply_function(targets_batch)
+                if epoch < self.num_initial_epochs:
+                    self.update_last(epoch)
+                else:
+                    self.update(epoch)
+            logger.info('epoch: %d, training error: %0.5f',
+                        epoch, error / num_batches)
         end_time = time.time()
-        logger.info('Time taken: %0.2f' % (end_time - start_time))
+        logger.info('Time taken: %0.2f', end_time - start_time)
 
     def check_node_predictions(self, inputs, targets, node, cls):
         """
@@ -105,7 +109,7 @@ class GB(MLP):
         labels[targets[:, cls] == 0] = 0
         labels[targets[:, cls] == 1] = 1
         auc = 0.0
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, self.nrecs)
             self.fprop(inputs[start_idx:end_idx])
@@ -124,16 +128,16 @@ class GB(MLP):
         num_batches = int(math.ceil((self.nrecs + 0.0) / self.batch_size))
         labels = self.backend.zeros((targets.shape[0]), dtype=int)
         sum = 0.0
-        for cls in xrange(targets.shape[1]):
+        for cls in range(targets.shape[1]):
             labels[targets[:, cls] == 0] = 0
             labels[targets[:, cls] == 1] = 1
             auc = self.backend.zeros((self.layers[-2].output.shape[1]))
-            for batch in xrange(num_batches):
+            for batch in range(num_batches):
                 start_idx = batch * self.batch_size
                 end_idx = min((batch + 1) * self.batch_size, self.nrecs)
                 self.fprop(inputs[start_idx:end_idx])
                 # Get the output of the last LCN layer.
-                for node in xrange(auc.shape[0]):
+                for node in range(auc.shape[0]):
                     pred = self.layers[-2].output[:, node]
                     auc[node] += metrics.roc_auc_score(
                         labels[start_idx:end_idx].raw(), pred.raw())
@@ -145,33 +149,33 @@ class GB(MLP):
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,
                                                   maxnode, cls)
-            logger.info(
-                'class: %d best node: %d train auc: %.4f test auc: %.4f' %
-                (cls, maxnode, maxauc, testauc))
+            logger.info('class: %d best node: %d train auc: %.4f '
+                        'test auc: %.4f', cls, maxnode, maxauc, testauc)
             sum += maxauc
-        logger.info('average max auc %.4f' % (sum / targets.shape[1]))
+        logger.info('average max auc %.4f', sum / targets.shape[1])
 
-    def bprop_last(self, targets, inputs, epoch):
+    def bprop_last(self, targets, inputs):
         # Backprop on just the last layer.
-        error = self.cost.apply_derivative(self.backend,
-                                           self.layers[-1].output, targets,
-                                           self.temp)
+        error = self.cost.apply_derivative(targets)
         self.backend.divide(error, self.backend.wrap(targets.shape[0]),
                             out=error)
-        self.layers[-1].bprop(error, self.layers[-2].output, epoch)
+        self.layers[-1].bprop(error, self.layers[-2].output)
+
+    def update_last(self, epoch):
+        self.layers[-1].update(epoch)
 
     def fit(self, datasets):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
-        self.nin, self.nrecs = inputs.shape
+        self.nrecs = len(inputs) * self.batch_size
+        self.nin = inputs[0].shape[0]
         self.nlayers = len(self.layers)
-        assert 'batch_size' in self.__dict__
         self.trainable_layers = []
-        for ind in xrange(self.nlayers):
+        for ind in range(self.nlayers):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayer):
                 self.trainable_layers.append(ind)
-            logger.info('created layer:\n\t%s' % str(layer))
+            logger.info('created layer:\n\t%s', str(layer))
 
         targets = ds.get_targets(train=True)['train']
         if self.pretraining:
@@ -226,7 +230,7 @@ class GB(MLP):
                 outmax[maxinds] = output[maxinds]
                 inputs[notinds, :] = saved[notinds, :]
                 count += maxinds.sum()
-            logger.info('loop %d inc %.4f count %d' % (loops, inc, count))
+            logger.info('loop %d inc %.4f count %d', loops, inc, count)
             for ind in range(self.batch_size):
                 if self.layers[0].nifm == 3:
                     img = inputs[ind].raw().reshape((3, ifmshape[0],

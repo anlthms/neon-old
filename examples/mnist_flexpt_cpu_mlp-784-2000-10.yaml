@@ -48,13 +48,14 @@
         batch_size: *bs,
         pos: 0,
         learning_rate: *lr,
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
         weight_dtype: *def_dtype,
         velocity_dtype: *def_dtype,
@@ -80,7 +81,7 @@
         batch_size: *bs,
         pos: 1,
         learning_rate: *lr,
-        nin: 2001, # previous nout + 1 for the bias
+        nin: 2000,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {

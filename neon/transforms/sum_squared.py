@@ -27,7 +27,7 @@ def sum_squared_diffs(backend, outputs, targets, temp):
     return 0.5 * backend.sum(temp[0])
 
 
-def sum_squared_diffs_derivative(backend, outputs, targets, temp):
+def sum_squared_diffs_derivative(backend, outputs, targets, temp, scale=1.0):
     """
     Applies derivative of the sum of squared differences to pairwise elements
     from outputs and targets (with respect to the outputs).
@@ -44,6 +44,7 @@ def sum_squared_diffs_derivative(backend, outputs, targets, temp):
     """
 
     backend.subtract(outputs, targets, temp[0])
+    backend.multiply(temp[0], backend.wrap(scale), out=temp[0])
     return temp[0]
 
 
@@ -51,19 +52,28 @@ class SumSquaredDiffs(Cost):
     """
     Embodiment of a sum of squared differences cost function.
     """
+    def __init__(self, **kwargs):
+        super(SumSquaredDiffs, self).__init__(**kwargs)
 
-    @staticmethod
-    def apply_function(backend, outputs, targets, temp):
+    def set_outputbuf(self, databuf):
+        if not self.outputbuf or self.outputbuf.shape != databuf.shape:
+            tempbuf = self.backend.empty(databuf.shape, self.temp_dtype)
+            self.temp = [tempbuf]
+        self.outputbuf = databuf
+
+    def apply_function(self, targets):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
-        return sum_squared_diffs(backend, outputs, targets, temp)
+        return sum_squared_diffs(self.backend, self.outputbuf,
+                                 targets, self.temp) * self.scale
 
-    @staticmethod
-    def apply_derivative(backend, outputs, targets, temp):
+    def apply_derivative(self, targets):
         """
         Apply the derivative of the sum of squared differences cost function
         to the datasets passed.
         """
-        return sum_squared_diffs_derivative(backend, outputs, targets, temp)
+        return sum_squared_diffs_derivative(self.backend,
+                                            self.outputbuf, targets,
+                                            self.temp, self.scale)

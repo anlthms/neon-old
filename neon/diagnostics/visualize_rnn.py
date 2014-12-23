@@ -8,6 +8,7 @@ Visualization for recurrent neural networks
 import matplotlib.pyplot as plt
 plt.interactive(1)
 import numpy as np
+from neon.util.compat import range
 
 
 class VisualizeRNN(object):
@@ -47,7 +48,14 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
-    def plot_activations(self, pre1, out1, pre2, out2, targets, batch_inx):
+    def plot_activations(self, pre1, out1, pre2, out2, targets):
+        """
+        Loop over tau unrolling steps, at each time step show the pre-acts
+        and outputs of the recurrent layer and output layer. Note that the
+        pre-acts are actually the g', so if the activation is linear it will
+        be one.
+        """
+
         plt.figure(3)
         plt.clf()
         for i in range(4):
@@ -68,7 +76,7 @@ class VisualizeRNN(object):
             if i == 0:
                 plt.title('out2')
             plt.subplot(4, 5, 5*i+5)
-            plt.imshow(targets[batch_inx[:, i]].raw(),
+            plt.imshow(targets[i*128:(i+1)*128, :].raw(),
                        vmin=-1, vmax=1, interpolation='nearest')
             if i == 0:
                 plt.title('target')
@@ -80,6 +88,6 @@ class VisualizeRNN(object):
         Moved this here so it's legal to use numpy.
         """
         print("Prediction inputs")
-        print(np.argmax(inputs, 1).raw().astype(np.int8).view('c'))
+        print(np.argmax(inputs, 0).raw().astype(np.int8).view('c'))
         print("Prediction outputs")
-        print(np.argmax(outputs, 1).raw().astype(np.int8).view('c'))
+        print(np.argmax(outputs, 0).raw().astype(np.int8).view('c'))

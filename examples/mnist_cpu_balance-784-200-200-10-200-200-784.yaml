@@ -1,0 +1,210 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a Balance Neural Net on full
+# MNIST.
+
+ !obj:neon.experiments.generate_output.GenOutputExperiment {
+  zparam: 0.0,
+  olayout: [12, 6],
+  fshape: [28, 28],
+  figure_filename: 'ofn.png',
+  backend: &be !obj:neon.backends.gpu.GPU {
+    rng_seed: 0,
+    seterr_handling: {
+      all: 'warn',
+    },
+  },
+
+  datasets: [
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 100,
+    },
+  ],
+
+  # simple Balance model specification
+  model: !obj:neon.models.balance.Balance {
+    serialized_path: './balance-simple.pkl',
+    backend: *be,
+    num_epochs: 10,
+    batch_size: &bs 100,
+    layers: [
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h0,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: &lrp {
+            epsilon: 0.000001,
+            rho: 0.95,
+            backend: *be,
+          },
+        },
+        nin: 784,
+        nout: 200,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: autoscale,
+          relu: 1,
+          bias_init: 0.0,
+        },
+      },
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h1,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h0],
+        pos: 1,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 200,
+        nout: 200,
+        # activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: autoscale,
+          bias_init: 0.0,
+        },
+      },
+      &classlayer !obj:neon.models.layer.LayerMultiPass {
+        name: classlayer,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h1],
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 200,
+        nout: 10,
+        activation: !obj:neon.transforms.softmax.Softmax {
+          shortcut_deriv: False,
+        },
+        weight_init: {
+          type: autoscale,
+          bias_init: 0.0,
+        },
+      },
+      &stylelayer !obj:neon.models.layer.LayerMultiPass {
+        name: stylelayer,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h1],
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 200,
+        nout: 2,
+        weight_init: {
+          type: autoscale,
+          bias_init: 0.0,
+        },
+      },
+      &blayer !obj:neon.models.layer.BranchLayer {
+        name: blayer,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h1],
+        pos: 2,
+        nin: 200,
+        sublayers: [
+          *classlayer,
+          *stylelayer,
+        ],
+      },
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h3,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [blayer],
+        pos: 3,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 12,
+        nout: 200,
+        # activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: autoscale,
+          bias_init: 0.0,
+        },
+      },
+      !obj:neon.models.layer.LayerMultiPass {
+        name: h4,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h3],
+        pos: 4,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 200,
+        nout: 200,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: autoscale,
+          relu: 1,
+          bias_init: 0.0,
+        },
+      },
+      &outlayer !obj:neon.models.layer.LayerMultiPass {
+        name: outlayer,
+        backend: *be,
+        batch_size: *bs,
+        prev_names: [h4],
+        pos: 5,
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: outputlr,
+          lr_params: *lrp,
+        },
+        nin: 200,
+        nout: 784,
+        weight_init: {
+          type: autoscale,
+          bias_init: 0.0,
+        },
+      },
+    ],
+    cost: [
+      !obj:neon.transforms.sum_squared.SumSquaredDiffs {
+        olayer: *outlayer,
+        scale: 1,
+      },
+      !obj:neon.transforms.cross_entropy.CrossEntropy {
+        olayer: *classlayer,
+        scale: 10,
+        shortcut_deriv: True,
+        use_binary: False,
+      },
+      !obj:neon.transforms.xcov.XCovariance {
+        olayer: *blayer,
+        blkidx: 10,
+        scale: 10,
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

@@ -38,7 +38,6 @@
       saturate_epoch: 5,
       saturated_coef: 0.90,
     },
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.LayerDist {
@@ -60,16 +59,17 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.LayerDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -82,9 +82,11 @@
             momentum_params: *mm,
           },
         },
-        nin: 2001, # previous nout + 1 for the bias
+        nin: 2000,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: node_normalized,
           scale: 4.0,
@@ -92,6 +94,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig

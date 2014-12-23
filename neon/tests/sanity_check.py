@@ -32,11 +32,11 @@ if __name__ == '__main__':
     args = parse_args()
     if args.cpu == 1:
         print('CPU check '),
-        sanity_check('check_cpu.yaml', 0.515625)
+        sanity_check('check_cpu.yaml', 0.453125)
         print('OK')
     if args.gpu == 1:
         print('GPU check '),
-        sanity_check('check_gpu.yaml', 0.5546875)
+        sanity_check('check_gpu.yaml', 0.4921875)
         print('OK')
     if args.dist == 1:
         print('DIST check '),

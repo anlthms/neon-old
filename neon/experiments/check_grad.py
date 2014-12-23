@@ -10,6 +10,7 @@ import numpy as np
 
 from neon.datasets.synthetic import UniformRandom
 from neon.experiments.experiment import Experiment
+from neon.util.compat import range
 
 
 logger = logging.getLogger(__name__)
@@ -28,19 +29,22 @@ class GradientChecker(Experiment):
         self.datasets = experiment.datasets
 
     def save_state(self):
-        for ind in xrange(len(self.trainable_layers)):
+        for ind in range(len(self.trainable_layers)):
             layer = self.model.layers[self.trainable_layers[ind]]
             self.weights[ind][:] = layer.weights
 
     def load_state(self):
-        for ind in xrange(len(self.trainable_layers)):
+        for ind in range(len(self.trainable_layers)):
             layer = self.model.layers[self.trainable_layers[ind]]
             layer.weights[:] = self.weights[ind]
 
     def check_layer(self, layer, inputs, targets):
         # Check up to this many weights.
         nmax = 30
-        updates = layer.updates.raw().ravel()
+        if type(layer.updates) == list:
+            updates = layer.updates[0].raw().ravel()
+        else:
+            updates = layer.updates.raw().ravel()
         weights = layer.weights.raw().ravel()
         grads = np.zeros(weights.shape)
         inds = np.random.choice(np.arange(weights.shape[0]),
@@ -50,15 +54,11 @@ class GradientChecker(Experiment):
             saved = weights[ind]
             weights[ind] += self.eps
             self.model.fprop(inputs)
-            cost1 = self.model.cost.apply_function(
-                self.model.backend, self.model.layers[-1].output,
-                targets, self.model.temp)
+            cost1 = self.model.cost.apply_function(targets)
 
             weights[ind] -= 2 * self.eps
             self.model.fprop(inputs)
-            cost2 = self.model.cost.apply_function(
-                self.model.backend, self.model.layers[-1].output,
-                targets, self.model.temp)
+            cost2 = self.model.cost.apply_function(targets)
 
             grads[ind] = ((cost1 - cost2) / self.model.layers[-1].batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))
@@ -67,11 +67,11 @@ class GradientChecker(Experiment):
         grads -= updates
         diff = np.linalg.norm(grads[inds]) / nmax
         if diff < 0.0002:
-            logger.info('diff %g. layer %s OK.' % (diff, layer.name))
+            logger.info('diff %g. layer %s OK.', diff, layer.name)
             return True
 
-        logger.error('diff %g. gradient check failed on layer %s.' %
-                     (diff, layer.name))
+        logger.error('diff %g. gradient check failed on layer %s.',
+                     diff, layer.name)
         return False
 
     def run(self):
@@ -85,7 +85,7 @@ class GradientChecker(Experiment):
         self.eps = 1e-4
         self.weights = []
         self.trainable_layers = []
-        for ind in xrange(len(self.model.layers)):
+        for ind in range(len(self.model.layers)):
             layer = self.model.layers[ind]
             if not (hasattr(layer, 'weights') and hasattr(layer, 'updates')):
                 continue
@@ -100,16 +100,18 @@ class GradientChecker(Experiment):
             self.datasets[0].set_batch_size(self.model.batch_size)
             self.datasets[0].backend = self.model.backend
             self.datasets[0].load()
-
-        inputs = self.datasets[0].get_inputs(train=True)['train']
-        targets = self.datasets[0].get_targets(train=True)['train']
+        ds = self.datasets[0]
+        inputs = ds.get_batch(ds.get_inputs(train=True)['train'], 0)
+        targets = ds.get_batch(ds.get_targets(train=True)['train'], 0)
 
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0)
+        self.model.bprop(targets, inputs)
+        self.model.update(0)
 
         self.save_state()
         self.model.fprop(inputs)
-        self.model.bprop(targets, inputs, 0)
+        self.model.bprop(targets, inputs)
+        self.model.update(0)
         self.load_state()
 
         for ind in self.trainable_layers[::-1]:

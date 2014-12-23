@@ -9,7 +9,7 @@ import logging
 import os
 
 from neon.experiments.experiment import Experiment
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)

@@ -27,10 +27,9 @@
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     serialized_path: './logreg.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
@@ -49,16 +48,20 @@
             },
           },
         },
-        nin: 785, # input layer + 1 for the bias
+        nin: 784,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: normal,
           loc: 0.0,
           scale: 0.01,
+          bias_init: 0.0,
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

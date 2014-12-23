@@ -19,7 +19,7 @@ from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.backends.gpu import GPU, GPUTensor
-from neon.util.compat import MPI_INSTALLED
+from neon.util.compat import MPI_INSTALLED, range
 import sys
 import threading
 import Queue
@@ -27,6 +27,7 @@ import multiprocessing as mp
 #from multiprocessing import sharedctypes
 import shmarray
 import ctypes as ct
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,9 @@ class LoadFile(threading.Thread):
         
     def run(self):
         fname = self.file_name_queue.get(block=True)
-        logger.info('%s: loading file', fname)
+        #logger.info('%s: loading file', fname)
         self.macro_batch_queue.put(my_unpickle(fname))
-        logger.info('%s: done loading file', fname)
+        #logger.info('%s: done loading file', fname)
         self.file_name_queue.task_done()
         if not macroq.empty():
             t = macroq.get()
@@ -152,7 +153,7 @@ class DecompressImages(threading.Thread):
         #logger.info('jpeg decode end mb %d %d', start_id, offset)
 
     def run(self):
-        logger.info('mini-batch decompress start %d', self.mb_id)
+        #logger.info('mini-batch decompress start %d', self.mb_id)
         # provide mini batch from macro batch
         start_idx = self.mb_id * self.batch_size
         end_idx = (self.mb_id + 1) * self.batch_size
@@ -170,7 +171,7 @@ class DecompressImages(threading.Thread):
         targets = self.targets_macro[:, start_idx:end_idx]
         [proc.join() for proc in procs]
         
-        logger.info('mini-batch decompress end %d', self.mb_id)
+        #logger.info('mini-batch decompress end %d', self.mb_id)
         
         self.mini_batch_queue.put([self.inputs, targets])
         if not miniq.empty():
@@ -198,20 +199,22 @@ class RingBuffer(object):
 
     def add_item(self, inputs, targets):
         self.prev_id = self.id
-        logger.info('start add_item')
+        #logger.info('start add_item')
         
         #using ring buffer
         self.inputs_backend[self.id].set_host_mat(inputs)
         self.targets_backend[self.id].set_host_mat(targets)
-        logger.info('done with set_host_mat')
+        #logger.info('done with set_host_mat')
+        print "done with set_host_mat", time.time()
         self.inputs_backend[self.id].copy_to_device()
-        logger.info('done with input copy_to_device')
+        #logger.info('done with input copy_to_device')
+        print "done with input copy_to_device", time.time()
         self.targets_backend[self.id].copy_to_device()
 
         #self.inputs_backend[self.id] = inputs
         #self.targets_backend[self.id] = targets
 
-        logger.info('end add_item')
+        #logger.info('end add_item')
         self.id += 1
         if self.id == self.max_size:
             self.id = 0
@@ -227,12 +230,12 @@ class GPUTransfer(threading.Thread):
         self.ring_buffer = ring_buffer
 
     def run(self):
-        logger.info('backend mini-batch transfer start %d', self.mb_id)
+        #logger.info('backend mini-batch transfer start %d', self.mb_id)
         # threaded conversion of jpeg strings to numpy array
-        if self.mini_batch_queue.empty():
-            logger.info("no item in mini batch queue for gpu transfer, waiting")
+        #if self.mini_batch_queue.empty():
+        #    logger.info("no item in mini batch queue for gpu transfer, waiting")
         inputs, targets = self.mini_batch_queue.get(block=True)
-        logger.info("popped mini_batch_queue")
+        #logger.info("popped mini_batch_queue")
         
         if isinstance(self.backend, GPU):
             #logger.info("using GPU backend")
@@ -244,7 +247,7 @@ class GPUTransfer(threading.Thread):
             inputs_backend = self.backend.array(inputs)
             targets_backend = self.backend.array(targets)
             self.gpu_queue.put([inputs_backend, targets_backend])
-        logger.info('backend mini-batch transfer done %d', self.mb_id)
+        #logger.info('backend mini-batch transfer done %d', self.mb_id)
         self.mini_batch_queue.task_done()
         
         if not gpuq.empty():
@@ -667,7 +670,7 @@ class I1K(Dataset):
         inputs_backend, targets_backend = self.gpu_queue.get(block=True)
         self.gpu_queue.task_done()
 #        logger.info('pop ring buffer %d %d %d %d %d', cur_mini_batch_id, inputs_backend.shape[0], inputs_backend.shape[1], targets_backend.shape[0], targets_backend.shape[1])
-        
+        print "returning from get_mini_batch: ", time.time()
         return inputs_backend, targets_backend
 
     # code below from Alex Krizhevsky's cuda-convnet2 library, make-data.py
@@ -729,7 +732,7 @@ class I1K(Dataset):
     def partition_list(self, l, partition_size):
         divup = lambda a, b: (a + b - 1) / b
         return [l[i * partition_size:(i + 1) * partition_size]
-                for i in xrange(divup(len(l), partition_size))]
+                for i in range(divup(len(l), partition_size))]
 
     def write_batches(self, target_dir, name, start_batch_num, labels,
                       jpeg_files):
@@ -746,7 +749,7 @@ class I1K(Dataset):
                 target_dir, '%s_batch_%d' % (name, start_batch_num + i))
             self.makedir(batch_path)
             # no subbatch support for now; do we really need them?
-            # for j in xrange(0, len(labels_batch),
+            # for j in range(0, len(labels_batch),
             # self.OUTPUT_SUB_BATCH_SIZE):
             j = 0
             my_pickle(os.path.join(batch_path, '%s_batch_%d.%d' %

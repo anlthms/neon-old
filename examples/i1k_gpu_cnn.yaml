@@ -34,7 +34,6 @@
     backend: *be,
     num_epochs: 1,
     batch_size: &bs 128,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
@@ -110,7 +109,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      !obj:neon.models.layer.Layer {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -132,7 +131,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.LayerWithNoBias {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -155,6 +154,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig
