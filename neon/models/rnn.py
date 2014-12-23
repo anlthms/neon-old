@@ -61,13 +61,13 @@ class RNN(Model):
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
                                    (batch+1)*128*self.unrolls+128)
-                #print "rnn.fit calling fprop"
+                # print "rnn.fit calling fprop"
                 self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
                            debug=(True if batch == -1 else False))
-                #print "rnn.fit calling bprop"
+                # print "rnn.fit calling bprop"
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
-                #print "rnn.fit calling update"
+                # print "rnn.fit calling update"
                 self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
@@ -83,11 +83,14 @@ class RNN(Model):
             errorlist.append(error)
             if self.make_plots is True:
                 viz.plot_weights(self.layers[0].weights.raw(),
-                                 self.layers[0].weights_rec.raw(),
+                                 # self.layers[0].weights_rec.raw(),
+                                 self.layers[0].Wih.raw(),
                                  self.layers[1].weights.raw())
                 viz.plot_error(suberrorlist, errorlist)
-                viz.plot_activations(self.layers[0].pre_act_list,
-                                     self.layers[0].output_list,
+                viz.plot_activations(  # self.layers[0].pre_act_list,
+                                       # self.layers[0].output_list,
+                                     self.layers[0].net_i,
+                                     self.layers[0].i_t,
                                      self.layers[1].pre_act_list,
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
@@ -96,7 +99,8 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def fprop(self, inputs, hidden_init=None, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init=None,
+              cell_init=None, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -106,17 +110,22 @@ class RNN(Model):
         if hidden_init is None:
             hidden_init = self.backend.zeros((self.layers[1].nin,
                                               self.batch_size))
+        if cell_init is None:
+            cell_init = self.backend.zeros((self.layers[1].nin,
+                                            self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
             logger.info("fprop input\n%s",
                         str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
         y = hidden_init
+        c = cell_init
         # fprop does a single full unroll
         for tau in range(0, unrolls):
-            self.layers[0].fprop(y, inputs[nin*tau:nin*(tau+1), :], tau)
+            self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
+                                 tau=tau, cell=c)
             y = self.layers[0].output_list[tau]
-            self.layers[1].fprop(y, tau)
+            self.layers[1].fprop(inputs=y, tau=tau)
 
     def bprop(self, targets, inputs, debug=False):
         """
@@ -125,7 +134,7 @@ class RNN(Model):
         code. Therefore there is a backend call to bprop_fc here. NOT COOL!
         Refactor:
         This bprop has an OUTER FOOR LOOP over t-BPTT unrollings
-            for a given unrolling depth (say full), we go output-hidden-hidden-input
+            for a given unrolling depth, we go output-hidden-hidden-input
             which breaks down as:
                   layers[1].bprop -- output layer
 
@@ -140,7 +149,8 @@ class RNN(Model):
 
         # clear updates
         self.backend.fill(self.layers[0].weight_updates, 0)
-        self.backend.fill(self.layers[0].updates_rec, 0)
+        if 'updates_rec' in self.layers[0].__dict__:
+            self.backend.fill(self.layers[0].updates_rec, 0)
         self.backend.fill(self.layers[1].weight_updates, 0)
 
         # this loop is a property of t-BPTT through different depth.
@@ -160,7 +170,7 @@ class RNN(Model):
             # recurrent layers[0]: loop over different unrolling sizes
             error = self.layers[1].berror
             for t in list(range(0, tau))[::-1]:
-                self.layers[0].bprop(error, inputs, tau,t)
+                self.layers[0].bprop(error, inputs, tau, t)
                 error = self.layers[0].berror
 
     def update(self, epoch):

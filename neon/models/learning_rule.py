@@ -110,6 +110,7 @@ class GradientDescentMomentum(GradientDescent):
             raise AttributeError("Missing required momentum parameters")
         self.velocity = []
         self.velocity_rec = None
+        self.velocity_LSTM = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
@@ -124,6 +125,16 @@ class GradientDescentMomentum(GradientDescent):
                     self.velocity_rec = self.backend.zeros(params.shape,
                                                            self.velocity_dtype)
 
+    def allocate_state_LSTM(self, params, parims):
+        """For recurrent layer, need an extra velocity. It's a list of 8"""
+        if (self.velocity_LSTM is None):
+            self.velocity_LSTM = [self.backend.zeros(params.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)] + \
+                                 [self.backend.zeros(parims.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)]
+
     def apply_rule_rec(self, params, updates, epoch):
         """ For recurrent layer, need an extra velocity """
         momentum_coef = self.get_momentum_coef(epoch)
@@ -137,6 +148,26 @@ class GradientDescentMomentum(GradientDescent):
                               updates,
                               out=self.velocity_rec)
         self.backend.add(params, self.velocity_rec, out=params)
+
+    def apply_rule_LSTM(self, params, updates, epoch):
+        """
+        For LSTM layer, need an extra velocity.
+        The only difference is that the named velocity is hard coded
+        [TODO] Just pass the name of the velocity to use! (e.g. in a dict)
+        """
+        momentum_coef = self.get_momentum_coef(epoch)
+        # iterate the tuple
+        for i in range(len(params)):
+            self.backend.multiply(self.velocity_LSTM[i],
+                                  self.backend.wrap(momentum_coef),
+                                  out=self.velocity_LSTM[i])
+            self.backend.multiply(updates[i],
+                                  self.backend.wrap(self.learning_rate),
+                                  out=updates[i])
+            self.backend.subtract(self.velocity_LSTM[i],
+                                  updates[i],
+                                  out=self.velocity_LSTM[i])
+            self.backend.add(params[i], self.velocity_LSTM[i], out=params[i])
 
     def apply_rule(self, params, updates, epoch):
         """
