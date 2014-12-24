@@ -31,6 +31,8 @@ class RNN(Model):
         self.nlayers = len(self.layers)
 
     def fit(self, datasets):
+        self.grad_checker(datasets)  # check gradients first
+        trace()
         """
         Learn model weights on the given datasets.
         """
@@ -98,6 +100,57 @@ class RNN(Model):
                         epoch, error)
             for layer in self.layers:
                 logger.debug("%s", layer)
+
+    def grad_checker(self, datasets):
+        """
+        Check gradients for LSTM layer
+        """
+        for layer in self.layers:
+            logger.info("%s", str(layer))
+        inputs = datasets[0].get_inputs(train=True)['train']
+        targets = inputs.copy()  # use targets = inputs for sequence prediction
+        nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
+        if 'batch_size' not in self.__dict__:
+            self.batch_size = nrecs
+        viz = VisualizeRNN()
+        num_batches = int(math.floor((nrecs + 0.0) / 128
+                                                   / self.unrolls)) - 1
+        batch = 0
+        batch_inx = xrange(batch*128*self.unrolls,
+                           (batch+1)*128*self.unrolls+128)
+        target_out = targets[batch_inx, :][(self.unrolls-0)*128:
+                                           (self.unrolls+1)*128, :]
+
+        eps = self.backend.wrap(1e-3)
+
+        # fprop with epsinulf
+        self.layers[0].Wix[63,110]+= eps
+        self.fprop(inputs[batch_inx, :], hidden_init=None,
+                   debug=(True if batch == -1 else False)) # fprop both layers
+        self.cost.set_outputbuf(self.layers[-1].output_list[-1]) # output layer
+        suberror_eps = self.cost.apply_function(target_out)
+        suberror_eps /= float(self.batch_size * self.layers[0].nin)
+        print "rnn done first"
+
+        # fprop reference
+        self.layers[0].Wix[63,110]-= eps # 64x128 (hot region in 97-122)
+        self.fprop(inputs[batch_inx, :], hidden_init=None,
+                   debug=(True if batch == -1 else False))
+        self.cost.set_outputbuf(self.layers[-1].output_list[-1])
+        suberror_ref = self.cost.apply_function(target_out)
+        suberror_ref /= float(self.batch_size * self.layers[0].nin)
+        print "rnn done with eps"
+
+        # bprop for comparison
+        self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
+                           debug=(True if batch == -1 else False))
+
+        # compare:
+        numerical = (suberror_eps - suberror_ref) / eps
+        print "suberror_eps", suberror_eps
+        print "suberror_ref", suberror_ref
+        print "numerical", numerical
+        trace()
 
     def fprop(self, inputs, hidden_init=None,
               cell_init=None, debug=False, unrolls=None):

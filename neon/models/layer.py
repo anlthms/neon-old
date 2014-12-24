@@ -403,11 +403,15 @@ class RecurrentLSTMLayer(Layer):
         b_i = b_f = b_o = b_c = 0  # [TODO] ignoring bias for now
 
         # input gate
+        print "wix", self.Wix[63,110]
         be.fprop_fc(self.temp_x[tau], inputs, self.Wix)
+        print "temp_x", self.temp_x[tau][63,25]
         be.fprop_fc(self.temp_h[tau], y, self.Wih)
         self.net_i[tau] = self.temp_x[tau] + self.temp_h[tau] + b_i
+        print "net_i", self.net_i[tau][63,25]
         sig.apply_both(be, self.net_i[tau], self.i_t[tau])
-
+        print "i_t", self.i_t[tau][63,25] # second time around, the becomes equal, why?
+        print "somehow this is not preserved through looping tau"
         # forget gate
         be.fprop_fc(self.temp_x[tau], inputs, self.Wfx)
         be.fprop_fc(self.temp_h[tau], y, self.Wfh)
@@ -427,8 +431,7 @@ class RecurrentLSTMLayer(Layer):
         phi.apply_both(be, self.net_g[tau], self.g_t[tau])
 
         # compute cell output
-        self.c_t[tau] = self.f_t[tau] * cell \
-                      + self.i_t[tau] * self.g_t[tau]
+        self.c_t[tau] = self.f_t[tau] * cell + self.i_t[tau] * self.g_t[tau]
         self.c_phip[tau] = self.c_t[tau].copy()
         phi.apply_both(be, self.c_phip[tau], self.c_phi[tau]) # c_t=g' c_phi=g
         self.output_list[tau] = self.o_t[tau] * self.c_phi[tau]  # this is h_t
