@@ -967,19 +967,27 @@ class CPU(Backend):
         self.fill(bpropbuf, 0.0)
         if op == "avg" or op == "mean":
             self.divide(deltas, fshape[0] * fshape[1], deltas)
-        rdeltas = self.hstack_maps(deltas, nifm)
-        if op == "l2":
+            bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
+        elif op == "max":
+            col_inds = list(range(bpropbuf.shape[1]))
+            bprop_slice = self.empty(bpropbuf.shape[1])
+        elif op == "l2":
             rinputs = self.hstack_maps(inputs, nifm)
             rfouts = self.hstack_maps(fouts, nifm)
+            bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
+        rdeltas = self.hstack_maps(deltas, nifm)
         for dst in range(ofmshape[0] * ofmshape[1]):
             if op == "max":
                 rflinks = links[dst]
                 inds = rflinks.take(ofmlocs[dst], axis=0)
-                bpropbuf_slice = bpropbuf[inds, range(bpropbuf.shape[1])]
-                self.add(bpropbuf_slice, rdeltas[dst], bpropbuf_slice)
+                # Because we are using advanced indexing into bpropbuf, a
+                # copy is unavoidable, hence the additional temp buffer and
+                # assignment back
+                self.add(bpropbuf[inds, col_inds], rdeltas[dst], bprop_slice)
+                bpropbuf[inds, col_inds] = bprop_slice[:]
             elif op == "avg" or op == "mean":
-                bpropbuf_slice = bpropbuf[links[dst]]
-                self.add(bpropbuf_slice, rdeltas[dst], bpropbuf_slice)
+                self.add(bpropbuf[links[dst]], rdeltas[dst], bprop_slice)
+                bpropbuf[links[dst]] = bprop_slice[:]
             elif op == "l2":
                 inds = links[dst]
                 rf = rinputs.take(inds, axis=0)
@@ -993,8 +1001,8 @@ class CPU(Backend):
                                                             fshape[1],
                                                             axis=0),
                               rf, out=ofmlocs)
-                bpropbuf_slice = bpropbuf[inds]
-                self.add(bpropbuf_slice, ofmlocs, bpropbuf_slice)
+                self.add(bpropbuf[inds], ofmlocs, bprop_slice)
+                bpropbuf[inds] = bprop_slice[:]
             else:
                 raise AttributeError("unexpected pooling op type: %s", op)
         out[:] = self.vstack_maps(bpropbuf, nifm)
