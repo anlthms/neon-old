@@ -25,7 +25,7 @@
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 128,
-    serialized_path: '/usr/local/data/NDSB/ndsb-deep-model.pkl',
+    # serialized_path: '/usr/local/data/NDSB/ndsb-deep-model.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,
@@ -246,7 +246,7 @@
         },
         nin: 1000,
         nout: 121,
-        activation: !obj:neon.transforms.logistic.Logistic {
+        activation: !obj:neon.transforms.softmax.Softmax {
             shortcut_deriv: True,
         },
         weight_init: {
@@ -258,6 +258,8 @@
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
       olayer: *lastlayer,
+      shortcut_deriv: True,
+      use_binary: False,
     },
   },
 

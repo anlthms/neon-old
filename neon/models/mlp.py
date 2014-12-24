@@ -165,15 +165,9 @@ class MLP(Model):
         for batch in range(num_batches):
             preds_batch = ds.get_batch(preds, batch)
             targets_batch = ds.get_batch(targets, batch)
+
             self.backend.clip(preds_batch, eps, 1.0 - eps, out=preds_batch)
-            sums = self.backend.sum(preds_batch, axis=0, out=sums)
-
-            # XXX: work around lack of broadcasting in gpu backend.
-            for row in range(preds_batch.shape[0]):
-                temp[row] = sums
-
-            self.backend.divide(preds_batch, temp, temp)
-            self.backend.log(temp, out=temp)
+            self.backend.log(preds_batch, out=temp)
             self.backend.multiply(targets_batch, temp, temp)
             result += self.backend.sum(temp)
         return -result / (self.batch_size * num_batches)
@@ -216,7 +210,7 @@ class MLP(Model):
                 self.result = self.misclass_rate(
                     ds, num_batches, preds[item], targets[item])
                 logloss = self.logloss(
-                    ds, num_batches, preds[item], targets[item], 0.001)
+                    ds, num_batches, preds[item], targets[item])
                 logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
                              item, 100 * self.result, logloss)
         # TODO: return values instead?
