@@ -175,13 +175,13 @@ class Backend(YAMLable):
 
     def add(self, left, right, out):
         """
-        Perform element-wise addition on the Tensor operands, storing the
-        resultant values in the out Tensor.  Each operand and out must have
-        identical shape or be broadcastable as such.
+        Perform element-wise addition on the operands, storing the resultant
+        values in the out Tensor.  Each operand and out must have identical
+        shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -194,13 +194,13 @@ class Backend(YAMLable):
 
     def subtract(self, left, right, out):
         """
-        Perform element-wise subtraction on the Tensor operands, storing the
-        resultant values in the out Tensor.  Each operand and out must have
-        identical shape or be broadcastable as such.
+        Perform element-wise subtraction on the operands, storing the resultant
+        values in the out Tensor.  Each operand and out must have identical
+        shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -213,13 +213,13 @@ class Backend(YAMLable):
 
     def multiply(self, left, right, out):
         """
-        Perform element-wise multiplication on the Tensor operands, storing the
+        Perform element-wise multiplication on the operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
         identical shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -232,13 +232,13 @@ class Backend(YAMLable):
 
     def divide(self, left, right, out):
         """
-        Perform element-wise division on the Tensor operands, storing the
+        Perform element-wise division on the operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
         identical shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -293,8 +293,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): input to be transformed.
-            power (numeric): exponentiated value to be applied to element.
-                             Examples include 2 (square), 0.5 (sqaure root).
+            power (Tensor, numeric): exponentiated value to be applied to
+                                     element.  Examples include 2 (square),
+                                     0.5 (sqaure root).
             out (Tensor): where the result will be stored.
 
         Returns:

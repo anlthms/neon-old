@@ -119,10 +119,10 @@ class GradientDescentMomentum(GradientDescent):
 
     def allocate_state_rec(self, params):
         """For recurrent layer, need an extra velocity """
-        if (self.velocity_rec is None) \
-                or (self.velocity_rec.shape != params.shape):
-                    self.velocity_rec = self.backend.zeros(params.shape,
-                                                           self.velocity_dtype)
+        if ((self.velocity_rec is None) or (self.velocity_rec.shape !=
+                                            params.shape)):
+            self.velocity_rec = self.backend.zeros(params.shape,
+                                                   self.velocity_dtype)
 
     def apply_rule_rec(self, params, updates, epoch):
         """ For recurrent layer, need an extra velocity """

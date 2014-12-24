@@ -4,16 +4,16 @@
 # ----------------------------------------------------------------------------
 # Run all examples in this directory consecutively and with timing information
 # appended.
-OUT_FILE="./all_example_results.txt"
-NEON_EXE="../bin/neon"
+THIS_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+OUT_FILE="${THIS_DIR}/all_example_results.txt"
+NEON_EXE="${THIS_DIR}/../bin/neon"
 
-make -C .. build  # ensure the build is up to date first
+make -C ${THIS_DIR}/.. build  # ensure the build is up to date first
 echo "" > "$OUT_FILE"
-for f in *.yaml
+for f in ${THIS_DIR}/*.yaml ${THIS_DIR}/distributed/*.yaml
 do
   echo "Running: $f" >> "$OUT_FILE"
-  (time PYTHONPATH=..:$PYTHONPATH $NEON_EXE "$f") >> "$OUT_FILE" 2>&1
+  (time PYTHONPATH="${THIS_DIR}/..:${PYTHONPATH}" $NEON_EXE "$f") \
+    >> "$OUT_FILE" 2>&1
   echo -e "\n\n\n" >> "$OUT_FILE"
 done
-
-
