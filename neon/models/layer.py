@@ -192,7 +192,7 @@ class LayerDist(Layer):
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.empty(
-            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
+            (MPI.COMM_WORLD.size * self.nout, self.batch_size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.empty((self.nin, self.batch_size))
@@ -226,13 +226,14 @@ class LayerDist(Layer):
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
-            self.delta_._tensor = np.hstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            self.delta_._tensor = np.vstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=0))
+
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.berror,
                                       weights=self.weights,
                                       deltas=self.delta_)
-            self.backend.update_fc(out=self.updates, inputs=inputs,
+            self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                    deltas=self.delta_)
         else:
             if self.pos > 0:

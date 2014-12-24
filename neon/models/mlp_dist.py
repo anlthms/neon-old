@@ -152,7 +152,7 @@ class MLPDist(MLP):
         # apply derivative on root node's FC layer output
         if self.comm.rank == 0:
             error = self.cost.apply_derivative(targets)
-            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
+            self.backend.divide(error, self.backend.wrap(self.batch_size),
                                 out=error)
         error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.
