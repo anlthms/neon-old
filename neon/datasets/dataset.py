@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 from neon.backends.cpu import CPU
-from neon.util.compat import PY3, CUDA_GPU, range
+from neon.util.compat import PY3, range
 
 if PY3:
     import urllib.request as urllib
@@ -18,10 +18,6 @@ else:
     import urllib
 
 logger = logging.getLogger(__name__)
-
-if CUDA_GPU:
-    logger.info("CUDA_GPU is set")
-    import neon.backends.gpu
 
 
 class Dataset(object):
@@ -175,19 +171,15 @@ class Dataset(object):
         Transpose each minibatch within the dataset.
         """
         bs = self.batch_size
-        nbatches = (data.shape[0] + bs - 1) / bs
-        nrows = data.shape[1]
-        batchwise = self.backend.zeros((nbatches * nrows, bs))
+        if data.shape[0] % bs != 0:
+            logger.warning('Incompatible batch size. Discarding %d samples...',
+                           data.shape[0] % bs)
+        nbatches = data.shape[0] / bs
+        batchdata = np.empty((data.shape[1], bs))
+        batchwise = []
         for batch in range(nbatches):
-            batchdata = data[batch * bs:(batch + 1) * bs].transpose()
-            if CUDA_GPU and type(self.backend) == neon.backends.gpu.GPU:
-                batchdata = batchdata.copy()
-            ncols = batchdata.shape[1]
-            assert ncols == bs
-            batchwise[batch * nrows:(batch + 1) * nrows, 0:ncols] = (
-                self.backend.array(batchdata))
-        batchwise.nbatches = nbatches
-        batchwise.nrows = nrows
+            batchdata[...] = data[batch * bs:(batch + 1) * bs].transpose()
+            batchwise.append(self.backend.wrap(batchdata))
         return batchwise
 
     def format(self):
@@ -207,4 +199,4 @@ class Dataset(object):
                 self.targets[key] = self.transpose_batches(item)
 
     def get_batch(self, data, batch):
-        return data[batch * data.nrows:(batch + 1) * data.nrows]
+        return data[batch]

@@ -15,6 +15,7 @@ Available Models
    neon.models.mlp.MLP
    neon.models.autoencoder.Autoencoder
    neon.models.gb.GB
+   neon.models.gb_dist.GBDist
    neon.models.rbm.RBM
    neon.models.dbn.DBN
 

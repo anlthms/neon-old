@@ -1,81 +1,75 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Distributed MLP on CIFAR-10
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST.  Parameters are optimized for performance.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  dist_flag: &df True,
-  backend: &be !obj:neon.backends.cpu.CPU { 
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
+    # set which numpy issues raise exceptions, warnings, etc.
+    # see: numpy.seterr()
+    seterr_handling: {
+      all: 'warn',
+    },
   },
 
   datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 'vecpar', # FC split
+    # MNIST data
+    !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 10,
-      # serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Cpu_{rank}.pkl',
+      sample_pct: 100,
     },
   ],
 
   # simple MLP model specification
-  model: !obj:neon.models.mlp_dist.MLPDist {
+  model: !obj:neon.models.mlp.MLP {
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
+    # serialized_path: './mlp-simple.pkl',
     layers: [
-      !obj:neon.models.layer.LayerDist {
+      !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
           name: h0lr,
           lr_params: {
-            learning_rate: &lr 0.01,
+            learning_rate: &lr 0.00001,
             backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
           },
         },
-        nin: 3072,
-        nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        nin: 784,
+        nout: 512,
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
-          low: -0.1,
-          high: 0.1,
+          scale: 0.1,
         },
       },
-      &lastlayer !obj:neon.models.layer.LayerDist {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
           name: outputlr,
           lr_params: {
             learning_rate: *lr,
             backend: *be,
-            momentum_params: *mm,
           },
         },
-        nin: 200,
+        nin: 512,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {
           shortcut_deriv: True,
         },
         weight_init: {
           type: uniform,
-          low: -0.1,
-          high: 0.1,
+          scale: 0.1,
         },
       },
     ],
