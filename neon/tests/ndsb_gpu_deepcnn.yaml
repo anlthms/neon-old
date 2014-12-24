@@ -246,7 +246,9 @@
         },
         nin: 1000,
         nout: 121,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+            shortcut_deriv: True,
+        },
         weight_init: {
           type: uniform,
           low: -0.1,
