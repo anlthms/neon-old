@@ -7,6 +7,7 @@ Logistic transform functions and classes.
 
 from neon.transforms.activation import Activation
 
+
 class Logistic(Activation):
 
     """
