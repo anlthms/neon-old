@@ -61,7 +61,8 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     """
 
     # Compute (t*log(y)).
-    backend.log(outputs, out=temp[1])
+    backend.clip(outputs, backend.epsilon, 1, out=temp[1])
+    backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], backend.wrap(-1.0), out=temp[0])
     return backend.sum(temp[0])

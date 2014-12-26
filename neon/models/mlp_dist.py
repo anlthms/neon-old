@@ -107,7 +107,6 @@ class MLPDist(MLP):
             inputs_batch = ds.get_batch(inputs[setname], batch)
             self.fprop(inputs_batch)
             if self.comm.rank == 0:
-                outputs = self.layers[-1].output
                 preds_batch = self.backend.empty((nout, self.batch_size))
                 preds_batch[:] = self.get_classifier_output()
                 preds.append(preds_batch)

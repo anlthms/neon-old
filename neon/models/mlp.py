@@ -74,13 +74,14 @@ class MLP(Model):
                     logger.info('done loading mb %d', batch)
                     self.fprop(inputs)
                     self.bprop(targets, inputs)
-                    error += self.get_error(targets, inputs)
+                    error += self.get_error(targets, inputs) / self.batch_size
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
                     self.fprop(inputs_batch)
                     self.bprop(targets_batch, inputs_batch)
-                    error += self.get_error(targets_batch, inputs_batch)
+                    error += self.get_error(
+                        targets_batch, inputs_batch) / self.batch_size
                 self.update(epoch)
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
@@ -97,7 +98,6 @@ class MLP(Model):
     def predict_set(self, ds, inputs):
         for layer in self.layers:
             layer.set_train_mode(False)
-
         num_batches = len(inputs)
         nout = self.layers[-1].nout
         preds = []
@@ -160,14 +160,13 @@ class MLP(Model):
 
     def logloss(self, ds, num_batches, preds, targets, eps=1e-15):
         temp = self.backend.empty(preds[0].shape)
-        sums = self.backend.empty((1, self.batch_size))
         result = 0.
         for batch in range(num_batches):
             preds_batch = ds.get_batch(preds, batch)
             targets_batch = ds.get_batch(targets, batch)
 
-            self.backend.clip(preds_batch, eps, 1.0 - eps, out=preds_batch)
-            self.backend.log(preds_batch, out=temp)
+            self.backend.clip(preds_batch, eps, 1.0-eps, out=temp)
+            self.backend.log(temp, out=temp)
             self.backend.multiply(targets_batch, temp, temp)
             result += self.backend.sum(temp)
         return -result / (self.batch_size * num_batches)

@@ -649,6 +649,8 @@ class DropOutLayer(YAMLable):
     def fprop(self, inputs):
         if (self.train_mode):
             self.backend.fill_uniform_thresh(self.keepmask, self.keep)
+            self.backend.multiply(self.keepmask, self.backend.wrap(self.keep),
+                                  out=self.keepmask)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
             self.backend.multiply(inputs, self.backend.wrap(self.keep),
@@ -662,7 +664,7 @@ class DropOutLayer(YAMLable):
         pass
 
     def set_train_mode(self, mode):
-        self.train_mode = False
+        self.train_mode = mode
 
 
 class DataLayer(YAMLable):

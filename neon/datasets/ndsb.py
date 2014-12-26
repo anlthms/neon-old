@@ -17,7 +17,7 @@ from skimage import io
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
-from neon.util.persist import deserialize
+# from neon.util.persist import deserialize
 
 
 logger = logging.getLogger(__name__)
