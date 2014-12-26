@@ -29,8 +29,8 @@ def cross_entropy(backend, outputs, targets, temp):
                     have the same shape and type as outputs.
     """
     # Compute (t-1)*log(1-y).
-    backend.add(targets, backend.wrap(-1.0), out=temp[0])
-    backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
+    backend.add(targets, -1.0, out=temp[0])
+    backend.subtract(1.0, outputs, out=temp[1])
     backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(temp[0], temp[1], out=temp[0])
@@ -64,7 +64,7 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.clip(outputs, backend.epsilon, 1, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
-    backend.multiply(temp[1], backend.wrap(-1.0), out=temp[0])
+    backend.multiply(temp[1], -1.0, out=temp[0])
     return backend.sum(temp[0])
 
 
@@ -88,7 +88,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
                     have the same shape and backend as outputs.
     """
     backend.subtract(outputs, targets, out=temp[0])
-    backend.subtract(backend.wrap(1.0), outputs, out=temp[1])
+    backend.subtract(1.0, outputs, out=temp[1])
     backend.multiply(temp[1], outputs, out=temp[1])
     backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
     backend.divide(temp[0], temp[1], out=temp[0])
@@ -111,7 +111,7 @@ def cross_entropy_multi_derivative(backend, outputs, targets, temp, scale=1.0):
                     have the same shape and backend as outputs.
     """
     backend.divide(targets, outputs, out=temp[0])
-    backend.multiply(temp[0], backend.wrap(-scale), out=temp[0])
+    backend.multiply(temp[0], -scale, out=temp[0])
     return temp[0]
 
 
@@ -123,7 +123,7 @@ def shortcut_derivative(backend, outputs, targets, temp, scale=1.0):
     Derivative has simpler form and removes numerical errors
     """
     backend.subtract(outputs, targets, out=temp[0])
-    backend.multiply(temp[0], backend.wrap(scale), out=temp[0])
+    backend.multiply(temp[0], scale, out=temp[0])
     return temp[0]
 
 
