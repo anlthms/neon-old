@@ -113,6 +113,7 @@ class GradientDescentMomentum(GradientDescent):
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
+        self.velocity = []
         for item in params:
             self.velocity.append(self.backend.zeros(item.shape,
                                                     self.velocity_dtype))

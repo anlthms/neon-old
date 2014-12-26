@@ -283,7 +283,7 @@ class CPU(Backend):
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
-            out = self._tensor_cls(np.empty_like(a._tensor))
+            out = self.tensor_cls(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
         return out
 
