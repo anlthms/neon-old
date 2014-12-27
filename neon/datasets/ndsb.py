@@ -123,6 +123,48 @@ class NDSB(Dataset):
                 imageind += 1
         return inputs, targets
 
+    def read_test_images(self, save_dir):
+        dirname = os.path.join(save_dir, 'test')
+        filetree = []
+        maxheight = 0
+        maxwidth = 0
+        sumheight = 0
+        sumwidth = 0
+        imagecount = 0
+        for walkresult in os.walk(dirname):
+            for filename in walkresult[2]:
+                img = np.float32(io.imread(os.path.join(dirname, filename),
+                                           as_grey=True))
+                # Invert the greyscale.
+                img = 255.0 - img
+                filetree.append(img)
+                if img.shape[0] > maxheight:
+                    maxheight = img.shape[0]
+                if img.shape[1] > maxwidth:
+                    maxwidth = img.shape[1]
+                sumheight += img.shape[0]
+                sumwidth += img.shape[1]
+                imagecount += 1
+
+        logger.info('Mean height %d mean width %d max height %d max width %d',
+                    sumheight / imagecount, sumwidth / imagecount,
+                    maxheight, maxwidth)
+        if maxheight > self.image_width or maxwidth > self.image_width:
+            # The image width specified in the configuration file is too small.
+            logger.warning('Clipping %dx%d images to %dx%d',
+                           maxheight, maxwidth,
+                           self.image_width, self.image_width)
+        maxheight = self.image_width
+        maxwidth = self.image_width
+        inputs = np.zeros((imagecount, maxheight * maxwidth), dtype=np.float32)
+        targets = np.zeros((imagecount, 1), dtype=np.float32)
+        imageind = 0
+        for image in filetree:
+            self.copy_to_center(
+                inputs[imageind].reshape(maxheight, maxwidth), image)
+            imageind += 1
+        return inputs, targets
+
     def load(self):
         if self.inputs['train'] is not None:
             return
@@ -149,4 +191,10 @@ class NDSB(Dataset):
         endindex -= endindex % 128
         self.inputs['validation'] = inputs[inds[traincount:endindex]]
         self.targets['validation'] = targets[inds[traincount:endindex]]
+
+        inputs, targets = self.read_test_images(save_dir)
+        inputs /= 255.
+        self.inputs['test'] = inputs
+        self.targets['test'] = targets
+
         self.format()
