@@ -243,3 +243,29 @@ class MLP(Model):
 
     def get_classifier_output(self):
         return self.layers[-1].output
+
+
+class MLPB(MLP):
+
+    """
+    Fully connected, feed-forward, multi-layer perceptron model
+    """
+
+    def __init__(self, **kwargs):
+        self.dist_mode = None
+        self.__dict__.update(kwargs)
+        for req_param in ['layers', 'batch_size']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
+        self.nlayers = len(self.layers)
+        self.result = 0
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size}
+        for ll in self.layers:
+            print "Finish init of layers\n"
+            ll.initialize(kwargs)
+
+        self.cost.initialize(kwargs)
+        assert self.layers[-1].nout <= 2 ** 15
+
+
