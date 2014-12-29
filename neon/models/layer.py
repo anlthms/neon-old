@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 def req_param(obj, paramlist):
     for param in paramlist:
         if not hasattr(obj, param):
-            raise ValueError("required parameter %s missing for %s", param,
-                              obj.name)
+            raise ValueError("required parameter %s missing for %s" % (param,
+                              obj.name))
+
 def opt_param(obj, paramlist, default_value):
     for param in paramlist:
         if not hasattr(obj, param):
@@ -34,15 +35,66 @@ class LayerB(YAMLable):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         req_param(self, ['name'])
-
         opt_param(self, ['activation', 'weight_dtype', 'updates_dtype',
             'pre_act_dtype', 'output_dtype', 'berror_dtype'], None)
-
         opt_param(self, ['prev_names'], [])
+        opt_param(self, ['prev_layer'], None)
+        opt_param(self, ['is_local'], False)
+        opt_param(self, ['is_data'], False)
+        opt_param(self, ['is_cost'], False)
+
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size', 'pos'])
+
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            if self.is_local:
+                self.ifmshape = pl.ofmshape
+                self.nifm = pl.nofm
+            else:
+                self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
+        else:
+            if self.is_local:
+                if not hasattr(self, 'ifmshape'):
+                    sqdim = np.int(np.sqrt(pl.nout))
+                    self.ifmshape = (sqdim, sqdim)
+                self.nifm = 1
+            else:
+                self.nin = pl.nout
+        self.prev_layer = pl
+
+    def initialize_local(self):
+        req_param(self, ['nifm', 'ifmshape', 'fshape', 'stride'])
+        opt_param(self, ['nofm'], self.nifm)
+        opt_param(self, ['pooling'], False)
+        opt_param(self, ['pad'], 0)
+        opt_param(self, ['berrorbuf', 'outputbuf'], None)
+        opt_param(self, ['ofmlocs', 'links', 'rlinks'], None)
+
+        stride = self.stride
+        batch_size = self.batch_size
+
+        self.pad = -self.pad
+        self.fheight, self.fwidth = self.fshape
+        self.ifmheight, self.ifmwidth = self.ifmshape
+        self.ofmheight = np.int(
+            np.ceil(
+                (self.ifmheight - self.fheight + 2. * self.pad) / stride)) + 1
+        self.ofmwidth = np.int(
+            np.ceil(
+                (self.ifmwidth - self.fwidth + 2. * self.pad) / stride)) + 1
+        self.ofmshape = (self.ofmheight, self.ofmwidth)
+        self.ifmsize = self.ifmheight * self.ifmwidth
+        self.ofmsize = self.ofmheight * self.ofmwidth
+        self.fsize = self.fheight * self.fwidth * self.nifm
+        self.fpsize = self.fheight * self.fwidth
+        self.nout = self.nofm * self.ofmsize
+        self.nin = self.nifm * self.ifmsize
+
+        if isinstance(self.backend, CPU):
+            self.make_aux_buffers()
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
@@ -51,7 +103,68 @@ class LayerB(YAMLable):
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__))
 
+    def allocate_output_bufs(self):
+        make_zbuf = self.backend.zeros
+        if not hasattr(self, 'out_shape'):
+            self.out_shape = (self.nout, self.batch_size)
+        if not hasattr(self, 'berr_shape'):
+            self.berr_shape = (self.nin, self.batch_size)
+
+        self.output = make_zbuf(self.out_shape, self.output_dtype)
+
+        if self.activation is not None:
+            self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
+        else:
+            self.pre_act = self.output
+
+        if (self.pos > 0):
+            self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
+
+    def make_aux_buffers(self):
+        make_ebuf = self.backend.empty
+        buf_size = self.batch_size * self.nifm
+        stride = self.stride
+        if self.pos > 0:
+            self.berrorbuf = make_ebuf((self.ifmsize, buf_size))
+        ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
+                                        self.ofmsize)).raw()
+        self.ofmlocs = make_ebuf((self.ofmsize, self.nofm), dtype='i32')
+        for dst in range(self.ofmsize):
+            self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
+        if self.pooling is True:
+            self.links = make_ebuf((self.ofmsize, self.fpsize), dtype='i32')
+            self.outputbuf = make_ebuf((self.ofmsize, buf_size))
+        else:
+            self.links = make_ebuf((self.ofmsize, self.fsize), dtype='i32')
+        # This variable tracks the top left corner of the receptive field.
+        src = 0
+        for dst in range(self.ofmsize):
+            # Collect the column indices for the
+            # entire receptive field.
+            colinds = []
+            for row in range(self.fheight):
+                start = src + row * self.ifmwidth
+                colinds += range(start, start + self.fwidth)
+            fminds = colinds[:]
+            if self.pooling is False:
+                for ifm in range(1, self.nifm):
+                    colinds += [x + ifm * self.ifmsize for x in fminds]
+
+            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
+                # Slide the filter to the right by the stride value.
+                src += stride
+            else:
+                # We hit the right edge of the input image.
+                # Shift the filter down by one stride.
+                src += stride * self.ifmwidth - src % self.ifmwidth
+                assert src % self.ifmwidth == 0
+            self.links[dst] = self.backend.array(colinds, dtype='i32')
+        self.rlinks = self.links.raw()
+
     def fprop(self, inputs):
+        raise NotImplementedError('This class should not be instantiated.')
+
+    def bprop(self, error, inputs):
         raise NotImplementedError('This class should not be instantiated.')
 
     def update(self, epoch):
@@ -60,13 +173,112 @@ class LayerB(YAMLable):
     def set_train_mode(self, mode):
         pass
 
+
+class CostLayerB(LayerB):
+    def __init__(self, **kwargs):
+        self.is_cost = True
+        super(CostLayerB, self).__init__(**kwargs)
+
+    def initialize(self, kwargs):
+        super(CostLayerB, self).initialize(kwargs)
+        req_param(self, ['cost', 'ref_layer'])
+        opt_param(self, ['reference'], 'targets')
+        opt_param(self, ['prediction'], 'output')
+        self.cost.set_outputbuf(getattr(self.prev_layer, self.prediction))
+        self.berror = self.cost.get_berrbuf()
+
+    def fprop(self, inputs):
+        pass
+
+    def bprop(self):
+        # Since self.berror already pointing to destination of act gradient
+        # we just have to scale by mini-batch size
+        if self.ref_layer is not None:
+            self.targets = getattr(self.ref_layer, self.reference)
+
+        self.cost.apply_derivative(self.targets)
+        self.backend.divide(self.berror, self.backend.wrap(self.batch_size),
+                            out=self.berror)
+        return self.cost.apply_function(self.targets) / self.batch_size
+
+class DataLayerB(LayerB):
+    def __init__(self, **kwargs):
+        self.is_data = True
+        super(DataLayerB, self).__init__(**kwargs)
+        req_param(self, ['nout', 'dataset'])
+
+    def initialize(self, kwargs):
+        super(DataLayerB, self).initialize(kwargs)
+        self.batch_idx = 0
+
+    def has_more_data(self):
+        return (self.batch_idx < self.num_batches) ? True : False
+
+    def reset_counter(self):
+        self.batch_idx = 0
+
+    def fprop(self):
+        ds = self.dataset
+        if ds.macro_batched:
+            # load mini-batch for macro_batched dataset
+            self.output, self.targets = ds.get_mini_batch(
+                                            self.batch_size, 'training')
+        else:
+            self.output = ds.get_batch(self.inputs, self.batch_idx)
+            self.targets = ds.get_batch(self.targets, self.batch_idx)
+        self.batch_idx += 1
+
+    def bprop(self, error, inputs):
+        pass
+
+    def use_set(self, setname):
+        ds = self.dataset
+        if ds.macro_batched:
+            sn = setname == 'validation' ? 'val' : setname
+            endb = getattr(ds, 'end_' + sn + '_batch')
+            startb = getattr(ds, 'start_' + sn + '_batch')
+            nrecs = ds.output_batch_size * (endb - startb + 1)
+            if startb == -1:
+                nrecs = ds.max_file_index
+            setattr(ds, 'cur_' + sn + '_macro_batch', startb)
+            self.num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        else:
+            self.inputs = ds.get_inputs(train=True, validation=True,
+                                        test=True)[setname]
+            self.targets = ds.get_targets(train=True, validation=True,
+                                        test=True)[setname]
+            self.num_batches = len(self.inputs)
+        self.batch_idx = 0
+
+
 class WeightLayerB(LayerB):
     def initialize(self, kwargs):
         super(WeightLayerB, self).initialize(kwargs)
         req_param(self, ['weight_init', 'learning_rule'])
+        opt_param(self,['accumulate'], False)
 
-        if not hasattr(self, 'accumulate'):
-            setattr(self, 'accumulate', False)
+    def allocate_param_bufs(self):
+        make_ebuf = self.backend.empty
+        self.weights = self.backend.gen_weights(self.weight_shape,
+                                                self.weight_init,
+                                                self.weight_dtype)
+        self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
+
+        self.use_biases = 'bias_init' in self.weight_init
+        if self.use_biases:
+            self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
+            self.backend.fill(self.biases, self.weight_init['bias_init'])
+            self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+
+        if self.accumulate:
+            self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
+                             self.updates)
+        self.learning_rule.allocate_state(self.updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -74,45 +286,22 @@ class WeightLayerB(LayerB):
             for uparam in self.updates:
                 uparam[:] = self.backend.wrap(0.0)
 
+    def normalize_weights(self, wts):
+        norms = self.backend.norm(wts, order=2, axis=1)
+        self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
+
+
 class FCLayerB(WeightLayerB):
 
     def initialize(self, kwargs):
-        print "Called once with ", self.name
         super(FCLayerB, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
 
-        self.weights = self.backend.gen_weights((self.nout, self.nin),
-                                                self.weight_init,
-                                                self.weight_dtype)
-        self.weight_updates = self.backend.empty(self.weights.shape,
-                                                 self.updates_dtype)
-        self.output = self.backend.zeros((self.nout, self.batch_size),
-                                         self.output_dtype)
-        if self.activation is not None:
-            self.pre_act = self.backend.zeros(self.output.shape,
-                                              self.pre_act_dtype)
-        else:
-            self.pre_act = self.output
+        self.weight_shape = (self.nout, self.nin)
+        self.bias_shape = (self.nout, 1)
 
-        self.use_biases = 'bias_init' in self.weight_init
-        if self.use_biases:
-            self.biases = self.backend.empty((self.nout, 1),
-                                             self.weight_dtype)
-            self.backend.fill(self.biases, self.weight_init['bias_init'])
-            self.bias_updates = self.backend.empty(self.biases.shape,
-                                                   self.updates_dtype)
-            self.params = [self.weights, self.biases]
-            self.updates = [self.weight_updates, self.bias_updates]
-        else:
-            self.params = [self.weights]
-            self.updates = [self.weight_updates]
-
-        self.learning_rule.allocate_state(self.updates)
-
-        if self.pos > 0:
-            # This is storage for the backward propagated error.
-            self.berror = self.backend.empty((self.nin, self.batch_size),
-                                             self.berror_dtype)
+        self.allocate_output_bufs()
+        self.allocate_param_bufs()
 
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
@@ -135,114 +324,33 @@ class FCLayerB(WeightLayerB):
         if self.use_biases is True:
             self.backend.sum(error, axis=1, out=self.bias_updates)
 
-class LocalLayerB(LayerB):
 
-    """
-    Base class for locally connected layers.
-    """
-    def initialize(self, kwargs):
-        super(LocalLayerB, self).initialize(self, **kwargs)
-        req_param(self, ['nifm', 'nofm', 'ifmshape', 'fshape', 'stride'])
-
-        if not hasattr(self, 'pooling'):
-            self.pooling = False
-        if not hasattr(self, 'pad'):
-            self.pad = 0
-        else:
-            self.pad = -self.pad
-        self.fheight, self.fwidth = self.fshape
-        self.ifmheight, self.ifmwidth = self.ifmshape
-        stride = self.stride
-        batch_size = self.batch_size
-        self.ofmheight = np.int(
-            np.ceil(
-                (self.ifmheight - self.fheight + 2. * self.pad) / stride)) + 1
-        self.ofmwidth = np.int(
-            np.ceil(
-                (self.ifmwidth - self.fwidth + 2. * self.pad) / stride)) + 1
-        self.ofmshape = (self.ofmheight, self.ofmwidth)
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.ofmsize = self.ofmheight * self.ofmwidth
-
-        if self.pos > 0:
-            self.berror = self.backend.empty((self.nin, batch_size))
-
-        for buf in ['berrorbuf', 'ofmlocs', 'outputbuf', 'links', 'rlinks']:
-            setattr(self, buf, None)
-
-        if isinstance(self.backend, CPU):
-            self.make_aux_buffers()
-
-    def make_aux_buffers(self):
-        buf_size = self.batch_size * self.nifm
-        if self.pos > 0:
-            self.berrorbuf = self.backend.empty((self.ifmsize, buf_size))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
-                                        self.ofmsize)).raw()
-        self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
-                                          dtype='i32')
-        for dst in range(self.ofmsize):
-            self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
-        if self.pooling is True:
-            self.links = self.backend.empty(
-                (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
-            self.outputbuf = self.backend.empty((self.ofmsize, buf_size))
-        else:
-            self.links = self.backend.empty(
-                (self.ofmsize, self.fsize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in range(self.ofmsize):
-            # Collect the column indices for the
-            # entire receptive field.
-            colinds = []
-            for row in range(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            fminds = colinds[:]
-            if pooling is False:
-                for ifm in range(1, self.nifm):
-                    colinds += [x + ifm * self.ifmsize for x in fminds]
-
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter to the right by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the filter down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst] = self.backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
-
-    def normalize_weights(self, weights):
-        norms = self.backend.norm(weights, order=2, axis=1)
-        self.backend.divide(weights,
-                            norms.reshape((norms.shape[0], 1)),
-                            out=weights)
-
-class PoolingLayerB(LocalLayerB):
+class PoolingLayerB(LayerB):
 
     """
     Max pooling layer.
     """
-    def initialize(self, **kwargs):
+    def __init__(self, **kwargs):
+        self.is_local = True
+        super(PoolingLayerB, self).__init__(**kwargs)
+
+    def initialize(self, kwargs):
+        super(PoolingLayerB, self).initialize(kwargs)
         self.pooling = True
-        super(PoolingLayerB, self).initialize(self, **kwargs)
+        self.initialize_local()
         req_param(self, ['op'])
         self.maxinds = None
         if self.op == 'max':
             self.maxinds = self.backend.empty(
                 (self.ofmsize, self.batch_size * self.nifm), dtype='i16')
 
-        self.nout = self.nifm * self.ofmsize
-        self.output = self.backend.empty((self.nout, self.batch_size))
+        self.allocate_output_bufs()
+
         assert self.fshape[0] * self.fshape[1] <= 2 ** 15
 
     def __str__(self):
         return ("%sPoolingLayer %s: %d nin, %d nout, "
                 "utilizing %s backend\n\t"
-                "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t"
                 "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.op, self.name, self.nin, self.nout,
                  self.backend.__class__.__name__,
@@ -268,39 +376,31 @@ class PoolingLayerB(LocalLayerB):
                                     stride=self.stride,
                                     bpropbuf=self.berrorbuf)
 
-class ConvLayerB(WeightLayerB, LocalLayerB):
+class ConvLayerB(WeightLayerB):
 
     """
     Convolutional layer.
     """
+    def __init__(self, **kwargs):
+        self.is_local = True
+        super(ConvLayerB, self).__init__(**kwargs)
 
-    def initialize(self, **kwargs):
-        super(ConvLayerB, self).initialize(self, **kwargs)
-
+    def initialize(self, kwargs):
+        super(ConvLayerB, self).initialize(kwargs)
+        self.initialize_local()
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
 
-        self.nout = self.nofm * self.ofmsize
-        self.weights = self.backend.gen_weights((self.fsize, self.nofm),
-                                           self.weight_init)
-        self.output = self.backend.empty((self.nout, self.batch_size))
-        self.weight_updates = self.backend.empty(self.weights.shape)
+        self.weight_shape = (self.fsize, self.nofm)
+        self.bias_shape = (self.nofm, 1)
 
-        for buf in ['prodbuf', 'bpropbuf', 'updatebuf']:
-            setattr(self, buf, None)
-
+        self.allocate_output_bufs()
+        self.allocate_param_bufs()
+        opt_param(self, ['prodbuf', 'bpropbuf', 'updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
-
-        self.params = [self.weights]
-        self.updates = [self.weight_updates]
-        self.learning_rule.allocate_state(self.updates)
-        if activation is not None:
-            self.pre_act = self.backend.empty((self.nout, self.batch_size))
-        else:
-            self.pre_act = self.output
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -353,17 +453,12 @@ class DropOutLayerB(LayerB):
     Make sure to set train mode to False during inference.
     """
 
-    def initialize(self, **kwargs):
-        super(DropOutLayerB, self).initialize(**kwargs)
-        if not hasattr(self, 'keep'):
-            self.keep = 0.5
-        self.keepmask = backend.empty((self.nin, self.batch_size))
+    def initialize(self, kwargs):
+        super(DropOutLayerB, self).initialize(kwargs)
+        opt_param(self, ['keep'], 0.5)
+        self.keepmask = self.backend.empty((self.nin, self.batch_size))
         self.train_mode = True
-        self.output = self.backend.empty((self.nout, self.batch_size),
-                                         self.output_dtype)
-        if pos > 0:
-            self.berror = self.backend.empty((self.nin, self.batch_size),
-                                             self.berror_dtype)
+        self.allocate_output_bufs()
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -376,11 +471,95 @@ class DropOutLayerB(LayerB):
                                   out=self.output)
 
     def bprop(self, error, inputs):
-        if self.pos > 0:
-            self.backend.multiply(error, self.keepmask, out=self.berror)
+        self.backend.multiply(error, self.keepmask, out=self.berror)
 
     def set_train_mode(self, mode):
         self.train_mode = mode
+
+
+class BranchLayerB(LayerB):
+
+    """
+    Branch layer is composed of a list of other layers
+    during fprop, it concatenates the component outputs and passes it on
+    during bprop, it splits the backward errors into the components and
+        accumulates into a common berror
+    """
+
+    def initialize(self, kwargs):
+        super(BranchLayerB, self).initialize(kwargs)
+        req_param(self, ['sublayers'])
+        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
+
+        self.startidx = [0]*len(self.sublayers)
+        self.endidx = [0]*len(self.sublayers)
+        self.endidx[0] = self.sublayers[0].nout
+        for i in range(1, len(self.sublayers)):
+            self.endidx[i] = self.endidx[i-1] + self.sublayers[i].nout
+            self.startidx[i] = self.endidx[i-1]
+
+        self.allocate_output_bufs()
+
+    def fprop(self, inputs):
+        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            s_l.fprop(inputs)
+            self.output[si:ei] = s_l.output
+
+    def bprop(self, error, inputs):
+        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            s_l.bprop(error[si:ei], inputs)
+
+        if self.pos > 0:
+            self.berror[:] = self.backend.wrap(0.0)
+            for subl in self.sublayers:
+                self.backend.add(self.berror, subl.berror, out=self.berror)
+
+    def set_train_mode(self, mode):
+        for sublayer in self.sublayers:
+            sublayer.set_train_mode(mode)
+
+
+class CrossMapResponseNormLayerB(LayerB):
+
+    """
+    CrossMap response normalization.
+
+    Calculates the normalization across feature maps at each pixel point.
+    output will be same size as input
+
+    The calculation is output(x,y,C) = input(x,y,C)/normFactor(x,y,C)
+
+    where normFactor(x,y,C) is (1 + alpha * sum_ksize( input(x,y,k)^2 ))^beta
+
+    ksize is the kernel size, so will run over the channel index with no
+    padding at the edges of the feature map.  (so for ksize=5, at C=1, we will
+    be summing the values of c=0,1,2,3)
+    """
+    super(CrossMapResponseNormLayerB, self).initialize(kwargs)
+    req_params(self, ['ifmshape', 'nifm', 'ksize', 'alpha', 'beta'])
+        self.ifmsize = self.ifmshape[0] * self.ifmshape[1]
+        self.nin = self.ifmsize * self.nifm
+        self.nout = self.nin
+        self.alpha = self.alpha * 1.0 / ksize
+
+        self.allocate_output_bufs()
+        self.tempbuf = None
+        if self.pos > 0 and isinstance(self.backend, CPU):
+            self.tempbuf = self.backend.empty((self.ifmsize, self.batch_size))
+
+    def fprop(self, inputs):
+        self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
+                                   ifmshape=self.ifmshape, nifm=self.nifm,
+                                   ksize=self.ksize, alpha=self.alpha,
+                                   beta=self.beta)
+
+    def bprop(self, error, inputs):
+        self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
+                                   inputs=inputs, deltas=error,
+                                   ifmshape=self.ifmshape, nifm=self.nifm,
+                                   ksize=self.ksize, alpha=self.alpha,
+                                   beta=self.beta, bpropbuf=self.tempbuf)
+
 
 class Layer(YAMLable):
 
@@ -1026,54 +1205,6 @@ class DropOutLayer(YAMLable):
 
     def set_train_mode(self, mode):
         self.train_mode = mode
-
-
-class DataLayer(YAMLable):
-
-    """
-    Data Layer takes datasets as input and on fprop, passes forward the latest
-    batch
-    """
-
-    def __init__(self, name, backend, batch_size, datasets):
-        self.name = name
-        self.backend = backend
-        self.batch_size = batch_size
-        self.datasets = datasets
-        self.output = self.backend.empty((self.nout, batch_size))
-        self.current_batch = 0
-        self.partition = None
-
-    def init_datasets(self, train=True, test=True, validation=True):
-        self.train = train
-        self.test = test
-        self.validation = validation
-        self.inputs = self.datasets[0].get_inputs(
-            train=self.train, test=self.test, validation=self.validation)
-        self.targets = self.datasets[0].get_targets(
-            train=self.train, test=self.test, validation=self.validation)
-
-    def select_partition(self, partition):
-        self.current_batch = 0
-        self.partition = partition
-
-    def fprop(self, dummyvar):
-        if not self.partition:
-            raise ValueError('Dataset partition must be selected prior to use')
-
-        if self.partition not in self.inputs:
-            raise ValueError('Partition does not exist')
-
-        raise NotImplementedError('Have to implement DataLayer')
-
-    def bprop(self, error, inputs):
-        pass
-
-    def update(self, epoch):
-        pass
-
-    def set_train_mode(self, mode):
-        pass
 
 
 class RBMLayer(Layer):

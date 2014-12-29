@@ -262,7 +262,6 @@ class MLPB(MLP):
         self.result = 0
         kwargs = {"backend": self.backend, "batch_size": self.batch_size}
         for ll in self.layers:
-            print "Finish init of layers\n"
             ll.initialize(kwargs)
 
         self.cost.initialize(kwargs)

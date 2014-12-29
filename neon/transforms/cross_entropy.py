@@ -170,6 +170,9 @@ class CrossEntropy(Cost):
             self.temp = [tempbuf, tempbuf.copy()]
         self.outputbuf = databuf
 
+    def get_berrbuf(self):
+        return self.temp[0]
+    
     def apply_function(self, targets):
         """
         Apply the cross entropy cost function to the datasets passed.

@@ -68,6 +68,9 @@ class XCovariance(Cost):
             self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
         self.outputbuf = databuf
 
+    def get_berrbuf(self):
+        return self.temp[3]
+
     def apply_function(self, targets):
         """
         Apply the xcov cost function to the datasets passed.
