@@ -158,32 +158,29 @@ class MLP(Model):
         for layer in self.layers:
             layer.update(epoch)
 
-    def logloss(self, ds, num_batches, preds, targets, eps=1e-15):
+    def logloss(self, preds, targets, eps=1e-15):
+        num_batches = len(preds)
         temp = self.backend.empty(preds[0].shape)
         result = 0.
         for batch in range(num_batches):
-            preds_batch = ds.get_batch(preds, batch)
-            targets_batch = ds.get_batch(targets, batch)
-
-            self.backend.clip(preds_batch, eps, 1.0-eps, out=temp)
+            self.backend.clip(preds[batch], eps, 1.0-eps, out=temp)
             self.backend.log(temp, out=temp)
-            self.backend.multiply(targets_batch, temp, temp)
+            self.backend.multiply(targets[batch], temp, temp)
             result += self.backend.sum(temp)
         return -result / (self.batch_size * num_batches)
 
-    def misclass_rate(self, ds, num_batches, preds, targets):
+    def misclass_rate(self, preds, targets):
         # Simple misclassification error.
+        num_batches = len(preds)
         labels = self.backend.empty((1, self.batch_size))
         predlabels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
         misclass_sum = 0
         for batch in range(num_batches):
-            targets_batch = ds.get_batch(targets, batch)
-            preds_batch = ds.get_batch(preds, batch)
-            self.backend.argmax(targets_batch, axis=0, out=labels)
-            self.backend.argmax(preds_batch, axis=0, out=predlabels)
+            self.backend.argmax(targets[batch], axis=0, out=labels)
+            self.backend.argmax(preds[batch], axis=0, out=predlabels)
             self.backend.not_equal(predlabels, labels, misclass)
-            misclass_sum += ds.backend.sum(misclass)
+            misclass_sum += self.backend.sum(misclass)
         return misclass_sum / (num_batches * self.batch_size)
 
     # TODO: move out to separate config params and module.
@@ -261,10 +258,85 @@ class MLPB(MLP):
         self.nlayers = len(self.layers)
         self.result = 0
         kwargs = {"backend": self.backend, "batch_size": self.batch_size}
-        for ll in self.layers:
-            ll.initialize(kwargs)
+        self.data_layer = self.layers[0]
+        self.cost_layer = self.layers[-1]
+        self.class_layer = self.layers[-2]
 
-        self.cost.initialize(kwargs)
+        pl = None
+        for ll in self.layers:
+            ll.set_previous_layer(pl)
+            ll.initialize(kwargs)
+            pl = ll
+
         assert self.layers[-1].nout <= 2 ** 15
 
+    def fprop(self):
+        y = None
+        for layer in self.layers:
+            layer.fprop(y)
+            y = layer.output
 
+    def bprop(self):
+        error = None
+        for layer in reversed(self.layers):
+            layer.bprop(error)
+            error = layer.berror
+
+    def predict(self, items=['train', 'test', 'validation']):
+        """
+        Generate and return predictions on the given datasets.
+        """
+        for layer in self.layers:
+            layer.set_train_mode(False)
+        preds = dict()
+        for sn in items:
+            res = self.predict_set(sn)
+            if res is not None:
+                preds[sn] = res
+        return preds
+
+    def error_metrics(self, ds, preds, items=['train', 'test', 'validation']):
+        targets = ds.get_targets(train=True, test=True, validation=True)
+        for item in items:
+            if item not in targets or item not in preds:
+                continue
+            self.result = self.misclass_rate(preds[item], targets[item])
+            logloss = self.logloss(preds[item], targets[item])
+            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                         item, 100 * self.result, logloss)
+
+    def predict_set(self, setname):
+        if not self.data_layer.has_set(setname):
+            return None
+        self.data_layer.use_set(setname)
+        self.data_layer.reset_counter()
+        preds = []
+        while self.data_layer.has_more_data():
+            self.fprop()
+            preds.append(self.get_classifier_output().copy())
+        return preds
+
+    def get_classifier_output(self):
+        return self.class_layer.output
+
+    def fit(self, dataset):
+        """
+        Learn model weights on the given datasets.
+        """
+        for layer in self.layers:
+            logger.info("%s", str(layer))
+
+        self.data_layer.use_set('train')
+        logger.info('commencing model fitting')
+        for epoch in range(self.num_epochs):
+            error = 0.0
+            self.data_layer.reset_counter()
+            while self.data_layer.has_more_data():
+                self.fprop()
+                self.bprop()
+                self.update(epoch)
+                error += self.cost_layer.get_cost()
+            logger.info('epoch: %d, total training error: %0.5f', epoch,
+                        error / self.data_layer.num_batches)
+            for layer in self.layers:
+                logger.debug("%s", layer)

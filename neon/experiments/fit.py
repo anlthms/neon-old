@@ -36,7 +36,7 @@ class FitExperiment(Experiment):
         # default dist_flag to False
         self.dist_flag = False
         self.__dict__.update(kwargs)
-        for req_param in ['backend', 'datasets', 'model']:
+        for req_param in ['backend', 'dataset', 'model']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
@@ -46,42 +46,39 @@ class FitExperiment(Experiment):
         Actually carry out each of the experiment steps.
         """
         # load and/or deserialize any unloaded datasets
-        for ds_idx in range(len(self.datasets)):
-            ds = self.datasets[ds_idx]
-            ds.set_batch_size(self.model.batch_size)
-            if not hasattr(ds, 'backend'):
-                ds.backend = self.backend
-            if hasattr(ds, 'serialized_path'):
-                if self.dist_flag:
-                    if MPI_INSTALLED:
-                        from mpi4py import MPI
-                        ds.serialized_path = ds.serialized_path.format(
-                            rank=str(MPI.COMM_WORLD.rank),
-                            size=str(MPI.COMM_WORLD.size))
-                    else:
-                        raise AttributeError("dist_flag set but mpi4py not "
-                                             "installed")
-                if os.path.exists(ds.serialized_path):
-                    set_batches = False
-                    if hasattr(self.datasets[ds_idx], 'start_train_batch'):
-                        [tmp1, tmp2, tmp3, tmp4] = [
-                            self.datasets[ds_idx].start_train_batch,
-                            self.datasets[ds_idx].end_train_batch,
-                            self.datasets[ds_idx].start_val_batch,
-                            self.datasets[ds_idx].end_val_batch]
-                        set_batches = True
-                    self.datasets[ds_idx] = deserialize(ds.serialized_path)
-                    if set_batches:
-                        [self.datasets[ds_idx].start_train_batch,
-                         self.datasets[ds_idx].end_train_batch,
-                         self.datasets[ds_idx].start_val_batch,
-                         self.datasets[ds_idx].end_val_batch] = [
-                            tmp1, tmp2, tmp3, tmp4]
+        ds = self.dataset
+        ds.set_batch_size(self.model.batch_size)
+        if not hasattr(ds, 'backend'):
+            ds.backend = self.backend
+        if hasattr(ds, 'serialized_path'):
+            if self.dist_flag:
+                if MPI_INSTALLED:
+                    from mpi4py import MPI
+                    ds.serialized_path = ds.serialized_path.format(
+                        rank=str(MPI.COMM_WORLD.rank),
+                        size=str(MPI.COMM_WORLD.size))
                 else:
-                    ds.load()
-                    serialize(ds, ds.serialized_path)
+                    raise AttributeError("dist_flag set but mpi4py not "
+                                         "installed")
+            if os.path.exists(ds.serialized_path):
+                set_batches = False
+                if hasattr(ds, 'start_train_batch'):
+                    [tmp1, tmp2, tmp3, tmp4] = [
+                        ds.start_train_batch,
+                        ds.end_train_batch,
+                        ds.start_val_batch,
+                        ds.end_val_batch]
+                    set_batches = True
+                ds = deserialize(ds.serialized_path)
+                if set_batches:
+                    [ds.start_train_batch, ds.end_train_batch,
+                     ds.start_val_batch, ds.end_val_batch] = [
+                        tmp1, tmp2, tmp3, tmp4]
             else:
                 ds.load()
+                serialize(ds, ds.serialized_path)
+        else:
+            ds.load()
 
         # load or fit the model to the data
         if not hasattr(self.model, 'backend'):
@@ -100,7 +97,7 @@ class FitExperiment(Experiment):
                                              "installed")
                 self.model = deserialize(mpath)
             else:
-                self.model.fit(self.datasets)
+                self.model.fit(ds)
                 if self.dist_flag:
                     if MPI_INSTALLED:
                         from mpi4py import MPI
@@ -113,4 +110,4 @@ class FitExperiment(Experiment):
                 else:
                     serialize(self.model, mpath)
         else:
-            self.model.fit(self.datasets)
+            self.model.fit(ds)

@@ -141,13 +141,13 @@ class CrossEntropy(Cost):
 
         if not hasattr(self, 'shortcut_deriv'):
             self.shortcut_deriv = False
-            if (isinstance(self.olayer.activation, Logistic)
-                    and self.use_binary):
-                self.shortcut_deriv = True
+            # if (isinstance(self.olayer.activation, Logistic)
+            #         and self.use_binary):
+            #     self.shortcut_deriv = True
 
-            if (isinstance(self.olayer.activation, Softmax)
-                    and not self.use_binary):
-                self.shortcut_deriv = True
+            # if (isinstance(self.olayer.activation, Softmax)
+            #         and not self.use_binary):
+            #     self.shortcut_deriv = True
 
         # Set the appropriate functions
         self.ce_function = cross_entropy
