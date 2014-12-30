@@ -8,6 +8,7 @@ backend.
 
 import logging
 import numpy as np
+from neon.models.learning_rule import *
 from neon.backends.cpu import CPU
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.compat import MPI_INSTALLED, range
@@ -31,6 +32,7 @@ def opt_param(obj, paramlist, default_value):
         if not hasattr(obj, param):
             setattr(obj, param, default_value)
 
+
 class LayerB(YAMLable):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -52,16 +54,14 @@ class LayerB(YAMLable):
             if self.is_local:
                 self.ifmshape = pl.ofmshape
                 self.nifm = pl.nofm
-            else:
-                self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
+            self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
         else:
             if self.is_local:
                 if not hasattr(self, 'ifmshape'):
                     sqdim = np.int(np.sqrt(pl.nout))
                     self.ifmshape = (sqdim, sqdim)
                 self.nifm = 1
-            else:
-                self.nin = pl.nout
+            self.nin = pl.nout
         self.prev_layer = pl
 
     def initialize_local(self):
@@ -90,8 +90,7 @@ class LayerB(YAMLable):
         self.fsize = self.fheight * self.fwidth * self.nifm
         self.fpsize = self.fheight * self.fwidth
         self.nout = self.nofm * self.ofmsize
-        self.nin = self.nifm * self.ifmsize
-        print self.ifmshape, self.ofmshape
+        print self.name, self.ifmshape, self.ofmshape
         if isinstance(self.backend, CPU):
             self.make_aux_buffers()
 
@@ -282,7 +281,7 @@ class DataLayerB(LayerB):
 class WeightLayerB(LayerB):
     def initialize(self, kwargs):
         super(WeightLayerB, self).initialize(kwargs)
-        req_param(self, ['weight_init', 'learning_rule'])
+        req_param(self, ['weight_init', 'lrule_init'])
         opt_param(self,['accumulate'], False)
 
     def allocate_param_bufs(self):
@@ -306,7 +305,7 @@ class WeightLayerB(LayerB):
         if self.accumulate:
             self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
                              self.updates)
-        self.learning_rule.allocate_state(self.updates)
+        self.gen_learning_rule()
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -318,6 +317,23 @@ class WeightLayerB(LayerB):
         norms = self.backend.norm(wts, order=2, axis=1)
         self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
 
+    def gen_learning_rule(self):
+        lrname = self.name + '_lr'
+        if self.lrule_init['type'] == 'gradient_descent':
+            self.learning_rule = GradientDescent(name=lrname,
+                                    lr_params=self.lrule_init['lr_params'])
+        elif self.lrule_init['type'] == 'gradient_descent_pretrain':
+            self.learning_rule = GradientDescentPretrain(name=lrname,
+                                    lr_params=self.lrule_init['lr_params'])
+        elif self.lrule_init['type'] == 'gradient_descent_momentum':
+            self.learning_rule = GradientDescentMomentum(name=lrname,
+                                    lr_params=self.lrule_init['lr_params'])
+        elif self.lrule_init['type'] == 'adadelta':
+            self.learning_rule = AdaDelta(name=lrname,
+                                    lr_params=self.lrule_init['lr_params'])
+        else:
+            raise AttributeError("invalid learning rule params specified")
+        self.learning_rule.allocate_state(self.updates)
 
 class FCLayerB(WeightLayerB):
     def initialize(self, kwargs):
@@ -483,8 +499,13 @@ class DropOutLayerB(LayerB):
     """
 
     def initialize(self, kwargs):
-        super(DropOutLayerB, self).initialize(kwargs)
         opt_param(self, ['keep'], 0.5)
+        super(DropOutLayerB, self).initialize(kwargs)
+        if self.prev_layer.is_local:
+            self.is_local = True
+            self.nifm = self.nofm = self.prev_layer.nofm
+            self.ifmshape = self.ofmshape = self.prev_layer.ofmshape
+        self.nout = self.nin
         self.keepmask = self.backend.empty((self.nin, self.batch_size))
         self.train_mode = True
         self.allocate_output_bufs()
@@ -566,18 +587,22 @@ class CrossMapResponseNormLayerB(LayerB):
     padding at the edges of the feature map.  (so for ksize=5, at C=1, we will
     be summing the values of c=0,1,2,3)
     """
-    def initialize(self):
-        super(CrossMapResponseNormLayerB, self).initialize(kwargs)
-        req_params(self, ['ifmshape', 'nifm', 'ksize', 'alpha', 'beta'])
-        self.ifmsize = self.ifmshape[0] * self.ifmshape[1]
-        self.nin = self.ifmsize * self.nifm
-        self.nout = self.nin
-        self.alpha = self.alpha * 1.0 / ksize
+    def __init__(self, **kwargs):
+        self.is_local = True
+        super(CrossMapResponseNormLayerB, self).__init__(**kwargs)
 
+    def initialize(self, kwargs):
+        req_param(self, ['ksize', 'alpha', 'beta'])
+        self.alpha = self.alpha * 1.0 / self.ksize
+        super(CrossMapResponseNormLayerB, self).initialize(kwargs)
+        self.nout = self.nin
+        self.ofmshape, self.nofm = self.ifmshape, self.nifm
+        print self.ofmshape, self.nofm
         self.allocate_output_bufs()
         self.tempbuf = None
         if self.berror is not None and isinstance(self.backend, CPU):
-            self.tempbuf = self.backend.empty((self.ifmsize, self.batch_size))
+            self.tempbuf = self.backend.empty(
+                    (self.ifmshape[0], self.ifmshape[1], self.batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
