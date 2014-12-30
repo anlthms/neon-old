@@ -39,13 +39,11 @@ class LayerB(YAMLable):
             'pre_act_dtype', 'output_dtype', 'berror_dtype'], None)
         opt_param(self, ['prev_names'], [])
         opt_param(self, ['prev_layer'], None)
-        opt_param(self, ['is_local'], False)
-        opt_param(self, ['is_data'], False)
-        opt_param(self, ['is_cost'], False)
+        opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
-        req_param(self, ['backend', 'batch_size', 'pos'])
+        req_param(self, ['backend', 'batch_size'])
         self.output = None
         self.berror = None
 
@@ -93,7 +91,7 @@ class LayerB(YAMLable):
         self.fpsize = self.fheight * self.fwidth
         self.nout = self.nofm * self.ofmsize
         self.nin = self.nifm * self.ifmsize
-
+        print self.ifmshape, self.ofmshape
         if isinstance(self.backend, CPU):
             self.make_aux_buffers()
 
@@ -119,14 +117,14 @@ class LayerB(YAMLable):
             self.pre_act = self.output
 
         self.berror = None
-        if (self.pos > 0):
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
 
     def make_aux_buffers(self):
         make_ebuf = self.backend.empty
         buf_size = self.batch_size * self.nifm
         stride = self.stride
-        if self.pos > 0:
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berrorbuf = make_ebuf((self.ifmsize, buf_size))
         ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
                                         self.ofmsize)).raw()
@@ -179,6 +177,7 @@ class LayerB(YAMLable):
 class CostLayerB(LayerB):
     def __init__(self, **kwargs):
         self.is_cost = True
+        self.nout = 1
         super(CostLayerB, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
@@ -321,7 +320,6 @@ class WeightLayerB(LayerB):
 
 
 class FCLayerB(WeightLayerB):
-
     def initialize(self, kwargs):
         super(FCLayerB, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
@@ -342,14 +340,12 @@ class FCLayerB(WeightLayerB):
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
 
-        if self.pos > 0:
+        if self.berror is not None:
             self.backend.bprop_fc(out=self.berror, weights=self.weights,
                                   deltas=error)
-
         self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                deltas=error)
         if self.use_biases is True:
@@ -397,8 +393,8 @@ class PoolingLayerB(LayerB):
                                 stride=self.stride, fpropbuf=self.outputbuf)
 
     def bprop(self, error):
-        self.inputs = self.prev_layer.output
-        if self.pos > 0:
+        inputs = self.prev_layer.output
+        if self.berror is not None:
             self.backend.bprop_pool(out=self.berror, fouts=self.output,
                                     inputs=inputs, deltas=error, op=self.op,
                                     ofmshape=self.ofmshape,
@@ -455,10 +451,10 @@ class ConvLayerB(WeightLayerB):
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
-        self.inputs = self.prev_layer.output
+        inputs = self.prev_layer.output
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
-        if self.pos > 0:
+        if self.berror is not None:
             self.backend.bprop_conv(out=self.berror, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmlocs=self.ofmlocs,
@@ -504,7 +500,8 @@ class DropOutLayerB(LayerB):
                                   out=self.output)
 
     def bprop(self, error):
-        self.backend.multiply(error, self.keepmask, out=self.berror)
+        if self.berror is not None:
+            self.backend.multiply(error, self.keepmask, out=self.berror)
 
     def set_train_mode(self, mode):
         self.train_mode = mode
@@ -543,7 +540,7 @@ class BranchLayerB(LayerB):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
             s_l.bprop(error[si:ei], inputs)
 
-        if self.pos > 0:
+        if self.berror is not None:
             self.berror[:] = self.backend.wrap(0.0)
             for subl in self.sublayers:
                 self.backend.add(self.berror, subl.berror, out=self.berror)
@@ -579,7 +576,7 @@ class CrossMapResponseNormLayerB(LayerB):
 
         self.allocate_output_bufs()
         self.tempbuf = None
-        if self.pos > 0 and isinstance(self.backend, CPU):
+        if self.berror is not None and isinstance(self.backend, CPU):
             self.tempbuf = self.backend.empty((self.ifmsize, self.batch_size))
 
     def fprop(self, inputs):
@@ -590,11 +587,12 @@ class CrossMapResponseNormLayerB(LayerB):
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
-                                   inputs=inputs, deltas=error,
-                                   ifmshape=self.ifmshape, nifm=self.nifm,
-                                   ksize=self.ksize, alpha=self.alpha,
-                                   beta=self.beta, bpropbuf=self.tempbuf)
+        if self.berror is not None:
+            self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
+                                       inputs=inputs, deltas=error,
+                                       ifmshape=self.ifmshape, nifm=self.nifm,
+                                       ksize=self.ksize, alpha=self.alpha,
+                                       beta=self.beta, bpropbuf=self.tempbuf)
 
 
 class Layer(YAMLable):
