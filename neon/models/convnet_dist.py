@@ -121,7 +121,7 @@ class ConvnetDist(MLPDist):
         if MPI.COMM_WORLD.rank == 0:
             error = self.cost.apply_derivative(targets)
             self.backend.divide(error, targets.shape[1], out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.raw())
+        error._tensor = MPI.COMM_WORLD.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         while isinstance(self.layers[i], LayerDist):

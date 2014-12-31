@@ -76,9 +76,9 @@ class RNN(Model):
                 error += suberror / num_batches
             errorlist.append(error)
             if self.make_plots is True:
-                viz.plot_weights(self.layers[0].weights.raw(),
-                                 self.layers[0].weights_rec.raw(),
-                                 self.layers[1].weights.raw())
+                viz.plot_weights(self.layers[0].weights.asnumpyarray(),
+                                 self.layers[0].weights_rec.asnumpyarray(),
+                                 self.layers[1].weights.asnumpyarray())
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].pre_act_list,
                                      self.layers[0].output_list,
@@ -252,10 +252,10 @@ class RNN(Model):
                                           axis=0, out=tempbuf[i, :])
                     import numpy as np
                     misclass = tempbuf.transpose().reshape((-1,))
-                    tmp = misclass[6000:6018].raw().astype(np.int8)
+                    tmp = misclass[6000:6018].asnumpyarray().astype(np.int8)
                     logging.info("the target for %s is %s", item,
                                  tmp.view('c'))
-                    tmp = preds[item][6000:6018].raw().astype(np.int8)
+                    tmp = preds[item][6000:6018].asnumpyarray().astype(np.int8)
                     logging.info("prediction for %s is %s", item,
                                  tmp.view('c'))
                     ds.backend.not_equal(preds[item], misclass, misclass)

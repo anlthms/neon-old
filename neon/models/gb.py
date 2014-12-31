@@ -116,7 +116,7 @@ class GB(MLP):
             # Get the output of the last LCN layer.
             pred = self.layers[-2].output[:, node]
             auc += metrics.roc_auc_score(
-                labels[start_idx:end_idx].raw(), pred.raw())
+                labels[start_idx:end_idx].asnumpyarray(), pred.asnumpyarray())
         auc /= num_batches
         return auc
 
@@ -140,11 +140,12 @@ class GB(MLP):
                 for node in range(auc.shape[0]):
                     pred = self.layers[-2].output[:, node]
                     auc[node] += metrics.roc_auc_score(
-                        labels[start_idx:end_idx].raw(), pred.raw())
+                        labels[start_idx:end_idx].asnumpyarray(),
+                        pred.asnumpyarray())
             auc /= num_batches
             maxnode = self.backend.empty((1, 1))
             self.backend.argmax(auc, axis=None, out=maxnode)
-            maxnode = maxnode.raw()
+            maxnode = maxnode.asnumpyarray()
             maxauc = auc[maxnode]
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,
@@ -232,8 +233,8 @@ class GB(MLP):
             logger.info('loop %d inc %.4f count %d', loops, inc, count)
             for ind in range(self.batch_size):
                 if self.layers[0].nifm == 3:
-                    img = inputs[ind].raw().reshape((3, ifmshape[0],
-                                                     ifmshape[1]))
+                    img = inputs[ind].asnumpyarray().reshape((3, ifmshape[0],
+                                                              ifmshape[1]))
                     rimg = img.copy().reshape((ifmshape[0], ifmshape[1], 3))
                     for dim in range(3):
                         rimg[:ifmshape[0], :ifmshape[1], dim] = (
@@ -241,7 +242,7 @@ class GB(MLP):
                     plt.imshow(rimg, interpolation='nearest')
                 else:
                     assert self.layers[0].nifm == 1
-                    rimg = inputs[ind].raw().reshape(ifmshape)
+                    rimg = inputs[ind].asnumpyarray().reshape(ifmshape)
                     plt.imshow(rimg, interpolation='nearest', cmap='gray')
                 plt.savefig(ensure_dirs_exist(os.path.join('imgs', 'img') +
                                               str(ind)))
@@ -251,7 +252,7 @@ class GB(MLP):
         assert len(names) == len(imgs)
         height, width = fmshape
         for i in range(len(names)):
-            img = imgs[i].raw()[0]
+            img = imgs[i].asnumpyarray()[0]
             img = img.reshape((nfm, height, width))
             if nfm == 3:
                 # Plot in color.

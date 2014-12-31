@@ -71,8 +71,8 @@ class GenOutputExperiment(FitExperiment):
                        self.olayout[1] * self.fshape[1] * 2)
         numtest = self.olayout[0] * self.olayout[1]
 
-        iraw = inputs_batch.raw()[:, :numtest]
-        oraw = outputs_batch.raw()[:, :numtest]
+        iraw = inputs_batch.asnumpyarray()[:, :numtest]
+        oraw = outputs_batch.asnumpyarray()[:, :numtest]
 
         oimg = np.vstack([iraw, oraw]).transpose().reshape(
             reshape_dims).transpose(1, 3, 0, 2, 4).reshape(figure_dims)

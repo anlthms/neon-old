@@ -152,7 +152,7 @@ class MLPDist(MLP):
         if self.comm.rank == 0:
             error = self.cost.apply_derivative(targets)
             self.backend.divide(error, targets.shape[1], out=error)
-        error._tensor = self.comm.bcast(error.raw())
+        error._tensor = self.comm.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)

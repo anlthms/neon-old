@@ -60,23 +60,27 @@ class VisualizeRNN(object):
         plt.clf()
         for i in range(4):
             plt.subplot(4, 5, 5*i+1)
-            plt.imshow(pre1[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.imshow(pre1[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('pre1 or g\'1')
             plt.subplot(4, 5, 5*i+2)
-            plt.imshow(out1[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.imshow(out1[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('out1')
             plt.subplot(4, 5, 5*i+3)
-            plt.imshow(pre2[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.imshow(pre2[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('pre2 or g\'2')
             plt.subplot(4, 5, 5*i+4)
-            plt.imshow(out2[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.imshow(out2[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('out2')
             plt.subplot(4, 5, 5*i+5)
-            plt.imshow(targets[i*128:(i+1)*128, :].raw(),
+            plt.imshow(targets[i*128:(i+1)*128, :].asnumpyarray(),
                        vmin=-1, vmax=1, interpolation='nearest')
             if i == 0:
                 plt.title('target')
@@ -88,6 +92,6 @@ class VisualizeRNN(object):
         Moved this here so it's legal to use numpy.
         """
         print("Prediction inputs")
-        print(np.argmax(inputs, 0).raw().astype(np.int8).view('c'))
+        print(np.argmax(inputs, 0).asnumpyarray().astype(np.int8).view('c'))
         print("Prediction outputs")
-        print(np.argmax(outputs, 0).raw().astype(np.int8).view('c'))
+        print(np.argmax(outputs, 0).asnumpyarray().astype(np.int8).view('c'))

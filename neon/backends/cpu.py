@@ -48,6 +48,10 @@ class CPUTensor(Tensor):
         self.shape = self._tensor.shape
         self.dtype = dtype
 
+    @property
+    def raw(self):
+        return self._tensor
+
     def __str__(self):
         """
         Display a suitable representation of this Tensor.
@@ -78,6 +82,16 @@ class CPUTensor(Tensor):
             val = val._tensor
         return val
 
+    def asnumpyarray(self):
+        """
+        Convert the CPUTensor to an in host memory `numpy.ndarray`.  A copy of
+        the data may be made depending on where the CPUTensor normally resides.
+
+        Returns:
+            numpy.ndarray view or copy of the CPUTensor data.
+        """
+        return self._tensor
+
     def __getitem__(self, key):
         return self.__class__(self._tensor[self._clean(key)],
                               dtype=self._tensor.dtype)
@@ -88,18 +102,12 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
-    def asnumpyarray(self):
-        return self._tensor
-
     def __float__(self):
         return float(self._tensor)
 
     def copy(self):
         return self.__class__(np.copy(self._tensor),
                               dtype=self._tensor.dtype)
-
-    def raw(self):
-        return self._tensor
 
     def transpose(self):
         return self.__class__(self._tensor.transpose(),
@@ -996,7 +1004,7 @@ class CPU(Backend):
                 # If the L2 norm is zero, the entire receptive field must be
                 # zeros. In that case, we set the L2 norm to 1 before using
                 # it to normalize the receptive field.
-                denom[denom.raw() == 0] = 1
+                denom[denom._tensor == 0] = 1
                 self.divide(rf, denom, out=rf)
                 self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
                                                             fshape[1],
@@ -1289,11 +1297,12 @@ class CPUDataDist(CPU):
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
+        out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
+                                            root=0)
         # This division by comm.size corresponds to following line in mlp bprop
         # self.backend.divide(error, targets.shape[targets.major_axis()],
         #                    out=error)
-        out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+        out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
@@ -1302,5 +1311,6 @@ class CPUDataDist(CPU):
                                              ofmshape, ofmlocs, ifmshape,
                                              links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
-        out._tensor = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM, root=0)
-        out._tensor = MPI.COMM_WORLD.bcast(out.raw())
+        out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
+                                            root=0)
+        out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())

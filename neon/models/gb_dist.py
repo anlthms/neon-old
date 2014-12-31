@@ -224,7 +224,7 @@ class GBDist(GB):
                                                     targets, self.temp)
             self.backend.divide(self.error, targets.shape[1], out=self.error)
         # MPI: broadcast the error matrix
-        self.error._tensor = MPI.COMM_WORLD.bcast(self.error.raw())
+        self.error._tensor = MPI.COMM_WORLD.bcast(self.error.asnumpyarray())
         self.layers[-1].pre_act_ = self.layers[-1].pre_act
         self.layers[-1].bprop(self.error, self.layers[-2].output)
 
@@ -239,7 +239,7 @@ class GBDist(GB):
                                                lastlayer.output, targets,
                                                self.temp)
             self.backend.divide(error, targets.shape[1], out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.raw())
+        error._tensor = MPI.COMM_WORLD.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         lastlayer.bprop(error, self.layers[i - 1].output)

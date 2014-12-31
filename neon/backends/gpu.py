@@ -66,6 +66,10 @@ class GPUTensor(Tensor):
                 self._tensor = obj
         self.dtype = dtype
 
+    @property
+    def raw(self):
+        return self._tensor
+
     def __str__(self):
         """
         Display a suitable representation of this Tensor.
@@ -132,6 +136,17 @@ class GPUTensor(Tensor):
             # arbitrary long list, too expensive to support?
             raise TooSlowToImplementError("column idx too complex")
         return res
+
+    def asnumpyarray(self):
+        """
+        Convert the GPUTensor to an in host memory `numpy.ndarray`.  A copy of
+        the data may be made depending on where the GPUTensor normally resides.
+
+        Returns:
+            numpy.ndarray view or copy of the GPUTensor data.
+        """
+        self._tensor.copy_to_host()
+        return self._tensor.numpy_array
 
     def __getitem__(self, key):
         """
@@ -241,20 +256,11 @@ class GPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
-    def asnumpyarray(self):
-        self._tensor.copy_to_host()
-        return self._tensor.numpy_array
-
     def __float__(self):
         raise NotImplementedError()
 
     def copy(self):
         return GPUTensor(self._tensor.copy())
-
-    def raw(self, dohostcopy=True):
-        if dohostcopy:
-            self._tensor.copy_to_host()
-        return self._tensor.numpy_array
 
     def copy_to_device(self):
         self._tensor.copy_to_device()
@@ -525,7 +531,7 @@ class GPU(Backend):
         """
         # This slow implementation is kept here in commented form should you
         # need to ensure consistency with CPU generated random numbers:
-        # a.raw(dohostcopy=False)[:] = numpy.array((numpy.random.uniform(
+        # a._tensor.numpy_array[:] = numpy.array((numpy.random.uniform(
         #     size=a._tensor.shape) < keepthresh) / keepthresh,
         #     dtype=numpy.float32)
         # a.copy_to_device()
@@ -1440,10 +1446,10 @@ class GPUDataDist(GPU):
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
-                                                  root=0)
-        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
-
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
+                                                           op=MPI.SUM, root=0)
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
+            out._tensor.numpy_array)
         out.copy_to_device()
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
@@ -1454,8 +1460,9 @@ class GPUDataDist(GPU):
                                              links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
 
-        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
-                                                  root=0)
-        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
+                                                           op=MPI.SUM, root=0)
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
+            out._tensor.numpy_array)
 
         out.copy_to_device()

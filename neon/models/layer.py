@@ -202,17 +202,18 @@ class LayerDist(Layer):
                               weights=self.weights)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
-            self.pre_act.raw(), op=MPI.SUM, root=0)
+            self.pre_act.asnumpyarray(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
         if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
-        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.raw())
+        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.asnumpyarray())
         # broadcast back the pre_act values for bprop.
         # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
-        self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
+        self.pre_act._tensor = MPI.COMM_WORLD.bcast(
+            self.pre_act.asnumpyarray())
 
     def bprop(self, error, inputs):
         """
@@ -224,10 +225,11 @@ class LayerDist(Layer):
             self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
-                error.raw(), self.delta_gather._tensor)
+                error.asnumpyarray(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
             self.delta_._tensor = np.hstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+                np.split(self.delta_gather.asnumpyarray(),
+                         MPI.COMM_WORLD.size))
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.berror,
                                       weights=self.weights,
@@ -821,7 +823,7 @@ class LocalLayer(YAMLable):
 
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
-                                        self.ofmsize)).raw()
+                                        self.ofmsize))
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
         for dst in range(self.ofmsize):
             backend.add(ofmstarts, dst, self.ofmlocs[dst])
@@ -860,7 +862,7 @@ class LocalLayer(YAMLable):
                 src += stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
             self.links[dst] = backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
+        self.rlinks = self.links.asnumpyarray()
 
     def normalize_weights(self, weights):
         norms = self.backend.norm(weights, order=2, axis=1)
@@ -980,7 +982,7 @@ class LocalLayerDist(LocalLayer):
                 src += self.stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
             self.links[dst] = self.backend.array(colinds)
-        self.rlinks = self.links.raw()
+        self.rlinks = self.links.asnumpyarray()
 
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, self.batch_size))
@@ -1168,8 +1170,9 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
-            self.updates.raw(), op=MPI.SUM, root=0)
-        self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
+            self.updates.asnumpyarray(), op=MPI.SUM, root=0)
+        self.updates._tensor = MPI.COMM_WORLD.bcast(
+            self.updates.asnumpyarray())
         self.backend.update_conv(out=self.updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
@@ -1896,8 +1899,8 @@ class LCNLayer(YAMLable):
 
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
+        assert self.subout[self.meanfm.asnumpyarray() == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm.asnumpyarray() == 0.0] = 1.0
         self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs):
@@ -1916,7 +1919,8 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
+                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                       self.conv.ofmsize * fm)
                 filt = self.bprop_filters[fm]
                 self.backend.multiply(error[loc], filt.transpose(),
                                       out=self.prodbuf)
@@ -1929,8 +1933,8 @@ class LCNLayer(YAMLable):
         self.backend.clear(self.exerror)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
-        self.subout[self.subout.raw() == 0] = 1.0
+        assert self.diverror[self.subout.asnumpyarray() == 0].sum() == 0.0
+        self.subout[self.subout.asnumpyarray() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
@@ -1938,11 +1942,12 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
+                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                       self.conv.ofmsize * fm)
                 divout = self.output.take(loc, axis=0)
                 subout = self.subout.take(loc, axis=0)
-                assert divout[subout.raw() == 0].sum() == 0
-                subout[subout.raw() == 0.0] = 1.0
+                assert divout[subout.asnumpyarray() == 0].sum() == 0
+                subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 
                 rflinks = self.conv.rlinks[dst]
@@ -2148,8 +2153,8 @@ class LCNLayerDist(LCNLayer):
                            self.start_row, self.start_col)
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
+        assert self.subout[self.meanfm.asnumpyarray() == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm.asnumpyarray() == 0.0] = 1.0
         self.backend.divide(
             self.input.get_local_acts().reshape(
                 self.routput.shape), self.rmeanfm, out=self.routput)
@@ -2170,8 +2175,8 @@ class LCNLayerDist(LCNLayer):
         self.subtemp2[:] = self.input.local_array.chunk
 
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
-        self.subout[self.subout.raw() == 0] = 1.0
+        assert self.diverror[self.subout.asnumpyarray() == 0].sum() == 0.0
+        self.subout[self.subout.asnumpyarray() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
@@ -2179,11 +2184,12 @@ class LCNLayerDist(LCNLayer):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
+                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                       self.conv.ofmsize * fm)
                 divout = self.output.take(loc, axis=0)
                 subout = self.subout.take(loc, axis=0)
-                assert divout[subout.raw() == 0].sum() == 0
-                subout[subout.raw() == 0.0] = 1.0
+                assert divout[subout.asnumpyarray() == 0].sum() == 0
+                subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 
                 rflinks = self.conv.rlinks[dst]
@@ -2249,7 +2255,7 @@ class CrossMapPoolingLayer(YAMLable):
 
         self.weights = backend.gen_weights((nifm, nofm),
                                            weight_init)
-        assert (self.weights.raw() < 0).sum() == 0
+        assert (self.weights.asnumpyarray() < 0).sum() == 0
         self.updates = backend.empty(self.weights.shape)
         self.output = backend.empty((self.nout, batch_size))
         self.updatebuf = backend.empty((1, 1))
