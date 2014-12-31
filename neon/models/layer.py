@@ -264,7 +264,7 @@ class LayerMultiPass(Layer):
                                              activation=activation,
                                              prev_names=prev_names)
         for uparam in self.updates:
-            uparam[:] = self.backend.wrap(0.0)
+            uparam[:] = 0.0
 
         self.utemp = map(lambda x:
                          self.backend.empty(x.shape, self.updates_dtype),
@@ -273,7 +273,7 @@ class LayerMultiPass(Layer):
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         for uparam in self.updates:
-            uparam[:] = self.backend.wrap(0.0)
+            uparam[:] = 0.0
 
     def bprop(self, error, inputs, useshortcut=False):
         # If we are back propagating error from more than one cost through the
@@ -606,7 +606,7 @@ class BranchLayer(YAMLable):
             sublayer.bprop(error[s_idx:e_idx], inputs)
 
         if self.pos > 0:
-            self.berror[:] = self.backend.wrap(0.0)
+            self.berror[:] = 0.0
             for sublayer in self.sublayers:
                 self.backend.add(self.berror, sublayer.berror, out=self.berror)
 
@@ -650,8 +650,7 @@ class DropOutLayer(YAMLable):
             self.backend.fill_uniform_thresh(self.keepmask, self.keep)
             self.backend.multiply(self.keepmask, inputs, out=self.output)
         else:
-            self.backend.multiply(self.backend.wrap(self.keep), inputs,
-                                  out=self.output)
+            self.backend.multiply(inputs, self.keep, out=self.output)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
@@ -825,7 +824,7 @@ class LocalLayer(YAMLable):
                                         self.ofmsize)).raw()
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
         for dst in range(self.ofmsize):
-            self.ofmlocs[dst] = backend.wrap(ofmstarts + dst)
+            backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # Figure out the connections with the previous layer.
         if pooling is True:
@@ -1083,11 +1082,11 @@ class ConvLayerMultiPass(Layer):
                                                  prev_names=prev_names)
         self.utemp = self.backend.empty(self.weights.shape,
                                         self.updates_dtype)
-        self.updates[:] = self.backend.wrap(0.0)
+        self.updates[:] = 0.0
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-        self.updates[:] = self.backend.wrap(0.0)
+        self.updates[:] = 0.0
 
     def bprop(self, error, inputs):
         if self.activation is not None:

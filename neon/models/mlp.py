@@ -146,7 +146,7 @@ class MLP(Model):
         batch_size = self.batch_size
         if self.dist_mode == 'datapar':
             batch_size *= MPI.COMM_WORLD.size
-        self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+        self.backend.divide(error, batch_size, out=error)
 
         while i > 0:
             self.layers[i].bprop(error, self.layers[i - 1].output)

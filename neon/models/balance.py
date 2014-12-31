@@ -19,7 +19,6 @@ class Balance(MLP):
 
     def __init__(self, **kwargs):
         super(Balance, self).__init__(**kwargs)
-        self.bs = self.backend.wrap(self.batch_size)
         self.link_layers()
 
     def link_layers(self):
@@ -80,7 +79,7 @@ class Balance(MLP):
 
         # (c, err) = (self.cost[0], cost_errors[0])
         for c, err in zip(self.cost[:3], cost_errors[:3]):
-            self.backend.divide(err, self.bs, out=err)
+            self.backend.divide(err, self.batch_size, out=err)
             berror = err
             vqueue = [c.olayer]
             while len(vqueue) != 0:
@@ -111,4 +110,4 @@ class Balance(MLP):
             y = l.output
             vqueue.extend(l.nexts)
             if l.name == "blayer":
-                y[10:] = self.backend.wrap(zparam)
+                y[10:] = zparam

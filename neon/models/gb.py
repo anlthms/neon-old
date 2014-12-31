@@ -157,8 +157,7 @@ class GB(MLP):
     def bprop_last(self, targets, inputs):
         # Backprop on just the last layer.
         error = self.cost.apply_derivative(targets)
-        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
-                            out=error)
+        self.backend.divide(error, targets.shape[0], out=error)
         self.layers[-1].bprop(error, self.layers[-2].output)
 
     def update_last(self, epoch):

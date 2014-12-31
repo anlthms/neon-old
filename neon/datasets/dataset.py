@@ -169,7 +169,7 @@ class Dataset(object):
         batchwise = []
         for batch in range(nbatches):
             batchdata[...] = data[batch * bs:(batch + 1) * bs].transpose()
-            batchwise.append(self.backend.wrap(batchdata))
+            batchwise.append(self.backend.array(batchdata))
         return batchwise
 
     def format(self):

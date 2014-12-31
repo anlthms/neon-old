@@ -32,7 +32,7 @@ def xcov_cost_derivative(backend, outputs, targets, temp, blkidx,
     backend.dot(temp[2], temp[1], out=temp[0])
     temp[3][:blkidx] = temp[0]
 
-    backend.multiply(temp[3], backend.wrap(scale/n), out=temp[3])
+    backend.multiply(temp[3], scale / n, out=temp[3])
     return temp[3]
 
 

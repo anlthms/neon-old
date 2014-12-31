@@ -580,7 +580,7 @@ class GPU(Backend):
         elif isinstance(right, self.tensor_cls):
             right._tensor.add(left, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.add(right, out._tensor)
         return out
 
@@ -604,7 +604,7 @@ class GPU(Backend):
             right._tensor.subtract(left, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.subtract(right, out._tensor)
         return out
 
@@ -627,7 +627,7 @@ class GPU(Backend):
         elif isinstance(right, self.tensor_cls):
             right._tensor.mult(left, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.mult(right, out._tensor)
         return out
 
@@ -648,7 +648,7 @@ class GPU(Backend):
         if isinstance(left, self.tensor_cls):
             left._tensor.divide(self._unwrap(right), out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.divide(self._unwrap(right), out._tensor)
         return out
 

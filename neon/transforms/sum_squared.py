@@ -44,7 +44,7 @@ def sum_squared_diffs_derivative(backend, outputs, targets, temp, scale=1.0):
     """
 
     backend.subtract(outputs, targets, temp[0])
-    backend.multiply(temp[0], backend.wrap(scale), out=temp[0])
+    backend.multiply(temp[0], scale, out=temp[0])
     return temp[0]
 
 
