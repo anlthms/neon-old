@@ -312,7 +312,7 @@ class Backend(YAMLable):
         axis of right, storing the result in out.  Note that this dot product
         is equivalent to the inner product if operands are vectors, and matrix
         multiplication if both operands are matrices.  All Tensor's should have
-        the same shape or be broadcastable as such.
+        commensurate shape or be broadcastable as such.
 
         Arguments:
             left (Tensor): left-hand side operand.
@@ -334,8 +334,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -353,8 +353,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -372,8 +372,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -391,8 +391,8 @@ class Backend(YAMLable):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -410,8 +410,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -429,8 +429,8 @@ class Backend(YAMLable):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:

@@ -248,20 +248,6 @@ class CPU(Backend):
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(np.ones(shape, dtype), dtype)
 
-    def wrap(self, obj, dtype=None):
-        """
-        Convert obj to a CPUTensor (if it is not already).  Useful for
-        transforming scalars like ints and floats.
-
-        Arguments:
-            obj (int, float, CPUTensor): The object to convert.
-
-        Returns:
-            CPUTensor: Potentially converted object.
-        """
-        dtype = self.default_dtype_if_missing(dtype)
-        return self.tensor_cls(obj, dtype)
-
     def _unwrap(self, obj):
         """
         Helper that extracts and returns the raw data underlying obj (if it is
@@ -272,9 +258,6 @@ class CPU(Backend):
 
         Returns:
             int, float, numpyarray: raw data from object.
-
-        See Also:
-            `wrap`
         """
         if isinstance(obj, self.tensor_cls):
             return obj._tensor
@@ -353,9 +336,6 @@ class CPU(Backend):
 
     def copy(self, a):
         return self.tensor_cls(np.copy(a))
-
-    def dot(self, a, b, out):
-        np.dot(a._tensor, b._tensor, out._tensor)
 
     def add(self, left, right, out):
         """
@@ -444,11 +424,13 @@ class CPU(Backend):
     def reciprocal(self, a, out):
         np.divide(1.0, a._tensor, out._tensor)
 
-    def equal(self, left, right, out):
+    def dot(self, left, right, out):
         """
-        Performs element-wise equality testing on each element of left and
-        right, storing the result in out.  Each operand is assumed to be the
-        same shape (or broadcastable as such).
+        Perform sum product between the last axis of left and the second last
+        axis of right, storing the result in out.  Note that this dot product
+        is equivalent to the inner product if operands are vectors, and matrix
+        multiplication if both operands are matrices.  All CPUTensor's should
+        have commensurate shape or be broadcastable as such.
 
         Arguments:
             left (CPUTensor): left-hand side operand.
@@ -458,7 +440,23 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        return np.equal(left._tensor, right._tensor, out._tensor)
+        return np.dot(left._tensor, right._tensor, out._tensor)
+
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        return np.equal(self._unwrap(left), self._unwrap(right), out._tensor)
 
     def not_equal(self, left, right, out):
         """
@@ -467,14 +465,15 @@ class CPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (CPUTensor): left-hand side operand.
-            right (CPUTensor): right-hand side operand.
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
             out (CPUTensor): where the result will be stored.
 
         Returns:
             CPUTensor: reference to out
         """
-        return np.not_equal(left._tensor, right._tensor, out._tensor)
+        return np.not_equal(self._unwrap(left), self._unwrap(right),
+                            out._tensor)
 
     def greater(self, left, right, out):
         """
@@ -483,14 +482,14 @@ class CPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (CPUTensor): left-hand side operand.
-            right (CPUTensor): right-hand side operand.
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
             out (CPUTensor): where the result will be stored.
 
         Returns:
             CPUTensor: reference to out
         """
-        return np.greater(left._tensor, right._tensor, out._tensor)
+        return np.greater(self._unwrap(left), self._unwrap(right), out._tensor)
 
     def greater_equal(self, left, right, out):
         """
@@ -499,14 +498,15 @@ class CPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (CPUTensor): left-hand side operand.
-            right (CPUTensor): right-hand side operand.
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
             out (CPUTensor): where the result will be stored.
 
         Returns:
             CPUTensor: reference to out
         """
-        return np.greater_equal(left._tensor, right._tensor, out._tensor)
+        return np.greater_equal(self._unwrap(left), self._unwrap(right),
+                                out._tensor)
 
     def less(self, left, right, out):
         """
@@ -515,14 +515,14 @@ class CPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (CPUTensor): left-hand side operand.
-            right (CPUTensor): right-hand side operand.
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
             out (CPUTensor): where the result will be stored.
 
         Returns:
             CPUTensor: reference to out
         """
-        return np.less(left._tensor, right._tensor, out._tensor)
+        return np.less(self._unwrap(left), self._unwrap(right), out._tensor)
 
     def less_equal(self, left, right, out):
         """
@@ -531,14 +531,15 @@ class CPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (CPUTensor): left-hand side operand.
-            right (CPUTensor): right-hand side operand.
+            left (CPUTensor, numeric): left-hand side operand.
+            right (CPUTensor, numeric): right-hand side operand.
             out (CPUTensor): where the result will be stored.
 
         Returns:
             CPUTensor: reference to out
         """
-        return np.less_equal(left._tensor, right._tensor, out._tensor)
+        return np.less_equal(self._unwrap(left), self._unwrap(right),
+                             out._tensor)
 
     def norm(self, tsr, order=None, axis=None, out=None):
         """
@@ -609,11 +610,11 @@ class CPU(Backend):
         np.divide(1. - out._tensor, 1. + out._tensor, out=out._tensor)
 
     def rectlin(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
         self.multiply(x, out, out=out)
 
     def rectlin_derivative(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
 
     def clear(self, x):
         x._tensor[:] = 0

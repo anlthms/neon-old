@@ -472,19 +472,6 @@ class GPU(Backend):
         return GPUTensor(cudanet.CUDAMatrix(
             numpy.ones(shape, dtype=dtype)))
 
-    def wrap(self, obj):
-        """
-        Convert obj to a GPUTensor (if it is not already).  Useful for
-        transforming scalars like ints and floats.
-
-        Arguments:
-            obj (int, float, GPUTensor): The object to convert.
-
-        Returns:
-            GPUTensor: Potentially converted object.
-        """
-        return GPUTensor(obj)
-
     def _unwrap(self, obj):
         """
         Helper that extracts and returns the raw data underlying obj (if it is
@@ -495,9 +482,6 @@ class GPU(Backend):
 
         Returns:
             int, float, cudanet.CUDAMatrix: raw data from object.
-
-        See Also:
-            `wrap`
         """
         if isinstance(obj, self.tensor_cls):
             return obj._tensor
@@ -557,9 +541,6 @@ class GPU(Backend):
     def copy(self, a):
         assert type(a) == GPUTensor
         return a.copy()
-
-    def dot(self, a, b, out):
-        cudanet.dot(a._tensor, b._tensor, out._tensor)
 
     def add(self, left, right, out):
         """
@@ -645,11 +626,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        if isinstance(left, self.tensor_cls):
-            left._tensor.divide(self._unwrap(right), out._tensor)
-        else:
+        if not isinstance(left, self.tensor_cls):
             left = self.tensor_cls(left)
-            left._tensor.divide(self._unwrap(right), out._tensor)
+        left._tensor.divide(self._unwrap(right), out._tensor)
         return out
 
     def power(self, tsr, power, out):
@@ -674,11 +653,13 @@ class GPU(Backend):
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
 
-    def equal(self, left, right, out):
+    def dot(self, left, right, out):
         """
-        Performs element-wise equality testing on each element of left and
-        right, storing the result in out.  Each operand is assumed to be the
-        same shape (or broadcastable as such).
+        Perform sum product between the last axis of left and the second last
+        axis of right, storing the result in out.  Note that this dot product
+        is equivalent to the inner product if operands are vectors, and matrix
+        multiplication if both operands are matrices.  All GPUTensor's should
+        have commensurate shape or be broadcastable as such.
 
         Arguments:
             left (GPUTensor): left-hand side operand.
@@ -688,7 +669,30 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.equals(right._tensor, out._tensor)
+        cudanet.dot(left._tensor, right._tensor, out._tensor)
+        return out
+
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.equals(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.equals(left, out._tensor)
+        else:
+            left = self.tensor_cls(left)
+            left._tensor.equals(right, out._tensor)
         return out
 
     def not_equal(self, left, right, out):
@@ -698,8 +702,8 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
@@ -716,14 +720,16 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.greater_than(right._tensor, out._tensor)
+        if not isinstance(left, self.tensor_cls):
+            left = self.tensor_cls(left)
+        left._tensor.greater_than(self._unwrap(right), out._tensor)
         return out
 
     def greater_equal(self, left, right, out):
@@ -733,15 +739,15 @@ class GPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
         # we calculate >= as not <
-        left._tensor.less_than(right._tensor, out._tensor)
+        self.less(left, right, out)
         out._tensor.equals(0, out._tensor)
         return out
 
@@ -752,14 +758,16 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.less_than(right._tensor, out._tensor)
+        if not isinstance(left, self.tensor_cls):
+            left = self.tensor_cls(left)
+        left._tensor.less_than(self._unwrap(right), out._tensor)
         return out
 
     def less_equal(self, left, right, out):
@@ -769,15 +777,15 @@ class GPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
         # we calculate <= as not >
-        left._tensor.greater_than(right._tensor, out._tensor)
+        self.greater(left, right, out)
         out._tensor.equals(0, out._tensor)
         return out
 
@@ -844,11 +852,11 @@ class GPU(Backend):
         cudanet.tanh(x._tensor, out._tensor)
 
     def rectlin(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
         self.multiply(x, out, out=out)
 
     def rectlin_derivative(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
 
     def fill(self, x, val):
         x[:] = val
