@@ -134,31 +134,20 @@ class CrossEntropy(Cost):
     """
     def __init__(self, **kwargs):
         super(CrossEntropy, self).__init__(**kwargs)
-        # The default cross entropy to use is where each output node
-        # can take on value with binary prob
-        if not hasattr(self, 'use_binary'):
-            self.use_binary = True
 
-        if not hasattr(self, 'shortcut_deriv'):
-            self.shortcut_deriv = False
-            # if (isinstance(self.olayer.activation, Logistic)
-            #         and self.use_binary):
-            #     self.shortcut_deriv = True
-
-            # if (isinstance(self.olayer.activation, Softmax)
-            #         and not self.use_binary):
-            #     self.shortcut_deriv = True
-
-        # Set the appropriate functions
-        self.ce_function = cross_entropy
-        self.cd_function = cross_entropy_derivative
-
-        if not self.use_binary:
+    def initialize(self, kwargs):
+        super(CrossEntropy, self).initialize(kwargs)
+        if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
-            self.cd_function = cross_entropy_multi_derivative
-
-        if self.shortcut_deriv:
             self.cd_function = shortcut_derivative
+            self.olayer.skip_act = True
+        elif isinstance(self.olayer.activation, Logistic):
+            self.ce_function = cross_entropy
+            self.cd_function = shortcut_derivative
+            self.olayer.skip_act = True
+        else:
+            self.ce_function = cross_entropy
+            self.cd_function = cross_entropy_derivative
 
     def __str__(self):
         return ("Cost Function: {bnry} {shrtct}\n".format(

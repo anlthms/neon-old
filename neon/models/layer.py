@@ -21,604 +21,6 @@ if MPI_INSTALLED:
 
 logger = logging.getLogger(__name__)
 
-def req_param(obj, paramlist):
-    for param in paramlist:
-        if not hasattr(obj, param):
-            raise ValueError("required parameter %s missing for %s" % (param,
-                              obj.name))
-
-def opt_param(obj, paramlist, default_value):
-    for param in paramlist:
-        if not hasattr(obj, param):
-            setattr(obj, param, default_value)
-
-
-class LayerB(YAMLable):
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        req_param(self, ['name'])
-        opt_param(self, ['activation', 'weight_dtype', 'updates_dtype',
-            'pre_act_dtype', 'output_dtype', 'berror_dtype'], None)
-        opt_param(self, ['prev_names'], [])
-        opt_param(self, ['prev_layer'], None)
-        opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
-
-    def initialize(self, kwargs):
-        self.__dict__.update(kwargs)
-        req_param(self, ['backend', 'batch_size'])
-        self.output = None
-        self.berror = None
-
-    def set_previous_layer(self, pl):
-        if pl.is_local:
-            if self.is_local:
-                self.ifmshape = pl.ofmshape
-                self.nifm = pl.nofm
-            self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
-        else:
-            if self.is_local:
-                if not hasattr(self, 'ifmshape'):
-                    sqdim = np.int(np.sqrt(pl.nout))
-                    self.ifmshape = (sqdim, sqdim)
-                self.nifm = 1
-            self.nin = pl.nout
-        self.prev_layer = pl
-
-    def initialize_local(self):
-        req_param(self, ['nifm', 'ifmshape', 'fshape', 'stride'])
-        opt_param(self, ['nofm'], self.nifm)
-        opt_param(self, ['pooling'], False)
-        opt_param(self, ['pad'], 0)
-        opt_param(self, ['berrorbuf', 'outputbuf'], None)
-        opt_param(self, ['ofmlocs', 'links', 'rlinks'], None)
-
-        stride = self.stride
-        batch_size = self.batch_size
-
-        self.pad = -self.pad
-        self.fheight, self.fwidth = self.fshape
-        self.ifmheight, self.ifmwidth = self.ifmshape
-        self.ofmheight = np.int(
-            np.ceil(
-                (self.ifmheight - self.fheight + 2. * self.pad) / stride)) + 1
-        self.ofmwidth = np.int(
-            np.ceil(
-                (self.ifmwidth - self.fwidth + 2. * self.pad) / stride)) + 1
-        self.ofmshape = (self.ofmheight, self.ofmwidth)
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.fsize = self.fheight * self.fwidth * self.nifm
-        self.fpsize = self.fheight * self.fwidth
-        self.nout = self.nofm * self.ofmsize
-        print self.name, self.ifmshape, self.ofmshape
-        if isinstance(self.backend, CPU):
-            self.make_aux_buffers()
-
-    def __str__(self):
-        return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
-                "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nin=self.nin, nout=self.nout,
-                 act_nm=self.activation.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
-
-    def allocate_output_bufs(self):
-        make_zbuf = self.backend.zeros
-        if not hasattr(self, 'out_shape'):
-            self.out_shape = (self.nout, self.batch_size)
-        if not hasattr(self, 'berr_shape'):
-            self.berr_shape = (self.nin, self.batch_size)
-
-        self.output = make_zbuf(self.out_shape, self.output_dtype)
-
-        if self.activation is not None:
-            self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
-        else:
-            self.pre_act = self.output
-
-        self.berror = None
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
-
-    def make_aux_buffers(self):
-        make_ebuf = self.backend.empty
-        buf_size = self.batch_size * self.nifm
-        stride = self.stride
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berrorbuf = make_ebuf((self.ifmsize, buf_size))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
-                                        self.ofmsize)).raw()
-        self.ofmlocs = make_ebuf((self.ofmsize, self.nofm), dtype='i32')
-        for dst in range(self.ofmsize):
-            self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
-        if self.pooling is True:
-            self.links = make_ebuf((self.ofmsize, self.fpsize), dtype='i32')
-            self.outputbuf = make_ebuf((self.ofmsize, buf_size))
-        else:
-            self.links = make_ebuf((self.ofmsize, self.fsize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in range(self.ofmsize):
-            # Collect the column indices for the
-            # entire receptive field.
-            colinds = []
-            for row in range(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            fminds = colinds[:]
-            if self.pooling is False:
-                for ifm in range(1, self.nifm):
-                    colinds += [x + ifm * self.ifmsize for x in fminds]
-
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter to the right by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the filter down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst] = self.backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
-
-    def fprop(self, inputs):
-        raise NotImplementedError('This class should not be instantiated.')
-
-    def bprop(self, error):
-        raise NotImplementedError('This class should not be instantiated.')
-
-    def update(self, epoch):
-        pass
-
-    def set_train_mode(self, mode):
-        pass
-
-
-class CostLayerB(LayerB):
-    def __init__(self, **kwargs):
-        self.is_cost = True
-        self.nout = 1
-        super(CostLayerB, self).__init__(**kwargs)
-
-    def initialize(self, kwargs):
-        super(CostLayerB, self).initialize(kwargs)
-        req_param(self, ['cost', 'ref_layer'])
-        opt_param(self, ['ref_label'], 'targets')
-        self.targets = None
-        self.cost.olayer = self.prev_layer
-        self.cost.initialize(kwargs)
-        self.berror = self.cost.get_berrbuf()
-
-    def __str__(self):
-        return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
-                "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nin=self.nin,
-                 cost_nm=self.cost.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
-
-    def fprop(self, inputs):
-        pass
-
-    def bprop(self, error):
-        # Since self.berror already pointing to destination of act gradient
-        # we just have to scale by mini-batch size
-        if self.ref_layer is not None:
-            self.targets = getattr(self.ref_layer, self.ref_label)
-
-        self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.berror, self.backend.wrap(self.batch_size),
-                            out=self.berror)
-
-    def get_cost(self):
-        return self.cost.apply_function(self.targets) / self.batch_size
-
-class DataLayerB(LayerB):
-    def __init__(self, **kwargs):
-        self.is_data = True
-        super(DataLayerB, self).__init__(**kwargs)
-        req_param(self, ['nout', 'dataset'])
-
-    def initialize(self, kwargs):
-        super(DataLayerB, self).initialize(kwargs)
-        self.batch_idx = 0
-
-    def __str__(self):
-        return ("Layer {lyr_nm}: {nout} nodes, {ds_nm} dataset, "
-                "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nout=self.nout,
-                 ds_nm=self.dataset.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
-
-    def set_previous_layer(self, pl):
-        pass
-
-    def has_more_data(self):
-        return True if (self.batch_idx < self.num_batches) else False
-
-    def reset_counter(self):
-        self.batch_idx = 0
-
-    def fprop(self, inputs):
-        ds = self.dataset
-        if ds.macro_batched:
-            self.output, self.targets = ds.get_mini_batch(
-                                            self.batch_size, 'training')
-        else:
-            self.output = ds.get_batch(self.inputs, self.batch_idx)
-            self.targets = ds.get_batch(self.tgts, self.batch_idx)
-        self.batch_idx += 1
-
-    def bprop(self, error):
-        pass
-
-    def has_set(self, setname):
-        if self.dataset.macro_batched:
-            return True if (setname in ['train', 'validation']) else False
-        else:
-            inputs_dic = self.dataset.get_inputs(train=True, validation=True,
-                                        test=True)
-            return True if (setname in inputs_dic) else False
-
-    def use_set(self, setname):
-        ds = self.dataset
-        if ds.macro_batched:
-            sn = 'val' if (setname == 'validation') else setname
-            endb = getattr(ds, 'end_' + sn + '_batch')
-            startb = getattr(ds, 'start_' + sn + '_batch')
-            nrecs = ds.output_batch_size * (endb - startb + 1)
-            if startb == -1:
-                nrecs = ds.max_file_index
-            setattr(ds, 'cur_' + sn + '_macro_batch', startb)
-            self.num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-        else:
-            self.inputs = ds.get_inputs(train=True, validation=True,
-                                        test=True)[setname]
-            self.tgts = ds.get_targets(train=True, validation=True,
-                                        test=True)[setname]
-            self.num_batches = len(self.inputs)
-        self.batch_idx = 0
-
-
-class WeightLayerB(LayerB):
-    def initialize(self, kwargs):
-        super(WeightLayerB, self).initialize(kwargs)
-        req_param(self, ['weight_init', 'lrule_init'])
-        opt_param(self,['accumulate'], False)
-
-    def allocate_param_bufs(self):
-        make_ebuf = self.backend.empty
-        self.weights = self.backend.gen_weights(self.weight_shape,
-                                                self.weight_init,
-                                                self.weight_dtype)
-        self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
-
-        self.use_biases = 'bias_init' in self.weight_init
-        if self.use_biases:
-            self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.backend.fill(self.biases, self.weight_init['bias_init'])
-            self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
-            self.params = [self.weights, self.biases]
-            self.updates = [self.weight_updates, self.bias_updates]
-        else:
-            self.params = [self.weights]
-            self.updates = [self.weight_updates]
-
-        if self.accumulate:
-            self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
-                             self.updates)
-        self.gen_learning_rule()
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.params, self.updates, epoch)
-        if self.accumulate:
-            for uparam in self.updates:
-                uparam[:] = self.backend.wrap(0.0)
-
-    def normalize_weights(self, wts):
-        norms = self.backend.norm(wts, order=2, axis=1)
-        self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
-
-    def gen_learning_rule(self):
-        lrname = self.name + '_lr'
-        if self.lrule_init['type'] == 'gradient_descent':
-            self.learning_rule = GradientDescent(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
-        elif self.lrule_init['type'] == 'gradient_descent_pretrain':
-            self.learning_rule = GradientDescentPretrain(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
-        elif self.lrule_init['type'] == 'gradient_descent_momentum':
-            self.learning_rule = GradientDescentMomentum(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
-        elif self.lrule_init['type'] == 'adadelta':
-            self.learning_rule = AdaDelta(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
-        else:
-            raise AttributeError("invalid learning rule params specified")
-        self.learning_rule.allocate_state(self.updates)
-
-class FCLayerB(WeightLayerB):
-    def initialize(self, kwargs):
-        super(FCLayerB, self).initialize(kwargs)
-        req_param(self, ['nin', 'nout'])
-
-        self.weight_shape = (self.nout, self.nin)
-        self.bias_shape = (self.nout, 1)
-
-        self.allocate_output_bufs()
-        self.allocate_param_bufs()
-
-    def fprop(self, inputs):
-        self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
-                              weights=self.weights)
-        if self.use_biases is True:
-            self.backend.add(self.pre_act, self.biases, out=self.pre_act)
-        if self.activation is not None:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
-
-    def bprop(self, error):
-        inputs = self.prev_layer.output
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
-
-        if self.berror is not None:
-            self.backend.bprop_fc(out=self.berror, weights=self.weights,
-                                  deltas=error)
-        self.backend.update_fc(out=self.weight_updates, inputs=inputs,
-                               deltas=error)
-        if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=self.bias_updates)
-
-
-class PoolingLayerB(LayerB):
-
-    """
-    Max pooling layer.
-    """
-    def __init__(self, **kwargs):
-        self.is_local = True
-        super(PoolingLayerB, self).__init__(**kwargs)
-
-    def initialize(self, kwargs):
-        super(PoolingLayerB, self).initialize(kwargs)
-        self.pooling = True
-        self.initialize_local()
-        req_param(self, ['op'])
-        self.maxinds = None
-        if self.op == 'max':
-            self.maxinds = self.backend.empty(
-                (self.ofmsize, self.batch_size * self.nifm), dtype='i16')
-
-        self.allocate_output_bufs()
-
-        assert self.fshape[0] * self.fshape[1] <= 2 ** 15
-
-    def __str__(self):
-        return ("%sPoolingLayer %s: %d nin, %d nout, "
-                "utilizing %s backend\n\t"
-                "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.op, self.name, self.nin, self.nout,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.output),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output)))
-
-    def fprop(self, inputs):
-        self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,
-                                ofmshape=self.ofmshape, ofmlocs=self.maxinds,
-                                fshape=self.fshape, ifmshape=self.ifmshape,
-                                links=self.links, nifm=self.nifm, padding=0,
-                                stride=self.stride, fpropbuf=self.outputbuf)
-
-    def bprop(self, error):
-        inputs = self.prev_layer.output
-        if self.berror is not None:
-            self.backend.bprop_pool(out=self.berror, fouts=self.output,
-                                    inputs=inputs, deltas=error, op=self.op,
-                                    ofmshape=self.ofmshape,
-                                    ofmlocs=self.maxinds, fshape=self.fshape,
-                                    ifmshape=self.ifmshape, links=self.links,
-                                    nifm=self.nifm, padding=0,
-                                    stride=self.stride,
-                                    bpropbuf=self.berrorbuf)
-
-class ConvLayerB(WeightLayerB):
-
-    """
-    Convolutional layer.
-    """
-    def __init__(self, **kwargs):
-        self.is_local = True
-        super(ConvLayerB, self).__init__(**kwargs)
-
-    def initialize(self, kwargs):
-        super(ConvLayerB, self).initialize(kwargs)
-        self.initialize_local()
-        if self.pad != 0 and isinstance(self.backend, CPU):
-            raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
-
-        self.weight_shape = (self.fsize, self.nofm)
-        self.bias_shape = (self.nofm, 1)
-
-        self.allocate_output_bufs()
-        self.allocate_param_bufs()
-        opt_param(self, ['prodbuf', 'bpropbuf', 'updatebuf'], None)
-        if isinstance(self.backend, CPU):
-            self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
-            self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
-            self.updatebuf = self.backend.empty(self.weights.shape)
-
-    def __str__(self):
-        return ("ConvLayer %s: %d ifms, %d filters, "
-                "utilizing %s backend\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.name, self.nifm, self.nofm,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
-
-    def fprop(self, inputs):
-        self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
-                                weights=self.weights, ofmshape=self.ofmshape,
-                                ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
-                                links=self.rlinks, nifm=self.nifm,
-                                padding=self.pad, stride=self.stride,
-                                ngroups=1, fpropbuf=self.prodbuf)
-        if self.activation is not None:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
-
-    def bprop(self, error):
-        inputs = self.prev_layer.output
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
-        if self.berror is not None:
-            self.backend.bprop_conv(out=self.berror, weights=self.weights,
-                                    deltas=error, ofmshape=self.ofmshape,
-                                    ofmlocs=self.ofmlocs,
-                                    ifmshape=self.ifmshape, links=self.links,
-                                    padding=self.pad, stride=self.stride,
-                                    nifm=self.nifm, ngroups=1,
-                                    bpropbuf=self.bpropbuf)
-        self.backend.update_conv(out=self.weight_updates, inputs=inputs,
-                                 weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
-                                 ifmshape=self.ifmshape, links=self.links,
-                                 nifm=self.nifm, padding=self.pad,
-                                 stride=self.stride, ngroups=1,
-                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
-
-
-class DropOutLayerB(LayerB):
-
-    """
-    Dropout layer randomly kills activations from being passed on at each
-    fprop call.
-    Uses parameter 'keep' as the threshhold above which to retain activation.
-    During training, the mask is applied, but during inference, we switch
-    off the random dropping.
-    Make sure to set train mode to False during inference.
-    """
-
-    def initialize(self, kwargs):
-        opt_param(self, ['keep'], 0.5)
-        super(DropOutLayerB, self).initialize(kwargs)
-        if self.prev_layer.is_local:
-            self.is_local = True
-            self.nifm = self.nofm = self.prev_layer.nofm
-            self.ifmshape = self.ofmshape = self.prev_layer.ofmshape
-        self.nout = self.nin
-        self.keepmask = self.backend.empty((self.nin, self.batch_size))
-        self.train_mode = True
-        self.allocate_output_bufs()
-
-    def fprop(self, inputs):
-        if (self.train_mode):
-            self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, self.backend.wrap(self.keep),
-                                  out=self.keepmask)
-            self.backend.multiply(inputs, self.keepmask, out=self.output)
-        else:
-            self.backend.multiply(inputs, self.backend.wrap(self.keep),
-                                  out=self.output)
-
-    def bprop(self, error):
-        if self.berror is not None:
-            self.backend.multiply(error, self.keepmask, out=self.berror)
-
-    def set_train_mode(self, mode):
-        self.train_mode = mode
-
-
-class BranchLayerB(LayerB):
-
-    """
-    Branch layer is composed of a list of other layers
-    during fprop, it concatenates the component outputs and passes it on
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common berror
-    """
-
-    def initialize(self, kwargs):
-        super(BranchLayerB, self).initialize(kwargs)
-        req_param(self, ['sublayers'])
-        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
-
-        self.startidx = [0]*len(self.sublayers)
-        self.endidx = [0]*len(self.sublayers)
-        self.endidx[0] = self.sublayers[0].nout
-        for i in range(1, len(self.sublayers)):
-            self.endidx[i] = self.endidx[i-1] + self.sublayers[i].nout
-            self.startidx[i] = self.endidx[i-1]
-
-        self.allocate_output_bufs()
-
-    def fprop(self, inputs):
-        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
-            s_l.fprop(inputs)
-            self.output[si:ei] = s_l.output
-
-    def bprop(self, error):
-        inputs = self.prev_layer.output
-        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
-            s_l.bprop(error[si:ei], inputs)
-
-        if self.berror is not None:
-            self.berror[:] = self.backend.wrap(0.0)
-            for subl in self.sublayers:
-                self.backend.add(self.berror, subl.berror, out=self.berror)
-
-    def set_train_mode(self, mode):
-        for sublayer in self.sublayers:
-            sublayer.set_train_mode(mode)
-
-
-class CrossMapResponseNormLayerB(LayerB):
-
-    """
-    CrossMap response normalization.
-
-    Calculates the normalization across feature maps at each pixel point.
-    output will be same size as input
-
-    The calculation is output(x,y,C) = input(x,y,C)/normFactor(x,y,C)
-
-    where normFactor(x,y,C) is (1 + alpha * sum_ksize( input(x,y,k)^2 ))^beta
-
-    ksize is the kernel size, so will run over the channel index with no
-    padding at the edges of the feature map.  (so for ksize=5, at C=1, we will
-    be summing the values of c=0,1,2,3)
-    """
-    def __init__(self, **kwargs):
-        self.is_local = True
-        super(CrossMapResponseNormLayerB, self).__init__(**kwargs)
-
-    def initialize(self, kwargs):
-        req_param(self, ['ksize', 'alpha', 'beta'])
-        self.alpha = self.alpha * 1.0 / self.ksize
-        super(CrossMapResponseNormLayerB, self).initialize(kwargs)
-        self.nout = self.nin
-        self.ofmshape, self.nofm = self.ifmshape, self.nifm
-        print self.ofmshape, self.nofm
-        self.allocate_output_bufs()
-        self.tempbuf = None
-        if self.berror is not None and isinstance(self.backend, CPU):
-            self.tempbuf = self.backend.empty(
-                    (self.ifmshape[0], self.ifmshape[1], self.batch_size))
-
-    def fprop(self, inputs):
-        self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
-                                   ifmshape=self.ifmshape, nifm=self.nifm,
-                                   ksize=self.ksize, alpha=self.alpha,
-                                   beta=self.beta)
-
-    def bprop(self, error):
-        inputs = self.prev_layer.output
-        if self.berror is not None:
-            self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
-                                       inputs=inputs, deltas=error,
-                                       ifmshape=self.ifmshape, nifm=self.nifm,
-                                       ksize=self.ksize, alpha=self.alpha,
-                                       beta=self.beta, bpropbuf=self.tempbuf)
-
 
 class Layer(YAMLable):
 
@@ -934,15 +336,17 @@ class RecurrentOutputLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
+        self.backend.multiply(error, self.pre_act_list[tau - 1],
+                      out=self.deltas_o[tau])
         self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
-        self.weight_updates += self.temp_out
+        self.backend.add(self.weight_updates, self.temp_out,
+                         out=self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
-class RecurrentLSMTLayer(Layer):
+class RecurrentLSTMLayer(Layer):
 
     """
     Hidden layer with LSTM gates.
@@ -956,75 +360,36 @@ class RecurrentLSMTLayer(Layer):
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
                                                    learning_rule, activation)
+        sbe = self.backend
+
+        wshape = (self.nout, self.nout)
+        bshape = (self.batch_size, self.nout)
         # create weight matrices
-        self.Wxi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxo = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Who = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
+        for a in ['i', 'f', 'o', 'c']:
+            for b in ['h', 'x']:
+                setattr(self, 'W' + b + a,
+                    sbe.gen_weights(wshape, weight_init_rec, weight_dtype))
 
         # initialize buffers for intermediate values
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.f_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.o_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.g_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.c_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.h_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
+        for ival in ['i', 'f', 'o', 'g', 'c', 'h']:
+            setattr(self, ival+'_t', 
+                    [sbe.zeros(bshape) for k in range(unrolls)])
 
         # preactivation -- do we really need to store this across unrolls?
-        self.net_ix = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ih = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ox = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_oh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
+        for a in ['i', 'f', 'o', 'g']:
+            for b in ['h', 'x']:
+                setattr(self, 'net_' + a + b, 
+                        [sbe.zeros(bshape) for k in range(unrolls)])
 
         # misc
-        self.deltas = [self.backend.zeros((self.batch_size, nout))
+        self.deltas = [sbe.zeros(bshape)
                        for k in range(unrolls + 1)]
-        self.updates_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_in = self.backend.zeros((self.nout, self.nin))
+        self.updates_rec = sbe.zeros(wshape)
+        self.temp_rec = sbe.zeros(wshape)
+        self.temp_in = sbe.zeros((self.nout, self.nin))
         self.learning_rule.allocate_state_rec(self.updates_rec)
 
-        self.berror = backend.zeros((batch_size, nout))
+        self.berror = sbe.zeros(bshape)
 
     def fprop(self, y, inputs, tau):
         """
@@ -1135,24 +500,22 @@ class RecurrentHiddenLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas[1] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.temp_in,
-                               inputs[(tau-1)*128:tau*128, :],
-                               self.deltas[1])
-        self.weight_updates += self.temp_in
+        sbe = self.backend
+        sbe.multiply(error, self.pre_act_list[tau - 1], out=self.deltas[1])
+        sbe.update_fc(self.temp_in, inputs[(tau-1)*128:tau*128, :],
+                      self.deltas[1])
+        sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
         for layer in list(range(0, tau - 1))[::-1]:
-            self.backend.bprop_fc(self.berror,
-                                  self.weights_rec,
-                                  self.deltas[tau - layer - 1])
-            self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
-            self.backend.update_fc(self.temp_rec,
-                                   self.output_list[layer],
-                                   self.deltas[tau - layer - 1])
-            self.updates_rec += self.temp_rec
-            self.backend.update_fc(self.temp_in,
-                                   inputs[layer*128:(layer+1)*128, :],
-                                   self.deltas[tau - layer])
-            self.weight_updates += self.temp_in
+            sbe.bprop_fc(self.berror, self.weights_rec,
+                         self.deltas[tau - layer - 1])
+            sbe.multiply(self.berror, self.pre_act_list[layer],
+                         self.deltas[tau - layer])
+            sbe.update_fc(self.temp_rec, self.output_list[layer],
+                          self.deltas[tau - layer - 1])
+            sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
+            sbe.update_fc(self.temp_in, inputs[layer*128:(layer+1)*128, :],
+                          self.deltas[tau - layer])
+            sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -1612,56 +975,6 @@ class ConvLayer(LocalLayer):
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
-
-
-class ConvLayerMultiPass(Layer):
-
-    """
-    Convolutional layer that accumulates backpropagated error.
-
-    Multipass indicates that multiple back propagation passes can be made
-    (each corresponding to different cost), and the gradient will be
-    accumulated until an update is called, at which point the gradients will
-    be cleared
-    """
-
-    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, weight_init, activation=None,
-                 pad=0, prev_names=[]):
-        super(ConvLayerMultiPass, self).__init__(name, backend, batch_size,
-                                                 pos, learning_rule,
-                                                 nifm, nofm, ifmshape,
-                                                 fshape, stride,
-                                                 activation=activation,
-                                                 pad=pad,
-                                                 prev_names=prev_names)
-        self.utemp = self.backend.empty(self.weights.shape,
-                                        self.updates_dtype)
-        self.updates[:] = self.backend.wrap(0.0)
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-        self.updates[:] = self.backend.wrap(0.0)
-
-    def bprop(self, error, inputs):
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
-        if self.pos > 0:
-            self.backend.bprop_conv(out=self.berror, weights=self.weights,
-                                    deltas=error, ofmshape=self.ofmshape,
-                                    ofmlocs=self.ofmlocs,
-                                    ifmshape=self.ifmshape, links=self.links,
-                                    padding=self.pad, stride=self.stride,
-                                    nifm=self.nifm, ngroups=1,
-                                    bpropbuf=self.bpropbuf)
-        self.backend.update_conv(out=self.utemp, inputs=inputs,
-                                 weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
-                                 ifmshape=self.ifmshape, links=self.links,
-                                 nifm=self.nifm, padding=self.pad,
-                                 stride=self.stride, ngroups=1,
-                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
-        self.backend.add(self.utemp, self.updates, out=self.updates)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):

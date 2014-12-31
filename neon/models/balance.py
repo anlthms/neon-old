@@ -15,100 +15,59 @@ from neon.transforms.cross_entropy import CrossEntropy
 logger = logging.getLogger(__name__)
 
 
-class Balance(MLP):
+class Balance(MLPB):
 
     def __init__(self, **kwargs):
-        super(Balance, self).__init__(**kwargs)
-        self.bs = self.backend.wrap(self.batch_size)
-        self.link_layers()
+        self.dist_mode = None
+        self.__dict__.update(kwargs)
+        for req_param in ['layers', 'batch_size']:
+            if not hasattr(self, req_param):
+                raise ValueError("required parameter: %s not specified" %
+                                 req_param)
+        self.result = 0
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": True}
 
-    def link_layers(self):
-        """
-        Run through the layers and create a linked list structure
-        """
-        self.ldict = {}
-        # first map all the layers to their names
-        for l in self.layers:
-            if l.name in self.ldict:
-                raise ValueError("layer name %s already used" % l.name)
-            self.ldict[l.name] = l
-            l.prevs = []
-            l.nexts = []
+        self.data_layer = self.layers[0]
+        self.cost_layer = self.classlayers[-1]
+        self.out_layer = self.layers[-2]
+        self.class_layer = self.classlayers[-2]
+        self.branch_layer = self.stylelayers[-2]
 
-        # now start linking them up
-        for l in self.layers:
-            if len(l.prev_names) == 0:
-                continue
-            try:
-                l.prevs = map(lambda x: self.ldict[x], l.prev_names)
-            except KeyError:
-                raise KeyError("Layer name not found: %s" % l.prev_names)
-            for p in l.prevs:
-                isinstance(l, BranchLayer)
-                p.nexts = [l]
+        pl = None
+        for ll in self.layers:
+            ll.set_previous_layer(pl)
+            ll.initialize(kwargs)
+            pl = ll
 
-        # check for orphans and set the input and terminal nodes
-        for l in self.layers:
-            if len(l.prevs) == 0 and len(l.nexts) == 0:
-                print "Orphan found: %s" % l.name
-                continue
-            if len(l.prevs) == 0:
-                self.input_layer = l
-            if len(l.nexts) == 0:
-                self.output_layer = l
+        self.classlayers[-1].set_previous_layer(self.classlayers[-2])
+        self.classlayers[-1].initialize(kwargs)
 
-    def get_error(self, targets, inputs):
-        error = 0.0
-        error += self.cost[0].apply_function(inputs)
-        # for c,t in zip(self.cost, [inputs, targets, targets]):
-        #     error += c.apply_function(t)
-        return error
+        self.stylelayers[-1].set_previous_layer(self.stylelayers[-2])
+        self.stylelayers[-1].initialize(kwargs)
 
-    def fprop(self, inputs):
-        vqueue = [self.input_layer]
-        y = inputs
-        while len(vqueue) != 0:
-            l = vqueue.pop(0)
-            l.fprop(y)
-            y = l.output
-            vqueue.extend(l.nexts)
+        assert self.layers[-1].nout <= 2 ** 15
 
-    def bprop(self, targets, inputs):
-        cost_inputs = [inputs, targets, targets]
-        cost_errors = map(lambda x: x[0].apply_derivative(x[1]),
-                          zip(self.cost, cost_inputs))
+    def fprop(self):
+        y = None
+        for layer in self.layers:
+            layer.fprop(y)
+            y = layer.output
 
-        # (c, err) = (self.cost[0], cost_errors[0])
-        for c, err in zip(self.cost[:3], cost_errors[:3]):
-            self.backend.divide(err, self.bs, out=err)
-            berror = err
-            vqueue = [c.olayer]
-            while len(vqueue) != 0:
-                l = vqueue.pop(0)
-                if len(l.prevs) > 0:
-                    if (isinstance(c, CrossEntropy)) and l == c.olayer:
-                        l.bprop(berror, l.prevs[0].output, c.shortcut_deriv)
-                    else:
-                        l.bprop(berror, l.prevs[0].output)
-                    berror = l.berror
-                    vqueue.extend(l.prevs)
-                else:
-                    l.bprop(berror, inputs)
-
-    def get_classifier_output(self):
-        return self.ldict['classlayer'].output
+    def bprop(self):
+        for pathway in [self.layers, self.classlayers, self.stylelayers]:
+            error = None
+            for layer in reversed(pathway):
+                layer.bprop(error)
+                error = layer.berror
 
     def get_reconstruction_output(self):
-        # reshape the output_layer
-        return self.ldict['outlayer'].output
+        return self.out_layer.output
 
-    def generate_output(self, inputs, zparam=0.0):
-        vqueue = [self.input_layer]
+    def generate_output(self, inputs):
         y = inputs
-        while len(vqueue) != 0:
-            l = vqueue.pop(0)
-            l.fprop(y)
-            y = l.output
-            vqueue.extend(l.nexts)
-            if l.name == "blayer":
-                y[10:] = self.backend.wrap(zparam)
+        for layer in self.layers[1:]:
+            layer.fprop(y)
+            y = layer.output
+            if layer is self.branch_layer:
+                y[self.zidx:] = self.backend.wrap(self.zparam)

@@ -9,6 +9,7 @@
   olayout: [12, 6],
   fshape: [28, 28],
   figure_filename: 'ofn.png',
+
   backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     seterr_handling: {
@@ -16,183 +17,131 @@
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
+  # MNIST data
+  dataset: &ds !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
+
+  lrule: &adad {
+    type: adadelta,
+    lr_params: {
+      epsilon: 0.000001,
+      rho: 0.95,
       backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
+    },
+  },
+
+  wt_cfgs: [
+    &wt_init_a {
+      type: autoscale,
+      bias_init: 0.0,
+    },
+    &wt_init_b {
+      type: autoscale,
+      bias_init: 0.0,
+      relu: 1,
     },
   ],
 
   # simple Balance model specification
   model: !obj:neon.models.balance.Balance {
-    serialized_path: './balance-simple.pkl',
+    # serialized_path: './balance-simple.pkl',
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.LayerMultiPass {
+      &datalayer !obj:neon.models.layer.DataLayerB {
+        name: d0,
+        dataset: *ds,
+        nout: 784,
+      },
+      &h0 !obj:neon.models.layer.FCLayerB {
         name: h0,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: &lrp {
-            epsilon: 0.000001,
-            rho: 0.95,
-            backend: *be,
-          },
-        },
-        nin: 784,
-        nout: 200,
+        lrule_init: *adad,
+        weight_init: *wt_init_b,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: autoscale,
-          relu: 1,
-          bias_init: 0.0,
-        },
-      },
-      !obj:neon.models.layer.LayerMultiPass {
-        name: h1,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h0],
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 200,
         nout: 200,
-        # activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: autoscale,
-          bias_init: 0.0,
-        },
       },
-      &classlayer !obj:neon.models.layer.LayerMultiPass {
-        name: classlayer,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h1],
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 200,
-        nout: 10,
-        activation: !obj:neon.transforms.softmax.Softmax {
-          shortcut_deriv: False,
-        },
-        weight_init: {
-          type: autoscale,
-          bias_init: 0.0,
-        },
+      &h1 !obj:neon.models.layer.FCLayerB {
+        name: h1,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
+        nout: 200,
       },
-      &stylelayer !obj:neon.models.layer.LayerMultiPass {
-        name: stylelayer,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h1],
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 200,
-        nout: 2,
-        weight_init: {
-          type: autoscale,
-          bias_init: 0.0,
-        },
-      },
-      &blayer !obj:neon.models.layer.BranchLayer {
+      &blayer !obj:neon.models.layer.BranchLayerB {
         name: blayer,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h1],
-        pos: 2,
-        nin: 200,
         sublayers: [
-          *classlayer,
-          *stylelayer,
+          &classlayer !obj:neon.models.layer.FCLayerB {
+            name: classlayer,
+            lrule_init: *adad,
+            weight_init: *wt_init_a,
+            activation: !obj:neon.transforms.softmax.Softmax {},
+            nout: &zidx 10,
+          },
+          &stylelayer !obj:neon.models.layer.FCLayerB {
+            name: stylelayer,
+            lrule_init: *adad,
+            weight_init: *wt_init_a,
+            nout: 2,
+          },
         ],
       },
-      !obj:neon.models.layer.LayerMultiPass {
+      &h3 !obj:neon.models.layer.FCLayerB {
         name: h3,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [blayer],
-        pos: 3,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 12,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
         nout: 200,
-        # activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: autoscale,
-          bias_init: 0.0,
-        },
       },
-      !obj:neon.models.layer.LayerMultiPass {
+      &h4 !obj:neon.models.layer.FCLayerB {
         name: h4,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h3],
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 200,
-        nout: 200,
+        lrule_init: *adad,
+        weight_init: *wt_init_b,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: autoscale,
-          relu: 1,
-          bias_init: 0.0,
-        },
+        nout: 200,
       },
-      &outlayer !obj:neon.models.layer.LayerMultiPass {
+      &outlayer !obj:neon.models.layer.FCLayerB {
         name: outlayer,
-        backend: *be,
-        batch_size: *bs,
-        prev_names: [h4],
-        pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: outputlr,
-          lr_params: *lrp,
-        },
-        nin: 200,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
         nout: 784,
-        weight_init: {
-          type: autoscale,
-          bias_init: 0.0,
+      },
+      &sumsqcostlayer !obj:neon.models.layer.CostLayerB {
+        name: cost,
+        ref_layer: *datalayer,
+        ref_label: inputs,
+        cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
+      },
+    ],
+    classlayers: [
+      *datalayer,
+      *h0,
+      *h1,
+      *classlayer,
+      &xentcostlayer !obj:neon.models.layer.CostLayerB {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+          scale: 10,
         },
       },
     ],
-    cost: [
-      !obj:neon.transforms.sum_squared.SumSquaredDiffs {
-        olayer: *outlayer,
-        scale: 1,
-      },
-      !obj:neon.transforms.cross_entropy.CrossEntropy {
-        olayer: *classlayer,
-        scale: 10,
-        shortcut_deriv: True,
-        use_binary: False,
-      },
-      !obj:neon.transforms.xcov.XCovariance {
-        olayer: *blayer,
-        blkidx: 10,
-        scale: 10,
+    stylelayers: [
+      *datalayer,
+      *h0,
+      *h1,
+      *blayer,
+      &xcovcostlayer !obj:neon.models.layer.CostLayerB {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.xcov.XCovariance {
+          blkidx: 10,
+          scale: 10,
+        },
       },
     ],
+    zidx: *zidx,
   },
 
   # logging options that are passed to logging.basicConfig
