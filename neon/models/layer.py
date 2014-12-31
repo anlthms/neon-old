@@ -336,9 +336,11 @@ class RecurrentOutputLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
+        self.backend.multiply(error, self.pre_act_list[tau - 1],
+                              self.deltas_o[tau])
         self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
-        self.weight_updates += self.temp_out
+        self.backend.add(self.weight_updates, self.temp_out,
+                         self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -537,24 +539,29 @@ class RecurrentHiddenLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas[1] = error * self.pre_act_list[tau - 1]
+        self.backend.multiply(error, self.pre_act_list[tau - 1],
+                              self.deltas[1])
         self.backend.update_fc(self.temp_in,
                                inputs[(tau-1)*128:tau*128, :],
                                self.deltas[1])
-        self.weight_updates += self.temp_in
+        self.backend.add(self.weight_updates, self.temp_in,
+                         self.weight_updates)
         for layer in list(range(0, tau - 1))[::-1]:
             self.backend.bprop_fc(self.berror,
                                   self.weights_rec,
                                   self.deltas[tau - layer - 1])
-            self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
+            self.backend.multiply(self.berror, self.pre_act_list[layer],
+                                  self.deltas[tau - layer])
             self.backend.update_fc(self.temp_rec,
                                    self.output_list[layer],
                                    self.deltas[tau - layer - 1])
-            self.updates_rec += self.temp_rec
+            self.backend.add(self.updates_rec, self.temp_rec,
+                             self.updates_rec)
             self.backend.update_fc(self.temp_in,
                                    inputs[layer*128:(layer+1)*128, :],
                                    self.deltas[tau - layer])
-            self.weight_updates += self.temp_in
+            self.backend.add(self.weight_updates, self.temp_in,
+                             self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)

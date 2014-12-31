@@ -141,7 +141,8 @@ class RNN(Model):
                             targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
-            error /= float(error.shape[0] * error.shape[1])
+            self.backend.divide(error, float(error.shape[0] * error.shape[1]),
+                                error)
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1],
                                  tau)
