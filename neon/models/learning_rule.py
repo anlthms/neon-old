@@ -146,15 +146,26 @@ class GradientDescentMomentum(GradientDescent):
         3. velo = velo - upda  combine old and new part
         4. update the actual weights.
         """
+        #print 'called learning rule'
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             self.backend.multiply(vs_item,
                                   self.backend.wrap(momentum_coef),
                                   out=vs_item)
+            #todo: dbg modofied this added: '/100.'
             self.backend.multiply(us_item,
                                   self.backend.wrap(self.learning_rate),
                                   out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
+            #reuse us_item for weight decay term
+            self.backend.multiply(ps_item,
+                                  self.backend.wrap(self.weight_decay),
+                                  out=us_item)
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(self.learning_rate),
+                                  out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            
             self.backend.add(ps_item, vs_item, out=ps_item)
 
     def get_momentum_coef(self, epoch):

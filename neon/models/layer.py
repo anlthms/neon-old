@@ -538,7 +538,7 @@ class RecurrentHiddenLayer(Layer):
     def bprop(self, error, inputs, tau):
         self.deltas[1] = error * self.pre_act_list[tau - 1]
         self.backend.update_fc(self.temp_in,
-                               inputs[(tau-1)*128:tau*128, :],
+                               inputs[(tau - 1) * 128:tau * 128, :],
                                self.deltas[1])
         self.weight_updates += self.temp_in
         for layer in list(range(0, tau - 1))[::-1]:
@@ -551,7 +551,7 @@ class RecurrentHiddenLayer(Layer):
                                    self.deltas[tau - layer - 1])
             self.updates_rec += self.temp_rec
             self.backend.update_fc(self.temp_in,
-                                   inputs[layer*128:(layer+1)*128, :],
+                                   inputs[layer * 128:(layer + 1) * 128, :],
                                    self.deltas[tau - layer])
             self.weight_updates += self.temp_in
 
@@ -578,8 +578,8 @@ class BranchLayer(YAMLable):
         self.nout = 0
         self.sublayers = sublayers
         self.nsublayers = len(self.sublayers)
-        self.startidx = [0]*len(self.sublayers)
-        self.endidx = [0]*len(self.sublayers)
+        self.startidx = [0] * len(self.sublayers)
+        self.endidx = [0] * len(self.sublayers)
         self.prev_names = prev_names
         self.batch_size = batch_size
 
@@ -587,8 +587,8 @@ class BranchLayer(YAMLable):
             self.nout += self.sublayers[i].nout
             self.endidx[i] = self.nout
             if i > 0:
-                self.startidx[i] = (self.startidx[i-1] +
-                                    self.sublayers[i-1].nout)
+                self.startidx[i] = (self.startidx[i - 1] +
+                                    self.sublayers[i - 1].nout)
 
         self.output = backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
@@ -649,10 +649,15 @@ class DropOutLayer(YAMLable):
     def fprop(self, inputs):
         if (self.train_mode):
             self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, inputs, out=self.output)
+            self.backend.multiply(self.keepmask, self.backend.wrap(self.keep),
+                                  out=self.keepmask)
+            self.backend.multiply(inputs, self.keepmask, out=self.output)
+            #self.backend.multiply(self.keepmask, inputs, out=self.output)
         else:
-            self.backend.multiply(self.backend.wrap(self.keep), inputs,
+            self.backend.multiply(inputs, self.backend.wrap(self.keep),
                                   out=self.output)
+            #self.backend.multiply(self.backend.wrap(self.keep), inputs,
+            #                      out=self.output)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
@@ -662,7 +667,7 @@ class DropOutLayer(YAMLable):
         pass
 
     def set_train_mode(self, mode):
-        self.train_mode = False
+        self.train_mode = mode
 
 
 class DataLayer(YAMLable):
@@ -830,47 +835,49 @@ class LocalLayer(YAMLable):
 
         # Figure out the connections with the previous layer.
         if isinstance(backend, GPU):
-          self.rlinks = []
-          if pooling is True:
-            self.links = []
-            self.outputbuf = []
-            if pos>0:
-              self.berrorbuf = []
-          else:
-            self.links = []
-        else:  
-          if pooling is True:
-              self.links = backend.empty(
-                  (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
-              self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
-          else:
-              self.links = backend.empty(
-                  (self.ofmsize, self.fsize), dtype='i32')
+            self.rlinks = []
+            if pooling is True:
+                self.links = []
+                self.outputbuf = []
+                if pos > 0:
+                    self.berrorbuf = []
+            else:
+                self.links = []
+        else:
+            if pooling is True:
+                self.links = backend.empty(
+                    (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+                self.outputbuf = backend.empty(
+                    (self.ofmsize, batch_size * nifm))
+            else:
+                self.links = backend.empty(
+                    (self.ofmsize, self.fsize), dtype='i32')
 
-          # This variable tracks the top left corner of the receptive field.
-          src = 0
-          for dst in xrange(self.ofmsize):
-              # Collect the column indices for the
-              # entire receptive field.
-              colinds = []
-              for row in xrange(self.fheight):
-                  start = src + row * self.ifmwidth
-                  colinds += range(start, start + self.fwidth)
-              fminds = colinds[:]
-              if pooling is False:
-                  for ifm in xrange(1, nifm):
-                      colinds += [x + ifm * self.ifmsize for x in fminds]
+            # This variable tracks the top left corner of the receptive field.
+            src = 0
+            for dst in xrange(self.ofmsize):
+                # Collect the column indices for the
+                # entire receptive field.
+                colinds = []
+                for row in xrange(self.fheight):
+                    start = src + row * self.ifmwidth
+                    colinds += range(start, start + self.fwidth)
+                fminds = colinds[:]
+                if pooling is False:
+                    for ifm in xrange(1, nifm):
+                        colinds += [x + ifm * self.ifmsize for x in fminds]
 
-              if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                  # Slide the filter to the right by the stride value.
-                  src += stride
-              else:
-                  # We hit the right edge of the input image.
-                  # Shift the filter down by one stride.
-                  src += stride * self.ifmwidth - src % self.ifmwidth
-                  assert src % self.ifmwidth == 0
-              self.links[dst, :] = backend.array(colinds, dtype='i32')
-          self.rlinks = self.links.raw()
+                expr1 = (src % self.ifmwidth + self.fwidth + stride)
+                if expr1 <= self.ifmwidth:
+                    # Slide the filter to the right by the stride value.
+                    src += stride
+                else:
+                    # We hit the right edge of the input image.
+                    # Shift the filter down by one stride.
+                    src += stride * self.ifmwidth - src % self.ifmwidth
+                    assert src % self.ifmwidth == 0
+                self.links[dst, :] = backend.array(colinds, dtype='i32')
+            self.rlinks = self.links.raw()
 
     def normalize_weights(self, weights):
         norms = self.backend.norm(weights, order=2, axis=1)
@@ -890,6 +897,7 @@ class LocalLayerDist(LocalLayer):
     """
     Base class for locally connected layers.
     """
+
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
                  activation=None, pad=0, prev_names=[]):
@@ -1018,13 +1026,13 @@ class ConvLayer(LocalLayer):
         self.output = backend.empty((self.nout, batch_size))
         self.updates = backend.empty(self.weights.shape)
         if isinstance(backend, GPU):
-          self.prodbuf = []
-          self.bpropbuf = []
-          self.updatebuf = []
+            self.prodbuf = []
+            self.bpropbuf = []
+            self.updatebuf = []
         else:
-          self.prodbuf = backend.empty((nofm, batch_size))
-          self.bpropbuf = backend.empty((self.fsize, batch_size))
-          self.updatebuf = backend.empty(self.weights.shape)
+            self.prodbuf = backend.empty((nofm, batch_size))
+            self.bpropbuf = backend.empty((self.fsize, batch_size))
+            self.updatebuf = backend.empty(self.weights.shape)
 
         self.learning_rule.allocate_state([self.updates])
         if activation is not None:
@@ -2332,7 +2340,7 @@ class CrossMapResponseNormLayer(YAMLable):
         if self.pos > 0:
             self.berror = self.backend.empty((self.nin, self.batch_size))
             self.tempbuf = self.backend.empty((ifmshape[0], ifmshape[1],
-                                              batch_size))
+                                               batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,

@@ -146,7 +146,9 @@
         },
         nin: 500,
         nout: 1000,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.softmax.Softmax {
+          shortcut_deriv: True,
+          },
         weight_init: {
           type: uniform,
           low: -0.1,

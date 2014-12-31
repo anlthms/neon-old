@@ -14,11 +14,11 @@
       backend: *be,
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
-      serialized_path: '/usr/local/data/I1K/I1K_alexnet.pkl', #delete if loading files from scratch
+      serialized_path: '/usr/local/data/I1K/I1K_alexnet3.pkl', #delete if loading files from scratch
       # sample_pct: .1, #ignored for now
       macro_batched: True,
       output_image_size: &ois 224,
-      max_tar_file: 4,
+      max_tar_file: 2,
       #number of cpu processes for image resizing and decompression
       num_processes: 4,
       # macro batch start and end indices for train and val datasets
@@ -34,26 +34,34 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 1,
-    batch_size: &bs 256,
+    num_epochs: 10,
+    batch_size: &bs 100, #256,
+    #serialized_path: '/usr/local/data/I1K/I1K_alexnet_model.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: conv1,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer1lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer1lr,
+        #   lr_params: {
+        #     #this is per image (no scaling in code)?
+        #     learning_rate: &lr .01,
+        #     weight_decay: &wd .0005,
+        #     backend: *be,
+        #     momentum_params: &mm {
+        #       type: constant, #constant, nesterov
+        #       initial_coef: 0.90,
+        #     },
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: &lrp {
+            epsilon: 0.000001,
+            rho: 0.95,
             backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.90,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.99,
-            },
           },
         },
         nifm: 3,
@@ -61,10 +69,16 @@
         ifmshape: [*ois, *ois],
         fshape: [11, 11],
         stride: 4,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 0.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
@@ -75,7 +89,7 @@
         ifmshape: [55, 55],
         nifm: 64,
         ksize: 5,
-        alpha: 0.0001, # todo: double check this with alex
+        alpha: 0.0001, # todo: double check this with alex; .0001 in paper
         beta: 0.75,
       },
       !obj:neon.models.layer.MaxPoolingLayer {
@@ -93,13 +107,18 @@
         backend: *be,
         batch_size: *bs,
         pos: 3,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer2lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer2lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nifm: 64,
         nofm: 192,
@@ -108,10 +127,15 @@
         stride: 1,
         pad: 2,
         activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
@@ -140,13 +164,18 @@
         backend: *be,
         batch_size: *bs,
         pos: 6,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer3lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nifm: 192,
         nofm: 384,
@@ -155,10 +184,15 @@
         stride: 1,
         pad: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 0.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
       !obj:neon.models.layer.ConvLayer {
@@ -166,13 +200,18 @@
         backend: *be,
         batch_size: *bs,
         pos: 7,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer3lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nifm: 384,
         nofm: 256,
@@ -181,10 +220,15 @@
         stride: 1,
         pad: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
       !obj:neon.models.layer.ConvLayer {
@@ -192,13 +236,18 @@
         backend: *be,
         batch_size: *bs,
         pos: 8,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer3lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nifm: 256,
         nofm: 256,
@@ -206,10 +255,16 @@
         fshape: [3, 3],
         stride: 1,
         pad: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
       !obj:neon.models.layer.MaxPoolingLayer {
@@ -227,90 +282,122 @@
         backend: *be,
         batch_size: *bs,
         pos: 10,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer5lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nin: 9216, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 4096,
         activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
-      !obj:neon.models.layer.DropOutLayer {
-        name: dropout1,
-        backend: *be,
-        batch_size: *bs,
-        keep: 0.5,
-        pos: 11,
-        nin: 4096,
-      },
+      # !obj:neon.models.layer.DropOutLayer {
+      #   name: dropout1,
+      #   backend: *be,
+      #   batch_size: *bs,
+      #   keep: 0.5,
+      #   pos: 11,
+      #   nin: 4096,
+      # },
       !obj:neon.models.layer.Layer {
         name: fc4096b,
         backend: *be,
         batch_size: *bs,
-        pos: 12,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        pos: 11, #12,
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: layer5lr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nin: 4096, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 4096,
         activation: !obj:neon.transforms.rectified.RectLin {},
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
-      !obj:neon.models.layer.DropOutLayer {
-        name: dropout2,
-        backend: *be,
-        batch_size: *bs,
-        keep: 0.5,
-        pos: 13,
-        nin: 4096,
-      },
+      # !obj:neon.models.layer.DropOutLayer {
+      #   name: dropout2,
+      #   backend: *be,
+      #   batch_size: *bs,
+      #   keep: 0.5,
+      #   pos: 13,
+      #   nin: 4096,
+      # },
       &lastlayer !obj:neon.models.layer.Layer {
         name: fc1000,
         backend: *be,
         batch_size: *bs,
-        pos: 14,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+        pos: 12, #14,
+        # learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        #   name: outputlr,
+        #   lr_params: {
+        #     learning_rate: *lr,
+        #     backend: *be,
+        #     momentum_params: *mm,
+        #     weight_decay: *wd,
+        #   },
+        # },
+        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+          name: h0lr,
+          lr_params: *lrp,
         },
         nin: 4096,
-        nout: 1000,
-        # todo this needs to be softmax
-        activation: !obj:neon.transforms.logistic.Logistic {
+        nout: 2, #1000,
+        activation: !obj:neon.transforms.softmax.Softmax {
+        #activation: !obj:neon.transforms.logistic.Logistic {
           shortcut_deriv: True,
         },
+        # weight_init: {
+        #   type: normal,
+        #   scale: .01,
+        #   bias_init: 1.0,
+        # },
         weight_init: {
           type: uniform,
-          low: -0.01,
-          high: 0.01,
+          low: -0.1,
+          high: 0.1,
         },
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
       olayer: *lastlayer,
-      use_binary: True,
+      use_binary: False,
+      shortcut_deriv: True,
+      #scale: 10,
     },
   },
 
