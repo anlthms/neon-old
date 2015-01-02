@@ -61,22 +61,6 @@ class NDSB(Dataset):
         infile.close()
         return True
 
-    def copy_to_center(self, canvas, image):
-        # Clip the image if it doesn't fit.
-        if image.shape[0] > canvas.shape[0]:
-            start = (image.shape[0] - canvas.shape[0]) / 2
-            image = image[start:start + canvas.shape[0]]
-        if image.shape[1] > canvas.shape[1]:
-            start = (image.shape[1] - canvas.shape[1]) / 2
-            image = image[:, start:start + canvas.shape[1]]
-
-        ycenter = canvas.shape[0] / 2
-        xcenter = canvas.shape[1] / 2
-        yimage = ycenter - image.shape[0] / 2
-        ximage = xcenter - image.shape[1] / 2
-        canvas[yimage:yimage + image.shape[0],
-               ximage:ximage + image.shape[1]] = image
-
     def read_images(self, rootdir, leafdir, wildcard=''):
         if self.fetch_dataset(rootdir, leafdir) is False:
             return None, None, None
