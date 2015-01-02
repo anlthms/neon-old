@@ -63,6 +63,7 @@ class NDSB(Dataset):
         return True
 
     def read_images(self, rootdir, leafdir, wildcard=''):
+        logger.info('Reading images from %s', leafdir)
         if self.fetch_dataset(rootdir, leafdir) is False:
             return None, None, None
         dirs = glob.glob(os.path.join(rootdir, leafdir, wildcard))
@@ -71,37 +72,28 @@ class NDSB(Dataset):
         filetree = {}
         for dirname in dirs:
             filetree[classind] = []
-            logger.debug('walking', dirname)
             for walkresult in os.walk(dirname):
                 for filename in walkresult[2]:
-                    img = io.imread(os.path.join(dirname, filename),
-                                    as_grey=True)
-                    img = transform.resize(img, (self.image_width,
-                                                 self.image_width))
-                    img = np.float32(img)
-                    # Invert the greyscale.
-                    img = 1.0 - img
-                    filetree[classind].append(img)
+                    filetree[classind].append(os.path.join(dirname, filename))
                     imagecount += 1
             classind += 1
         imagesize = self.image_width * self.image_width
-        inputs = np.zeros((imagecount, imagesize), dtype=np.float32)
-        imageind = 0
-        for key, subtree in filetree.iteritems():
-            for image in subtree:
-                inputs[imageind][:] = image.ravel()
-                imageind += 1
-        return inputs, filetree, imagecount
-
-    def read_targets(self, filetree, imagecount):
         nclasses = len(filetree)
+        inputs = np.zeros((imagecount, imagesize), dtype=np.float32)
         targets = np.zeros((imagecount, nclasses), dtype=np.float32)
         imageind = 0
         for classind in range(nclasses):
-            for image in filetree[classind]:
+            for filename in filetree[classind]:
+                img = io.imread(filename, as_grey=True)
+                img = transform.resize(img, (self.image_width,
+                                             self.image_width))
+                img = np.float32(img)
+                # Invert the greyscale.
+                img = 1.0 - img
+                inputs[imageind][:] = img.ravel()
                 targets[imageind, classind] = 1
                 imageind += 1
-        return targets
+        return inputs, targets, filetree
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -111,9 +103,7 @@ class NDSB(Dataset):
 
         rootdir = os.path.join(self.repo_path,
                                self.__class__.__name__)
-        inputs, filetree, imagecount = self.read_images(rootdir, 'train', '*')
-        targets = self.read_targets(filetree, imagecount)
-
+        inputs, targets, filetree = self.read_images(rootdir, 'train', '*')
         traininds = []
         valinds = []
         start = 0
@@ -137,6 +127,9 @@ class NDSB(Dataset):
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()
 
-        inputs, filetree, imagecount = self.read_images(rootdir, 'test')
-        self.inputs['test'] = inputs
+        # Do not process the test set yet.
+        if False:
+            inputs, targets, filetree = self.read_images(rootdir, 'test')
+            self.inputs['test'] = inputs
+            self.targets['test'] = targets
         self.format()
