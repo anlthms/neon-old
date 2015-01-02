@@ -53,9 +53,10 @@ class NDSB(Dataset):
             os.makedirs(rootdir)
         repofile = os.path.join(rootdir, leafdir + '.zip')
         if not os.path.exists(repofile):
+            logger.warning('Could not find %s', repofile)
             return False
 
-        logger.info('unzipping: %s', repofile)
+        logger.info('Unzipping: %s', repofile)
         infile = zipfile.ZipFile(repofile)
         infile.extractall(rootdir)
         infile.close()
