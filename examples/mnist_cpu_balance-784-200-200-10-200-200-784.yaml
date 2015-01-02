@@ -119,10 +119,6 @@
       *h0,
       *h1,
       *classlayer,
-      # !obj:neon.models.layer2.ActivationLayer {
-      #   name: softmax,
-      #   activation: !obj:neon.transforms.softmax.Softmax {},
-      # },
       &xentcostlayer !obj:neon.models.layer2.CostLayer {
         name: cost,
         ref_layer: *datalayer,

@@ -13,7 +13,7 @@ import os
 import zipfile
 import glob
 
-from skimage import io
+from skimage import io, transform
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
@@ -44,84 +44,56 @@ class NDSB(Dataset):
         self.macro_batched = False
         self.__dict__.update(kwargs)
 
-    def fetch_dataset(self, save_dir):
-        data_dir = os.path.join(save_dir, 'train')
-        if not os.path.exists(data_dir):
-            if not os.path.exists(save_dir):
-                os.makedirs(save_dir)
-            repo_file = os.path.join(save_dir, 'train.zip')
-            assert os.path.exists(repo_file)
+    def fetch_dataset(self, rootdir, leafdir):
+        datadir = os.path.join(rootdir, leafdir)
+        if os.path.exists(datadir):
+            return True
 
-            logger.info('unzipping: %s', repo_file)
-            infile = zipfile.ZipFile(repo_file)
-            infile.extractall(save_dir)
-            infile.close()
+        if not os.path.exists(rootdir):
+            os.makedirs(rootdir)
+        repofile = os.path.join(rootdir, leafdir + '.zip')
+        if not os.path.exists(repofile):
+            logger.warning('Could not find %s', repofile)
+            return False
 
-    def copy_to_center(self, canvas, image):
-        # Clip the image if it doesn't fit.
-        if image.shape[0] > canvas.shape[0]:
-            start = (image.shape[0] - canvas.shape[0]) / 2
-            image = image[start:start + canvas.shape[0]]
-        if image.shape[1] > canvas.shape[1]:
-            start = (image.shape[1] - canvas.shape[1]) / 2
-            image = image[:, start:start + canvas.shape[1]]
+        logger.info('Unzipping: %s', repofile)
+        infile = zipfile.ZipFile(repofile)
+        infile.extractall(rootdir)
+        infile.close()
+        return True
 
-        ycenter = canvas.shape[0] / 2
-        xcenter = canvas.shape[1] / 2
-        yimage = ycenter - image.shape[0] / 2
-        ximage = xcenter - image.shape[1] / 2
-        canvas[yimage:yimage + image.shape[0],
-               ximage:ximage + image.shape[1]] = image
-
-    def read_train_images(self, save_dir):
-        dirs = glob.glob(os.path.join(save_dir, 'train', "*"))
-        nclasses = len(dirs)
-        filetree = {}
+    def read_images(self, rootdir, leafdir, wildcard=''):
+        logger.info('Reading images from %s', leafdir)
+        if self.fetch_dataset(rootdir, leafdir) is False:
+            return None, None, None
+        dirs = glob.glob(os.path.join(rootdir, leafdir, wildcard))
         classind = 0
-        maxheight = 0
-        maxwidth = 0
-        sumheight = 0
-        sumwidth = 0
         imagecount = 0
+        filetree = {}
         for dirname in dirs:
             filetree[classind] = []
-            logger.debug('walking', dirname)
             for walkresult in os.walk(dirname):
                 for filename in walkresult[2]:
-                    img = np.float32(io.imread(os.path.join(dirname, filename),
-                                               as_grey=True))
-                    # Invert the greyscale.
-                    img = 255.0 - img
-                    filetree[classind].append(img)
-                    if img.shape[0] > maxheight:
-                        maxheight = img.shape[0]
-                    if img.shape[1] > maxwidth:
-                        maxwidth = img.shape[1]
-                    sumheight += img.shape[0]
-                    sumwidth += img.shape[1]
+                    filetree[classind].append(os.path.join(dirname, filename))
                     imagecount += 1
             classind += 1
-
-        logger.info('Mean height %d mean width %d max height %d max width %d',
-                    sumheight / imagecount, sumwidth / imagecount,
-                    maxheight, maxwidth)
-        if maxheight > self.image_width or maxwidth > self.image_width:
-            # The image width specified in the configuration file is too small.
-            logger.warning('Clipping %dx%d images to %dx%d',
-                           maxheight, maxwidth,
-                           self.image_width, self.image_width)
-        maxheight = self.image_width
-        maxwidth = self.image_width
-        inputs = np.zeros((imagecount, maxheight * maxwidth), dtype=np.float32)
+        imagesize = self.image_width * self.image_width
+        nclasses = len(filetree)
+        inputs = np.zeros((imagecount, imagesize), dtype=np.float32)
         targets = np.zeros((imagecount, nclasses), dtype=np.float32)
         imageind = 0
         for classind in range(nclasses):
-            for image in filetree[classind]:
-                self.copy_to_center(
-                    inputs[imageind].reshape(maxheight, maxwidth), image)
+            for filename in filetree[classind]:
+                img = io.imread(filename, as_grey=True)
+                img = transform.resize(img, (self.image_width,
+                                             self.image_width))
+                img = np.float32(img)
+                # Invert the greyscale.
+                img = 1.0 - img
+                inputs[imageind][:] = img.ravel()
                 targets[imageind, classind] = 1
                 imageind += 1
-        return inputs, targets
+        return inputs, targets, filetree
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -129,24 +101,35 @@ class NDSB(Dataset):
         if 'repo_path' not in self.__dict__:
             raise AttributeError('repo_path not specified in config')
 
-        save_dir = os.path.join(self.repo_path,
-                                self.__class__.__name__)
-        self.fetch_dataset(save_dir)
-        inputs, targets = self.read_train_images(save_dir)
-        inputs /= 255.
-
-        inds = np.arange(inputs.shape[0])
-        np.random.shuffle(inds)
-        traincount = inputs.shape[0] * 0.7
-        traincount -= traincount % 128
-        self.inputs['train'] = inputs[inds[:traincount]]
-        self.targets['train'] = targets[inds[:traincount]]
+        rootdir = os.path.join(self.repo_path,
+                               self.__class__.__name__)
+        inputs, targets, filetree = self.read_images(rootdir, 'train', '*')
+        traininds = []
+        valinds = []
+        start = 0
+        # Split into training and validation sets with similar
+        # class distributions.
+        for key, subtree in filetree.iteritems():
+            count = len(subtree)
+            end = start + count
+            subrange = np.arange(start, end)
+            np.random.shuffle(subrange)
+            mid = int(count * 0.7)
+            traininds += list(subrange[:mid])
+            valinds += list(subrange[mid:])
+            start = end
+        np.random.shuffle(traininds)
+        self.inputs['train'] = inputs[traininds]
+        self.targets['train'] = targets[traininds]
+        self.inputs['validation'] = inputs[valinds]
+        self.targets['validation'] = targets[valinds]
 
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()
 
-        endindex = inputs.shape[0]
-        endindex -= endindex % 128
-        self.inputs['validation'] = inputs[inds[traincount:endindex]]
-        self.targets['validation'] = targets[inds[traincount:endindex]]
+        # Do not process the test set yet.
+        if False:
+            inputs, targets, filetree = self.read_images(rootdir, 'test')
+            self.inputs['test'] = inputs
+            self.targets['test'] = targets
         self.format()
