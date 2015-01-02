@@ -771,7 +771,8 @@ class CPU(Backend):
         self.dot(deltas, inputs.transpose(), out)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf):
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
         produce output pre-activations (ready for transformation by an
@@ -798,18 +799,25 @@ class CPU(Backend):
             fpropbuf (CPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.
+            local (bool): whether to do local filtering or convolution
         """
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
-            self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
-                     out=fpropbuf)
+            if local is False:
+                self.dot(weights.transpose(),
+                         inputs.take(rflinks, axis=0), out=fpropbuf)
+            else:
+                self.dot(weights.take(ofmlocs[dst], axis=1).transpose(),
+                         inputs.take(rflinks, axis=0), out=fpropbuf)
+
             out[ofmlocs[dst]] = fpropbuf
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf):
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
         """
         Backward propagate the error through a convolutional network layer.
 
@@ -836,14 +844,19 @@ class CPU(Backend):
         """
         self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            self.dot(weights, deltas.take(ofmlocs[dst], axis=0), bpropbuf)
+            if local is False:
+                self.dot(weights,
+                         deltas.take(ofmlocs[dst], axis=0), bpropbuf)
+            else:
+                self.dot(weights.take(ofmlocs[dst], axis=1),
+                         deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+                    updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -879,7 +892,10 @@ class CPU(Backend):
             eslice = deltas.take(ofmlocs[dst], axis=0)
             self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
                      out=updatebuf)
-            self.add(out, updatebuf, out=out)
+            if local is False:
+                self.add(out, updatebuf, out=out)
+            else:
+                out[ofmlocs[dst]] = updatebuf
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):

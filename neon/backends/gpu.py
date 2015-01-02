@@ -999,7 +999,8 @@ class GPU(Backend):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf):
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
         produce output pre-activations (ready for transformation by an
@@ -1035,7 +1036,8 @@ class GPU(Backend):
             ngroups)
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf):
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
         """
         Backward propagate the error through a convolutional network layer.
 
@@ -1067,7 +1069,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+                    updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 

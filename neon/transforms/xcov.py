@@ -49,6 +49,8 @@ class XCovariance(Cost):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
+    def initialize(self, kwargs):
+        super(XCovariance, self).initialize(kwargs)
         if self.blkidx > self.outputbuf.shape[0]:
             raise ValueError("blkidx %d too large" % self.blkidx)
 

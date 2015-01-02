@@ -41,12 +41,6 @@ class Layer(YAMLable):
         opt_param(self, ['skip_act'], False)
         opt_param(self, ['prev_names'], [])
 
-    def initialize(self, kwargs):
-        self.__dict__.update(kwargs)
-        req_param(self, ['backend', 'batch_size'])
-        self.output = None
-        self.berror = None
-
     def set_previous_layer(self, pl):
         if pl.is_local:
             if self.is_local:
@@ -62,14 +56,11 @@ class Layer(YAMLable):
             self.nin = pl.nout
         self.prev_layer = pl
 
-    def prep_bprop(self):
-        """
-        This function is called prior to bprop to return the prev layer's 
-        output and to indicate whether to multiply against the derivative
-        of the activation or not (skip_act = True)
-        """
-        self.prev_layer.skip_act = self.skip_act and self.is_cost
-        return self.prev_layer.output
+    def initialize(self, kwargs):
+        self.__dict__.update(kwargs)
+        req_param(self, ['backend', 'batch_size'])
+        self.output = None
+        self.berror = None
 
     def initialize_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
@@ -100,7 +91,10 @@ class Layer(YAMLable):
         self.fsize = self.fheight * self.fwidth * self.nifm
         self.fpsize = self.fheight * self.fwidth
         self.nout = self.nofm * self.ofmsize
-        print self.name, self.ifmshape, self.ofmshape
+        logger.debug('name=%s, ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, '
+                     'ofmshape[0]=%d, ofmshape[1]=%d', self.name,
+                     self.ifmshape[0], self.ifmshape[1], self.nifm,
+                     self.ofmshape[0], self.ofmshape[1])
         if isinstance(self.backend, CPU):
             self.make_aux_buffers(self.nifm, self.ifmshape, self.nofm,
                                   self.ofmshape, self.fshape, self.stride)
@@ -218,7 +212,8 @@ class CostLayer(Layer):
         # we just have to scale by mini-batch size
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
-
+        # if self.ref_label != 'targets':
+        #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
         self.backend.divide(self.berror, self.backend.wrap(self.batch_size),
                             out=self.berror)
@@ -296,6 +291,36 @@ class DataLayer(Layer):
             self.num_batches = len(self.inputs)
         self.batch_idx = 0
 
+
+class ActivationLayer(Layer):
+    """
+    Just applies an activation to the inputs.
+    """
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            self.is_local = True
+            self.ifmshape = pl.ofmshape
+            self.nifm = pl.nofm
+            self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
+        else:
+            self.nin = pl.nout
+        self.prev_layer = pl
+
+    def initialize(self, kwargs):
+        super(ActivationLayer, self).initialize(kwargs)
+        req_param(self, ['activation'])
+        self.nout = self.nin
+        self.allocate_output_bufs()
+
+    def fprop(self, inputs):
+        self.pre_act[:] = inputs
+        self.activation.apply_both(self.backend, self.pre_act, self.output)
+
+    def bprop(self, error):
+        if self.skip_act is False:
+            self.backend.multiply(error, self.pre_act, out=error)
+        if self.berror is not None:
+            self.berror[:] = error
 
 class WeightLayer(Layer):
     def initialize(self, kwargs):
@@ -392,6 +417,7 @@ class FCLayer(WeightLayer):
             if self.use_biases is True:
                 self.backend.add(upm[1], self.updates[1], out=self.updates[1])
 
+
 class PoolingLayer(Layer):
     """
     Generic pooling layer -- specify op = max, avg, or l2 in order to have
@@ -406,11 +432,13 @@ class PoolingLayer(Layer):
         super(PoolingLayer, self).initialize(kwargs)
         self.pooling = True
         self.initialize_local()
-        self.maxinds = None
+        self.tempbuf = None
         if self.op == 'max':
-            self.maxinds = self.backend.empty(
+            self.tempbuf = self.backend.empty(
                 (self.ofmsize, self.batch_size * self.nifm), dtype='i16')
-
+        elif self.op == 'l2':
+            self.tempbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
+                                           self.batch_size * self.nifm))
         self.allocate_output_bufs()
         assert self.fshape[0] * self.fshape[1] <= 2 ** 15
 
@@ -426,7 +454,7 @@ class PoolingLayer(Layer):
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,
-                                ofmshape=self.ofmshape, ofmlocs=self.maxinds,
+                                ofmshape=self.ofmshape, ofmlocs=self.tempbuf,
                                 fshape=self.fshape, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm, padding=0,
                                 stride=self.stride, fpropbuf=self.outputbuf)
@@ -437,7 +465,7 @@ class PoolingLayer(Layer):
             self.backend.bprop_pool(out=self.berror, fouts=self.output,
                                     inputs=inputs, deltas=error, op=self.op,
                                     ofmshape=self.ofmshape,
-                                    ofmlocs=self.maxinds, fshape=self.fshape,
+                                    ofmlocs=self.tempbuf, fshape=self.fshape,
                                     ifmshape=self.ifmshape, links=self.links,
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
@@ -457,8 +485,15 @@ class ConvLayer(WeightLayer):
         self.initialize_local()
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
+        opt_param(self, ['local_conv'], False)
 
-        self.weight_shape = (self.fsize, self.nofm)
+        if self.local_conv is False:
+            self.weight_shape = (self.fsize, self.nofm)
+        else:
+            if isinstance(self.backend, CPU):
+                self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
+            else:
+                self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nofm, 1)
 
         self.allocate_output_bufs()
@@ -485,7 +520,8 @@ class ConvLayer(WeightLayer):
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
                                 links=self.rlinks, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
-                                ngroups=1, fpropbuf=self.prodbuf)
+                                ngroups=1, fpropbuf=self.prodbuf,
+                                local=self.local_conv)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -500,7 +536,8 @@ class ConvLayer(WeightLayer):
                                     ifmshape=self.ifmshape, links=self.links,
                                     padding=self.pad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
-                                    bpropbuf=self.bpropbuf)
+                                    bpropbuf=self.bpropbuf,
+                                    local=self.local_conv)
 
         upm = self.utemp if self.accumulate else self.updates
         self.backend.update_conv(out=upm[0], inputs=inputs,
@@ -509,7 +546,8 @@ class ConvLayer(WeightLayer):
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
-                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
+                                 fwidth=self.fwidth, updatebuf=self.updatebuf,
+                                 local=self.local_conv)
 
         if self.accumulate:
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
@@ -953,6 +991,6 @@ class CrossMapPoolingLayer(WeightLayer):
         if self.berror is not None:
             self.backend.bprop_cmpool(out=self.berror, weights=self.weights,
                                       deltas=error, ifmshape=self.ifmshape)
-        self.backend.update_cmpool(out=self.updates, inputs=inputs,
+        self.backend.update_cmpool(out=self.updates[0], inputs=inputs,
                                    deltas=error, ifmshape=self.ifmshape,
                                    updatebuf=self.updatebuf)

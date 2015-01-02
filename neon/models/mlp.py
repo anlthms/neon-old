@@ -262,25 +262,22 @@ class MLPB(MLP):
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
 
-        pl = None
-        for ll in self.layers:
+        for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             ll.set_previous_layer(pl)
             ll.initialize(kwargs)
-            pl = ll
 
         assert self.layers[-1].nout <= 2 ** 15
 
     def fprop(self):
-        y = None
-        for layer in self.layers:
-            layer.fprop(y)
-            y = layer.output
+        for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
+            y = None if pl is None else pl.output
+            ll.fprop(y)
 
     def bprop(self):
-        error = None
-        for layer in reversed(self.layers):
-            layer.bprop(error)
-            error = layer.berror
+        for ll, nl in zip(reversed(self.layers),
+                          reversed(self.layers[1:] + [None])):
+            error = None if nl is None else nl.berror
+            ll.bprop(error)
 
     def predict(self, items=['train', 'test', 'validation']):
         """
@@ -294,6 +291,11 @@ class MLPB(MLP):
             if res is not None:
                 preds[sn] = res
         return preds
+
+    def print_layers(self, debug=False):
+        printfunc = logger.debug if debug else logger.info
+        for layer in self.layers:
+            printfunc("%s", str(layer))
 
     def error_metrics(self, ds, preds, items=['train', 'test', 'validation']):
         targets = ds.get_targets(train=True, test=True, validation=True)
@@ -323,9 +325,7 @@ class MLPB(MLP):
         """
         Learn model weights on the given datasets.
         """
-        for layer in self.layers:
-            logger.info("%s", str(layer))
-
+        self.print_layers()
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
@@ -338,5 +338,4 @@ class MLPB(MLP):
                 error += self.cost_layer.get_cost()
             logger.info('epoch: %d, total training error: %0.5f', epoch,
                         error / self.data_layer.num_batches)
-            for layer in self.layers:
-                logger.debug("%s", layer)
+            self.print_layers(debug=True)

@@ -9,7 +9,7 @@ Requires model to specify prev layers at each layer to build the layer graph
 
 import logging
 from neon.models.layer import BranchLayer
-from neon.models.mlp import MLP
+from neon.models.mlp import MLPB
 from neon.transforms.cross_entropy import CrossEntropy
 
 logger = logging.getLogger(__name__)
@@ -33,29 +33,28 @@ class Balance(MLPB):
         self.out_layer = self.layers[-2]
         self.class_layer = self.classlayers[-2]
         self.branch_layer = self.stylelayers[-2]
+        self.pathways = [self.layers, self.classlayers, self.stylelayers]
 
-        pl = None
-        for ll in self.layers:
-            ll.set_previous_layer(pl)
-            ll.initialize(kwargs)
-            pl = ll
+        self.data_layer.initialize(kwargs)
 
-        self.classlayers[-1].set_previous_layer(self.classlayers[-2])
-        self.classlayers[-1].initialize(kwargs)
-
-        self.stylelayers[-1].set_previous_layer(self.stylelayers[-2])
-        self.stylelayers[-1].initialize(kwargs)
+        for (pathway, startidx) in zip(self.pathways, [1, -2, -1]):
+            pl = pathway[startidx-1]
+            for layer in pathway[startidx:]:
+                layer.set_previous_layer(pl)
+                layer.initialize(kwargs)
+                pl = layer
 
         assert self.layers[-1].nout <= 2 ** 15
 
     def fprop(self):
-        y = None
-        for layer in self.layers:
-            layer.fprop(y)
-            y = layer.output
+        for (pathway, startidx) in zip(self.pathways, [0, -2, -1]):
+            y = pathway[startidx-1].output if startidx != 0 else None
+            for layer in pathway[startidx:]:
+                layer.fprop(y)
+                y = layer.output
 
     def bprop(self):
-        for pathway in [self.layers, self.classlayers, self.stylelayers]:
+        for pathway in self.pathways:
             error = None
             for layer in reversed(pathway):
                 layer.bprop(error)

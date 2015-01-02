@@ -63,10 +63,10 @@
         fshape: [2, 2],
         stride: 1,
       },
-      !obj:neon.models.layer2.LCNLayer {
-        name: layer2,
-        fshape: [3, 3],
-      },
+      # !obj:neon.models.layer2.LCNLayer {
+      #   name: layer2,
+      #   fshape: [3, 3],
+      # },
       # !obj:neon.models.layer.LocalFilteringLayer {
       #   name: layer3,
       #   nofm: 4,
@@ -81,6 +81,7 @@
         name: layer3,
         nofm: 4,
         fshape: [2, 2],
+        local_conv: True,
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
