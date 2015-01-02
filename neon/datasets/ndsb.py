@@ -113,20 +113,28 @@ class NDSB(Dataset):
         inputs, filetree, imagecount = self.read_images(rootdir, 'train', '*')
         targets = self.read_targets(filetree, imagecount)
 
-        inds = np.arange(inputs.shape[0])
-        np.random.shuffle(inds)
-        traincount = inputs.shape[0] * 0.7
-        traincount -= traincount % 128
-        self.inputs['train'] = inputs[inds[:traincount]]
-        self.targets['train'] = targets[inds[:traincount]]
+        traininds = []
+        valinds = []
+        start = 0
+        # Split into training and validation sets with similar
+        # class distributions.
+        for key, subtree in filetree.iteritems():
+            count = len(subtree)
+            end = start + count
+            subrange = np.arange(start, end)
+            np.random.shuffle(subrange)
+            mid = int(count * 0.7)
+            traininds += list(subrange[:mid])
+            valinds += list(subrange[mid:])
+            start = end
+        np.random.shuffle(traininds)
+        self.inputs['train'] = inputs[traininds]
+        self.targets['train'] = targets[traininds]
+        self.inputs['validation'] = inputs[valinds]
+        self.targets['validation'] = targets[valinds]
 
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()
-
-        endindex = inputs.shape[0]
-        endindex -= endindex % 128
-        self.inputs['validation'] = inputs[inds[traincount:endindex]]
-        self.targets['validation'] = targets[inds[traincount:endindex]]
 
         inputs, filetree, imagecount = self.read_images(rootdir, 'test')
         self.inputs['test'] = inputs
