@@ -102,7 +102,8 @@ class Layer(YAMLable):
         self.nout = self.nofm * self.ofmsize
         print self.name, self.ifmshape, self.ofmshape
         if isinstance(self.backend, CPU):
-            self.make_aux_buffers()
+            self.make_aux_buffers(self.nifm, self.ifmshape, self.nofm,
+                                  self.ofmshape, self.fshape, self.stride)
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
@@ -127,44 +128,50 @@ class Layer(YAMLable):
         if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
 
-    def make_aux_buffers(self):
+    def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
+
         make_ebuf = self.backend.empty
-        buf_size = self.batch_size * self.nifm
-        stride = self.stride
+        ofmsize = ofmshape[0] * ofmshape[1]
+        ifmsize = ifmshape[0] * ifmshape[1]
+        fsize = fshape[0] * fshape[1] * nifm
+        fpsize = fshape[0] * fshape[1]
+        buf_size = self.batch_size * nifm
+
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berrorbuf = make_ebuf((self.ifmsize, buf_size))
-        ofmstarts = self.backend.array(range(0, (self.ofmsize * self.nofm),
-                                        self.ofmsize)).raw()
-        self.ofmlocs = make_ebuf((self.ofmsize, self.nofm), dtype='i32')
-        for dst in range(self.ofmsize):
+            self.berrorbuf = make_ebuf((ifmsize, buf_size))
+
+        ofmstarts = self.backend.array(range(0, (ofmsize * nofm),
+                                        ofmsize)).raw()
+        self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='i32')
+        for dst in range(ofmsize):
             self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
         if self.pooling is True:
-            self.links = make_ebuf((self.ofmsize, self.fpsize), dtype='i32')
-            self.outputbuf = make_ebuf((self.ofmsize, buf_size))
+            self.links = make_ebuf((ofmsize, fpsize), dtype='i32')
+            self.outputbuf = make_ebuf((ofmsize, buf_size))
         else:
-            self.links = make_ebuf((self.ofmsize, self.fsize), dtype='i32')
+            self.links = make_ebuf((ofmsize, fsize), dtype='i32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
-        for dst in range(self.ofmsize):
+        for dst in range(ofmsize):
             # Collect the column indices for the
             # entire receptive field.
             colinds = []
-            for row in range(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
+            for row in range(fshape[0]):
+                start = src + row * ifmshape[1]
+                colinds += range(start, start + fshape[1])
             fminds = colinds[:]
             if self.pooling is False:
-                for ifm in range(1, self.nifm):
-                    colinds += [x + ifm * self.ifmsize for x in fminds]
+                for ifm in range(1, nifm):
+                    colinds += [x + ifm * ifmsize for x in fminds]
 
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
+            if (src % ifmshape[1] + fshape[1] + stride) <= ifmshape[1]:
                 # Slide the filter to the right by the stride value.
                 src += stride
             else:
                 # We hit the right edge of the input image.
                 # Shift the filter down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
+                src += stride * ifmshape[1] - src % ifmshape[1]
+                assert src % ifmshape[1] == 0
             self.links[dst] = self.backend.array(colinds, dtype='i32')
         self.rlinks = self.links.raw()
 
@@ -548,20 +555,35 @@ class DropOutLayer(Layer):
     def set_train_mode(self, mode):
         self.train_mode = mode
 
+class CompositeLayer(Layer):
+    """
+    Abstract layer parent for Branch and List layer that deals with sublayer
+    list
+    """   
+    def initialize(self, kwargs):
+        super(CompositeLayer, self).initialize(kwargs)
+        req_param(self, ['sublayers'])
+        for l in self.sublayers:
+            l.initialize(kwargs)
 
-class BranchLayer(Layer):
+    def update(self, epoch):
+        for l in self.sublayers:
+            l.update(epoch)
+
+    def set_train_mode(self, mode):
+        for sublayer in self.sublayers:
+            sublayer.set_train_mode(mode)
+
+
+class BranchLayer(CompositeLayer):
 
     """
-    Branch layer is composed of a list of other layers
+    Branch layer is composed of a list of other layers concatenated with one
+    another
     during fprop, it concatenates the component outputs and passes it on
     during bprop, it splits the backward errors into the components and
         accumulates into a common berror
     """
-    def initialize(self, kwargs):
-        self.__dict__.update(kwargs)
-        req_param(self, ['backend', 'batch_size'])
-        self.output = None
-        self.berror = None
 
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
@@ -570,9 +592,6 @@ class BranchLayer(Layer):
 
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
-        req_param(self, ['sublayers'])
-        for l in self.sublayers:
-            l.initialize(kwargs)
 
         self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
         self.startidx = [0]*len(self.sublayers)
@@ -599,9 +618,47 @@ class BranchLayer(Layer):
             for subl in self.sublayers:
                 self.backend.add(self.berror, subl.berror, out=self.berror)
 
-    def set_train_mode(self, mode):
-        for sublayer in self.sublayers:
-            sublayer.set_train_mode(mode)
+
+class ListLayer(Layer):
+
+    """
+    List layer is composed of a list of other layers stacked on top of one
+    another
+    during fprop, it simply fprops along the chain
+    during bprop, it splits the backward errors into the components and
+        accumulates into a common berror
+    """
+    def initialize(self, kwargs):
+        self.__dict__.update(kwargs)
+        req_param(self, ['backend', 'batch_size'])
+        self.output = None
+        self.berror = None
+
+    def set_previous_layer(self, pl):
+        super(ListLayer, self).set_previous_layer(pl)
+        for l in self.sublayers:
+            l.set_previous_layer(pl)
+            pl = l
+
+    def initialize(self, kwargs):
+        super(ListLayer, self).initialize(kwargs)
+        self.output = self.sublayers[-1].output
+        self.berror = self.sublayers[0].berror
+        self.nout = self.sublayers[-1].nout
+        if self.sublayers[-1].is_local is True:
+            self.nofm = self.sublayers[-1].nofm
+            self.ofmshape = self.sublayers[-1].ofmshape
+
+    def fprop(self, inputs):
+        y = inputs
+        for l in self.sublayers:
+            l.fprop(y)
+            y = l.output
+
+    def bprop(self, error):
+        error = None
+        for l in reversed(self.sublayers):
+            l.bprop(error)
 
 
 class CrossMapResponseNormLayer(Layer):
@@ -630,7 +687,6 @@ class CrossMapResponseNormLayer(Layer):
         super(CrossMapResponseNormLayer, self).initialize(kwargs)
         self.nout = self.nin
         self.ofmshape, self.nofm = self.ifmshape, self.nifm
-        print self.ofmshape, self.nofm
         self.allocate_output_bufs()
         self.tempbuf = None
         if self.berror is not None and isinstance(self.backend, CPU):
@@ -652,7 +708,215 @@ class CrossMapResponseNormLayer(Layer):
                                        ksize=self.ksize, alpha=self.alpha,
                                        beta=self.beta, bpropbuf=self.tempbuf)
 
-class CrossMapPoolingLayer(Layer):
+class LCNLayer(Layer):
+
+    """
+    Local contrast normalization.
+    """
+    def __init__(self, **kwargs):
+        self.is_local = True
+        super(LCNLayer, self).__init__(**kwargs)
+
+    def initialize(self, kwargs):
+        super(LCNLayer, self).initialize(kwargs)
+        self.initialize_local()
+        self.nout = self.nin
+        self.ofmshape, self.nofm = self.ifmshape, self.nifm
+
+        bsz = self.batch_size
+        nifm = self.nifm
+
+        self.filters = self.normalized_gaussian_filters(nifm, self.fshape)
+        # Now filters is 1 x (nifm * fheight * fwidth)
+
+        exifmheight = (self.ifmheight - 1) * self.stride + self.fheight
+        exifmwidth = (self.ifmwidth - 1) * self.stride + self.fwidth
+        self.exifmshape = (exifmheight, exifmwidth)
+        self.exifmsize = exifmheight * exifmwidth
+
+        # redo the link buffers since we'll be doing light-weight convolution
+        # without redefining a new convolve layer
+        self.make_aux_buffers(nifm=nifm, ifmshape=self.exifmshape, nofm=1,
+                              ofmshape=self.ifmshape, fshape=self.fshape,
+                              stride=self.stride)
+        if isinstance(self.backend, CPU):
+            self.prodbuf = self.backend.empty((1, bsz))
+
+        assert (exifmheight - self.ifmheight) % 2 == 0
+        assert (exifmwidth - self.ifmwidth) % 2 == 0
+        self.start_row = (exifmheight - self.ifmheight) / 2
+        self.start_col = (exifmwidth - self.ifmwidth) / 2
+
+        ex_shape = (nifm * exifmheight * exifmwidth, bsz)
+        rex_shape = (nifm, exifmheight, exifmwidth, bsz)
+        self.exinputs = self.backend.empty(ex_shape)
+        self.rexinputs = self.exinputs.reshape(rex_shape)
+
+        cv_shape = (1 * self.ifmheight * self.ifmwidth * bsz)
+        rcv_shape = (1, self.ifmheight, self.ifmwidth, bsz)
+        self.meanfm = self.backend.empty(cv_shape)
+        self.rmeanfm = self.meanfm.reshape(rcv_shape)
+
+        out_shape = (nifm * self.ifmheight * self.ifmwidth * bsz)
+        rout_shape = (nifm, self.ifmheight, self.ifmwidth, bsz)
+        self.output = self.backend.empty(out_shape)
+        self.routput = self.output.reshape(rout_shape)
+
+        self.subout = self.backend.empty(out_shape)
+        self.rsubout = self.subout.reshape(rout_shape)
+
+        self.subtemp = self.backend.empty(out_shape)
+        self.rsubtemp = self.subtemp.reshape(rout_shape)
+
+        self.tempbuf = self.backend.empty((self.nofm, bsz))
+        # Check position relative to other layer for this condition
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
+            self.diverror = self.backend.empty((self.nin, bsz))
+
+            self.exerror = self.backend.empty(ex_shape)
+            self.rexerror = self.exerror.reshape(rex_shape)
+
+            self.prodbuf = self.backend.empty((self.fsize, bsz))
+            self.bprop_filters = self.backend.empty((nifm, 1, self.fsize))
+            self.sqtemp = self.backend.empty(self.output.shape)
+            for fm in range(nifm):
+                self.bprop_filters[fm] = self.filters.copy()
+                rfilter = self.bprop_filters[fm].reshape(
+                    (nifm, self.fheight, self.fwidth))
+                fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
+                self.backend.subtract(fm_filt, 1.0, fm_filt)
+
+    def normalized_gaussian_filters(self, count, shape):
+        """
+        Return multiple copies of gaussian filters with values adding up to
+        one.
+        """
+        assert(len(shape) == 2)
+        single = gaussian_filter(shape)
+        single /= (count * single.sum())
+        assert shape[0] % 2 == 1
+        assert shape[1] % 2 == 1
+        filters = self.backend.empty((count, shape[0], shape[1]))
+        filters[:] = single
+
+        filters = filters.reshape((1, count * shape[0] * shape[1]))
+        return filters
+
+    def copy_to_inset(self, canvas, inset):
+        r0 = self.start_row
+        c0 = self.start_col
+        canvas[:, r0:(canvas.shape[1] - r0), c0:(canvas.shape[2] - c0)] = inset
+
+    def copy_from_inset(self, canvas):
+        r0 = self.start_row
+        c0 = self.start_col        
+        return canvas[:, r0:(canvas.shape[1] - r0), c0:(canvas.shape[2] - c0)]
+
+    def conv(self, inputs):
+        # print self.filters.shape, inputs.shape, self.rlinks.shape, self.tempbuf.shape
+        # print inputs.take(self.rlinks[0], axis=0).shape
+        for dst in range(self.ifmsize):
+            self.backend.dot(self.filters,
+                             inputs.take(self.rlinks[dst], axis=0),
+                             out=self.tempbuf)
+            self.meanfm[self.ofmlocs[dst]] = self.tempbuf
+
+    def fprop_sub_normalize(self, inputs):
+        rinputs = inputs.reshape(self.routput.shape)
+        self.copy_to_inset(self.rexinputs, rinputs)
+
+        # Convolve with gaussian filters to obtain a "mean" feature map.
+        self.conv(self.exinputs)
+        self.backend.subtract(rinputs, self.rmeanfm, out=self.rsubout)
+
+    def fprop_div_normalize(self):
+        self.backend.multiply(self.subout, self.subout, out=self.subtemp)
+        self.copy_to_inset(self.rexinputs, self.rsubtemp)
+        self.conv(self.exinputs)
+
+        self.backend.sqrt(self.meanfm, out=self.meanfm)
+        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
+        self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
+
+    def fprop(self, inputs):
+        self.backend.clear(self.exinputs)
+        self.fprop_sub_normalize(inputs)
+        self.fprop_div_normalize()
+
+    def reshape_error(self):
+        # discards zero padding around the delta matrix
+        self.berror = self.copy_from_inset(self.rexerror)
+        self.berror = self.berror.reshape((self.nin, self.batch_size))
+
+    def bprop_sub_normalize(self, error, inputs):
+        self.backend.clear(self.exerror)
+        for fm in range(self.nifm):
+            for dst in range(self.ofmsize):
+                rflinks = self.rlinks[dst]
+                loc = self.ofmlocs[dst].raw() + self.ofmsize * fm
+                filt = self.bprop_filters[fm]
+                self.backend.multiply(error[loc], filt.transpose(),
+                                      out=self.prodbuf)
+                exerror_slice = self.exerror[rflinks]
+                self.backend.subtract(exerror_slice, self.prodbuf,
+                                      exerror_slice)
+        self.reshape_error()
+
+    def bprop_div_normalize(self, error, inputs):
+        self.backend.clear(self.exerror)
+        self.backend.cube(self.output, out=self.diverror)
+        self.subtemp[:] = self.subout
+        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
+        self.subout[self.subout.raw() == 0] = 1.0
+        self.backend.square(self.subout, out=self.sqtemp)
+        # this is for the non-padded, non-halo matrix only
+        self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
+
+        for fm in range(self.nifm):
+            for dst in range(self.ofmsize):
+                # self.ofmlocs is over 1 fm only
+                loc = self.ofmlocs[dst].raw() + self.ofmsize * fm
+                divout = self.output.take(loc, axis=0)
+                subout = self.subout.take(loc, axis=0)
+                assert divout[subout.raw() == 0].sum() == 0
+                subout[subout.raw() == 0.0] = 1.0
+                self.backend.divide(divout, subout, out=divout)
+
+                rflinks = self.rlinks[dst]
+                self.copy_to_inset(self.rexinputs, self.rsubtemp)
+                rrexinputs = self.rexinputs.reshape(
+                    (self.nifm * self.exifmsize, self.batch_size))
+                frame = rrexinputs.take(rflinks, axis=0)
+                self.backend.multiply(frame, self.filters.transpose(),
+                                      out=frame)
+                self.backend.multiply(frame, self.diverror[loc], out=frame)
+                rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
+                                        self.batch_size))
+                # this is working on the g2/y2 term
+                rframe_slice = rframe[fm:(fm + 1), self.fheight / 2,
+                                      self.fwidth / 2]
+                self.backend.subtract(rframe_slice, divout, rframe_slice)
+                self.backend.multiply(error[loc], frame, out=frame)
+                exerror_slice = self.exerror[rflinks]
+                self.backend.subtract(exerror_slice, frame, exerror_slice)
+        self.reshape_error()
+
+    def bprop(self, error, inputs):
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
+            # note: have to account for halos + padding after each step
+            self.bprop_div_normalize(error, inputs)
+            self.bprop_sub_normalize(self.berror, inputs)
+
+    def bprop_fast(self, error, inputs):
+        """
+        An incorrect, but much faster version of backprop.
+        """
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
+            self.berror[:] = error
+
+
+class CrossMapPoolingLayer(WeightLayer):
 
     """
     Pool input feature maps by computing a weighted sum of
@@ -664,6 +928,7 @@ class CrossMapPoolingLayer(Layer):
         super(CrossMapPoolingLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
+        self.fshape = (1,1)
         super(CrossMapPoolingLayer, self).initialize(kwargs)
         req_param(self, ['nofm'])
 

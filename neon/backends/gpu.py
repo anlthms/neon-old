@@ -1275,7 +1275,10 @@ class GPU(Backend):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
         """
-        raise NotImplementedError("TODO!")
+        # Let's do this the naive way for now
+        cudanet.convolution(
+            weights._tensor, inputs._tensor, out._tensor,
+            ifmshape[0], ifmshape[0], ifmshape[1], 0, 1, weights.shape[0], 1)
 
     def bprop_cmpool(self, out, weights, deltas, ifmshape):
         """
@@ -1305,7 +1308,10 @@ class GPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
-        raise NotImplementedError("TODO!")
+        nfilters = out.shape[0]/inputs.shape[0]
+        cudanet.deconvolve_wts(
+            deltas._tensor, inputs._tensor, out._tensor, ifmshape[0],
+            ifmshape[0], ifmshape[1], 1, 0, 1, nfilters, 1, ifmshape[0])
 
     def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
                    rho, epsilon):
