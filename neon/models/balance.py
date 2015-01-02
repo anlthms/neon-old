@@ -27,7 +27,6 @@ class Balance(MLPB):
         self.result = 0
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": True}
-
         self.data_layer = self.layers[0]
         self.cost_layer = self.classlayers[-1]
         self.out_layer = self.layers[-2]
@@ -35,30 +34,24 @@ class Balance(MLPB):
         self.branch_layer = self.stylelayers[-2]
         self.pathways = [self.layers, self.classlayers, self.stylelayers]
 
-        self.data_layer.initialize(kwargs)
-
-        for (pathway, startidx) in zip(self.pathways, [1, -2, -1]):
-            pl = pathway[startidx-1]
-            for layer in pathway[startidx:]:
-                layer.set_previous_layer(pl)
-                layer.initialize(kwargs)
-                pl = layer
+        self.link_and_initialize(self.layers, kwargs)
+        for lp in [self.classlayers, self.stylelayers]:
+            lp[-1].set_previous_layer(lp[-2])
+            lp[-1].initialize(kwargs)
 
         assert self.layers[-1].nout <= 2 ** 15
 
     def fprop(self):
-        for (pathway, startidx) in zip(self.pathways, [0, -2, -1]):
-            y = pathway[startidx-1].output if startidx != 0 else None
-            for layer in pathway[startidx:]:
-                layer.fprop(y)
-                y = layer.output
+        super(Balance, self).fprop()
+        for ll in [self.classlayers[-1], self.stylelayers[-1]]:
+            ll.fprop(ll.prev_layer.output)
 
     def bprop(self):
-        for pathway in self.pathways:
-            error = None
-            for layer in reversed(pathway):
-                layer.bprop(error)
-                error = layer.berror
+        for path, skip_act in zip(self.pathways, [False, True, False]):
+            self.class_layer.skip_act = skip_act
+            for ll, nl in zip(reversed(path), reversed(path[1:] + [None])):
+                error = None if nl is None else nl.berror
+                ll.bprop(error)
 
     def get_reconstruction_output(self):
         return self.out_layer.output

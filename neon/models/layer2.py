@@ -354,7 +354,7 @@ class WeightLayer(Layer):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         if self.accumulate:
             for upm in self.updates:
-                upm[:] = self.backend.wrap(0.0)
+                self.backend.clear(upm)
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)

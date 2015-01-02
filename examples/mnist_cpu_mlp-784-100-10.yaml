@@ -5,7 +5,7 @@
 # MNIST.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',

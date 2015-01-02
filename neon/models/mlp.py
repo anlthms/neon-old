@@ -255,18 +255,23 @@ class MLPB(MLP):
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
-        self.nlayers = len(self.layers)
         self.result = 0
         kwargs = {"backend": self.backend, "batch_size": self.batch_size}
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
 
-        for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-            ll.set_previous_layer(pl)
-            ll.initialize(kwargs)
+        self.link_and_initialize(self.layers, kwargs)
+        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
+        #     ll.set_previous_layer(pl)
+        #     ll.initialize(kwargs)
 
         assert self.layers[-1].nout <= 2 ** 15
+
+    def link_and_initialize(self, layer_list, kwargs, initLayer=None):
+        for ll, pl in zip(layer_list, [initLayer] + layer_list[:-1]):
+            ll.set_previous_layer(pl)
+            ll.initialize(kwargs)
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):

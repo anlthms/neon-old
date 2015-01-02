@@ -853,6 +853,9 @@ class GPU(Backend):
     def fill(self, x, val):
         x[:] = val
 
+    def clear(self, x):
+        self.fill(x, 0.0)
+
     def sum(self, x, axis=None, out=None):
         if x is None:
             return float('NaN')

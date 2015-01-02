@@ -49,7 +49,7 @@
   model: !obj:neon.models.balance.Balance {
     # serialized_path: './balance-simple.pkl',
     backend: *be,
-    num_epochs: 10,
+    num_epochs: 20,
     batch_size: &bs 100,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
@@ -77,6 +77,7 @@
             name: classlayer,
             lrule_init: *adad,
             weight_init: *wt_init_a,
+            activation: !obj:neon.transforms.softmax.Softmax {},
             nout: &zidx 10,
           },
           &stylelayer !obj:neon.models.layer2.FCLayer {
@@ -118,10 +119,10 @@
       *h0,
       *h1,
       *classlayer,
-      !obj:neon.models.layer2.ActivationLayer {
-        name: softmax,
-        activation: !obj:neon.transforms.softmax.Softmax {},
-      },
+      # !obj:neon.models.layer2.ActivationLayer {
+      #   name: softmax,
+      #   activation: !obj:neon.transforms.softmax.Softmax {},
+      # },
       &xentcostlayer !obj:neon.models.layer2.CostLayer {
         name: cost,
         ref_layer: *datalayer,
