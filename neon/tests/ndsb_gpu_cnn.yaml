@@ -13,7 +13,7 @@
     !obj:neon.datasets.ndsb.NDSB {
       backend: *be,
       repo_path: '/usr/local/data',
-      sample_pct: 20,
+      sample_pct: 100,
       image_width: 64,
       serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
     },
@@ -23,7 +23,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 5, 
+    num_epochs: 20, 
     batch_size: &bs 128,
     serialized_path: '/usr/local/data/NDSB/ndsb-model.pkl',
     layers: [
