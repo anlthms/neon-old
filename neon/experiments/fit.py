@@ -81,16 +81,19 @@ class FitExperiment(Experiment):
                             tmp1, tmp2, tmp3, tmp4, tmp5]
                         if self.datasets[ds_idx].macro_batched:
                             if self.datasets[ds_idx].start_train_batch != -1:
-                                # number of batches to train for this yaml file (<= total
-                                # available)
-                                self.datasets[ds_idx].n_train_batches = self.datasets[ds_idx].end_train_batch - \
-                                    self.datasets[ds_idx].start_train_batch + 1
+                                # number of batches to train for this yaml file
+                                # (<= total available)
+                                self.datasets[ds_idx].n_train_batches = (
+                                    self.datasets[ds_idx].end_train_batch -
+                                    self.datasets[ds_idx].start_train_batch +
+                                    1)
                             if self.datasets[ds_idx].start_val_batch != -1:
-                                # number of batches to validation for this yaml file (<= total
-                                # available)
-                                self.datasets[ds_idx].n_val_batches = self.datasets[ds_idx].end_val_batch - \
-                                    self.datasets[ds_idx].start_val_batch + 1
-                                    
+                                # number of batches to validation for this yaml
+                                # file (<= total available)
+                                self.datasets[ds_idx].n_val_batches = (
+                                    self.datasets[ds_idx].end_val_batch -
+                                    self.datasets[ds_idx].start_val_batch + 1)
+
                 else:
                     ds.load()
                     serialize(ds, ds.serialized_path)

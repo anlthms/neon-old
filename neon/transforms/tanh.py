@@ -44,9 +44,9 @@ class Tanh(Activation):
         """
         backend.tanh(inputs, outputs)
         backend.multiply(outputs, outputs, outputs)
-        backend.subtract(backend.wrap(1.0), outputs, outputs)
+        backend.subtract(1.0, outputs, outputs)
 
     def apply_both(self, backend, inputs, outputs):
         backend.tanh(inputs, outputs)
         backend.multiply(outputs, outputs, inputs)
-        backend.subtract(backend.wrap(1.0), inputs, inputs)
+        backend.subtract(1.0, inputs, inputs)

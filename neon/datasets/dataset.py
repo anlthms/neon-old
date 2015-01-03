@@ -156,6 +156,16 @@ class Dataset(object):
             res['validation'] = self.targets['validation']
         return res
 
+    def sample_training_data(self):
+        if self.sample_pct != 100:
+            train_idcs = np.arange(self.inputs['train'].shape[0])
+            ntrain_actual = (self.inputs['train'].shape[0] *
+                             int(self.sample_pct) / 100)
+            np.random.shuffle(train_idcs)
+            train_idcs = train_idcs[0:ntrain_actual]
+            self.inputs['train'] = self.inputs['train'][train_idcs]
+            self.targets['train'] = self.targets['train'][train_idcs]
+
     def transpose_batches(self, data):
         """
         Transpose each minibatch within the dataset.

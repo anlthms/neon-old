@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class LearningRule(object):
+
     """
     Base object for applying learning rule on the parameters to be updated
 
@@ -21,6 +22,7 @@ class LearningRule(object):
                                                  data parameters like weights.
         batch_size (int): Number of examples presented at this iteration
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         self.name = name
         self.backend = lr_params['backend']
@@ -44,10 +46,12 @@ class LearningRule(object):
 
 
 class GradientDescent(LearningRule):
+
     """
     Vanilla gradient descent based update rule that can optionally support use
     of weight decay.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescent, self).__init__(name, lr_params)
         if 'learning_rate' in lr_params:
@@ -69,10 +73,12 @@ class GradientDescent(LearningRule):
 
 
 class GradientDescentPretrain(GradientDescent):
+
     """
     Gradient descent based variant that also supports a separate learning
     rate during pre-training.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescentPretrain, self).__init__(name, lr_params)
         if 'pretrain_learning_rate' in lr_params:
@@ -98,10 +104,12 @@ class GradientDescentPretrain(GradientDescent):
 
 
 class GradientDescentMomentum(GradientDescent):
+
     """
     Gradient descent learning rate variant that supports different types of
     momentum based updates
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescentMomentum, self).__init__(name, lr_params)
         if 'momentum_params' in lr_params:
@@ -113,16 +121,17 @@ class GradientDescentMomentum(GradientDescent):
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
+        self.velocity = []
         for item in params:
             self.velocity.append(self.backend.zeros(item.shape,
                                                     self.velocity_dtype))
 
     def allocate_state_rec(self, params):
         """For recurrent layer, need an extra velocity """
-        if (self.velocity_rec is None) \
-                or (self.velocity_rec.shape != params.shape):
-                    self.velocity_rec = self.backend.zeros(params.shape,
-                                                           self.velocity_dtype)
+        if ((self.velocity_rec is None) or (self.velocity_rec.shape !=
+                                            params.shape)):
+            self.velocity_rec = self.backend.zeros(params.shape,
+                                                   self.velocity_dtype)
 
     def apply_rule_rec(self, params, updates, epoch):
         """ For recurrent layer, need an extra velocity """
@@ -146,27 +155,36 @@ class GradientDescentMomentum(GradientDescent):
         3. velo = velo - upda  combine old and new part
         4. update the actual weights.
         """
-        #print 'called learning rule'
+        # print 'called learning rule'
         momentum_coef = self.get_momentum_coef(epoch)
+        i = 0
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             self.backend.multiply(vs_item,
                                   self.backend.wrap(momentum_coef),
                                   out=vs_item)
-            #todo: dbg modofied this added: '/100.'
+            # todo: dbg modofied this added: '/100.'
+            # todo: this is hacky for imagenet only
+            if i == 0:
+                learning_rate = .01
+            else:
+                learning_rate = .02
+
             self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
+                                  self.backend.wrap(learning_rate),
                                   out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
-            #reuse us_item for weight decay term
-            self.backend.multiply(ps_item,
-                                  self.backend.wrap(self.weight_decay),
-                                  out=us_item)
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
-            
+            # reuse us_item for weight decay term
+            if i == 0:  # only apply for weights, not biases
+                self.backend.multiply(ps_item,
+                                      self.backend.wrap(self.weight_decay),
+                                      out=us_item)
+                self.backend.multiply(us_item,
+                                      self.backend.wrap(learning_rate),
+                                      out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
+
             self.backend.add(ps_item, vs_item, out=ps_item)
+            i += 1
 
     def get_momentum_coef(self, epoch):
         """
@@ -229,9 +247,11 @@ class GradientDescentMomentum(GradientDescent):
 # TODO:  Use the built-in ada-delta update funcs in the backends to make this
 # cleaner/faster
 class AdaDelta(LearningRule):
+
     """
     Adadelta based learning rule updates.  See Zeiler2012 for instance.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(AdaDelta, self).__init__(name, lr_params)
         if 'rho' in lr_params:

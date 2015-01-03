@@ -14,19 +14,20 @@
       backend: *be,
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
-      serialized_path: '/usr/local/data/I1K/I1K_alexnet5.pkl', #delete if loading files from scratch
+      serialized_path: '/usr/local/data/I1K/I1K_alexnet8.pkl', #delete if loading files from scratch
       # sample_pct: .1, #ignored for now
       macro_batched: True,
-      output_image_size: &ois 224,
+      output_image_size: &ois 256,
+      cropped_image_size: &cis 224,
       max_tar_file: &mtf 1000,
       #number of cpu processes for image resizing and decompression
       num_processes: 4,
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
       start_train_batch: 0,
-      end_train_batch: 24,
+      end_train_batch: 0, #24,
       start_val_batch: 0,
-      end_val_batch: 4,
+      end_val_batch: 0, #4,
     },
   ],
 
@@ -34,9 +35,9 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 60,
-    batch_size: &bs 256,
-    #serialized_path: '/usr/local/data/I1K/I1K_alexnet_model4.pkl',
+    num_epochs: 4, #60,
+    batch_size: &bs 128,
+    #serialized_path: '/usr/local/data/I1K/I1K_alexnet_model8.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: conv1,
@@ -46,9 +47,9 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer1lr,
           lr_params: {
-            #this is per image (no scaling in code)?
-            learning_rate: &lr .000039,
-            weight_decay: &wd .128, #scale this up by mbs
+            # use scaling approach from weird trick paper
+            learning_rate: &lr .01,
+            weight_decay: &wd .0005,
             backend: *be,
             momentum_params: &mm {
               type: constant, #constant, nesterov
@@ -56,17 +57,9 @@
             },
           },
         },
-        # learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-        #   name: h0lr,
-        #   lr_params: &lrp {
-        #     epsilon: 0.000001,
-        #     rho: 0.95,
-        #     backend: *be,
-        #   },
-        # },
         nifm: 3,
         nofm: 64,
-        ifmshape: [*ois, *ois],
+        ifmshape: [*cis, *cis],
         fshape: [11, 11],
         stride: 4,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -75,11 +68,6 @@
           scale: .01,
           bias_init: 0.0,
         },
-        # weight_init: {
-        #   type: uniform,
-        #   low: -0.1,
-        #   high: 0.1,
-        # },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
         name: rnorm1,
@@ -89,7 +77,7 @@
         ifmshape: [55, 55],
         nifm: 64,
         ksize: 5,
-        alpha: 0.0001, # todo: double check this with alex; .0001 in paper
+        alpha: 0.0001,
         beta: 0.75,
       },
       !obj:neon.models.layer.MaxPoolingLayer {
@@ -116,10 +104,6 @@
             weight_decay: *wd,
           },
         },
-        # learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-        #   name: h0lr,
-        #   lr_params: *lrp,
-        # },
         nifm: 64,
         nofm: 192,
         ifmshape: [27, 27],
@@ -132,11 +116,6 @@
           scale: .01,
           bias_init: 1.0,
         },
-        # weight_init: {
-        #   type: uniform,
-        #   low: -0.1,
-        #   high: 0.1,
-        # },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
         name: rnorm2,
@@ -173,10 +152,6 @@
             weight_decay: *wd,
           },
         },
-        # learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-        #   name: h0lr,
-        #   lr_params: *lrp,
-        # },
         nifm: 192,
         nofm: 384,
         ifmshape: [13, 13],
@@ -189,11 +164,6 @@
           scale: .03,
           bias_init: 0.0,
         },
-        # weight_init: {
-        #   type: uniform,
-        #   low: -0.1,
-        #   high: 0.1,
-        # },
       },
       !obj:neon.models.layer.ConvLayer {
         name: conv4,
@@ -209,10 +179,6 @@
             weight_decay: *wd,
           },
         },
-        # learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-        #   name: h0lr,
-        #   lr_params: *lrp,
-        # },
         nifm: 384,
         nofm: 256,
         ifmshape: [13, 13],
@@ -225,11 +191,6 @@
           scale: .03,
           bias_init: 1.0,
         },
-        # weight_init: {
-        #   type: uniform,
-        #   low: -0.1,
-        #   high: 0.1,
-        # },
       },
       !obj:neon.models.layer.ConvLayer {
         name: conv5,
@@ -245,10 +206,6 @@
             weight_decay: *wd,
           },
         },
-        # learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-        #   name: h0lr,
-        #   lr_params: *lrp,
-        # },
         nifm: 256,
         nofm: 256,
         ifmshape: [13, 13],
@@ -261,11 +218,6 @@
           scale: .03,
           bias_init: 1.0,
         },
-        # weight_init: {
-        #   type: uniform,
-        #   low: -0.1,
-        #   high: 0.1,
-        # },
       },
       !obj:neon.models.layer.MaxPoolingLayer {
         name: pool3,
@@ -281,24 +233,18 @@
         name: fc4096a,
         backend: *be,
         batch_size: *bs,
-        pos: 1,
+        pos: 10,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer1lr,
           lr_params: {
-            #this is per image (no scaling in code)?
             learning_rate: *lr,
             weight_decay: *wd,
             backend: *be,
             momentum_params: *mm,
           },
         },
-        nin: 9216, #9216,  32448
+        nin: 9216,
         nout: 4096,
-        # nifm: 3,
-        # nofm: 64,
-        # ifmshape: [*ois, *ois],
-        # fshape: [11, 11],
-        # stride: 4,
         activation: !obj:neon.transforms.rectified.RectLin {},
         weight_init: {
           type: normal,
@@ -318,7 +264,7 @@
         name: fc4096b,
         backend: *be,
         batch_size: *bs,
-        pos: 10,
+        pos: 12,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: layer5lr,
           lr_params: {
@@ -349,7 +295,7 @@
         name: fc1000,
         backend: *be,
         batch_size: *bs,
-        pos: 12, #14,
+        pos: 14,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
@@ -360,9 +306,8 @@
           },
         },
         nin: 4096,
-        nout: *mtf, #1000,
+        nout: *mtf,
         activation: !obj:neon.transforms.softmax.Softmax {
-        #activation: !obj:neon.transforms.logistic.Logistic {
           shortcut_deriv: True,
         },
         weight_init: {
@@ -376,7 +321,6 @@
       olayer: *lastlayer,
       use_binary: False,
       shortcut_deriv: True,
-      #scale: 10,
     },
   },
 

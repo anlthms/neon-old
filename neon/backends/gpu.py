@@ -6,17 +6,18 @@ Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 """
 
+import cudanet
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED, range
-if MPI_INSTALLED:
-    from mpi4py import MPI
 import math
-import cudanet
 import os
 
 from neon.backends.backend import Backend, Tensor
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.error import TooSlowToImplementError
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +30,10 @@ class GPUTensor(Tensor):
     cudanet is derived from cuda-convnet2.
 
     Arguments:
-        obj (numpy.ndarray): the actual data values (will be converted
+        obj (numpy.ndarray): The actual data values (will be converted
                              to a 2-d row matrix).  Python built-in types like
                              lists and tuples are also supported.
-        dtype (None, optional): underlying data type of the elements.
+        dtype (None, optional): Underlying data type of the elements.
                                 Not needed/used for this backend.
     """
     _tensor = None
@@ -246,195 +247,6 @@ class GPUTensor(Tensor):
 
     def __float__(self):
         raise NotImplementedError()
-
-    def __neg__(self):
-        return -1 * self
-
-    def __add__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-        Now supports limited broadcasting to add a vector to a matrix.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: containing the element-wise sum values.
-        """
-
-        if self.shape == other.shape:
-            target = cudanet.empty(self.shape)
-            if isinstance(other, GPUTensor):
-                self._tensor.add(other._tensor, target)
-            else:
-                self._tensor.add(other, target)
-            return GPUTensor(target)
-        else:
-            if other.shape[1] == 1:  # [Nx1] vector
-                ones = cudanet.empty((self.shape[0], 1))
-                ones.assign(1)
-                # outer product repmat (probably quite inefficient)
-                other = GPUTensor(cudanet.dot(ones, other._tensor.transpose()))
-            else:  # [1xN] vector
-                ones = cudanet.empty((self.shape[0], 1))
-                ones.assign(1)
-                other = GPUTensor(cudanet.dot(ones, other._tensor))
-            target = cudanet.empty(self.shape)
-            if isinstance(other, GPUTensor):
-                self._tensor.add(other._tensor, target)
-            else:
-                self._tensor.add(other, target)
-            return GPUTensor(target)
-
-    def __radd__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: containing the element-wise sum values.
-        """
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.add(other._tensor, target)
-        else:
-            self._tensor.add(other, target)
-        return GPUTensor(target)
-
-    def __iadd__(self, other):
-        """
-        Perform element-wise in-place addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: updated view of this Tensor
-        """
-        if isinstance(other, GPUTensor):
-            self._tensor.add(other._tensor)
-        else:
-            self._tensor.add(other)
-        return self
-
-    def __sub__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.subtract(other._tensor, target)
-        else:
-            self._tensor.subtract(other, target)
-        return GPUTensor(target)
-
-    def __rsub__(self, other):
-        target = cudanet.empty(self.shape)
-        self._tensor.mult(-1.0, target)
-        if isinstance(other, GPUTensor):
-            target.add(other._tensor)
-        else:
-            target.add(other)
-        return GPUTensor(target)
-
-    def __isub__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.subtract(other._tensor)
-        else:
-            self._tensor.subtract(other)
-        return self
-
-    def __mul__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.mult(other._tensor, target)
-        else:
-            self._tensor.mult(other, target)
-        return GPUTensor(target)
-
-    def __rmul__(self, other):
-        return self * other
-
-    def __imul__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.mult(other._tensor)
-        else:
-            self._tensor.mult(other)
-        return self
-
-    def __div__(self, other):
-        # python2 floor rounded division
-        return self.__truediv__(other)
-
-    def __truediv__(self, other):
-        # python3 fractional division
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor, target)
-        else:
-            self._tensor.divide(other, target)
-        return GPUTensor(target)
-
-    def __rdiv__(self, other):
-        return self.__rtruediv__(other)
-
-    def __rtruediv__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, (float, int)):
-            other = GPUTensor(other * numpy.ones(self.shape))
-        if isinstance(other, GPUTensor):
-            other._tensor.divide(self._tensor, target)
-        elif isinstance(other, cudanet.CUDAMatrix):
-            other.divide(self._tensor, target)
-        else:
-            return NotImplemented
-        return GPUTensor(target)
-
-    def __idiv__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor)
-        else:
-            self._tensor.divide(other)
-        return self
-
-    def __itruediv__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor)
-        else:
-            self._tensor.divide(other)
-        return self
-
-    def __pow__(self, other, modulo=None):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            cudanet.pow(self._tensor, other._tensor, target)
-        else:
-            cudanet.pow(self._tensor, other, target)
-        return GPUTensor(target)
-
-    def __rpow__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, (float, int)):
-            other = GPUTensor(other)
-        if isinstance(other, GPUTensor):
-            cudanet.pow(other._tensor, self._tensor, target)
-        elif isinstance(other, cudanet.CUDAMatrix):
-            cudanet.pow(other, self._tensor, target)
-        else:
-            return NotImplemented
-        return GPUTensor(target)
-
-    def __ipow__(self, other):
-        if isinstance(other, GPUTensor):
-            cudanet.pow(self._tensor, other._tensor)
-        else:
-            cudanet.pow(self._tensor, other)
-        return self
 
     def set_host_mat(self, newarray):
         """
@@ -668,7 +480,36 @@ class GPU(Backend):
             numpy.ones(shape, dtype=dtype)))
 
     def wrap(self, obj):
+        """
+        Convert obj to a GPUTensor (if it is not already).  Useful for
+        transforming scalars like ints and floats.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to convert.
+
+        Returns:
+            GPUTensor: Potentially converted object.
+        """
         return GPUTensor(obj)
+
+    def _unwrap(self, obj):
+        """
+        Helper that extracts and returns the raw data underlying obj (if it is
+        a GPUTensor), otherwise returns the existing structure.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to extract raw data from
+
+        Returns:
+            int, float, cudanet.CUDAMatrix: raw data from object.
+
+        See Also:
+            `wrap`
+        """
+        if isinstance(obj, self.tensor_cls):
+            return obj._tensor
+        else:
+            return obj
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
@@ -727,24 +568,115 @@ class GPU(Backend):
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
-    def add(self, a, b, out):
-        if type(a._tensor) != cudanet.CUDAMatrix:
-            b._tensor.add(a._tensor, out._tensor)
-        else:
-            a._tensor.add(b._tensor, out._tensor)
+    def add(self, left, right, out):
+        """
+        Perform element-wise addition on the operands left and right, storing
+        the result in the GPUTensor out.  Each operand and out is assumed to
+        have identical shape, or be broadcastable as such.
 
-    def subtract(self, a, b, out):
-        if type(a._tensor) != cudanet.CUDAMatrix:
-            b._tensor.subtract(a._tensor, out._tensor)
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.add(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.add(left, out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.add(right, out._tensor)
+        return out
+
+    def subtract(self, left, right, out):
+        """
+        Perform element-wise subtraction on the operands left and right,
+        storing the result in the GPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.subtract(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.subtract(left, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
-            a._tensor.subtract(b._tensor, out._tensor)
+            left = self.wrap(left)
+            left._tensor.subtract(right, out._tensor)
+        return out
 
-    def multiply(self, a, b, out):
-        a._tensor.mult(b._tensor, target=out._tensor)
+    def multiply(self, left, right, out):
+        """
+        Perform element-wise multiplication on the operands left and right,
+        storing the result in the GPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
 
-    def divide(self, a, b, out):
-        a._tensor.divide(b._tensor, out._tensor)
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.mult(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.mult(left, out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.mult(right, out._tensor)
+        return out
+
+    def divide(self, left, right, out):
+        """
+        Perform element-wise division on the operands left and right, storing
+        the result in out.  Each operand and out is assumed to have identical
+        shape, or be broadcastable as such.
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        return out
+
+    def power(self, tsr, power, out):
+        """
+        Perform element-wise raise of tsr values to specified power,
+        storing the result in GPUTensor out.  Both GPUTensor's should have
+        identical shape.
+
+        Arguments:
+            tsr (GPUTensor): input to be transformed.
+            power (GPUTensor, numeric): Exponentiated value to be applied to
+                                        elements.  Examples include 2 (square),
+                                        0.5 (sqaure root).
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        cudanet.pow(tsr._tensor, self._unwrap(power), out._tensor)
+        return out
 
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
@@ -887,7 +819,10 @@ class GPU(Backend):
             self.not_equal(tsr, tmp, tmp)
             res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
+            tmp = self.empty(tsr.shape)
+            self.power(self.fabs(tsr), order, tmp)
+            res = tmp.sum(axis, out)
+            self.power(res, (1.0 / order), res)
         if out is None:
             out = res
         else:

@@ -42,7 +42,7 @@ class Logistic(Activation):
             self.tmp = backend.zeros(inputs.shape)
 
         backend.logistic(inputs, outputs)
-        backend.subtract(backend.wrap(1.0), outputs, out=self.tmp)
+        backend.subtract(1.0, outputs, out=self.tmp)
         backend.multiply(outputs, self.tmp, outputs)
 
     def apply_both(self, backend, inputs, outputs):
@@ -61,7 +61,7 @@ class Logistic(Activation):
 
         # Apply the derivative of the logistic function, storing the result in
         # inputs
-        backend.subtract(backend.wrap(1.0), outputs, out=inputs)
+        backend.subtract(1.0, outputs, out=inputs)
         backend.multiply(inputs, outputs, out=inputs)
         if self.shortcut_deriv:
             inputs[:] = 1.0

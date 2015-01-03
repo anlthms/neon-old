@@ -193,7 +193,7 @@ class LayerDist(Layer):
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.empty(
-            (self.nout, self.batch_size * MPI.COMM_WORLD.size))
+            (MPI.COMM_WORLD.size * self.nout, self.batch_size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.berror = self.backend.empty((self.nin, self.batch_size))
@@ -227,13 +227,14 @@ class LayerDist(Layer):
             MPI.COMM_WORLD.Allgather(
                 error.raw(), self.delta_gather._tensor)
             # todo: only supported in numpy backend for now
-            self.delta_._tensor = np.hstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size))
+            self.delta_._tensor = np.vstack(
+                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=0))
+
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.berror,
                                       weights=self.weights,
                                       deltas=self.delta_)
-            self.backend.update_fc(out=self.updates, inputs=inputs,
+            self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                    deltas=self.delta_)
         else:
             if self.pos > 0:
@@ -529,7 +530,7 @@ class RecurrentHiddenLayer(Layer):
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         self.backend.fprop_fc(z1, y, self.weights_rec)
         self.backend.fprop_fc(z2, inputs, self.weights)
-        self.pre_act_list[tau] = z1 + z2
+        self.backend.add(z1, z2, self.pre_act_list[tau])
         if self.activation is not None:
             self.activation.apply_both(self.backend,
                                        self.pre_act_list[tau],
@@ -652,12 +653,9 @@ class DropOutLayer(YAMLable):
             self.backend.multiply(self.keepmask, self.backend.wrap(self.keep),
                                   out=self.keepmask)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
-            #self.backend.multiply(self.keepmask, inputs, out=self.output)
         else:
             self.backend.multiply(inputs, self.backend.wrap(self.keep),
                                   out=self.output)
-            #self.backend.multiply(self.backend.wrap(self.keep), inputs,
-            #                      out=self.output)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
@@ -957,7 +955,7 @@ class LocalLayerDist(LocalLayer):
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
                                           dtype='i32')
         for dst in range(self.ofmsize):
-            self.ofmlocs[dst] = ofmstarts + dst
+            self.backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # stores the flattened px location across
         # ofm in columns
@@ -1024,7 +1022,7 @@ class ConvLayer(LocalLayer):
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
         self.output = backend.empty((self.nout, batch_size))
-        self.updates = backend.empty(self.weights.shape)
+        self.weight_updates = backend.empty(self.weights.shape)
         if isinstance(backend, GPU):
             self.prodbuf = []
             self.bpropbuf = []
@@ -1034,11 +1032,24 @@ class ConvLayer(LocalLayer):
             self.bpropbuf = backend.empty((self.fsize, batch_size))
             self.updatebuf = backend.empty(self.weights.shape)
 
-        self.learning_rule.allocate_state([self.updates])
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
         else:
             self.pre_act = self.output
+
+        # start bias related
+        self.use_biases = 'bias_init' in weight_init
+        if self.use_biases:
+            self.biases = self.backend.empty((self.nout, 1))
+            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.bias_updates = self.backend.empty(self.biases.shape)
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+        # end bias related
+        self.learning_rule.allocate_state(self.updates)
 
     def __str__(self):
         return ("ConvLayer %s: %d ifms, %d filters, "
@@ -1057,6 +1068,8 @@ class ConvLayer(LocalLayer):
                                 links=self.rlinks, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf)
+        if self.use_biases is True:
+            self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -1071,16 +1084,18 @@ class ConvLayer(LocalLayer):
                                     padding=self.pad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf)
-        self.backend.update_conv(out=self.updates, inputs=inputs,
+        self.backend.update_conv(out=self.weight_updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fwidth, updatebuf=self.updatebuf)
+        if self.use_biases is True:
+            self.backend.sum(error, axis=1, out=self.bias_updates)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
 class ConvLayerMultiPass(Layer):
@@ -1272,18 +1287,18 @@ class LocalFilteringLayer(LocalLayer):
         # through the defiltering layer.
         cost.set_outputbuf(self.defilter.output)
         error = cost.apply_derivative(inputs)
-        self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
-                            out=error)
+        self.backend.divide(error, inputs.shape[1], out=error)
         self.defilter.bprop(error, self.output)
         self.defilter.update(epoch)
         # Now backward propagate the gradient of the output of the
         # pooling layer.
-        error = ((self.sparsity / inputs.shape[1]) *
-                 (self.backend.ones(self.pooling.output.shape)))
+        error = self.backend.ones(self.pooling.output.shape)
+        self.backend.multiply(error, self.sparsity / inputs.shape[1], error)
         self.pooling.bprop(error, self.output)
         # Aggregate the errors from both layers before back propagating
         # through the current layer.
-        berror = self.defilter.berror + self.pooling.berror
+        berror = self.backend.empty(self.defilter.berror.shape)
+        self.backend.add(self.defilter.berror, self.pooling.berror, berror)
         self.bprop(berror, inputs)
         self.update(epoch)
         rcost = cost.apply_function(inputs)
@@ -1449,8 +1464,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                       self.autoencoder.chunk,
                                       inputs,
                                       self.defilter.temp)
-        self.backend.divide(error, self.backend.wrap(inputs.shape[1]),
-                            out=error)
+        self.backend.divide(error, inputs.shape[1], out=error)
         self.defilter.bprop(error, self.output)
         self.defilter.update(epoch)
         # Now backward propagate the gradient of the output of the
@@ -1512,7 +1526,8 @@ class LocalDeFilteringLayer(object):
                                                axis=0).transpose(),
                              inputs[self.prev.ofmlocs[dst]],
                              out=self.prodbuf)
-            self.output[rflinks] += self.prodbuf
+            output_slice = self.output[rflinks]
+            self.backend.add(output_slice, self.prodbuf, output_slice)
 
     def bprop(self, error, inputs):
         for dst in range(self.prev.ofmsize):
@@ -1871,7 +1886,8 @@ class LCNLayer(YAMLable):
                 self.bprop_filters[fm] = self.filters.copy()
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
-                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
+                fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
+                self.backend.subtract(fm_filt, 1.0, fm_filt)
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -1943,7 +1959,9 @@ class LCNLayer(YAMLable):
                 filt = self.bprop_filters[fm]
                 self.backend.multiply(error[loc], filt.transpose(),
                                       out=self.prodbuf)
-                self.exerror[rflinks] -= self.prodbuf
+                exerror_slice = self.exerror[rflinks]
+                self.backend.subtract(exerror_slice, self.prodbuf,
+                                      exerror_slice)
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
@@ -1978,11 +1996,13 @@ class LCNLayer(YAMLable):
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
-                rframe[fm:(fm + 1),
-                       self.fheight / 2, self.fwidth / 2] -= divout
+                rframe_slice = rframe[fm:(fm + 1), self.fheight / 2,
+                                      self.fwidth / 2]
+                self.backend.subtract(rframe_slice, divout, rframe_slice)
                 self.backend.multiply(error[loc],
                                       frame, out=frame)
-                self.exerror[rflinks] -= frame
+                exerror_slice = self.exerror[rflinks]
+                self.backend.subtract(exerror_slice, frame, exerror_slice)
         self.reshape_error()
 
     def bprop(self, error, inputs):

@@ -1,0 +1,278 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a CNN on NDSB.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.gpu.GPU {
+    rng_seed: 0,
+  },
+
+  datasets: [
+    # NDSB data
+    !obj:neon.datasets.ndsb.NDSB {
+      backend: *be,
+      repo_path: '/usr/local/data',
+      sample_pct: 20,
+      image_width: 64,
+      serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
+    },
+  ],
+
+  # CNN model specification
+  # essentially a multi-layer perceptron with convolutional and pooling layers
+  model: !obj:neon.models.mlp.MLP {
+    backend: *be,
+    num_epochs: 5,
+    batch_size: &bs 128,
+    # serialized_path: '/usr/local/data/NDSB/ndsb-deep-model.pkl',
+    layers: [
+      !obj:neon.models.layer.ConvLayer {
+        name: layer1,
+        backend: *be,
+        batch_size: *bs,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer1lr,
+          lr_params: {
+            learning_rate: &lr 0.0001,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant, # linear_monotone, nesterov
+              coef: 0.90,
+            },
+          },
+        },
+        nifm: 1,
+        nofm: 16,
+        ifmshape: [64, 64],
+        fshape: [3, 3],
+        stride: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer2,
+        backend: *be,
+        batch_size: *bs,
+        pos: 1,
+        nifm: 16,
+        ifmshape: [62, 62],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.CrossMapResponseNormLayer {
+        name: cmrn,
+        backend: *be,
+        batch_size: *bs,
+        pos: 200,
+        ifmshape: [31, 31],
+        nifm: 16,
+        ksize: 5,
+        alpha: 0.001,
+        beta: 0.75,
+      },
+      !obj:neon.models.layer.ConvLayer {
+        name: layer3,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer3lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nifm: 16,
+        nofm: 32,
+        ifmshape: [31, 31],
+        fshape: [2, 2],
+        stride: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer4,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        nifm: 32,
+        ifmshape: [30, 30],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.CrossMapResponseNormLayer {
+        name: cmrn,
+        backend: *be,
+        batch_size: *bs,
+        pos: 200,
+        ifmshape: [15, 15],
+        nifm: 32,
+        ksize: 5,
+        alpha: 0.001,
+        beta: 0.75,
+      },
+      !obj:neon.models.layer.DropOutLayer {
+        name: dropout,
+        backend: *be,
+        batch_size: *bs,
+        pos: 100,
+        nin: 7200,
+        keep: 0.2,
+      },
+      !obj:neon.models.layer.ConvLayer {
+        name: layer5,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer5lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nifm: 32,
+        nofm: 64,
+        ifmshape: [15, 15],
+        fshape: [2, 2],
+        stride: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.MaxPoolingLayer {
+        name: layer6,
+        backend: *be,
+        batch_size: *bs,
+        pos: 3,
+        nifm: 64,
+        ifmshape: [14, 14],
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:neon.models.layer.CrossMapResponseNormLayer {
+        name: cmrn,
+        backend: *be,
+        batch_size: *bs,
+        pos: 200,
+        ifmshape: [7, 7],
+        nifm: 64,
+        ksize: 5,
+        alpha: 0.001,
+        beta: 0.75,
+      },
+      !obj:neon.models.layer.DropOutLayer {
+        name: dropout,
+        backend: *be,
+        batch_size: *bs,
+        pos: 100,
+        nin: 3136,
+        keep: 0.3,
+      },
+      !obj:neon.models.layer.ConvLayer {
+        name: layer7,
+        backend: *be,
+        batch_size: *bs,
+        pos: 2,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer7lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nifm: 64,
+        nofm: 128,
+        ifmshape: [7, 7],
+        fshape: [2, 2],
+        stride: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      !obj:neon.models.layer.Layer {
+        name: layer8,
+        backend: *be,
+        batch_size: *bs,
+        pos: 4,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: layer8lr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 4608,
+        nout: 1000,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+      &lastlayer !obj:neon.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: *bs,
+        pos: 5,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 1000,
+        nout: 121,
+        activation: !obj:neon.transforms.softmax.Softmax {
+            shortcut_deriv: True,
+        },
+        weight_init: {
+          type: uniform,
+          low: -0.1,
+          high: 0.1,
+        },
+      },
+    ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+      shortcut_deriv: True,
+      use_binary: False,
+    },
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

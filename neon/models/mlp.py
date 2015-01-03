@@ -9,8 +9,6 @@ import logging
 import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
-import time
-import numpy as np
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -77,39 +75,39 @@ class MLP(Model):
             for batch in range(num_batches):
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
-                    #logger.info('get mb %d', batch)
-                    #print batch, " start mb", time.time()
+                    logger.debug('get mb %d', batch)
                     inputs, targets = ds.get_mini_batch()
-                    # if batch ==6:
-                    #import pdb
-                    #pdb.set_trace()
-                    #logger.info('done get mb %d', batch)
+                    logger.debug('done get mb %d', batch)
                     self.fprop(inputs)
-                    #logger.info('finished fprop')
-                    
-                    #logger.info('finished bprop')
-                    
-                    #error += self.get_error(targets, inputs)
+                    logger.debug('finished fprop')
                     ds.backend.argmax(self.get_classifier_output(),
-                                       axis=0,
-                                       out=preds)
+                                      axis=0,
+                                      out=preds)
                     ds.backend.argmax(targets, axis=0, out=tgt)
                     self.bprop(targets, inputs)
-                    # import pdb
-                    # pdb.set_trace()
+                    logger.debug('finished bprop')
                     ds.backend.not_equal(tgt, preds, preds)
                     error += ds.backend.sum(preds)
-                    print error
-                    #print "finished error calc", time.time()
-                    #logger.info('finished error calc')
+                    rem = (batch + 1) % ds.num_minibatches_in_macro
+                    if rem == 0:
+                        quot = (batch + 1) / ds.num_minibatches_in_macro
+                        logger.info("%d.%d error=%f",
+                                    epoch, quot,
+                                    error / ((batch + 1.) * self.batch_size))
+                    # todo: free inputs (shared memory obj)?
+                    logger.debug('finished error calc')
+
+                    #>>>>>>> master
+                    #error += self.get_error(targets, inputs) / self.batch_size
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
                     self.fprop(inputs_batch)
                     self.bprop(targets_batch, inputs_batch)
-                    error += self.get_error(targets_batch, inputs_batch)
+                    error += self.get_error(
+                        targets_batch, inputs_batch) / self.batch_size
                 self.update(epoch)
-                #logger.info('finished updates')
+                logger.debug('finished updates')
             if self.dist_mode == 'datapar':
                 error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
@@ -121,21 +119,56 @@ class MLP(Model):
                 #             error / num_batches)
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
                             100. * error / (self.batch_size * num_batches))
+            if epoch % 2 == 1:
+                logging.info("==================================")
+                for layer in self.layers:
+                    layer.set_train_mode(False)
+                for batch_type in ['training', 'validation']:
+                    ds.init_mini_batch_producer(batch_size=self.batch_size,
+                                                batch_type=batch_type,
+                                                raw_targets=True)
+                    if batch_type == 'training':
+                        nrecs = ds.output_batch_size * \
+                            (ds.end_train_batch - ds.start_train_batch + 1)
+                        ds.cur_train_macro_batch = ds.start_train_batch
+                    elif batch_type == 'validation':
+                        nrecs = ds.output_batch_size * \
+                            (ds.end_val_batch - ds.start_val_batch + 1)
+                        ds.cur_val_macro_batch = ds.start_val_batch
+                    num_batches2 = int(
+                        math.ceil((nrecs + 0.0) / self.batch_size))
+                    err = 0.
+                    for batch in range(num_batches2):
+                        inputs, targets = ds.get_mini_batch()
+                        self.fprop(inputs)
+                        ds.backend.argmax(self.get_classifier_output(),
+                                          axis=0,
+                                          out=preds)
+                        ds.backend.not_equal(targets, preds, preds)
+                        err += ds.backend.sum(preds)
+                    logging.info("%s set misclass rate: %0.5f%%" % (
+                        batch_type, 100 * err / nrecs))
+                ds.init_mini_batch_producer(batch_size=self.batch_size,
+                                            batch_type='training')
+                ds.cur_train_macro_batch = ds.start_train_batch
+                for layer in self.layers:
+                    layer.set_train_mode(True)
+                logging.info("==================================")
+
             for layer in self.layers:
                 logger.debug("%s", layer)
 
     def predict_set(self, ds, inputs):
-        preds = []
         for layer in self.layers:
             layer.set_train_mode(False)
-
         num_batches = len(inputs)
+        nout = self.layers[-1].nout
+        preds = []
         for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
+            preds_batch = self.backend.empty((nout, self.batch_size))
             self.fprop(inputs_batch)
-            outputs = self.get_classifier_output()
-            preds_batch = self.backend.empty((1, self.batch_size))
-            self.backend.argmax(outputs, axis=0, out=preds_batch)
+            preds_batch[:] = self.get_classifier_output()
             preds.append(preds_batch)
         return preds
 
@@ -167,45 +200,59 @@ class MLP(Model):
     def fprop(self, inputs):
         y = inputs
         for layer in self.layers:
-            # if np.any(np.isnan(y.asnumpyarray())):
-            #     import pdb
-            #     pdb.set_trace()
             layer.fprop(y)
             y = layer.output
 
     def bprop(self, targets, inputs):
         i = self.nlayers - 1
         error = self.cost.apply_derivative(targets)
-        # if np.any(np.isnan(error.asnumpyarray())):
-        #     import pdb
-        #     pdb.set_trace()
         batch_size = self.batch_size
         if self.dist_mode == 'datapar':
             batch_size *= MPI.COMM_WORLD.size
         self.backend.divide(error, self.backend.wrap(batch_size), out=error)
 
         while i > 0:
-            # if np.any(np.isnan(error.asnumpyarray())):
-            #     import pdb
-            #     pdb.set_trace()
             self.layers[i].bprop(error, self.layers[i - 1].output)
             error = self.layers[i].berror
-            #self.backend.divide(error, self.backend.wrap(batch_size), out=error)
             i -= 1
-        
-        # if np.any(np.isnan(error.asnumpyarray())):
-        #     import pdb
-        #     pdb.set_trace()
+
         self.layers[i].bprop(error, inputs)
 
     def update(self, epoch):
         for layer in self.layers:
             layer.update(epoch)
 
+    def logloss(self, ds, num_batches, preds, targets, eps=1e-15):
+        temp = self.backend.empty(preds[0].shape)
+        result = 0.
+        for batch in range(num_batches):
+            preds_batch = ds.get_batch(preds, batch)
+            targets_batch = ds.get_batch(targets, batch)
+
+            self.backend.clip(preds_batch, eps, 1.0 - eps, out=temp)
+            self.backend.log(temp, out=temp)
+            self.backend.multiply(targets_batch, temp, temp)
+            result += self.backend.sum(temp)
+        return -result / (self.batch_size * num_batches)
+
+    def misclass_rate(self, ds, num_batches, preds, targets):
+        # Simple misclassification error.
+        labels = self.backend.empty((1, self.batch_size))
+        predlabels = self.backend.empty((1, self.batch_size))
+        misclass = self.backend.empty((1, self.batch_size))
+        misclass_sum = 0
+        for batch in range(num_batches):
+            targets_batch = ds.get_batch(targets, batch)
+            preds_batch = ds.get_batch(preds, batch)
+            self.backend.argmax(targets_batch, axis=0, out=labels)
+            self.backend.argmax(preds_batch, axis=0, out=predlabels)
+            self.backend.not_equal(predlabels, labels, misclass)
+            misclass_sum += ds.backend.sum(misclass)
+        return misclass_sum / (num_batches * self.batch_size)
+
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
                       validation=True):
-        # simple misclassification error
         items = []
         if train:
             items.append('train')
@@ -218,22 +265,17 @@ class MLP(Model):
             preds = predictions[idx]
             targets = ds.get_targets(train=True, test=True, validation=True)
             for item in items:
-                if item in targets and item in preds:
-                    labels = self.backend.empty((1, self.batch_size))
-                    misclass = self.backend.empty((1, self.batch_size))
-                    misclass_sum = 0
-                    num_batches = len(targets[item])
-                    for batch in range(num_batches):
-                        targets_batch = ds.get_batch(targets[item], batch)
-                        preds_batch = ds.get_batch(preds[item], batch)
-                        self.backend.argmax(targets_batch, axis=0, out=labels)
-                        self.backend.not_equal(preds_batch, labels, misclass)
-                        misclass_sum += ds.backend.sum(misclass)
-
-                    self.result = misclass_sum / (
-                        num_batches * self.batch_size)
-                    logging.info("%s set misclass rate: %0.5f%%", item,
-                                 100 * self.result)
+                if item not in targets:
+                    continue
+                if item not in preds:
+                    continue
+                num_batches = len(preds[item])
+                self.result = self.misclass_rate(
+                    ds, num_batches, preds[item], targets[item])
+                logloss = self.logloss(
+                    ds, num_batches, preds[item], targets[item])
+                logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                             item, 100 * self.result, logloss)
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
@@ -253,23 +295,17 @@ class MLP(Model):
                     (dataset.end_val_batch - dataset.start_val_batch + 1)
                 dataset.cur_val_macro_batch = dataset.start_val_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
-
             preds = dataset.backend.empty((1, self.batch_size))
             err = 0.
             for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch()
-                
                 self.fprop(inputs)
                 dataset.backend.argmax(self.get_classifier_output(),
                                        axis=0,
                                        out=preds)
-                # if batch_type=='validation':
-                #     import ipdb
-                #     ipdb.set_trace()
-
                 dataset.backend.not_equal(targets, preds, preds)
                 err += dataset.backend.sum(preds)
-                print err
+                # print err / ((batch+1.)*self.batch_size)
             logging.info("%s set misclass rate: %0.5f%%" % (
                 batch_type, 100 * err / nrecs))
 
