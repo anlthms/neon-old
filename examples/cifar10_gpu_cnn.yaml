@@ -5,165 +5,103 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-    },
-  ],
+  dataset: &ds !obj:neon.datasets.cifar10.CIFAR10 {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+      # serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
+  },
 
+  weight_inits: &wt_init {
+    type: uniform,
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    lr_params: {
+      learning_rate: 0.01,
+      backend: *be,
+      momentum_params: {
+        type: constant,
+        coef: 0.90,
+      },
+    },
+  },
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [32, 32],
+      },
+      !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer1lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant, # linear_monotone, nesterov
-              coef: 0.90,
-            },
-          },
-        },
-        nifm: 3,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         nofm: 16,
-        ifmshape: [32, 32],
         fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer2,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        nifm: 16,
-        ifmshape: [28, 28],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.CrossMapResponseNormLayer {
+      !obj:neon.models.layer2.CrossMapResponseNormLayer {
         name: layer3,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        ifmshape: [14, 14],
-        nifm: 16,
         ksize: 5,
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer4,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nifm: 16,
+        lrule_init: *gdm,
         nofm: 32,
-        ifmshape: [14, 14],
         fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer5,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        nifm: 32,
-        ifmshape: [10, 10],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.CrossMapResponseNormLayer {
+      !obj:neon.models.layer2.CrossMapResponseNormLayer {
         name: layer5b,
-        backend: *be,
-        batch_size: *bs,
-        pos: 5,
-        ifmshape: [5,5],
-        nifm: 32,
         ksize: 5,
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
         name: layer6,
-        backend: *be,
-        batch_size: *bs,
-        pos: 6,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 7,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 500,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        activation: !obj:neon.transforms.logistic.Logistic {},
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
-
   },
 
   # logging options that are passed to logging.basicConfig

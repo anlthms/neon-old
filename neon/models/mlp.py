@@ -344,3 +344,23 @@ class MLPB(MLP):
             logger.info('epoch: %d, total training error: %0.5f', epoch,
                         error / self.data_layer.num_batches)
             self.print_layers(debug=True)
+
+    def predict_and_error(self, dataset):
+        predlabels = self.backend.empty((1, self.batch_size))
+        labels = self.backend.empty((1, self.batch_size))
+        misclass = self.backend.empty((1, self.batch_size))
+        for setname in ['train', 'validation']:
+            self.data_layer.use_set(setname)
+            self.data_layer.reset_counter()
+            misclass_sum = 0.0
+            nrecs = self.batch_size * self.data_layer.num_batches
+            while self.data_layer.has_more_data():
+                self.fprop()
+                probs = self.get_classifier_output()
+                targets = self.data_layer.targets
+                self.backend.argmax(targets, axis=0, out=labels)
+                self.backend.argmax(probs, axis=0, out=predlabels)
+                self.backend.not_equal(predlabels, labels, misclass)
+                misclass_sum += self.backend.sum(misclass)
+            logging.info("%s set misclass rate: %0.5f%%" % (
+                batch_type, 100 * misclass_sum / nrecs))

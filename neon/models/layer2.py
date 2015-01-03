@@ -100,9 +100,18 @@ class Layer(YAMLable):
                                   self.ofmshape, self.fshape, self.stride)
 
     def __str__(self):
-        return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
+        if self.is_local:
+            ionumstr = "({} x {}) x {} inputs, ({} x {}) x {} nodes".format(
+                       self.ifmshape[0], self.ifmshape[1], self.nifm,
+                       self.ofmshape[0], self.ofmshape[1], self.nofm)
+        else:
+            ionumstr = "{nin} inputs, {nout} nodes".format(
+                       nin=self.nin, nout=self.nout)
+
+        return ("Layer {lyr_tp} {lyr_nm}: {ionum}, {act_nm} act_fn, "
                 "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nin=self.nin, nout=self.nout,
+                (lyr_tp=self.__class__.__name__,
+                 lyr_nm=self.name, ionum=ionumstr,
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__))
 
@@ -221,6 +230,7 @@ class CostLayer(Layer):
     def get_cost(self):
         return self.cost.apply_function(self.targets) / self.batch_size
 
+
 class DataLayer(Layer):
     def __init__(self, **kwargs):
         self.is_data = True
@@ -236,11 +246,15 @@ class DataLayer(Layer):
             req_param(self, ['nout'])
 
     def __str__(self):
-        return ("Layer {lyr_nm}: {nout} nodes, {ds_nm} dataset, "
-                "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nout=self.nout,
-                 ds_nm=self.dataset.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
+        if self.is_local:
+            ionumstr = "({} x {}) x {} nodes".format(
+                       self.ofmshape[0], self.ofmshape[1], self.nofm)
+        else:
+            ionumstr = "{nout} nodes".format(nout=self.nout)
+
+        return ("Layer {lyr_tp} {lyr_nm}: {ionum}\n\t".format
+                (lyr_tp=self.__class__.__name__,
+                 lyr_nm=self.name, ionum=ionumstr))
 
     def set_previous_layer(self, pl):
         pass
@@ -282,7 +296,7 @@ class DataLayer(Layer):
             if startb == -1:
                 nrecs = ds.max_file_index
             setattr(ds, 'cur_' + sn + '_macro_batch', startb)
-            self.num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+            self.num_batches = int(np.ceil((nrecs + 0.0) / self.batch_size))
         else:
             self.inputs = ds.get_inputs(train=True, validation=True,
                                         test=True)[setname]
@@ -378,6 +392,7 @@ class WeightLayer(Layer):
             raise AttributeError("invalid learning rule params specified")
         self.learning_rule.allocate_state(self.updates)
 
+
 class FCLayer(WeightLayer):
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
@@ -442,16 +457,6 @@ class PoolingLayer(Layer):
         self.allocate_output_bufs()
         assert self.fshape[0] * self.fshape[1] <= 2 ** 15
 
-    def __str__(self):
-        return ("%sPoolingLayer %s: %d nin, %d nout, "
-                "utilizing %s backend\n\t"
-                "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.op, self.name, self.nin, self.nout,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.output),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output)))
-
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,
                                 ofmshape=self.ofmshape, ofmlocs=self.tempbuf,
@@ -470,6 +475,7 @@ class PoolingLayer(Layer):
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
                                     bpropbuf=self.berrorbuf)
+
 
 class ConvLayer(WeightLayer):
 
@@ -503,16 +509,6 @@ class ConvLayer(WeightLayer):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
-
-    def __str__(self):
-        return ("ConvLayer %s: %d ifms, %d filters, "
-                "utilizing %s backend\n\t"
-                "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
-                (self.name, self.nifm, self.nofm,
-                 self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
