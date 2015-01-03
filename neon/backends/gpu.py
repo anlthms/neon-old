@@ -255,13 +255,6 @@ class GPUTensor(Tensor):
         """
         self._tensor.set_host_mat(newarray)
 
-    def set_host_mat(self, newarray):
-        """
-        Changes the host pointer for this tensor to point to a new numpy array
-        and its associated data. newarray must be a numpy array
-        """
-        self._tensor.set_host_mat(newarray)
-
     def copy(self):
         return GPUTensor(self._tensor.copy())
 

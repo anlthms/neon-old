@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the AlexNet CNN on ImageNet.
+# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.gpu.GPU {
@@ -25,9 +25,9 @@
       # macro batch start and end indices for train and val datasets
       #need #macro batches * OUTPUT_BATCH_SIZE to divide nrecs
       start_train_batch: 0,
-      end_train_batch: 0, #24,
+      end_train_batch: 24,
       start_val_batch: 0,
-      end_val_batch: 0, #4,
+      end_val_batch: 4,
     },
   ],
 
@@ -35,7 +35,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 4, #60,
+    num_epochs: 60,
     batch_size: &bs 128,
     #serialized_path: '/usr/local/data/I1K/I1K_alexnet_model8.pkl',
     layers: [
