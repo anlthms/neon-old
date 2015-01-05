@@ -11,6 +11,7 @@ import math
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
+from neon.backends.par import VecPar
 from neon.util.compat import MPI_INSTALLED, range
 
 if MPI_INSTALLED:
@@ -167,10 +168,16 @@ class CPU(Backend):
     epsilon = np.finfo(np.float32).eps
     tensor_cls = CPUTensor
 
-    def __init__(self, **kwargs):
+    def __init__(self, vecpar=False, **kwargs):
         self.__dict__.update(kwargs)
         self.err_init()
         self.rng_init()
+        if vecpar == True:
+            self.par = VecPar(self)
+            self.gen_weights = self.par.gen_weights
+            self.fprop_fc = self.par.fprop_fc
+            self.bprop_fc = self.par.bprop_fc
+            self.update_fc = self.par.update_fc
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -733,6 +740,9 @@ class CPU(Backend):
         np.subtract(err._tensor, a[np.newaxis], out._tensor)
         np.multiply(out._tensor, y._tensor, out._tensor)
 
+    def fprop_fc_impl(self, out, inputs, weights):
+        self.dot(weights, inputs, out)
+
     def fprop_fc(self, out, inputs, weights):
         """
         Forward propagate the inputs of a fully connected network layer to
@@ -745,7 +755,10 @@ class CPU(Backend):
                                 layer), or the outputs from the previous layer.
             weights (CPUTensor): The weight coefficient values for this layer.
         """
-        self.dot(weights, inputs, out)
+        self.fprop_fc_impl(out, inputs, weights)
+
+    def bprop_fc_impl(self, out, weights, deltas):
+        self.dot(weights.transpose(), deltas, out)
 
     def bprop_fc(self, out, weights, deltas):
         """
@@ -756,7 +769,10 @@ class CPU(Backend):
             weights (CPUTensor): The weight coefficient values for this layer.
             deltas (CPUTensor): The error values for this layer
         """
-        self.dot(weights.transpose(), deltas, out)
+        self.bprop_fc_impl(out, weights, deltas)
+
+    def update_fc_impl(self, out, inputs, deltas):
+        self.dot(deltas, inputs.transpose(), out)
 
     def update_fc(self, out, inputs, deltas):
         """
@@ -768,7 +784,7 @@ class CPU(Backend):
                                 layer), or the outputs from the previous layer.
             deltas (CPUTensor): The error values for this layer
         """
-        self.dot(deltas, inputs.transpose(), out)
+        self.update_fc_impl(out, inputs, deltas)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
                    links, nifm, padding, stride, ngroups, fpropbuf):
@@ -1183,22 +1199,7 @@ class CPU(Backend):
         """
         dev_weights[:] = host_weights
 
-    def gen_weights(self, size, weight_params, dtype=None):
-        """
-        Different types of weight initializations.  Includes:
-        * uniform - uniform distribution
-        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
-        maximum eigenvalue of the weight matrix is scaled to 1.2
-        * normal or gaussian - normal distribution
-        * node_normalized - initialization is as discussed in Glorot2010
-
-        Arguments:
-            size: shape of the weight matrix to generate
-            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
-
-        Returns:
-            CPUTensor: The initialized weights
-        """
+    def gen_weights_impl(self, size, weight_params, dtype=None):
         weights = None
         if 'dtype' in weight_params:
             dtype = weight_params['dtype']
@@ -1265,6 +1266,24 @@ class CPU(Backend):
             raise AttributeError("invalid weight_params specified")
 
         return weights
+
+    def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
+
+        Arguments:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Returns:
+            CPUTensor: The initialized weights
+        """
+        return self.gen_weights_impl(size, weight_params, dtype)
 
 
 # template for CPUDist (wrap MPI function calls so _tensor don't have to be
