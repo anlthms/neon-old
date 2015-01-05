@@ -496,10 +496,11 @@ class ConvLayer(WeightLayer):
         if self.local_conv is False:
             self.weight_shape = (self.fsize, self.nofm)
         else:
-            if isinstance(self.backend, CPU):
-                self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
-            else:
-                self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
+            self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
+            # if isinstance(self.backend, CPU):
+            #     self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
+            # else:
+            #     self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nofm, 1)
 
         self.allocate_output_bufs()
@@ -529,7 +530,7 @@ class ConvLayer(WeightLayer):
             self.backend.bprop_conv(out=self.berror, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmlocs=self.ofmlocs,
-                                    ifmshape=self.ifmshape, links=self.links,
+                                    ifmshape=self.ifmshape, links=self.rlinks,
                                     padding=self.pad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
@@ -539,7 +540,7 @@ class ConvLayer(WeightLayer):
         self.backend.update_conv(out=upm[0], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
-                                 ifmshape=self.ifmshape, links=self.links,
+                                 ifmshape=self.ifmshape, links=self.rlinks,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fwidth, updatebuf=self.updatebuf,

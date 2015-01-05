@@ -801,7 +801,9 @@ class CPU(Backend):
                                   field.
             local (bool): whether to do local filtering or convolution
         """
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        ofmsize = ofmshape[0] * ofmshape[1]
+        fsize = len(links[0])
+        for dst in range(ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
@@ -810,7 +812,7 @@ class CPU(Backend):
                 self.dot(weights.transpose(),
                          inputs.take(rflinks, axis=0), out=fpropbuf)
             else:
-                self.dot(weights.take(ofmlocs[dst], axis=1).transpose(),
+                self.dot(weights[(fsize*dst):(fsize*(dst+1))].transpose(),
                          inputs.take(rflinks, axis=0), out=fpropbuf)
 
             out[ofmlocs[dst]] = fpropbuf
@@ -842,13 +844,14 @@ class CPU(Backend):
                                   backpropagated error for a single receptive
                                   field
         """
+        fsize = len(links[0])
         self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             if local is False:
                 self.dot(weights,
                          deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             else:
-                self.dot(weights.take(ofmlocs[dst], axis=1),
+                self.dot(weights[(fsize*dst):(fsize*(dst+1))],
                          deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
@@ -884,18 +887,23 @@ class CPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
+        fsize = len(links[0])
         self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = deltas.take(ofmlocs[dst], axis=0)
-            self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
-                     out=updatebuf)
+            # print inputs.take(rflinks, axis=0).shape
+            # print eslice.shape
+            # print updatebuf.shape
             if local is False:
+                self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
+                         out=updatebuf)
                 self.add(out, updatebuf, out=out)
             else:
-                out[ofmlocs[dst]] = updatebuf
+                self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
+                         out=updatebuf[(fsize*dst):(fsize*(dst+1))])
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):

@@ -44,7 +44,7 @@
   ],
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,

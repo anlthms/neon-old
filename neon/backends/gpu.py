@@ -1103,7 +1103,7 @@ class GPU(Backend):
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[0])
+            padding, stride, nifm, ngroups, ofmshape[0], local)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):
