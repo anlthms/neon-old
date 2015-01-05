@@ -306,18 +306,30 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def dot(self, left, right, out):
+    def dot(self, left, right, out, alpha=1, beta=0):
         """
         Perform sum product between the last axis of left and the second last
         axis of right, storing the result in out.  Note that this dot product
         is equivalent to the inner product if operands are vectors, and matrix
-        multiplication if both operands are matrices.  All Tensor's should have
-        commensurate shape or be broadcastable as such.
+        multiplication if both operands are matrices.  We support BLAS Level 3
+        general matrix multiplication (GEMM) functionality by including
+        additional scalars alpha and beta.  The general form of the multiply
+        is: out <- alpha * left * right + beta * out, but will be
+        short-circuited to: out <- alpha * left * right if beta has value 0
+        (the default).  All Tensor's should have commensurate shape or be
+        broadcastable as such.
 
         Arguments:
             left (Tensor): left-hand side operand.
             right (Tensor): right-hand side operand.
-            out (Tensor): where the result will be stored.
+            out (Tensor): where the result will be stored.  Note that this
+                          object should differ from left and right.
+            alpha (numeric, optional): scalar to multiply the resultant sum
+                                       product by.  Defaults to 1.
+            beta (numeric, optional): scalar to pre-multiply out values by
+                                      prior to adding to sum product.  Defaults
+                                      to 0, which implies no such addition of
+                                      prior out values.
 
         Returns:
             Tensor: reference to out
@@ -962,15 +974,16 @@ class Tensor(object):
 
     def __getitem__(self, key):
         """
-        Extract a subset view of the items via fancy indexing. e.g. A[5:10, :]
-
-        Notes:
-            This approach tends to be slower in speed than
-            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
-            recommended.
+        Extract a subset view of the items via slice style indexing
+        along each dimension. e.g. A[5:10, :].  Each slice consists of
+        start_idx:stop_idx:step_size triplets.  If step_size isn't specified it
+        defaults to 1.  If start_idx isn't specified it defaults to 0.  If
+        stop_idx isn't specified it defaults to the total number of elements
+        along that dimension.  As such a slice value of ':' allows one to
+        select all elements along that dimension.
 
         Arguments:
-            key (int, slice): indices of the slice to take
+            key (int, slice, tuple): indices of each dimension's slice.
 
         Returns:
             Tensor: view of self corresponding to the subset items.
@@ -985,16 +998,16 @@ class Tensor(object):
 
     def __setitem__(self, key, value):
         """
-        Assign the specified value to a subset of elements found by fancy
-        indexing.
-
-        Notes:
-            This approach tends to be slower in speed than
-            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
-            recommended.
+        Assign the specified value to a subset of elements found via slice
+        style indexing along each dimension. e.g. A[5:10, :] = 4.5.
+        Each slice consists of start_idx:stop_idx:step_size triplets.  If
+        step_size isn't specified it defaults to 1.  If start_idx isn't
+        specified it defaults to 0.  If stop_idx isn't specified it defaults
+        to the total number of elements along that dimension.  As such a slice
+        value of ':' allows one to select all elements along that dimension.
 
         Arguments:
-            key (int, slice): indices of the slice to be assigned
+            key (int, slice, tuple): indices of each dimension's slice.
             value (numeric array, Tensor): values to be assigned to the
                                           extracted element subset.  If an
                                           array it should be the same shape
@@ -1003,9 +1016,6 @@ class Tensor(object):
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
-
-        See Also:
-            :py:func:`~neon.backends.backend.Tensor.take`,
         """
         raise NotImplementedError()
 
@@ -1055,7 +1065,7 @@ class Tensor(object):
 
     def transpose(self):
         """
-        Returns a view of the data in this Tensor whereby rows and column
+        Returns a view of the data in this Tensor whereby row and column
         elements are swapped.
 
         Return:

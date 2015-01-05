@@ -134,7 +134,7 @@ class GPUTensor(Tensor):
             pass
         else:
             # arbitrary long list, too expensive to support?
-            raise TooSlowToImplementError("column idx too complex")
+            raise TooSlowToImplementError("slice indexing too complex")
         return res
 
     def asnumpyarray(self):
@@ -150,16 +150,25 @@ class GPUTensor(Tensor):
 
     def __getitem__(self, key):
         """
-        Extract a subset of elements from this tensor as specified by key.
+        Extract a subset view of the items via slice style indexing
+        along each dimension. e.g. A[5:10, :].  Each slice consists of
+        start_idx:stop_idx:step_size triplets.  If step_size isn't specified it
+        defaults to 1.  If start_idx isn't specified it defaults to 0.  If
+        stop_idx isn't specified it defaults to the total number of elements
+        along that dimension.  As such a slice value of ':' allows one to
+        select all elements along that dimension.
 
         Arguments:
-            key (tuple, int): the indices to extract/slice along.
+            key (int, slice, tuple): indices of each dimension's slice.
 
         Returns:
-            GPUTensor: view or new sliced copy
+            GPUTensor: view of self corresponding to the subset items.
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
+
+        See Also:
+            take
         """
         res = self
         if isinstance(key, tuple):
@@ -174,28 +183,38 @@ class GPUTensor(Tensor):
 
     def __setitem__(self, key, value):
         """
-        Assign values to a subset of elements from this tensor.
+        Assign the specified value to a subset of elements found via slice
+        style indexing along each dimension. e.g. A[5:10, :] = 4.5.
+        Each slice consists of start_idx:stop_idx:step_size triplets.  If
+        step_size isn't specified it defaults to 1.  If start_idx isn't
+        specified it defaults to 0.  If stop_idx isn't specified it defaults
+        to the total number of elements along that dimension.  As such a slice
+        value of ':' allows one to select all elements along that dimension.
 
         Arguments:
-            key (tuple, int): The indices to which we assign the values
-            value (GPUTensor, int, float): The values to assign at each
-                                               key position.  Must be scalar
-                                               or if a GPUTensor, must
-                                               have the right shape.
-
-        Returns:
-            GPUTensor: update view of this tensor
+            key (int, slice, tuple): indices of each dimension's slice.
+            value (numeric array, GPUTensor): values to be assigned to the
+                                              extracted element subset.  If an
+                                              array it should be the same shape
+                                              as what key indexes (or be
+                                              broadcastable as such).
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
-            NotImplementedError: if invalid value type passed.
+            ValueError: if invalid value type passed.
             TooSlowToImplementError: if arbitrarily indexed key passed.
+
+        Notes:
+            Currently, this implementation only supports assignment in which
+            only a single dimension is subset.  That is, for a 4x4 matrix A,
+            assignment to A[1:3, :] and A[:, 1:3] are ok, but A[1:3, 1:3] is
+            not.  Attempts to perform such assignment will raise a
+            TooSlowToImplementError.
         """
         if isinstance(value, GPUTensor):
             value = value._tensor
         elif not isinstance(value, (int, float)):
-            raise NotImplementedError("can only assign GPUTensor's or "
-                                      "numeric scalars")
+            raise ValueError("can only assign GPUTensor's or numeric scalars")
         if isinstance(key, tuple):
             if len(key) > 2:
                 raise IndexError("CUDAMatrix only supports 2-D matrices")
@@ -456,8 +475,7 @@ class GPU(Backend):
         """
         if dtype is None:
             dtype = numpy.float32
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros(shape, dtype=dtype)))
+        return GPUTensor(cudanet.CUDAMatrix(numpy.zeros(shape, dtype=dtype)))
 
     def ones(self, shape, dtype=numpy.float32):
         """
@@ -475,8 +493,7 @@ class GPU(Backend):
         """
         if dtype is None:
             dtype = numpy.float32
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.ones(shape, dtype=dtype)))
+        return GPUTensor(cudanet.CUDAMatrix(numpy.ones(shape, dtype=dtype)))
 
     def _unwrap(self, obj):
         """
@@ -658,24 +675,37 @@ class GPU(Backend):
 
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
+        return out
 
-    def dot(self, left, right, out):
+    def dot(self, left, right, out, alpha=1, beta=0):
         """
         Perform sum product between the last axis of left and the second last
         axis of right, storing the result in out.  Note that this dot product
         is equivalent to the inner product if operands are vectors, and matrix
-        multiplication if both operands are matrices.  All GPUTensor's should
-        have commensurate shape or be broadcastable as such.
+        multiplication if both operands are matrices.  We support BLAS Level 3
+        general matrix multiplication (GEMM) functionality by including
+        additional scalars alpha and beta.  The general form of the multiply
+        is: out <- alpha * left . right + beta * out, but will be
+        short-circuited to: out <- alpha * left . right if beta has value 0
+        (the default).  All GPUTensor's should have commensurate shape or be
+        broadcastable as such.
 
         Arguments:
             left (GPUTensor): left-hand side operand.
             right (GPUTensor): right-hand side operand.
-            out (GPUTensor): where the result will be stored.
+            out (GPUTensor): where the result will be stored.  Note that this
+                             object should differ from left and right.
+            alpha (numeric, optional): scalar to multiply the resultant sum
+                                       product by.  Defaults to 1.
+            beta (numeric, optional): scalar to pre-multiply out values by
+                                      prior to adding to sum product.  Defaults
+                                      to 0, which implies no such addition of
+                                      prior out values.
 
         Returns:
             GPUTensor: reference to out
         """
-        cudanet.dot(left._tensor, right._tensor, out._tensor)
+        cudanet.dot(left._tensor, right._tensor, out._tensor, beta, alpha)
         return out
 
     def equal(self, left, right, out):
