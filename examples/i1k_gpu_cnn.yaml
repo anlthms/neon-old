@@ -11,8 +11,8 @@
   dataset: &ds !obj:neon.datasets.i1k.I1K {
     backend: *be,
     load_path: '/usr/local/data', #directory where .tar files are stored
-    repo_path: '/usr/local/data', #directory to use for writing files
-    serialized_path: '/usr/local/data/I1K/I1K_dataset.pkl', #delete if loading files from scratch
+    repo_path: '/usr/local/data/alex', #directory to use for writing files
+    serialized_path: '/usr/local/data/alex/I1K/I1K_dataset.pkl', #delete if loading files from scratch
     # sample_pct: .1,
     max_tar_file: 4, #use this instead of sample_pct
     macro_batched: True,
@@ -46,7 +46,7 @@
     },
   },
 
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 1,
     batch_size: &bs 128,

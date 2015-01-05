@@ -363,4 +363,4 @@ class MLPB(MLP):
                 self.backend.not_equal(predlabels, labels, misclass)
                 misclass_sum += self.backend.sum(misclass)
             logging.info("%s set misclass rate: %0.5f%%" % (
-                batch_type, 100 * misclass_sum / nrecs))
+                setname, 100 * misclass_sum / nrecs))
