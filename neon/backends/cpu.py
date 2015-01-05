@@ -624,9 +624,6 @@ class CPU(Backend):
     def rectlin_derivative(self, x, out):
         self.greater(x, 0, out=out)
 
-    def clear(self, x):
-        x._tensor[:] = 0
-
     def fill(self, x, val):
         x._tensor.fill(val)
 
