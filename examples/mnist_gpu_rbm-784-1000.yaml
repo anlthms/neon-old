@@ -9,14 +9,12 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-    },
-  ],
+  # MNIST data
+  dataset: !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
 
   # RBM model specification
   model: !obj:neon.models.rbm.RBM {

@@ -40,6 +40,14 @@
         },
       },
     },
+    &ada {
+      type: adadelta,
+      lr_params: {
+        rho: &ro 0.95,
+        epsilon: &eps 0.000001,
+        backend: *be,
+      },
+    },
   ],
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
