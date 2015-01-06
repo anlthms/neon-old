@@ -831,21 +831,21 @@ class LocalLayer(YAMLable):
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
                                         self.ofmsize))
-        self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
+        self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='int32')
         for dst in range(self.ofmsize):
             backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # Figure out the connections with the previous layer.
         if pooling is True:
             self.links = backend.empty(
-                (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+                (self.ofmsize, fshape[0] * fshape[1]), dtype='int32')
             self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
             if pos > 0:
                 self.berrorbuf = backend.empty((self.ifmsize,
                                                 batch_size * nifm))
         else:
             self.links = backend.empty(
-                (self.ofmsize, self.fsize), dtype='i32')
+                (self.ofmsize, self.fsize), dtype='int32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in range(self.ofmsize):
@@ -868,7 +868,7 @@ class LocalLayer(YAMLable):
                 # Shift the filter down by one stride.
                 src += stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
-            self.links[dst] = backend.array(colinds, dtype='i32')
+            self.links[dst] = backend.array(colinds, dtype='int32')
         self.rlinks = self.links.asnumpyarray()
 
     def normalize_weights(self, weights):
@@ -946,7 +946,7 @@ class LocalLayerDist(LocalLayer):
                                              self.ofmsize))
 
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
-                                          dtype='i32')
+                                          dtype='int32')
         for dst in range(self.ofmsize):
             self.backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
@@ -956,7 +956,7 @@ class LocalLayerDist(LocalLayer):
         # Figure out the connections with the previous layer.
         if self.pooling is True:
             self.links = self.backend.empty(
-                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
+                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='int32')
             self.outputbuf = self.backend.empty((self.ofmsize,
                                                  self.batch_size * self.nifm))
             if self.pos > 0:
@@ -964,7 +964,7 @@ class LocalLayerDist(LocalLayer):
                     (self.ifmsize, self.batch_size * self.nifm))
         else:
             self.links = self.backend.empty(
-                (self.ofmsize, self.fsize), dtype='i32')
+                (self.ofmsize, self.fsize), dtype='int32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in range(self.ofmsize):

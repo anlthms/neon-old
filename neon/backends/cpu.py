@@ -33,12 +33,13 @@ class CPUTensor(Tensor):
 
     See also:
         CPU
+
     """
     _tensor = None
 
     def __init__(self, obj, dtype=None):
         if dtype is None:
-            dtype = np.float32
+            dtype = 'float32'
         if type(obj) != np.ndarray:
             self._tensor = np.array(obj, dtype)
         elif obj.dtype != dtype:
@@ -136,9 +137,6 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
-    def __float__(self):
-        return float(self._tensor)
-
     def copy(self):
         return self.__class__(np.copy(self._tensor),
                               dtype=self._tensor.dtype)
@@ -169,21 +167,21 @@ class CPUTensor(Tensor):
     def exp(self):
         return self.__class__(np.exp(self._tensor))
 
-    def mean(self, axis=None, dtype=np.float32, out=None):
+    def mean(self, axis=None, dtype='float32', out=None):
         res = np.mean(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
             return self.__class__(res)
 
-    def sum(self, axis=None, dtype=np.float32, out=None):
+    def sum(self, axis=None, dtype='float32', out=None):
         res = np.sum(self._tensor, axis, dtype, out)
         if axis is None:
             return res
         else:
             return self.__class__(res)
 
-    def sumsq(self, axis=None, dtype=np.float32, out=None):
+    def sumsq(self, axis=None, dtype='float32', out=None):
         res = np.sum(self._tensor * self._tensor, axis, dtype, out)
         if axis is None:
             return res
@@ -205,8 +203,8 @@ class CPU(Backend):
     See also:
         CPUTensor
     """
-    default_dtype = np.float32
-    epsilon = np.finfo(np.float32).eps
+    default_dtype = 'float32'
+    epsilon = np.finfo(default_dtype).eps
     tensor_cls = CPUTensor
 
     def __init__(self, **kwargs):
@@ -227,7 +225,7 @@ class CPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -247,7 +245,7 @@ class CPU(Backend):
                                  built-in types like ints and lists are
                                  supported.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -264,7 +262,7 @@ class CPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -281,7 +279,7 @@ class CPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -296,10 +294,10 @@ class CPU(Backend):
         a CPUTensor), otherwise returns the existing structure.
 
         Arguments:
-            obj (int, float, CPUTensor): The object to extract raw data from
+            obj (numeric, CPUTensor): The object to extract raw data from
 
         Returns:
-            int, float, numpyarray: raw data from object.
+            numeric, numpy.ndarray: raw data from object.
         """
         if isinstance(obj, self.tensor_cls):
             return obj._tensor
@@ -332,11 +330,11 @@ class CPU(Backend):
         Uniform random number sample generation.
 
         Arguments:
-            low (float, optional): Minimal sample value that can be returned.
-                                   Defaults to 0.0
-            high (float, optional): Maximal sample value.  Open ended range so
-                                    maximal value slightly less.  Defaults to
-                                    1.0
+            low (numeric, optional): Minimal sample value that can be returned.
+                                     Defaults to 0.0
+            high (numeric, optional): Maximal sample value.  Open ended range
+                                      so maximal value slightly less.
+                                      Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
@@ -351,7 +349,7 @@ class CPU(Backend):
         Arguments:
             a (dtype): CPUTensor to fill with zeros or ones based on whether
                        sample from uniform distribution is < keepthresh
-            keepthresh (float, optional): Minimal sample value that can be
+            keepthresh (numeric, optional): Minimal sample value that can be
                                           returned. Defaults to 0.5
         Returns:
             Tensor: Of specified size filled with these random numbers.
@@ -366,9 +364,9 @@ class CPU(Backend):
         Gaussian/Normal random number sample generation
 
         Arguments:
-            loc (float, optional): Where to center distribution.  Defaults
-                                   to 0.0
-            scale (float, optional): Standard deviaion.  Defaults to 1.0
+            loc (numeric, optional): Where to center distribution.  Defaults
+                                     to 0.0
+            scale (numeric, optional): Standard deviaion.  Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
 
         Returns:
@@ -630,24 +628,31 @@ class CPU(Backend):
         Returns:
             CPUTensor: p-norm of tsr along the specified axis.
 
+        Raises:
+            IndexError if invalid axis specified
+            AttributeError if invalid order specified
+
         See Also:
             `numpy.linalg.norm`
         """
-        if not isinstance(axis, int):
-            raise AttributeError("invalid axis value: %s", axis)
-        if order == float('Inf'):
-            res = np.max(np.abs(tsr._tensor), axis)
-        elif order == float('-Inf'):
-            res = np.min(np.abs(tsr._tensor), axis)
-        elif order == 0:
-            res = np.sum(tsr._tensor != 0, axis)
-        else:
-            res = np.sum(np.abs(tsr._tensor) ** order, axis) ** (1.0 / order)
+        if not isinstance(axis, int) or axis < 0 or axis >= len(tsr.shape):
+            raise IndexError("invalid axis value: %s", axis)
+        if not isinstance(order, (int, float)):
+            raise AttributeError("invalid order value: %s", order)
         if out is None:
-            out = self.array(res)
+            out_shape = list(tsr.shape)
+            out_shape[axis] = 1
+            out = self.empty(out_shape)
+        if order == float('Inf'):
+            np.max(np.abs(tsr._tensor), axis, out=out._tensor, keepdims=True)
+        elif order == float('-Inf'):
+            np.min(np.abs(tsr._tensor), axis, out=out._tensor, keepdims=True)
+        elif order == 0:
+            np.sum(tsr._tensor != 0, axis, out=out._tensor, keepdims=True)
         else:
-            out._tensor = res
-            out.shape = res.shape
+            np.sum(np.abs(tsr._tensor) ** order, axis, out=out._tensor,
+                   keepdims=True)
+            np.power(out._tensor, (1.0 / order), out._tensor)
         return out
 
     def xcov(self, a, b, out):
@@ -701,7 +706,7 @@ class CPU(Backend):
         res = np.sum(obj._tensor, axis=axis, out=out._tensor, keepdims=True)
         return self.tensor_cls(res)
 
-    def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
+    def mean(self, x, axis=None, dtype='float32', out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(x._tensor, axis, dtype, out, keepdims)

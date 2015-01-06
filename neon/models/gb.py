@@ -208,9 +208,9 @@ class GB(MLP):
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
         maxinds = self.backend.empty((self.batch_size, self.batch_size),
-                                     dtype="i32")
+                                     dtype='int32')
         notinds = self.backend.empty((self.batch_size, self.batch_size),
-                                     dtype="i32")
+                                     dtype='int32')
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
         inc = 0.1
         # Do a greedy search to find input data that maximizes the output

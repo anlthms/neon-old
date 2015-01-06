@@ -54,7 +54,7 @@ class TestCudaRBM:
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
         target = np.array([0.50541031, 0.50804842],
-                          dtype=np.float32)
+                          dtype='float32')
         assert_tensor_near_equal(self.layer.p_hid_plus.asnumpyarray()[:, 0],
                                  target)
 
@@ -62,7 +62,7 @@ class TestCudaRBM:
         self.layer.positive(self.inputs)
         self.layer.negative(self.inputs)
         target = np.array([0.50274211,  0.50407821],
-                          dtype=np.float32)
+                          dtype='float32')
         assert_tensor_near_equal(self.layer.p_hid_minus.asnumpyarray()[:, 0],
                                  target)
 

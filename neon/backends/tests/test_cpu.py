@@ -220,5 +220,5 @@ class TestCPU(object):
         # -> sum([[1, .125], [1, .037037]], axis=1)**rpow ->
         # rpow([1.125, 1.037037])
         assert_tensor_near_equal(self.be.norm(tsr, order=-3, axis=1),
-                                 CPUTensor([1.125**rpow, 1.037037**rpow]),
+                                 CPUTensor([[1.125**rpow, 1.037037**rpow]]),
                                  1e-6)

@@ -186,7 +186,7 @@ class RNN(Model):
                     hidden_init = self.backend.zeros((self.layers[1].nin,
                                                       self.batch_size))
             for tau in range(self.unrolls):
-                letters = self.backend.empty(50, dtype=int)
+                letters = self.backend.empty(50, dtype='int32')
                 self.backend.argmax(self.layers[1].output_list[tau],
                                     axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau

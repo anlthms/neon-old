@@ -133,9 +133,9 @@ class Backend(YAMLable):
         Uniform random number generation of samples in range [low, high).
 
         Arguments:
-            low (float, optional): Minimal sample value.  Defaults to 0.0
-            high (float, optional): Maximal sample value (open-ended range).
-                                    Defaults to 1.0.
+            low (numeric, optional): Minimal sample value.  Defaults to 0.0
+            high (numeric, optional): Maximal sample value (open-ended range).
+                                      Defaults to 1.0.
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
 
@@ -156,9 +156,10 @@ class Backend(YAMLable):
         mean loc, and with standard deviation scale.
 
         Arguments:
-            loc (float, optional): Central value for Gaussian.  Defaults to 0.0
-            scale (float, optional): Standard deviation for samples.  Defaults
-                                     to 1.0
+            loc (numeric, optional): Central value for Gaussian.  Defaults to
+                                     0.0
+            scale (numeric, optional): Standard deviation for samples.
+                                       Defaults to 1.0
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
 
@@ -1096,7 +1097,6 @@ class Tensor(object):
 
         See Also:
             :py:func:`~neon.backends.backend.Tensor.__getitem__`,
-            :py:func:`~neon.backends.backend.Tensor.__setitem__`,
         """
         raise NotImplementedError()
 

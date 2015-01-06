@@ -116,7 +116,7 @@ class CIFAR10(Dataset):
         logger.info('loading: %s', filename)
         dict = deserialize(filename)
 
-        full_image = np.float32(dict['data'])
+        full_image = 'float32'(dict['data'])
         full_image /= 255.
 
         if self.dist_flag:
@@ -126,7 +126,7 @@ class CIFAR10(Dataset):
             data = full_image
 
         labels = np.array(dict['labels'])
-        onehot = np.zeros((len(labels), nclasses), dtype=np.float32)
+        onehot = np.zeros((len(labels), nclasses), dtype='float32')
         for col in range(nclasses):
             onehot[:, col] = (labels == col)
         return (data, onehot)
@@ -147,9 +147,9 @@ class CIFAR10(Dataset):
                                     self.__class__.__name__)
             self.fetch_dataset(save_dir)
             self.inputs['train'] = np.zeros((ntrain_total, ncols),
-                                            dtype=np.float32)
+                                            dtype='float32')
             self.targets['train'] = np.zeros((ntrain_total, nclasses),
-                                             dtype=np.float32)
+                                             dtype='float32')
             for i in range(5):
                 filename = os.path.join(save_dir, 'cifar-10-batches-py',
                                         'data_batch_' + str(i + 1))
@@ -167,9 +167,9 @@ class CIFAR10(Dataset):
                                     'test_batch')
             data, labels = self.load_file(filename, nclasses)
             self.inputs['test'] = np.zeros((data.shape[0], ncols),
-                                           dtype=np.float32)
+                                           dtype='float32')
             self.targets['test'] = np.zeros((data.shape[0], nclasses),
-                                            dtype=np.float32)
+                                            dtype='float32')
             self.inputs['test'][:] = data
             self.targets['test'][:] = labels
             self.format()
