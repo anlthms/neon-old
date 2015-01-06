@@ -14,7 +14,7 @@ import os
 
 from neon.backends.backend import Backend, Tensor
 from neon.backends.par import VecPar
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import MPI_INSTALLED, mpi_rank, range
 from neon.util.error import TooSlowToImplementError
 
 if MPI_INSTALLED:
@@ -384,8 +384,8 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
-        # set cuda device to device 0 by default
-        cudanet.set_device_id(0)
+        # mpi_rank defaults to 0.
+        cudanet.set_device_id(mpi_rank)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
