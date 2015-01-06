@@ -1,22 +1,29 @@
+import logging
 import numpy as np
 from neon.util.compat import MPI_INSTALLED, mpi_size, mpi_rank, range
 
 if MPI_INSTALLED:
     from mpi4py import MPI
 
+logger = logging.getLogger(__name__)
+
 
 class VecPar:
     def __init__(self, backend):
+        if mpi_rank == 0:
+            logger.info('MPI mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
 
     def gen_weights(self, size, weight_params, dtype=None):
         nout, realnin = size
         nin = realnin / mpi_size
-        if mpi_rank == (mpi_size - 1):
-            # If there are any extra weights, let the last MPI node handle it.
-            nin += realnin % mpi_size
         start = mpi_rank * nin
-        end = start + nin
+        if mpi_rank == (mpi_size - 1):
+            # If the weights cannot be evenly partitioned, let the last
+            # MPI node handle the extra weights.
+            end = realnin
+        else:
+            end = start + nin
         weights = self.backend.gen_weights_impl(size, weight_params, dtype)
         weights = weights[:, start:end]
         return weights

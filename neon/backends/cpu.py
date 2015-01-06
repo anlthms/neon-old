@@ -168,11 +168,11 @@ class CPU(Backend):
     epsilon = np.finfo(np.float32).eps
     tensor_cls = CPUTensor
 
-    def __init__(self, vecpar=False, **kwargs):
+    def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.err_init()
         self.rng_init()
-        if vecpar == True:
+        if 'vecpar' in self.__dict__ and self.vecpar is True:
             self.par = VecPar(self)
             self.gen_weights = self.par.gen_weights
             self.fprop_fc = self.par.fprop_fc

@@ -383,13 +383,13 @@ class GPU(Backend):
     default_dtype = numpy.float32
     tensor_cls = GPUTensor
 
-    def __init__(self, vecpar=False, **kwargs):
+    def __init__(self, **kwargs):
         # set cuda device to device 0 by default
         cudanet.set_device_id(0)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
-        if vecpar == True:
+        if 'vecpar' in self.__dict__ and self.vecpar is True:
             self.par = VecPar(self)
             self.gen_weights = self.par.gen_weights
             self.fprop_fc = self.par.fprop_fc
