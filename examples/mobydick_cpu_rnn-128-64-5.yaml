@@ -15,7 +15,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10, # 10% gives 400 batches like in rnn2
-      unrolls: &ur 5, # how many letters the targets are ahead of the training
+      unrolls: &ur 1,
     },
   ],
 
@@ -36,7 +36,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.1,
+            learning_rate: &lr 0.0001,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, # constant, nesterov dont work
@@ -57,10 +57,15 @@
           sparseness: 15,
           eigenvalue: 1.2,
         },
+        # weight_init_rec: {
+        #   type: sparse_eigenvalued,
+        #   sparseness: 15,
+        #   eigenvalue: 1.2,
+        # },
         weight_init_rec: {
-          type: sparse_eigenvalued,
-          sparseness: 15,
-          eigenvalue: 1.2,
+          type: normal,
+          loc: 0.0,
+          scale: 0.1,
         },
       },
       # output layer

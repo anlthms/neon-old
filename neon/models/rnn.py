@@ -32,7 +32,6 @@ class RNN(Model):
 
     def fit(self, datasets):
         self.grad_checker(datasets)  # check gradients first
-        trace()
         """
         Learn model weights on the given datasets.
         """
@@ -88,6 +87,28 @@ class RNN(Model):
                                  # self.layers[0].weights_rec.raw(),
                                  self.layers[0].Wih.raw(),
                                  self.layers[1].weights.raw())
+                viz.plot_lstm(
+                              self.layers[0].Wix.raw(),
+                              self.layers[0].Wfx.raw(),
+                              self.layers[0].Wox.raw(),
+                              self.layers[0].Wcx.raw(),
+                              self.layers[0].Wih.raw(),
+                              self.layers[0].Wfh.raw(),
+                              self.layers[0].Woh.raw(),
+                              self.layers[0].Wch.raw(),
+                              fig=4
+                             )
+                viz.plot_lstm(
+                              self.layers[0].i_t[0].raw(),
+                              self.layers[0].f_t[0].raw(),
+                              self.layers[0].o_t[0].raw(),
+                              self.layers[0].g_t[0].raw(),
+                              self.layers[0].net_i[0].raw(),
+                              self.layers[0].net_f[0].raw(),
+                              self.layers[0].net_o[0].raw(),
+                              self.layers[0].gnet_[0].raw(),
+                              fig=5
+                             )
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(  # self.layers[0].pre_act_list,
                                        # self.layers[0].output_list,
@@ -100,10 +121,16 @@ class RNN(Model):
                         epoch, error)
             for layer in self.layers:
                 logger.debug("%s", layer)
+            trace()
 
     def grad_checker(self, datasets):
         """
-        Check gradients for LSTM layer
+        Check gradients for LSTM layer:
+          - W is replicated, only inject the eps once, repeat, average.
+            bProp is only through the full stack, but wrt. the W in each
+            level. bProp does this through a for t in tau.
+
+            Need a special fprop that injects into one unrolling only.
         """
         for layer in self.layers:
             logger.info("%s", str(layer))
@@ -121,36 +148,76 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
-        eps = self.backend.wrap(1e-3)
+        eps = self.backend.wrap(1e-3)  # CPUTensor(0.0010000000475), why?
+        numerical = 0
+        for tau in range(0, self.unrolls):
+            # fprop with epsinulf
+            print "----------- RNN WITH EPS ----------", tau
+            self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
+                       debug=(True if batch == -1 else False)) # fprop both layers
+            self.cost.set_outputbuf(self.layers[-1].output_list[-1]) # output layer
+            suberror_eps = self.cost.apply_function(target_out)
+            #suberror_eps /= float(self.batch_size * self.layers[0].nin)
 
-        # fprop with epsinulf
-        self.layers[0].Wix[63,110]+= eps
-        self.fprop(inputs[batch_inx, :], hidden_init=None,
-                   debug=(True if batch == -1 else False)) # fprop both layers
-        self.cost.set_outputbuf(self.layers[-1].output_list[-1]) # output layer
-        suberror_eps = self.cost.apply_function(target_out)
-        suberror_eps /= float(self.batch_size * self.layers[0].nin)
-        print "rnn done first"
-
-        # fprop reference
-        self.layers[0].Wix[63,110]-= eps # 64x128 (hot region in 97-122)
-        self.fprop(inputs[batch_inx, :], hidden_init=None,
-                   debug=(True if batch == -1 else False))
-        self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-        suberror_ref = self.cost.apply_function(target_out)
-        suberror_ref /= float(self.batch_size * self.layers[0].nin)
-        print "rnn done with eps"
+            # fprop reference
+            print "----------- RNN WITHOUT EPS ----------", tau
+            self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
+                       debug=(True if batch == -1 else False))
+            self.cost.set_outputbuf(self.layers[-1].output_list[-1])
+            suberror_ref = self.cost.apply_function(target_out)
+            #suberror_ref /= float(self.batch_size * self.layers[0].nin)
+            numerical += (suberror_eps - suberror_ref) / eps / 128 / 50
 
         # bprop for comparison
         self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
 
         # compare:
-        numerical = (suberror_eps - suberror_ref) / eps
-        print "suberror_eps", suberror_eps
-        print "suberror_ref", suberror_ref
-        print "numerical", numerical
+
+        self.bprop(targets[batch_inx, :], inputs[batch_inx, :])
+        analytical = self.layers[0].Wcx_updates[12,110]
+        print("RNN grad_checker: suberror_eps", suberror_eps)
+        print("RNN grad_checker: suberror_ref", suberror_ref)
+        print("RNN grad_checker: numerical", numerical.raw())
+        print("RNN grad_checker: analytical", analytical.raw())
         trace()
+
+    def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
+                  cell_init=None, debug=False, unrolls=None):
+        """
+        have a pre_act and output for every unrolling step. The layer needs
+        to keep track of all of these, so we tell it which unroll we are in.
+        """
+        nin = self.layers[0].nin
+
+        if hidden_init is None:
+            hidden_init = self.backend.zeros((self.layers[1].nin,
+                                              self.batch_size))
+        if cell_init is None:
+            cell_init = self.backend.zeros((self.layers[1].nin,
+                                            self.batch_size))
+        if unrolls is None:
+            unrolls = self.unrolls
+        if debug:
+            logger.info("fprop input\n%s",
+                        str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
+        y = hidden_init
+        c = cell_init
+        # fprop does a single full unroll
+        for tau in range(0, unrolls):
+            if tau==eps_tau:
+                print "injecting layer", tau
+                self.layers[0].Wcx[12,110] += eps  # inject epsilon for this
+
+            self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
+                                 tau=tau, cell=c)
+            y = self.layers[0].output_list[tau]
+            #print "rnn.fprop: HELLO! sum(y)=%2.9f" % y.sum()
+            self.layers[1].fprop(inputs=y, tau=tau)
+            #print "rnn.fprop: HELLO! sum(out)=%2.9f" % self.layers[1].output_list[tau].sum()
+            if tau==eps_tau:
+                print "clearing layer", tau
+                self.layers[0].Wcx[12,110] -= eps # and remove it again
 
     def fprop(self, inputs, hidden_init=None,
               cell_init=None, debug=False, unrolls=None):
@@ -178,7 +245,9 @@ class RNN(Model):
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
             y = self.layers[0].output_list[tau]
+            #print "rnn.fprop: HELLO! sum(y)=%2.9f" % y.sum()
             self.layers[1].fprop(inputs=y, tau=tau)
+            #print "rnn.fprop: HELLO! sum(out)=%2.9f" % self.layers[1].output_list[tau].sum()
 
     def bprop(self, targets, inputs, debug=False):
         """
@@ -194,16 +263,28 @@ class RNN(Model):
         """
         nin = self.layers[0].nin
 
-        full_unroll = True
+        full_unroll = False
         if full_unroll:
             min_unroll = 1
         else:
+            #logger.info("Using single unroll (good for numerical grad)")
             min_unroll = self.unrolls
 
         # clear updates
-        self.backend.fill(self.layers[0].weight_updates, 0)
+        if 'weight_updates' in self.layers[0].__dict__:
+            self.backend.fill(self.layers[0].weight_updates, 0)
         if 'updates_rec' in self.layers[0].__dict__:
             self.backend.fill(self.layers[0].updates_rec, 0)
+        # TODO: move this to the layer (e.g. after update)
+        if 'Wox_updates' in self.layers[0].__dict__:
+            self.backend.fill(self.layers[0].Wix_updates, 0)
+            self.backend.fill(self.layers[0].Wfx_updates, 0)
+            self.backend.fill(self.layers[0].Wox_updates, 0)
+            self.backend.fill(self.layers[0].Wcx_updates, 0)
+            self.backend.fill(self.layers[0].Wih_updates, 0)
+            self.backend.fill(self.layers[0].Wfh_updates, 0)
+            self.backend.fill(self.layers[0].Woh_updates, 0)
+            self.backend.fill(self.layers[0].Wch_updates, 0)
         self.backend.fill(self.layers[1].weight_updates, 0)
 
         # this loop is a property of t-BPTT through different depth.
@@ -335,3 +416,4 @@ class RNN(Model):
                     logging.info("%s set misclass rate: %0.5f%%", item,
                                  100 * self.result)
         # TODO: return values instead?
+        trace() # to keep figure open
