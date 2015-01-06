@@ -8,9 +8,7 @@ Requires model to specify prev layers at each layer to build the layer graph
 """
 
 import logging
-from neon.models.layer import BranchLayer
 from neon.models.mlp import MLPB
-from neon.transforms.cross_entropy import CrossEntropy
 
 logger = logging.getLogger(__name__)
 

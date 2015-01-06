@@ -8,7 +8,6 @@ backend.
 
 import logging
 import numpy as np
-from neon.models.learning_rule import *
 from neon.backends.cpu import CPU
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.compat import MPI_INSTALLED, range
@@ -337,7 +336,7 @@ class RecurrentOutputLayer(Layer):
 
     def bprop(self, error, inputs, tau):
         self.backend.multiply(error, self.pre_act_list[tau - 1],
-                      out=self.deltas_o[tau])
+                              out=self.deltas_o[tau])
         self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
         self.backend.add(self.weight_updates, self.temp_out,
                          out=self.weight_updates)
@@ -368,17 +367,17 @@ class RecurrentLSTMLayer(Layer):
         for a in ['i', 'f', 'o', 'c']:
             for b in ['h', 'x']:
                 setattr(self, 'W' + b + a,
-                    sbe.gen_weights(wshape, weight_init_rec, weight_dtype))
+                        sbe.gen_weights(wshape, weight_init_rec, weight_dtype))
 
         # initialize buffers for intermediate values
         for ival in ['i', 'f', 'o', 'g', 'c', 'h']:
-            setattr(self, ival+'_t', 
+            setattr(self, ival+'_t',
                     [sbe.zeros(bshape) for k in range(unrolls)])
 
         # preactivation -- do we really need to store this across unrolls?
         for a in ['i', 'f', 'o', 'g']:
             for b in ['h', 'x']:
-                setattr(self, 'net_' + a + b, 
+                setattr(self, 'net_' + a + b,
                         [sbe.zeros(bshape) for k in range(unrolls)])
 
         # misc

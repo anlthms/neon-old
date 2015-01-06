@@ -1113,6 +1113,123 @@ class CPU(Backend):
                 self.add(rout[i], bpropbuf, out=rout[i])
         self.multiply(deltas, out, out=out)
 
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (CPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (CPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        rinputs = inputs.reshape((nifm, H, W, N))
+        rmeandiff = meandiffs.reshape((nifm, H, W, N))
+        routputs = out.reshape((nifm, H, W, N))
+
+        for y in xrange(H):
+            starty = y - ksize/2
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x - ksize/2
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rinputs.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                rmeandiff[:, x, y, :] = rinputs[:, x, y, :] - patch.mean(
+                    axis=(1, 2))
+
+        for y in xrange(H):
+            starty = y - ksize/2
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x - ksize/2
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rmeandiff.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                np.square(patch).sum(axis=(1, 2), out=routputs[:, x, y, :])
+
+        self.multiply(out, alpha, out=denoms)
+        self.add(denoms, 1, out=denoms)
+        self.power(denoms, -beta, out=out)
+        self.multiply(inputs, out, out=out)
+
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+        NOTE:  This will overwrite the fouts
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): The forward propagated results.
+            deltas (CPUTensor): The error values for this layer
+            meandiffs (CPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (CPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
+        np.multiply(fouts, -2 * alpha * beta * deltas / denoms, out=fouts)
+        rfouts = fouts.reshape((nifm, H, W, N))
+        rberror = out.reshape((nifm, H, W, N))
+
+        offset = ksize/2 - ksize + 1
+        for y in xrange(H):
+            starty = y + offset
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x + offset
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rfouts.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                np.sum(patch, axis=(1, 2), out=rberror[:, x, y, :])
+
+        self.multiply(out, meandiffs, out=out)
+        self.power(denoms, -beta, out=fouts)
+        self.multiply(deltas, fouts, out=fouts)
+        self.add(out, fouts, out=out)
+
     def fprop_cmpool(self, out, inputs, weights, ifmshape):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to

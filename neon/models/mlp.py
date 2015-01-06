@@ -268,8 +268,8 @@ class MLPB(MLP):
 
         assert self.layers[-1].nout <= 2 ** 15
 
-    def link_and_initialize(self, layer_list, kwargs, initLayer=None):
-        for ll, pl in zip(layer_list, [initLayer] + layer_list[:-1]):
+    def link_and_initialize(self, layer_list, kwargs, initlayer=None):
+        for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
             ll.set_previous_layer(pl)
             ll.initialize(kwargs)
 

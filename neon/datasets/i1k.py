@@ -62,7 +62,7 @@ class I1K(Dataset):
 
         if not hasattr(self, 'save_dir'):
             self.save_dir = os.path.join(self.repo_path,
-                                    self.__class__.__name__)
+                                         self.__class__.__name__)
 
         if self.dist_flag:
             raise NotImplementedError('Dist not implemented for I1K!')
@@ -269,7 +269,6 @@ class I1K(Dataset):
                 (self.nclasses, self.output_batch_size), dtype='float32')
             for col in range(self.nclasses):
                 self.targets_macro[col] = labels == col
-            print self.targets_macro[440:450,:20]
         else:
             self.targets_macro = np.asarray(labels).reshape((1, -1))
 

@@ -8,19 +8,19 @@ backend.
 
 import logging
 import numpy as np
-from neon.models.learning_rule import *
+import neon.models.learning_rule as lr
 from neon.backends.cpu import CPU
-from neon.transforms.gaussian import gaussian_filter
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.persist import YAMLable
 
 logger = logging.getLogger(__name__)
 
+
 def req_param(obj, paramlist):
     for param in paramlist:
         if not hasattr(obj, param):
-            raise ValueError("required parameter %s missing for %s" % (param,
-                              obj.name))
+            raise ValueError("req param %s missing for %s" % (param, obj.name))
+
 
 def opt_param(obj, paramlist, default_value=None):
     for param in paramlist:
@@ -29,6 +29,7 @@ def opt_param(obj, paramlist, default_value=None):
 
 
 class Layer(YAMLable):
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         req_param(self, ['name'])
@@ -74,7 +75,6 @@ class Layer(YAMLable):
         opt_param(self, ['pad'], 0)
 
         stride = self.stride
-        batch_size = self.batch_size
 
         self.pad = -self.pad
         self.fheight, self.fwidth = self.fshape
@@ -144,7 +144,7 @@ class Layer(YAMLable):
             self.berrorbuf = make_ebuf((ifmsize, buf_size))
 
         ofmstarts = self.backend.array(range(0, (ofmsize * nofm),
-                                        ofmsize)).raw()
+                                             ofmsize)).raw()
         self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='i32')
         for dst in range(ofmsize):
             self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
@@ -192,6 +192,7 @@ class Layer(YAMLable):
 
 
 class CostLayer(Layer):
+
     def __init__(self, **kwargs):
         self.is_cost = True
         self.nout = 1
@@ -232,6 +233,7 @@ class CostLayer(Layer):
 
 
 class DataLayer(Layer):
+
     def __init__(self, **kwargs):
         self.is_data = True
         super(DataLayer, self).__init__(**kwargs)
@@ -269,7 +271,7 @@ class DataLayer(Layer):
         ds = self.dataset
         if ds.macro_batched:
             self.output, self.targets = ds.get_mini_batch(
-                                            self.batch_size, 'training')
+                self.batch_size, 'training')
         else:
             self.output = ds.get_batch(self.inputs, self.batch_idx)
             self.targets = ds.get_batch(self.tgts, self.batch_idx)
@@ -283,7 +285,7 @@ class DataLayer(Layer):
             return True if (setname in ['train', 'validation']) else False
         else:
             inputs_dic = self.dataset.get_inputs(train=True, validation=True,
-                                        test=True)
+                                                 test=True)
             return True if (setname in inputs_dic) else False
 
     def use_set(self, setname):
@@ -301,15 +303,17 @@ class DataLayer(Layer):
             self.inputs = ds.get_inputs(train=True, validation=True,
                                         test=True)[setname]
             self.tgts = ds.get_targets(train=True, validation=True,
-                                        test=True)[setname]
+                                       test=True)[setname]
             self.num_batches = len(self.inputs)
         self.batch_idx = 0
 
 
 class ActivationLayer(Layer):
+
     """
     Just applies an activation to the inputs.
     """
+
     def set_previous_layer(self, pl):
         if pl.is_local:
             self.is_local = True
@@ -336,16 +340,18 @@ class ActivationLayer(Layer):
         if self.berror is not None:
             self.berror[:] = error
 
+
 class WeightLayer(Layer):
+
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
         req_param(self, ['weight_init', 'lrule_init'])
-        opt_param(self,['accumulate'], False)
+        opt_param(self, ['accumulate'], False)
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
         self.weights = self.backend.gen_weights(
-                    self.weight_shape, self.weight_init, self.weight_dtype)
+            self.weight_shape, self.weight_init, self.weight_dtype)
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
@@ -377,23 +383,24 @@ class WeightLayer(Layer):
     def gen_learning_rule(self):
         lrname = self.name + '_lr'
         if self.lrule_init['type'] == 'gradient_descent':
-            self.learning_rule = GradientDescent(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
+            self.learning_rule = lr.GradientDescent(
+                name=lrname, lr_params=self.lrule_init['lr_params'])
         elif self.lrule_init['type'] == 'gradient_descent_pretrain':
-            self.learning_rule = GradientDescentPretrain(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
+            self.learning_rule = lr.GradientDescentPretrain(
+                name=lrname, lr_params=self.lrule_init['lr_params'])
         elif self.lrule_init['type'] == 'gradient_descent_momentum':
-            self.learning_rule = GradientDescentMomentum(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
+            self.learning_rule = lr.GradientDescentMomentum(
+                name=lrname, lr_params=self.lrule_init['lr_params'])
         elif self.lrule_init['type'] == 'adadelta':
-            self.learning_rule = AdaDelta(name=lrname,
-                                    lr_params=self.lrule_init['lr_params'])
+            self.learning_rule = lr.AdaDelta(
+                name=lrname, lr_params=self.lrule_init['lr_params'])
         else:
             raise AttributeError("invalid learning rule params specified")
         self.learning_rule.allocate_state(self.updates)
 
 
 class FCLayer(WeightLayer):
+
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
@@ -434,10 +441,12 @@ class FCLayer(WeightLayer):
 
 
 class PoolingLayer(Layer):
+
     """
     Generic pooling layer -- specify op = max, avg, or l2 in order to have
     it perform the desired pooling function
     """
+
     def __init__(self, **kwargs):
         self.is_local = True
         super(PoolingLayer, self).__init__(**kwargs)
@@ -453,7 +462,7 @@ class PoolingLayer(Layer):
                 (self.ofmsize, self.batch_size * self.nifm), dtype='i16')
         elif self.op == 'l2':
             self.tempbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
-                                           self.batch_size * self.nifm))
+                                               self.batch_size * self.nifm))
         self.allocate_output_bufs()
         assert self.fshape[0] * self.fshape[1] <= 2 ** 15
 
@@ -482,6 +491,7 @@ class ConvLayer(WeightLayer):
     """
     Convolutional layer.
     """
+
     def __init__(self, **kwargs):
         self.is_local = True
         super(ConvLayer, self).__init__(**kwargs)
@@ -496,11 +506,10 @@ class ConvLayer(WeightLayer):
         if self.local_conv is False:
             self.weight_shape = (self.fsize, self.nofm)
         else:
-            self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
-            # if isinstance(self.backend, CPU):
-            #     self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
-            # else:
-            #     self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
+            if isinstance(self.backend, CPU):
+                self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
+            else:
+                self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nofm, 1)
 
         self.allocate_output_bufs()
@@ -530,7 +539,7 @@ class ConvLayer(WeightLayer):
             self.backend.bprop_conv(out=self.berror, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmlocs=self.ofmlocs,
-                                    ifmshape=self.ifmshape, links=self.rlinks,
+                                    ifmshape=self.ifmshape, links=self.links,
                                     padding=self.pad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
@@ -540,7 +549,7 @@ class ConvLayer(WeightLayer):
         self.backend.update_conv(out=upm[0], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
-                                 ifmshape=self.ifmshape, links=self.rlinks,
+                                 ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fwidth, updatebuf=self.updatebuf,
@@ -590,11 +599,14 @@ class DropOutLayer(Layer):
     def set_train_mode(self, mode):
         self.train_mode = mode
 
+
 class CompositeLayer(Layer):
+
     """
     Abstract layer parent for Branch and List layer that deals with sublayer
     list
-    """   
+    """
+
     def initialize(self, kwargs):
         super(CompositeLayer, self).initialize(kwargs)
         req_param(self, ['sublayers'])
@@ -629,12 +641,12 @@ class BranchLayer(CompositeLayer):
         super(BranchLayer, self).initialize(kwargs)
 
         self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
-        self.startidx = [0]*len(self.sublayers)
-        self.endidx = [0]*len(self.sublayers)
+        self.startidx = [0] * len(self.sublayers)
+        self.endidx = [0] * len(self.sublayers)
         self.endidx[0] = self.sublayers[0].nout
         for i in range(1, len(self.sublayers)):
-            self.endidx[i] = self.endidx[i-1] + self.sublayers[i].nout
-            self.startidx[i] = self.endidx[i-1]
+            self.endidx[i] = self.endidx[i - 1] + self.sublayers[i].nout
+            self.startidx[i] = self.endidx[i - 1]
 
         self.allocate_output_bufs()
 
@@ -644,7 +656,6 @@ class BranchLayer(CompositeLayer):
             self.output[si:ei] = s_l.output
 
     def bprop(self, error):
-        inputs = self.prev_layer.output
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
             s_l.bprop(error[si:ei])
 
@@ -663,12 +674,6 @@ class ListLayer(Layer):
     during bprop, it splits the backward errors into the components and
         accumulates into a common berror
     """
-    def initialize(self, kwargs):
-        self.__dict__.update(kwargs)
-        req_param(self, ['backend', 'batch_size'])
-        self.output = None
-        self.berror = None
-
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
@@ -712,6 +717,7 @@ class CrossMapResponseNormLayer(Layer):
     padding at the edges of the feature map.  (so for ksize=5, at C=1, we will
     be summing the values of c=0,1,2,3)
     """
+
     def __init__(self, **kwargs):
         self.is_local = True
         super(CrossMapResponseNormLayer, self).__init__(**kwargs)
@@ -726,7 +732,7 @@ class CrossMapResponseNormLayer(Layer):
         self.tempbuf = None
         if self.berror is not None and isinstance(self.backend, CPU):
             self.tempbuf = self.backend.empty(
-                    (self.ifmshape[0], self.ifmshape[1], self.batch_size))
+                (self.ifmshape[0], self.ifmshape[1], self.batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
@@ -743,212 +749,41 @@ class CrossMapResponseNormLayer(Layer):
                                        ksize=self.ksize, alpha=self.alpha,
                                        beta=self.beta, bpropbuf=self.tempbuf)
 
-class LCNLayer(Layer):
+
+class LocalContrastNormLayer(CrossMapResponseNormLayer):
 
     """
     Local contrast normalization.
     """
-    def __init__(self, **kwargs):
-        self.is_local = True
-        super(LCNLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
-        super(LCNLayer, self).initialize(kwargs)
-        self.initialize_local()
-        self.nout = self.nin
-        self.ofmshape, self.nofm = self.ifmshape, self.nifm
+        super(LocalContrastNormLayer, self).initialize(kwargs)
+        self.meandiffs = self.backend.empty(self.output.shape)
+        self.denoms = self.backend.empty(self.output.shape)
 
-        bsz = self.batch_size
-        nifm = self.nifm
-
-        self.filters = self.normalized_gaussian_filters(nifm, self.fshape)
-        # Now filters is 1 x (nifm * fheight * fwidth)
-
-        exifmheight = (self.ifmheight - 1) * self.stride + self.fheight
-        exifmwidth = (self.ifmwidth - 1) * self.stride + self.fwidth
-        self.exifmshape = (exifmheight, exifmwidth)
-        self.exifmsize = exifmheight * exifmwidth
-
-        # redo the link buffers since we'll be doing light-weight convolution
-        # without redefining a new convolve layer
-        self.make_aux_buffers(nifm=nifm, ifmshape=self.exifmshape, nofm=1,
-                              ofmshape=self.ifmshape, fshape=self.fshape,
-                              stride=self.stride)
-        if isinstance(self.backend, CPU):
-            self.prodbuf = self.backend.empty((1, bsz))
-
-        assert (exifmheight - self.ifmheight) % 2 == 0
-        assert (exifmwidth - self.ifmwidth) % 2 == 0
-        self.start_row = (exifmheight - self.ifmheight) / 2
-        self.start_col = (exifmwidth - self.ifmwidth) / 2
-
-        ex_shape = (nifm * exifmheight * exifmwidth, bsz)
-        rex_shape = (nifm, exifmheight, exifmwidth, bsz)
-        self.exinputs = self.backend.empty(ex_shape)
-        self.rexinputs = self.exinputs.reshape(rex_shape)
-
-        cv_shape = (1 * self.ifmheight * self.ifmwidth * bsz)
-        rcv_shape = (1, self.ifmheight, self.ifmwidth, bsz)
-        self.meanfm = self.backend.empty(cv_shape)
-        self.rmeanfm = self.meanfm.reshape(rcv_shape)
-
-        out_shape = (nifm * self.ifmheight * self.ifmwidth * bsz)
-        rout_shape = (nifm, self.ifmheight, self.ifmwidth, bsz)
-        self.output = self.backend.empty(out_shape)
-        self.routput = self.output.reshape(rout_shape)
-
-        self.subout = self.backend.empty(out_shape)
-        self.rsubout = self.subout.reshape(rout_shape)
-
-        self.subtemp = self.backend.empty(out_shape)
-        self.rsubtemp = self.subtemp.reshape(rout_shape)
-
-        self.tempbuf = self.backend.empty((self.nofm, bsz))
-        # Check position relative to other layer for this condition
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.diverror = self.backend.empty((self.nin, bsz))
-
-            self.exerror = self.backend.empty(ex_shape)
-            self.rexerror = self.exerror.reshape(rex_shape)
-
-            self.prodbuf = self.backend.empty((self.fsize, bsz))
-            self.bprop_filters = self.backend.empty((nifm, 1, self.fsize))
-            self.sqtemp = self.backend.empty(self.output.shape)
-            for fm in range(nifm):
-                self.bprop_filters[fm] = self.filters.copy()
-                rfilter = self.bprop_filters[fm].reshape(
-                    (nifm, self.fheight, self.fwidth))
-                fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
-                self.backend.subtract(fm_filt, 1.0, fm_filt)
-
-    def normalized_gaussian_filters(self, count, shape):
-        """
-        Return multiple copies of gaussian filters with values adding up to
-        one.
-        """
-        assert(len(shape) == 2)
-        single = gaussian_filter(shape)
-        single /= (count * single.sum())
-        assert shape[0] % 2 == 1
-        assert shape[1] % 2 == 1
-        filters = self.backend.empty((count, shape[0], shape[1]))
-        filters[:] = single
-
-        filters = filters.reshape((1, count * shape[0] * shape[1]))
-        return filters
-
-    def copy_to_inset(self, canvas, inset):
-        r0 = self.start_row
-        c0 = self.start_col
-        canvas[:, r0:(canvas.shape[1] - r0), c0:(canvas.shape[2] - c0)] = inset
-
-    def copy_from_inset(self, canvas):
-        r0 = self.start_row
-        c0 = self.start_col        
-        return canvas[:, r0:(canvas.shape[1] - r0), c0:(canvas.shape[2] - c0)]
-
-    def conv(self, inputs):
-        # print self.filters.shape, inputs.shape, self.rlinks.shape, self.tempbuf.shape
-        # print inputs.take(self.rlinks[0], axis=0).shape
-        for dst in range(self.ifmsize):
-            self.backend.dot(self.filters,
-                             inputs.take(self.rlinks[dst], axis=0),
-                             out=self.tempbuf)
-            self.meanfm[self.ofmlocs[dst]] = self.tempbuf
-
-    def fprop_sub_normalize(self, inputs):
-        rinputs = inputs.reshape(self.routput.shape)
-        self.copy_to_inset(self.rexinputs, rinputs)
-
-        # Convolve with gaussian filters to obtain a "mean" feature map.
-        self.conv(self.exinputs)
-        self.backend.subtract(rinputs, self.rmeanfm, out=self.rsubout)
-
-    def fprop_div_normalize(self):
-        self.backend.multiply(self.subout, self.subout, out=self.subtemp)
-        self.copy_to_inset(self.rexinputs, self.rsubtemp)
-        self.conv(self.exinputs)
-
-        self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
-        self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
+        # Note dividing again is INTENTIONAL, since this is normalized by an
+        # area not just a linear dimension
+        self.alpha = self.alpha * 1.0 / self.ksize
+        if self.stride != 1:
+            raise NotImplementedError('stride != 1, in LocalContrastNormLayer')
+        if self.ifmshape[0] != self.ifmshape[1]:
+            raise NotImplementedError('non-square inputs not supported')
 
     def fprop(self, inputs):
-        self.backend.clear(self.exinputs)
-        self.fprop_sub_normalize(inputs)
-        self.fprop_div_normalize()
+        self.backend.fprop_lcnnorm(out=self.output, inputs=inputs,
+                                   meandiffs=self.meandiffs,
+                                   denoms=self.denoms, ifmshape=self.ifmshape,
+                                   nifm=self.nifm, ksize=self.ksize,
+                                   alpha=self.alpha, beta=self.beta)
 
-    def reshape_error(self):
-        # discards zero padding around the delta matrix
-        self.berror = self.copy_from_inset(self.rexerror)
-        self.berror = self.berror.reshape((self.nin, self.batch_size))
-
-    def bprop_sub_normalize(self, error, inputs):
-        self.backend.clear(self.exerror)
-        for fm in range(self.nifm):
-            for dst in range(self.ofmsize):
-                rflinks = self.rlinks[dst]
-                loc = self.ofmlocs[dst].raw() + self.ofmsize * fm
-                filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc], filt.transpose(),
-                                      out=self.prodbuf)
-                exerror_slice = self.exerror[rflinks]
-                self.backend.subtract(exerror_slice, self.prodbuf,
-                                      exerror_slice)
-        self.reshape_error()
-
-    def bprop_div_normalize(self, error, inputs):
-        self.backend.clear(self.exerror)
-        self.backend.cube(self.output, out=self.diverror)
-        self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
-        self.subout[self.subout.raw() == 0] = 1.0
-        self.backend.square(self.subout, out=self.sqtemp)
-        # this is for the non-padded, non-halo matrix only
-        self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
-
-        for fm in range(self.nifm):
-            for dst in range(self.ofmsize):
-                # self.ofmlocs is over 1 fm only
-                loc = self.ofmlocs[dst].raw() + self.ofmsize * fm
-                divout = self.output.take(loc, axis=0)
-                subout = self.subout.take(loc, axis=0)
-                assert divout[subout.raw() == 0].sum() == 0
-                subout[subout.raw() == 0.0] = 1.0
-                self.backend.divide(divout, subout, out=divout)
-
-                rflinks = self.rlinks[dst]
-                self.copy_to_inset(self.rexinputs, self.rsubtemp)
-                rrexinputs = self.rexinputs.reshape(
-                    (self.nifm * self.exifmsize, self.batch_size))
-                frame = rrexinputs.take(rflinks, axis=0)
-                self.backend.multiply(frame, self.filters.transpose(),
-                                      out=frame)
-                self.backend.multiply(frame, self.diverror[loc], out=frame)
-                rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
-                                        self.batch_size))
-                # this is working on the g2/y2 term
-                rframe_slice = rframe[fm:(fm + 1), self.fheight / 2,
-                                      self.fwidth / 2]
-                self.backend.subtract(rframe_slice, divout, rframe_slice)
-                self.backend.multiply(error[loc], frame, out=frame)
-                exerror_slice = self.exerror[rflinks]
-                self.backend.subtract(exerror_slice, frame, exerror_slice)
-        self.reshape_error()
-
-    def bprop(self, error, inputs):
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            # note: have to account for halos + padding after each step
-            self.bprop_div_normalize(error, inputs)
-            self.bprop_sub_normalize(self.berror, inputs)
-
-    def bprop_fast(self, error, inputs):
-        """
-        An incorrect, but much faster version of backprop.
-        """
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berror[:] = error
+    def bprop(self, error):
+        if self.berror is not None:
+            self.backend.bprop_lcnnorm(out=self.berror, fouts=self.output,
+                                       deltas=error, meandiffs=self.meandiffs,
+                                       denoms=self.denoms,
+                                       ifmshape=self.ifmshape, nifm=self.nifm,
+                                       ksize=self.ksize, alpha=self.alpha,
+                                       beta=self.beta)
 
 
 class CrossMapPoolingLayer(WeightLayer):
@@ -958,12 +793,13 @@ class CrossMapPoolingLayer(WeightLayer):
     corresponding spatial locations across maps. This is
     equivalent to a 1x1 convolution.
     """
+
     def __init__(self, **kwargs):
         self.is_local = True
         super(CrossMapPoolingLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
-        self.fshape = (1,1)
+        self.fshape = (1, 1)
         super(CrossMapPoolingLayer, self).initialize(kwargs)
         req_param(self, ['nofm'])
 
