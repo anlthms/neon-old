@@ -43,17 +43,6 @@ Flexpoint™
 
    neon.backends.flexpoint.Flexpoint
 
-Unsupported
------------
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.backends.unsupported._numpy.Numpy
-   neon.backends.unsupported._cudamat.Cudamat
-   neon.backends.unsupported._cudanet.Cudanet
-
-
 Models
 ======
 
