@@ -42,7 +42,7 @@
 
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 10,
     batch_size: &bs 32,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
@@ -63,20 +63,12 @@
         fshape: [2, 2],
         stride: 1,
       },
-      # !obj:neon.models.layer2.LCNLayer {
-      #   name: layer2,
-      #   fshape: [3, 3],
-      # },
-      # !obj:neon.models.layer.LocalFilteringLayer {
-      #   name: layer3,
-      #   nofm: 4,
-      #   pretraining: False,
-      #   sparsity: 0.0,
-      #   fshape: [2, 2],
-      #   tied_weights: False,
-      #   weight_init: *wt_init,
-      #   lrule_init: *gdm,
-      # },
+      !obj:neon.models.layer2.LocalContrastNormLayer {
+        name: layer2,
+        alpha: 0.001,
+        beta: 0.75,
+        ksize: 2,
+      },
       !obj:neon.models.layer2.ConvLayer {
         name: layer3,
         nofm: 4,

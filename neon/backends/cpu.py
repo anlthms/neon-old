@@ -844,16 +844,16 @@ class CPU(Backend):
                                   backpropagated error for a single receptive
                                   field
         """
-        fsize = len(links[0])
+        fsize = links.shape[1]
         self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
+            rflinks = links[dst]
             if local is False:
                 self.dot(weights,
                          deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             else:
                 self.dot(weights[(fsize*dst):(fsize*(dst+1))],
-                         deltas.take(ofmlocs[dst], axis=0), bpropbuf)
-            rflinks = links[dst]
+                         deltas.take(ofmlocs[dst], axis=0), out=bpropbuf)
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
 
@@ -887,7 +887,7 @@ class CPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
-        fsize = len(links[0])
+        fsize = links.shape[1]
         self.fill(out, 0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
@@ -903,7 +903,7 @@ class CPU(Backend):
                 self.add(out, updatebuf, out=out)
             else:
                 self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
-                         out=updatebuf[(fsize*dst):(fsize*(dst+1))])
+                         out=out[(fsize*dst):(fsize*(dst+1))])
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):
@@ -1144,9 +1144,9 @@ class CPU(Backend):
             beta (int): scalar power to raise the normalization denominator by
         """
         (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
-        rinputs = inputs.reshape((nifm, H, W, N))
-        rmeandiff = meandiffs.reshape((nifm, H, W, N))
-        routputs = out.reshape((nifm, H, W, N))
+        rinputs = inputs._tensor.reshape((nifm, H, W, N))
+        rmeandiff = meandiffs._tensor.reshape((nifm, H, W, N))
+        routputs = out._tensor.reshape((nifm, H, W, N))
 
         for y in xrange(H):
             starty = y - ksize/2
@@ -1157,7 +1157,7 @@ class CPU(Backend):
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
                 patch = rinputs.take(xidx, axis=1).take(
-                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
                 rmeandiff[:, x, y, :] = rinputs[:, x, y, :] - patch.mean(
                     axis=(1, 2))
 
@@ -1170,7 +1170,7 @@ class CPU(Backend):
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
                 patch = rmeandiff.take(xidx, axis=1).take(
-                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
                 np.square(patch).sum(axis=(1, 2), out=routputs[:, x, y, :])
 
         self.multiply(out, alpha, out=denoms)
@@ -1208,9 +1208,11 @@ class CPU(Backend):
 
         """
         (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
-        np.multiply(fouts, -2 * alpha * beta * deltas / denoms, out=fouts)
-        rfouts = fouts.reshape((nifm, H, W, N))
-        rberror = out.reshape((nifm, H, W, N))
+        self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
+        self.multiply(fouts, deltas, out=fouts)
+        self.divide(fouts, denoms, out=fouts)
+        rfouts = fouts._tensor.reshape((nifm, H, W, N))
+        rberror = out._tensor.reshape((nifm, H, W, N))
 
         offset = ksize/2 - ksize + 1
         for y in xrange(H):
@@ -1222,7 +1224,7 @@ class CPU(Backend):
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
                 patch = rfouts.take(xidx, axis=1).take(
-                    yidx, axis=2).reshape(nifm, hh, ww, N)
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
                 np.sum(patch, axis=(1, 2), out=rberror[:, x, y, :])
 
         self.multiply(out, meandiffs, out=out)

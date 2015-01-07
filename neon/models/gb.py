@@ -26,7 +26,6 @@ class GB(MLP):
     def __init__(self, **kwargs):
         super(GB, self).__init__(**kwargs)
         self.pretrain_cost.initialize(kwargs)
-        self.cost.initialize(kwargs)
 
     def pretrain(self, ds, inputs):
         num_batches = len(inputs)

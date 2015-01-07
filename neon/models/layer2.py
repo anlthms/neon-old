@@ -506,10 +506,7 @@ class ConvLayer(WeightLayer):
         if self.local_conv is False:
             self.weight_shape = (self.fsize, self.nofm)
         else:
-            if isinstance(self.backend, CPU):
-                self.weight_shape = (self.fsize, self.nofm * self.ofmsize)
-            else:
-                self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
+            self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nofm, 1)
 
         self.allocate_output_bufs()
@@ -720,6 +717,7 @@ class CrossMapResponseNormLayer(Layer):
 
     def __init__(self, **kwargs):
         self.is_local = True
+        self.stride = 1
         super(CrossMapResponseNormLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):

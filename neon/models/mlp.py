@@ -31,24 +31,25 @@ class MLP(Model):
                                  req_param)
         self.nlayers = len(self.layers)
         self.result = 0
+        self.cost.initialize(kwargs)
         assert self.layers[-1].nout <= 2 ** 15
 
-    def fit(self, datasets):
+    def fit(self, dataset):
         """
-        Learn model weights on the given datasets.
+        Learn model weights on the given dataset.
         """
         if self.dist_mode == 'datapar':
-            valid_batch_size = (self.batch_size != datasets[0].batch_size /
-                                datasets[0].num_procs)
+            valid_batch_size = (self.batch_size != dataset.batch_size /
+                                dataset.num_procs)
             if valid_batch_size:
                 raise ValueError('Dataset batch size must be Model batch '
                                  'size * num_procs. Model batch size of %d '
-                                 'might work.' % (datasets[0].batch_size /
-                                                  datasets[0].num_procs))
+                                 'might work.' % (dataset.batch_size /
+                                                  dataset.num_procs))
 
         for layer in self.layers:
             logger.info("%s", str(layer))
-        ds = datasets[0]
+        ds = dataset
         if not ds.macro_batched:
             inputs = ds.get_inputs(train=True)['train']
             targets = ds.get_targets(train=True)['train']
@@ -109,27 +110,25 @@ class MLP(Model):
             preds.append(preds_batch)
         return preds
 
-    def predict(self, datasets, train=True, test=True, validation=True):
+    def predict(self, train=True, test=True, validation=True):
         """
-        Generate and return predictions on the given datasets.
+        Generate and return predictions on the given dataset.
         """
-        res = []
+        ds = self.dataset
+        inputs = ds.get_inputs(train=train, test=test,
+                               validation=validation)
+        preds = dict()
+        if train and 'train' in inputs:
+            preds['train'] = self.predict_set(ds, inputs['train'])
+        if test and 'test' in inputs:
+            preds['test'] = self.predict_set(ds, inputs['test'])
+        if validation and 'validation' in inputs:
+            preds['validation'] = self.predict_set(ds,
+                                                   inputs['validation'])
+        if len(preds) is 0:
+            logger.error("must specify >=1 of: train, test, validation")
 
-        for ds in datasets:
-            inputs = ds.get_inputs(train=train, test=test,
-                                   validation=validation)
-            preds = dict()
-            if train and 'train' in inputs:
-                preds['train'] = self.predict_set(ds, inputs['train'])
-            if test and 'test' in inputs:
-                preds['test'] = self.predict_set(ds, inputs['test'])
-            if validation and 'validation' in inputs:
-                preds['validation'] = self.predict_set(ds,
-                                                       inputs['validation'])
-            if len(preds) is 0:
-                logger.error("must specify >=1 of: train, test, validation")
-            res.append(preds)
-        return res
+        return preds
 
     def get_error(self, targets, inputs):
         return self.cost.apply_function(targets)
@@ -161,9 +160,17 @@ class MLP(Model):
     def logloss(self, preds, targets, eps=1e-15):
         num_batches = len(preds)
         temp = self.backend.empty(preds[0].shape)
+        sums = self.backend.empty((1, self.batch_size))
         result = 0.
         for batch in range(num_batches):
-            self.backend.clip(preds[batch], eps, 1.0-eps, out=temp)
+            self.backend.clip(preds[batch], eps, 1.0-eps, out=preds[batch])
+            sums = self.backend.sum(preds[batch], axis=0, out=sums)
+
+            # XXX: work around lack of broadcasting in gpu backend.
+            for row in range(preds[batch].shape[0]):
+                temp[row] = sums
+
+            self.backend.divide(preds[batch], temp, temp)
             self.backend.log(temp, out=temp)
             self.backend.multiply(targets[batch], temp, temp)
             result += self.backend.sum(temp)
@@ -193,22 +200,18 @@ class MLP(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in range(len(datasets)):
-            ds = datasets[idx]
-            preds = predictions[idx]
-            targets = ds.get_targets(train=True, test=True, validation=True)
-            for item in items:
-                if item not in targets:
-                    continue
-                if item not in preds:
-                    continue
-                num_batches = len(preds[item])
-                self.result = self.misclass_rate(
-                    ds, num_batches, preds[item], targets[item])
-                logloss = self.logloss(
-                    ds, num_batches, preds[item], targets[item])
-                logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                             item, 100 * self.result, logloss)
+        ds = datasets
+        preds = predictions
+        targets = ds.get_targets(train=True, test=True, validation=True)
+        for item in items:
+            if item not in targets:
+                continue
+            if item not in preds:
+                continue
+            self.result = self.misclass_rate(preds[item], targets[item])
+            logloss = self.logloss(preds[item], targets[item])
+            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                         item, 100 * self.result, logloss)
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
@@ -262,9 +265,6 @@ class MLPB(MLP):
         self.class_layer = self.layers[-2]
 
         self.link_and_initialize(self.layers, kwargs)
-        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-        #     ll.set_previous_layer(pl)
-        #     ll.initialize(kwargs)
 
         assert self.layers[-1].nout <= 2 ** 15
 
