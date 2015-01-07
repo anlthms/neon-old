@@ -679,6 +679,8 @@ class Backend(YAMLable):
             ngroups (int): Number of groups.
             fpropbuf (Tensor): Temporary storage buffer used to hold the
                                convolved outputs for a single receptive field.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -711,6 +713,8 @@ class Backend(YAMLable):
             bpropbuf (Tensor): Temporary storage buffer used to hold the
                                backpropagated error for a single receptive
                                field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -746,6 +750,8 @@ class Backend(YAMLable):
             updatebuf (Tensor): Temporary storage buffer used to hold the
                                 updated gradient for a single receptive
                                 field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.

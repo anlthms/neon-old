@@ -799,7 +799,8 @@ class CPU(Backend):
             fpropbuf (CPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.
-            local (bool): whether to do local filtering or convolution
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         ofmsize = ofmshape[0] * ofmshape[1]
         fsize = len(links[0])
@@ -843,6 +844,8 @@ class CPU(Backend):
             bpropbuf (CPUTensor): Temporary storage buffer used to hold the
                                   backpropagated error for a single receptive
                                   field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         fsize = links.shape[1]
         self.fill(out, 0.0)
@@ -886,6 +889,8 @@ class CPU(Backend):
             updatebuf (CPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         fsize = links.shape[1]
         self.fill(out, 0.0)

@@ -94,9 +94,9 @@ class GradientChecker(Experiment):
 
         if not hasattr(layer, 'dataset'):
             self.dataset = UniformRandom(self.model.batch_size,
-                                             self.model.batch_size,
-                                             self.model.layers[0].nin,
-                                             self.model.layers[-1].nout)
+                                         self.model.batch_size,
+                                         self.model.layers[0].nin,
+                                         self.model.layers[-1].nout)
             self.dataset.set_batch_size(self.model.batch_size)
             self.dataset.backend = self.model.backend
             self.dataset.load()

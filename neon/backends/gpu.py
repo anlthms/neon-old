@@ -1028,6 +1028,8 @@ class GPU(Backend):
             fpropbuf (GPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.  Not used for this backend.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(
@@ -1061,6 +1063,8 @@ class GPU(Backend):
             bpropbuf (GPUTensor): Temporary storage buffer used to hold the
                                   backpropagated error for a single receptive
                                   field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         cudanet.deconvolve_errors(
             weights._tensor, deltas._tensor,
@@ -1096,6 +1100,8 @@ class GPU(Backend):
             updatebuf (GPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
