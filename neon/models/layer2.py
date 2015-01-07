@@ -11,21 +11,10 @@ import numpy as np
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
+from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
 
 logger = logging.getLogger(__name__)
-
-
-def req_param(obj, paramlist):
-    for param in paramlist:
-        if not hasattr(obj, param):
-            raise ValueError("req param %s missing for %s" % (param, obj.name))
-
-
-def opt_param(obj, paramlist, default_value=None):
-    for param in paramlist:
-        if not hasattr(obj, param):
-            setattr(obj, param, default_value)
 
 
 class Layer(YAMLable):

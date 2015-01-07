@@ -8,6 +8,7 @@ Cross entropy transform functions and classes.
 from neon.transforms.cost import Cost
 from neon.transforms.logistic import Logistic
 from neon.transforms.softmax import Softmax
+from neon.util.param import req_param, opt_param
 
 
 def cross_entropy(backend, outputs, targets, temp):
@@ -136,15 +137,22 @@ class CrossEntropy(Cost):
         super(CrossEntropy, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
+        opt_param(self, ['shortcut_deriv'], True)
         super(CrossEntropy, self).initialize(kwargs)
         if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
-            self.cd_function = shortcut_derivative
-            self.olayer.skip_act = True
+            if self.shortcut_deriv:
+                self.cd_function = shortcut_derivative
+                self.olayer.skip_act = True
+            else:
+                self.cd_function = cross_entropy_multi_derivative
         elif isinstance(self.olayer.activation, Logistic):
             self.ce_function = cross_entropy
-            self.cd_function = shortcut_derivative
-            self.olayer.skip_act = True
+            if self.shortcut_deriv:
+                self.cd_function = shortcut_derivative
+                self.olayer.skip_act = True
+            else:
+                self.cd_function = cross_entropy_derivative
         else:
             self.ce_function = cross_entropy
             self.cd_function = cross_entropy_derivative

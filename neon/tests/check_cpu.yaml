@@ -186,6 +186,7 @@
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
       olayer: *lastlayer,
+      shortcut_deriv: False,
     },
   },
 
