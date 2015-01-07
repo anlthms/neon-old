@@ -8,8 +8,8 @@ backend.
 
 import logging
 import numpy as np
-import neon.models.learning_rule as lr
 from neon.backends.cpu import CPU
+from neon.models import learning_rule as lr
 from neon.util.compat import range
 from neon.util.persist import YAMLable
 
@@ -374,7 +374,7 @@ class WeightLayer(Layer):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         if self.accumulate:
             for upm in self.updates:
-                self.backend.clear(upm)
+                self.backend.fill(upm, 0.0)
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)

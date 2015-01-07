@@ -13,17 +13,14 @@
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      dist_flag: *df,
-      dist_mode: 'vecpar', # FC split
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
-    },
-  ],
+  dataset: !obj:neon.datasets.mnist.MNIST {
+    dist_flag: *df,
+    dist_mode: 'vecpar', # FC split
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+  },
 
   # simple MLP model specification
   model: !obj:neon.models.mlp_dist.MLPDist {

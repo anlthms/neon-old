@@ -14,10 +14,6 @@ class Cost(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        # for req_param in ['olayer']:
-        #     if not hasattr(self, req_param):
-        #         raise ValueError("required parameter: %s not specified" %
-        #                          req_param)
 
         if not hasattr(self, 'temp_dtype'):
             self.temp_dtype = None

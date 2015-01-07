@@ -26,7 +26,7 @@ class GradientChecker(Experiment):
 
     def transfer(self, experiment):
         self.model = experiment.model
-        self.datasets = experiment.datasets
+        self.dataset = experiment.dataset
 
     def save_state(self):
         for ind in range(len(self.trainable_layers)):
@@ -92,15 +92,15 @@ class GradientChecker(Experiment):
             self.weights.append(layer.weights.copy())
             self.trainable_layers.append(ind)
 
-        if not hasattr(layer, 'datasets'):
-            self.datasets[0] = UniformRandom(self.model.batch_size,
+        if not hasattr(layer, 'dataset'):
+            self.dataset = UniformRandom(self.model.batch_size,
                                              self.model.batch_size,
                                              self.model.layers[0].nin,
                                              self.model.layers[-1].nout)
-            self.datasets[0].set_batch_size(self.model.batch_size)
-            self.datasets[0].backend = self.model.backend
-            self.datasets[0].load()
-        ds = self.datasets[0]
+            self.dataset.set_batch_size(self.model.batch_size)
+            self.dataset.backend = self.model.backend
+            self.dataset.load()
+        ds = self.dataset
         inputs = ds.get_batch(ds.get_inputs(train=True)['train'], 0)
         targets = ds.get_batch(ds.get_targets(train=True)['train'], 0)
 

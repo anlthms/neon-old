@@ -894,9 +894,6 @@ class CPU(Backend):
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = deltas.take(ofmlocs[dst], axis=0)
-            # print inputs.take(rflinks, axis=0).shape
-            # print eslice.shape
-            # print updatebuf.shape
             if local is False:
                 self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
                          out=updatebuf)

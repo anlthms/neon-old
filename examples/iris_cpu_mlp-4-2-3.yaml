@@ -12,7 +12,7 @@
     },
   },
 
-  datasets: &ds !obj:neon.datasets.iris.Iris {
+  dataset: &ds !obj:neon.datasets.iris.Iris {
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,

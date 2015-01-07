@@ -263,7 +263,7 @@ class I1K(Dataset):
 
         # during run time extract labels
         labels = self.jpeg_strings['labels']
-        print labels[:20]
+
         if not raw_targets:
             self.targets_macro = np.zeros(
                 (self.nclasses, self.output_batch_size), dtype='float32')

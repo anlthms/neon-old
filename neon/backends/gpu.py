@@ -384,7 +384,7 @@ class GPU(Backend):
 
     def __init__(self, **kwargs):
         # set cuda device to device 0 by default
-        cudanet.set_device_id(1)
+        cudanet.set_device_id(0)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
@@ -852,9 +852,6 @@ class GPU(Backend):
 
     def fill(self, x, val):
         x[:] = val
-
-    def clear(self, x):
-        self.fill(x, 0.0)
 
     def sum(self, x, axis=None, out=None):
         if x is None:
