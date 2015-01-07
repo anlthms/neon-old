@@ -8,7 +8,7 @@ Cross entropy transform functions and classes.
 from neon.transforms.cost import Cost
 from neon.transforms.logistic import Logistic
 from neon.transforms.softmax import Softmax
-from neon.util.param import req_param, opt_param
+from neon.util.param import opt_param
 
 
 def cross_entropy(backend, outputs, targets, temp):

@@ -233,6 +233,7 @@ class DataLayer(Layer):
         self.batch_idx = 0
         if self.is_local is True:
             req_param(self, ['nofm', 'ofmshape'])
+            self.nout = self.nofm * self.ofmshape[0] * self.ofmshape[1]
         else:
             req_param(self, ['nout'])
 
