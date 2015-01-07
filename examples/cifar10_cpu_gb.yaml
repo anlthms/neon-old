@@ -9,7 +9,7 @@
     rng_seed: 0,
   },
 
-  dataset: !obj:neon.datasets.cifar10.CIFAR10 {
+  dataset: &ds !obj:neon.datasets.cifar10.CIFAR10 {
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10,
@@ -18,6 +18,7 @@
   # Google Brain model specification
   model: !obj:neon.models.gb.GB {
     backend: *be,
+    dataset: *ds,
     num_epochs: 4,
     num_pretrain_epochs: 1,
     num_initial_epochs: 1,
@@ -185,9 +186,7 @@
         },
         nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: uniform,
           low: -0.1,
