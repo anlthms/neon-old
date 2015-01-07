@@ -50,7 +50,20 @@ class I1K(Dataset):
         self.end_train_batch = -1
         self.start_val_batch = -1
         self.end_val_batch = -1
+        self.nclasses = 1000
+
         self.__dict__.update(kwargs)
+        if self.macro_batched:
+            self.output_batch_size = 3072
+            self.cur_train_macro_batch = 0
+            self.cur_train_mini_batch = 0
+            self.cur_val_macro_batch = 0
+            self.cur_val_mini_batch = 0
+
+        if not hasattr(self, 'save_dir'):
+            self.save_dir = os.path.join(self.repo_path,
+                                         self.__class__.__name__)
+
         if self.dist_flag:
             raise NotImplementedError('Dist not implemented for I1K!')
             if MPI_INSTALLED:
@@ -70,12 +83,12 @@ class I1K(Dataset):
             # if self.dist_flag:
             #    self.adjust_for_dist()
 
-            self.nclasses = 1000
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
-            save_dir = os.path.join(self.repo_path,
-                                    self.__class__.__name__)
-            self.save_dir = save_dir
+            # save_dir = os.path.join(self.repo_path,
+            #                         self.__class__.__name__)
+            # self.save_dir = save_dir
+            save_dir = self.save_dir
             # for now assuming that dataset is already there
             # ToS of imagenet prohibit distribution of URLs
 
@@ -117,7 +130,7 @@ class I1K(Dataset):
                     st.close()
 
                 shuffle(train_jpeg_files)
-                train_labels = [[labels_dic[jpeg.name[:9]]]
+                train_labels = [labels_dic[jpeg.name[:9]]
                                 for jpeg in train_jpeg_files]
                 logger.info("created list of jpg files")
 
@@ -126,7 +139,6 @@ class I1K(Dataset):
                 # image resizing.
                 self.num_worker_threads = 8
                 # macro batch size
-                self.output_batch_size = 3072
                 self.max_file_index = 3072
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
@@ -156,10 +168,6 @@ class I1K(Dataset):
                             'validation', 0,
                             val_label_sample,
                             val_file_sample)
-                    self.cur_train_macro_batch = 0
-                    self.cur_train_mini_batch = 0
-                    self.cur_val_macro_batch = 0
-                    self.cur_val_mini_batch = 0
                 else:
                     # one big batch (no macro-batches)
                     # todo 1: resize in a multithreaded manner
