@@ -19,18 +19,26 @@ class TestGPUTensor(object):
             from neon.backends.gpu import GPUTensor
             self.gpt = GPUTensor
 
-    @nottest  # TODO: fix the empty shape
     def test_empty_creation(self):
         tns = self.gpt([])
-        assert tns.shape == (0, )
+        expected_shape = (0, )
+        while len(expected_shape) < tns._min_dims:
+            expected_shape += (1, )
+        assert tns.shape == expected_shape
 
     def test_1d_creation(self):
         tns = self.gpt([1, 2, 3, 4])
-        assert tns.shape == (4, 1)
+        expected_shape = (4, )
+        while len(expected_shape) < tns._min_dims:
+            expected_shape += (1, )
+        assert tns.shape == expected_shape
 
     def test_2d_creation(self):
         tns = self.gpt([[1, 2], [3, 4]])
-        assert tns.shape == (2, 2)
+        expected_shape = (2, 2)
+        while len(expected_shape) < tns._min_dims:
+            expected_shape += (1, )
+        assert tns.shape == expected_shape
 
     def test_2d_ndarray_creation(self):
         tns = self.gpt(np.array([[1.5, 2.5], [3.3, 9.2],

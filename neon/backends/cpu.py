@@ -34,8 +34,14 @@ class CPUTensor(Tensor):
     See also:
         CPU
 
+    Notes:
+        Unlike numpy, in this implementation we never collapse dimensions, and
+        the minimal number of dimensions will be _min_dims (currently set to 2
+        to match cudanet GPU implementation).  So a wrapped scalar will have
+        dimension 1x1.
     """
     _tensor = None
+    _min_dims = 2
 
     def __init__(self, obj, dtype=None):
         if dtype is None:
@@ -46,6 +52,8 @@ class CPUTensor(Tensor):
             self._tensor = obj.astype(dtype)
         else:
             self._tensor = obj
+        while self._tensor.ndim < self._min_dims:
+            self._tensor = self._tensor.reshape(self._tensor.shape + (1, ))
         self.shape = self._tensor.shape
         self.dtype = dtype
 
@@ -132,7 +140,15 @@ class CPUTensor(Tensor):
                                               as what key indexes (or be
                                               broadcastable as such).
         """
-        self._tensor[self._clean(key)] = self._clean(value)
+        try:
+            self._tensor[self._clean(key)] = self._clean(value)
+        except ValueError:
+            # can come about due to numpy's dimension collapsing. ex. trying to
+            # assign a 5x1 value to a vector of length 5.  Not sure there's a
+            # way to avoid the expensive reshape op here?
+            clean_key = self._clean(key)
+            req_shape = self._tensor[clean_key].shape
+            self._tensor[clean_key] = np.reshape(self._clean(value), req_shape)
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
@@ -750,7 +766,7 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        out._tensor[:] = np.argmin(tsr._tensor, axis)
+        out._tensor[:] = np.reshape(np.argmin(tsr._tensor, axis), out.shape)
         return out
 
     def argmax(self, tsr, axis, out):
@@ -770,7 +786,7 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        out._tensor[:] = np.argmax(tsr._tensor, axis)
+        out._tensor[:] = np.reshape(np.argmax(tsr._tensor, axis), out.shape)
         return out
 
     def fabs(self, x, out=None):

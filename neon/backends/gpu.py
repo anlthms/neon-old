@@ -39,7 +39,7 @@ class GPUTensor(Tensor):
 
     Notes:
         This implementation currently has the following limitations:
-        * only 2D shaped Tensors are supported
+        * only 2D shaped Tensors are supported (set in _min_dims)
         * All element values are stored as float32 (input may be converted if
           input of a differing type is passed)
         * Only contiguous rectangular slicing is supported.  Sliced assignment
@@ -47,6 +47,7 @@ class GPUTensor(Tensor):
           slice *or* column slice based assignment).
     """
     _tensor = None
+    _min_dims = 2
 
     def __init__(self, obj, dtype=None):
         if type(obj) == cudanet.CUDAMatrix:
@@ -59,12 +60,12 @@ class GPUTensor(Tensor):
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
                 # (though the elements can be tuples/lists to create arbitrary
                 # n dimensions)
-                while obj.ndim < 2:
+                while obj.ndim < self._min_dims:
                     obj = obj.reshape(obj.shape + (1, ))
-                if obj.ndim != 2:
-                    raise ValueError("CUDAMatrix only supports 2-D"
+                if obj.ndim != self._min_dims:
+                    raise ValueError("CUDAMatrix only supports %d-D"
                                      "matrices.  You specifed %d-D" %
-                                     obj.ndim)
+                                     (self._min_dims, obj.ndim))
                 logger.debug('Copying to GPU')
                 if dtype not in (numpy.float32, numpy.int32, 'float32',
                                  'int32') or dtype is None:
@@ -187,8 +188,9 @@ class GPUTensor(Tensor):
         """
         res = self
         if isinstance(key, tuple):
-            if len(key) > 2:
-                raise IndexError("CUDAMatrix only supports 2-D matrices")
+            if len(key) > self._min_dims:
+                raise IndexError("CUDAMatrix only supports %d-D matrices",
+                                 self._min_dims)
             else:
                 for idx in range(len(key) - 1, -1, -1):
                     res = res._slice_dim(key[idx], idx)
@@ -231,9 +233,10 @@ class GPUTensor(Tensor):
         elif not isinstance(value, (int, float)):
             raise ValueError("can only assign GPUTensor's or numeric scalars")
         if isinstance(key, tuple):
-            if len(key) > 2:
-                raise IndexError("CUDAMatrix only supports 2-D matrices")
-            elif len(key) == 2:
+            if len(key) > self._min_dims:
+                raise IndexError("CUDAMatrix only supports %d-D matrices",
+                                 self._min_dims)
+            elif len(key) == self._min_dims:
                 if isinstance(key[0], slice):
                     start, stop, stride = key[0].indices(self.shape[0])
                     if start == 0 and stop == self.shape[0]:
