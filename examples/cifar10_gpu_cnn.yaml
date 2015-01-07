@@ -49,7 +49,6 @@
         weight_init: *wt_init,
         nofm: 16,
         fshape: [5, 5],
-        weight_init: *wt_init,
       },
       !obj:neon.models.layer2.PoolingLayer {
         name: layer2,

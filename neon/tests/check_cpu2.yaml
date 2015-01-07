@@ -47,8 +47,10 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        nout: 1024,
         dataset: *ds,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [32, 32],
       },
       !obj:neon.models.layer2.ConvLayer {
         name: layer0,
