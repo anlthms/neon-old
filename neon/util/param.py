@@ -6,6 +6,7 @@ Contains various functions for checking and setting required and optional
 parameters.
 """
 
+
 def req_param(obj, paramlist):
     for param in paramlist:
         if not hasattr(obj, param):
