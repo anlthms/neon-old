@@ -8,236 +8,136 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # NDSB data
-    !obj:neon.datasets.ndsb.NDSB {
+  dataset: &ds !obj:neon.datasets.ndsb.NDSB {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    image_width: 64,
+    # serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
+  },
+  weight_init: &wt_init {
+    type: uniform,
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrule: &adad {
+    type: adadelta,
+    lr_params: &lrp {
+      epsilon: 0.000001,
+      rho: 0.95,
       backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-      image_width: 64,
-      # serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
     },
-  ],
+  },
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: 60,
+    num_epochs: 50,
     batch_size: &bs 128,
-    serialized_path: '/usr/local/data/NDSB/ndsb-deep-model-ada3.pkl',
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        nout: 4096,
+        dataset: *ds,
+      },
+      !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: &lrp {
-            epsilon: 0.000001,
-            rho: 0.95,
-            backend: *be,
-          },
-        },
-        nifm: 1,
+        lrule_init: *adad,
         nofm: 16,
-        ifmshape: [64, 64],
         fshape: [3, 3],
-        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer2,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        nifm: 16,
-        ifmshape: [62, 62],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.CrossMapResponseNormLayer {
+      !obj:neon.models.layer2.CrossMapResponseNormLayer {
         name: cmrn,
-        backend: *be,
-        batch_size: *bs,
-        pos: 200,
-        ifmshape: [31, 31],
-        nifm: 16,
         ksize: 5,
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer3,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: *lrp,
-        },
-        nifm: 16,
+        lrule_init: *adad,
         nofm: 32,
-        ifmshape: [31, 31],
         fshape: [2, 2],
-        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer4,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        nifm: 32,
-        ifmshape: [30, 30],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.CrossMapResponseNormLayer {
+      !obj:neon.models.layer2.CrossMapResponseNormLayer {
         name: cmrn,
-        backend: *be,
-        batch_size: *bs,
-        pos: 200,
-        ifmshape: [15, 15],
-        nifm: 32,
         ksize: 5,
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.DropOutLayer {
+      !obj:neon.models.layer2.DropOutLayer {
         name: dropout,
-        backend: *be,
-        batch_size: *bs,
-        pos: 100,
-        nin: 7200,
         keep: 0.2,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer5,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: *lrp,
-        },
-        nifm: 32,
+        lrule_init: *adad,
         nofm: 64,
-        ifmshape: [15, 15],
         fshape: [2, 2],
-        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer6,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        nifm: 64,
-        ifmshape: [14, 14],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.CrossMapResponseNormLayer {
+      !obj:neon.models.layer2.CrossMapResponseNormLayer {
         name: cmrn,
-        backend: *be,
-        batch_size: *bs,
-        pos: 200,
-        ifmshape: [7, 7],
-        nifm: 64,
         ksize: 5,
         alpha: 0.001,
         beta: 0.75,
       },
-      !obj:neon.models.layer.DropOutLayer {
+      !obj:neon.models.layer2.DropOutLayer {
         name: dropout,
-        backend: *be,
-        batch_size: *bs,
-        pos: 100,
-        nin: 3136,
         keep: 0.3,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer7,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: *lrp,
-        },
-        nifm: 64,
+        lrule_init: *adad,
         nofm: 128,
-        ifmshape: [7, 7],
         fshape: [2, 2],
-        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
         name: layer8,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: *lrp,
-        },
-        nin: 4608,
+        lrule_init: *adad,
         nout: 1000,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
-          lr_params: *lrp,
-        },
-        nin: 1000,
+        lrule_init: *adad,
         nout: 121,
-        activation: !obj:neon.transforms.softmax.Softmax {
-            shortcut_deriv: True,
-        },
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        activation: !obj:neon.transforms.softmax.Softmax {},
+        weight_init: *wt_init,
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-      shortcut_deriv: True,
-      use_binary: False,
-    },
   },
 
   # logging options that are passed to logging.basicConfig

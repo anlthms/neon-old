@@ -12,16 +12,13 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # CIFAR10 data
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 'halopar', # halo/tower split
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-    },
-  ],
+  dataset: !obj:neon.datasets.cifar10.CIFAR10 {
+    dist_flag: *df,
+    dist_mode: 'halopar', # halo/tower split
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+  },
 
   # Google Brain model specification
   model: !obj:neon.models.gb_dist.GBDist {
