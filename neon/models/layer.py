@@ -362,15 +362,16 @@ class RecurrentLSTMLayer(Layer):
         self.net_o = [be.zeros(net_sze) for k in range(unrolls)]
         self.net_g = [be.zeros(net_sze) for k in range(unrolls)]
 
-        self.b_i = be.wrap(1.0) # input gate bias: be open
-        self.b_f = be.wrap(-1.0) # forget gate bias: closed to forget
-        self.b_o = be.wrap(1.0) # output gate bias: open
+        self.b_i = be.wrap(0.0)  # input gate bias: be open
+        self.b_f = be.wrap(0.0)  # forget gate bias: closed to forget
+        self.b_o = be.wrap(0.0)  # output gate bias: open
         self.b_c = be.wrap(0.0)  # [TODO] ignoring bias for now
 
         self.learning_rule.allocate_state_LSTM(self.Wix_updates,
                                                self.Wih_updates)
 
-        self.berror = be.zeros((batch_size, nout))
+        self.berror = be.zeros((batch_size, nout))  # hidden bprop error
+        self.cerror = be.zeros((batch_size, nout))  # cell bprop error
 
         self.temp_t = 0
 
@@ -380,10 +381,14 @@ class RecurrentLSTMLayer(Layer):
         peepholes.
 
         Inputs:
-          y:      input from prev. time step (eg. one batch of (64, 50) size)
-          inputs: input from data (eg. one batch of (128, 50) size)
-          tau:    unrolling step for BPTT
-          cell:   state of CEC (memory cell) from prev. time step (shape of y)
+            y:      input from prev. time step (eg. one batch of (64, 50) size)
+            inputs: input from data (eg. one batch of (128, 50) size)
+            (tau):  unrolling step for BPTT
+            cell:   state of memory cell from prev. time step (shape as y)
+
+        Outputs:
+            self.c_t:         cell activity
+            self.output_list: hidden activity
 
         In math notiation, forward pass:
             i_t = s(Wix*x + Wih*h +b_i)
@@ -395,17 +400,6 @@ class RecurrentLSTMLayer(Layer):
             ------ output layer -----
             y_t = s(W_yh * h_t)
             e_t = xEnt(y, t)
-
-        In numpy pseudocode, the forward pass is:
-            i_t = sigmoid(dot(Wix,x) + dot(Wih,h) + b_i)
-            f_t = sigmoid(dot(Wfx,x) + dot(Wfh,h) + b_f)
-            o_t = sigmoid(dot(Wox,x) + dot(Woh,h) + b_o)
-            g_t = sigmoid(dot(Wcx,x) + dot(Wch,h) + b_c)
-            c_t = f_t * c_old + i_t * g_t
-            h_t = o_t .* tanh(c_t)
-            ------ output layer -----
-            y_t = sigmoid(W_yh * h_t)
-            e_t = cross_entropy(y, t)
 
         The values are computed and stored for all unrolls so they can be
         used in bprop. [TODO] check for redundant buffers
@@ -419,17 +413,6 @@ class RecurrentLSTMLayer(Layer):
         be.fprop_fc(self.temp_h[tau], y, self.Wih)
         self.net_i[tau] = self.temp_x[tau] + self.temp_h[tau] + self.b_i
         sig.apply_both(be, self.net_i[tau], self.i_t[tau])
-
-        # print "PLOTTING" # not really useful for anything -
-        # from matplotlib import pyplot as plt
-        # plt.subplot(10,3,1+self.temp_t)
-        # plt.imshow(self.temp_x[tau].raw(), interpolation='nearest') # around 0.5
-        # plt.subplot(10,3,2+self.temp_t)
-        # plt.imshow(self.net_i[tau].raw(), interpolation='nearest') # around 0.0
-        # plt.subplot(10,3,3+self.temp_t)
-        # plt.imshow(self.i_t[tau].raw(), interpolation='nearest') # around 0.0
-        # print "tempt", self.temp_t
-        # self.temp_t += 3
 
         # forget gate
         be.fprop_fc(self.temp_x[tau], inputs, self.Wfx)
@@ -449,33 +432,34 @@ class RecurrentLSTMLayer(Layer):
         self.net_g[tau] = self.temp_x[tau] + self.temp_h[tau] + self.b_c
         phi.apply_both(be, self.net_g[tau], self.g_t[tau])
 
-        if 0:
-            print "W_ix=%2.5f" % self.Wch[63,12],  # weight element - epsed or not.
-            print "-> W*x=%2.5f" % self.temp_x[tau][63,12], # W*x
-            print "-> W*h=%2.5f" % self.temp_h[tau][63,12], # W*x
-            print "-> g'(W*x+W*h)=%2.8f" % self.net_g[tau][63,12], # g'(W*x + W*h)
-            print "-> i_t=%2.5f" % self.g_t[tau][63,12], # input gate. second time around, the becomes equal, why?
-        if 0:
-            print "sum W_ix=%2.5f" % self.Wch.sum(),  # weight element - epsed or not.
-            print "-> sum W*x=%2.5f" % self.temp_x[tau].sum(), # W*x
-            print "-> sum W*x+W*h=%2.5f" % self.net_g[tau].sum(), # g'(W*x + W*h)
-            print "-> sum i_t=%2.5f" % self.g_t[tau].sum(), # input gate. second time around, the becomes equal, why?
-
         # combine the parts and compute output.
         self.c_t[tau] = self.f_t[tau] * cell + self.i_t[tau] * self.g_t[tau]
         self.c_phip[tau] = self.c_t[tau].copy()
-        phi.apply_both(be, self.c_phip[tau], self.c_phi[tau]) # c_t=g' c_phi=g
-        self.output_list[tau] = self.o_t[tau] * self.c_phi[tau]  # this is h_t  --- all elements are the same with eps
+        phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
+        self.output_list[tau] = self.o_t[tau] * self.c_phi[tau]
 
-        if 0:
-            print "---> sum c_t=%2.5f" % self.c_t[tau].sum(), # W*x + W*h
-            print "-> sum output_list=%2.5f" % self.output_list[tau].sum() # input gate. second time around, the becomes equal, why?
-
-        # cross entropy will be handled in the next layer
-
-    def bprop(self, error, inputs, tau_tot, tau):
+    def bprop(self, error_h, error_c, inputs, tau_tot, tau):
         """
-        Lengthy derivation
+        For LSTM, inject h-error and c-error, get 8 W's and h, c out. It's
+        more complicated than bprop thorugh a standard layer mostly because
+        we have two outputs that we inject errors into, each leading to an
+        error on the two inputs (4 errors total), and each of the weight
+        updates has a contribution from the error to the cell and the hidden.
+
+
+        Inputs:
+            error_h2: error injected into hidden
+            error_c2: error injected directly into cell
+
+        Outputs:
+            error_h1: from h2 and c2: dh2/dh1 + dc2/dh1
+                                      existing  new
+            error_c1: from h2 and c2: dh2/dc1 + dc2/dc1
+                                      new       new
+
+        [TODO] Two new terms to compute!
+
+        Basic derivation
             In math, backward pass:
                 de_dJ = d/dJ CE(y,t)
                 dy_dJ = d/dJ sigm(Wyh*h)
@@ -491,17 +475,10 @@ class RecurrentLSTMLayer(Layer):
         Over multiple time-steps, berror feeds back in as error.
         """
         be = self.backend
-        # import numpy as np
 
-        """
-        # LSTM start over:
-        # 1. propagating h_t down to to the 4 inputs.
-        # 2. use the delta and h to compute 4x W_rec
-        # 3. use the delta and x to compute 4x W_in
-        # 4. use the detas and W_rec to compute output delta
-        """
-        # allocate buffers -  these are for a single pass through the cell,
+        # 1. allocate buffers -  these are for a single pass through the cell,
         # the Wix_updates etc. accumulate over the loop.
+        # [TODO] allocate in init, call them self.dh_dw['ix']
 
         di_dh1 = be.zeros((self.nout, self.batch_size))
         df_dh1 = di_dh1.copy()
@@ -517,49 +494,17 @@ class RecurrentLSTMLayer(Layer):
         dh_dWoh = dh_dWih.copy()
         dh_dWch = dh_dWih.copy()
 
-        # 1. run all the way through for output delta
-        # (I think this part is unused with unroll=1)
-        # -------------------------------------------
-        if 0:  # I think this is wrong, at least it's different.
-            be.dot(out=do_dh1, b=self.net_o[tau], a=self.Woh)
-            be.dot(out=df_dh1, b=self.net_f[tau], a=self.Wfh)
-            be.dot(out=dg_dh1, b=self.net_g[tau], a=self.Wch)
-            be.dot(out=di_dh1, b=self.net_i[tau], a=self.Wih)
+        dc_di_dh1 = di_dh1.copy()
+        dc_df_dh1 = di_dh1.copy()
+        dc_dg_dh1 = di_dh1.copy()
 
-            dc_dh1 = self.c_t[tau-1] * df_dh1 + self.i_t[tau] * \
-                     dg_dh1 + self.g_t[tau] * di_dh1
-            dphi_dh1 = self.c_phip[tau] * dc_dh1  # SHOULD NOT BE ELEMENTWISE!
-            dh2dh1 = self.o_t[tau] * dphi_dh1 + self.c_phi[tau] * do_dh1
-            self.berror = dh2dh1 * error  # canonical backprop formula
-            print "lstm.bprop berror wrong way", self.berror[0,0]
-        else:  # taking everything together then doing a single dot prod
-            temp = self.c_phi[tau] * self.net_o[tau]  # phi do/dh term
-            be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
-            temp = self.o_t[tau] * self.c_phip[tau] * \
-                   self.c_t[tau-1] * self.net_f[tau]  # df/dh
-            be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
-            temp = self.o_t[tau] * self.c_phip[tau] * \
-                   self.i_t[tau] * self.net_g[tau]  # dg/dh
-            be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
-            temp = self.o_t[tau] * self.c_phip[tau] * \
-                   self.g_t[tau] * self.net_i[tau]  # di/dh
-            be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
-            self.berror = (do_dh1+df_dh1+dg_dh1+di_dh1) * error
-            #print "lstm.bprop berror possibly correct way", self.berror[0,0]
-
-        # Ingredients needed here:
-        # o: sig(Wx+Wh), stored in o_t
-        # phi': phi'(c), stored in c_phip, while phi(c) is c_phi.
-        # c_t-1: stored in c_t
-        # f, f': in f_t, net_f
-
-        # 2. try one of the weight matrices: Input gate
-        # -------------------------------------------
-        # note: target is dE/dWix or dh2dWix but not di.
-        """TODO: Dodgy dependence on error !! This is dh/dWi,
-        but need dE/dWi = dE/dh dh/dWi. The dE/dh is called *error*. """
-        temp = error * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] * \
-               self.net_i[tau]  # unnesting of terms around Wi: phi(sig(Wi) * g) * o
+        """--------------------------
+        PART 1: original dh2/dh1 terms
+        --------------------------"""
+        # a. Input gate
+        temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] * \
+            self.net_i[tau]
+        be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
         be.update_fc(out=dh_dWix,
                      inputs=inputs[tau*128:(tau+1)*128, :],
                      deltas=temp)
@@ -569,10 +514,10 @@ class RecurrentLSTMLayer(Layer):
         self.Wix_updates += dh_dWix
         self.Wih_updates += dh_dWih
 
-        # 3. try a different weight matrix: forget
-        # -------------------------------------------
-        temp = error * self.o_t[tau] * self.c_phip[tau] * \
-               self.c_t[tau-1] * self.net_f[tau]
+        # b. forget gate
+        temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
+            self.c_t[tau-1] * self.net_f[tau]
+        be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
         be.update_fc(out=dh_dWfx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
                      deltas=temp)
@@ -582,9 +527,9 @@ class RecurrentLSTMLayer(Layer):
         self.Wfx_updates += dh_dWfx
         self.Wfh_updates += dh_dWfh
 
-        # 4. and another: output
-        # -------------------------------------------
-        temp = error * self.c_phi[tau]*self.net_o[tau]
+        # c. output gate
+        temp = error_h * self.c_phi[tau]*self.net_o[tau]
+        be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
         be.update_fc(out=dh_dWox,
                      inputs=inputs[tau*128:(tau+1)*128, :],
                      deltas=temp)
@@ -594,11 +539,10 @@ class RecurrentLSTMLayer(Layer):
         self.Wox_updates += dh_dWox
         self.Woh_updates += dh_dWoh
 
-        # 4. and another: cell "gate" (not a gate but the input weights.)
-        """DEBUG THIS FIRST: All others can be disabled."""
-        # -------------------------------------------
-        temp = error * self.o_t[tau] * self.c_phip[tau] * \
-               self.i_t[tau] * self.net_g[tau]
+        # d. cell
+        temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
+            self.i_t[tau] * self.net_g[tau]
+        be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
         be.update_fc(out=dh_dWcx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
                      deltas=temp)
@@ -608,9 +552,67 @@ class RecurrentLSTMLayer(Layer):
         self.Wcx_updates += dh_dWcx
         self.Wch_updates += dh_dWch
 
-        # ... look for common patterns to consolidate code.
-        # actually better of doing numerical checks first before optimizing
-        # -------------------------------------------
+        # e. collect terms
+        hherror = di_dh1 + df_dh1 + do_dh1 + dg_dh1
+        ttemp1 = dh_dWfh[12, 55]  # used for num grad checks
+
+        """ --------------------------
+        PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
+        ---------------------------"""
+
+        # dc2/dh1 terms:
+        # input gate
+        temp = error_c * self.g_t[tau] * self.net_i[tau]
+        be.bprop_fc(out=dc_di_dh1, weights=self.Wih, deltas=temp)
+        be.update_fc(out=dh_dWix,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dWih,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        self.Wix_updates += dh_dWix
+        self.Wih_updates += dh_dWih
+
+        # forget gate
+        temp = error_c * self.c_t[tau-1] * self.net_f[tau]
+        be.bprop_fc(out=dc_df_dh1, weights=self.Wfh, deltas=temp)
+        be.update_fc(out=dh_dWfx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dWfh,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        self.Wfx_updates += dh_dWfx
+        self.Wfh_updates += dh_dWfh
+
+        # cell
+        temp = error_c * self.i_t[tau] * self.net_g[tau]
+        be.bprop_fc(out=dc_dg_dh1, weights=self.Wch, deltas=temp)
+        be.update_fc(out=dh_dWcx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dWch,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        self.Wcx_updates += dh_dWcx
+        self.Wch_updates += dh_dWch
+
+        cherror = dc_di_dh1 + dc_df_dh1 + dc_dg_dh1
+
+        # dh2/dc1 term:
+        hcerror = error_h * self.o_t[tau] * self.c_phip[tau] * self.f_t[tau]
+
+        # dc2/dc1 term:
+        ccerror = error_c * self.f_t[tau]
+
+        # wrap up:
+        self.berror = hherror + cherror
+        self.cerror = ccerror + hcerror
+
+        if 0:
+            ttemp2 = dh_dWfh[12, 55]  # for numerical gradient
+            print "layer.bprop: analytic dh_dWfh[tau=%d]= %e + %e = %e" % (
+                tau, ttemp1, ttemp2, ttemp1 + ttemp2)
 
     def update(self, epoch):
         """
@@ -620,13 +622,13 @@ class RecurrentLSTMLayer(Layer):
         DEBUG: Disable some updates here
         """
         self.learning_rule.apply_rule_LSTM(
-                (self.Wix, self.Wfx, self.Wox, self.Wcx,
-                 self.Wih, self.Wfh, self.Woh, self.Wch),
-                (0*self.Wix_updates, 0*self.Wfx_updates,
-                 0*self.Wox_updates, 1*self.Wcx_updates,
-                 0*self.Wih_updates, 0*self.Wfh_updates,
-                 0*self.Woh_updates, 1*self.Wch_updates),
-                epoch)
+            (self.Wix, self.Wfx, self.Wox, self.Wcx,
+             self.Wih, self.Wfh, self.Woh, self.Wch),
+            (self.Wix_updates, self.Wfx_updates,
+             self.Wox_updates, self.Wcx_updates,
+             self.Wih_updates, self.Wfh_updates,
+             self.Woh_updates, self.Wch_updates),
+            epoch)
 
 
 class RecurrentHiddenLayer(Layer):
@@ -673,13 +675,12 @@ class RecurrentHiddenLayer(Layer):
 
     def bprop(self, error, inputs, tau, t):
         """
-        This function has been refactored quite a bit:
+        This function has been refactored:
         [done] remove duplicate code
         [done] remove the loop altogether.
-        [done] swich order to be exactly like MLP code.
-        [done] get rid of "delta", call it "error" to be consistent.
+        [todo] If the if statement can't be supported, revert to duplicated
+               code
         """
-        # called with t = 4, 3, 2, 1, 0
         error = self.pre_act_list[t] * error  # finish computing error
         if (t > 0):  # can be moved down for a single if().
             # compute error (apply prev. delta)
@@ -699,7 +700,6 @@ class RecurrentHiddenLayer(Layer):
                                    inputs=self.output_list[t - 1],
                                    deltas=error)
             self.updates_rec += self.temp_rec
-
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)

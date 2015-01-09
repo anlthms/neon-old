@@ -72,7 +72,7 @@ class VisualizeRNN(object):
         plt.imshow(W_ch, vmin=-1, vmax=1, interpolation='nearest')
         plt.title('cell')
 
-        #plt.colorbar()
+        # plt.colorbar()
         plt.draw()
         plt.show()
 
