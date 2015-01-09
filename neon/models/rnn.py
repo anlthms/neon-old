@@ -63,14 +63,11 @@ class RNN(Model):
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
                                    (batch+1)*128*self.unrolls+128)
-                # print "rnn.fit calling fprop"
                 self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
                            cell_init=cell_init,
                            debug=(True if batch == -1 else False))
-                # print "rnn.fit calling bprop"
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
-                # print "rnn.fit calling update"
                 self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 cell_init = self.layers[0].c_t[-1]
@@ -80,6 +77,7 @@ class RNN(Model):
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
+                # print "i", self.layers[0].b_i[0:3].transpose(), "f", self.layers[0].b_f[0:3].transpose(), "o", self.layers[0].b_o[0:3].transpose(), "g", self.layers[0].b_c[0:3].transpose()
                 suberror = self.cost.apply_function(target_out)
                 suberror /= float(self.batch_size * self.layers[0].nin)
                 suberrorlist.append(suberror)
@@ -158,17 +156,17 @@ class RNN(Model):
 
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
-            print "numpart for  tau=", tau, "of", self.unrolls, "is", num_part
+            logger.info("numpart for  tau=%d of %d is %e", tau, self.unrolls, num_part.raw())
             numerical += num_part
 
         # bprop for comparison
         self.bprop(targets[batch_inx, :], inputs[batch_inx, :])
 
         analytical = self.layers[0].Wfh_updates[12, 55]
-        print("RNN grad_checker: suberror_eps", suberror_eps)
-        print("RNN grad_checker: suberror_ref", suberror_ref)
-        print("RNN grad_checker: numerical", numerical.raw())
-        print("RNN grad_checker: analytical", analytical.raw())
+        logger.info("RNN grad_checker: suberror_eps", suberror_eps)
+        logger.info("RNN grad_checker: suberror_ref", suberror_ref)
+        logger.info("RNN grad_checker: numerical", numerical.raw())
+        logger.info("RNN grad_checker: analytical", analytical.raw())
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None):

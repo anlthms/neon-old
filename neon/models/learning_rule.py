@@ -125,13 +125,16 @@ class GradientDescentMomentum(GradientDescent):
                     self.velocity_rec = self.backend.zeros(params.shape,
                                                            self.velocity_dtype)
 
-    def allocate_state_LSTM(self, params, parims):
-        """For recurrent layer, need an extra velocity. It's a list of 8"""
+    def allocate_state_LSTM(self, par_in, par_rec, par_b):
+        """For recurrent layer, need an extra velocity. It's a list of 12"""
         if (self.velocity_LSTM is None):
-            self.velocity_LSTM = [self.backend.zeros(params.shape,
+            self.velocity_LSTM = [self.backend.zeros(par_in.shape,
                                                      self.velocity_dtype)
                                   for k in range(4)] + \
-                                 [self.backend.zeros(parims.shape,
+                                 [self.backend.zeros(par_rec.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)] + \
+                                 [self.backend.zeros(par_b.shape,
                                                      self.velocity_dtype)
                                   for k in range(4)]
 

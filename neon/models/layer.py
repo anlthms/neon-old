@@ -311,35 +311,45 @@ class RecurrentLSTMLayer(Layer):
 
         """
         # super calls into Layer.__init__() for weight init.
-        print "SUCCESS: Initializing LSTM init with nin", nin
         super(RecurrentLSTMLayer, self).__init__(name, backend, batch_size,
                                                  pos, nin, nout, weight_init,
                                                  learning_rule, activation)
 
         # things that are not initalized by the super class
         self.gate_activation = gate_activation
+        be = backend
 
         # create weight matrices -- TODO: weight_init in yaml
-        be = backend
-        print "LSTM init with", weight_init_rec
         self.Wix = be.gen_weights((nout, nin), weight_init_rec, weight_dtype)
-        self.Wfx = self.Wix.copy()
-        self.Wox = self.Wix.copy()
-        self.Wcx = self.Wix.copy()
+        self.Wfx = be.gen_weights((nout, nin), weight_init_rec, weight_dtype)
+        self.Wox = be.gen_weights((nout, nin), weight_init_rec, weight_dtype)
+        self.Wcx = be.gen_weights((nout, nin), weight_init_rec, weight_dtype)
+
         self.Wih = be.gen_weights((nout, nout), weight_init_rec, weight_dtype)
-        self.Wfh = self.Wih.copy()
-        self.Woh = self.Wih.copy()
-        self.Wch = self.Wih.copy()
+        self.Wfh = be.gen_weights((nout, nout), weight_init_rec, weight_dtype)
+        self.Woh = be.gen_weights((nout, nout), weight_init_rec, weight_dtype)
+        self.Wch = be.gen_weights((nout, nout), weight_init_rec, weight_dtype)
 
-        self.Wix_updates = self.Wix.copy()
-        self.Wfx_updates = self.Wix.copy()
-        self.Wox_updates = self.Wix.copy()
-        self.Wcx_updates = self.Wix.copy()
+        self.b_i = be.zeros((nout, 1))  # input gate bias: be open
+        self.b_f = be.zeros((nout, 1))  # forget gate bias: closed to forget
+        self.b_o = be.zeros((nout, 1))  # output gate bias: open
+        self.b_c = be.zeros((nout, 1))  # [TODO] ignoring bias for now
 
-        self.Wih_updates = self.Wih.copy()
-        self.Wfh_updates = self.Wih.copy()
-        self.Woh_updates = self.Wih.copy()
-        self.Wch_updates = self.Wih.copy()
+        # create update buffers
+        self.Wix_updates = be.zeros((nout, nin))
+        self.Wfx_updates = be.zeros((nout, nin))
+        self.Wox_updates = be.zeros((nout, nin))
+        self.Wcx_updates = be.zeros((nout, nin))
+
+        self.Wih_updates = be.zeros((nout, nout))
+        self.Wfh_updates = be.zeros((nout, nout))
+        self.Woh_updates = be.zeros((nout, nout))
+        self.Wch_updates = be.zeros((nout, nout))
+
+        self.b_i_updates = be.zeros((nout, 1))
+        self.b_f_updates = be.zeros((nout, 1))
+        self.b_o_updates = be.zeros((nout, 1))
+        self.b_c_updates = be.zeros((nout, 1))
 
         # initialize buffers for intermediate values
         net_sze = (self.nout, batch_size)  # tuple with activation size.
@@ -362,13 +372,9 @@ class RecurrentLSTMLayer(Layer):
         self.net_o = [be.zeros(net_sze) for k in range(unrolls)]
         self.net_g = [be.zeros(net_sze) for k in range(unrolls)]
 
-        self.b_i = be.wrap(0.0)  # input gate bias: be open
-        self.b_f = be.wrap(0.0)  # forget gate bias: closed to forget
-        self.b_o = be.wrap(0.0)  # output gate bias: open
-        self.b_c = be.wrap(0.0)  # [TODO] ignoring bias for now
-
         self.learning_rule.allocate_state_LSTM(self.Wix_updates,
-                                               self.Wih_updates)
+                                               self.Wih_updates,
+                                               self.b_i_updates)
 
         self.berror = be.zeros((batch_size, nout))  # hidden bprop error
         self.cerror = be.zeros((batch_size, nout))  # cell bprop error
@@ -498,6 +504,11 @@ class RecurrentLSTMLayer(Layer):
         dc_df_dh1 = di_dh1.copy()
         dc_dg_dh1 = di_dh1.copy()
 
+        # dh_dbi = 0
+        # dh_dbf = 0
+        # dh_dbo = 0
+        # dh_dbc = 0
+
         """--------------------------
         PART 1: original dh2/dh1 terms
         --------------------------"""
@@ -513,6 +524,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wix_updates += dh_dWix
         self.Wih_updates += dh_dWih
+        self.b_i_updates += temp.sum(1).reshape((64,1))
 
         # b. forget gate
         temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
@@ -526,6 +538,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wfx_updates += dh_dWfx
         self.Wfh_updates += dh_dWfh
+        self.b_f_updates += temp.sum(1).reshape((64,1))
 
         # c. output gate
         temp = error_h * self.c_phi[tau]*self.net_o[tau]
@@ -538,6 +551,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wox_updates += dh_dWox
         self.Woh_updates += dh_dWoh
+        self.b_o_updates += temp.sum(1).reshape((64,1))
 
         # d. cell
         temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
@@ -551,6 +565,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wcx_updates += dh_dWcx
         self.Wch_updates += dh_dWch
+        self.b_c_updates += temp.sum(1).reshape((64,1))
 
         # e. collect terms
         hherror = di_dh1 + df_dh1 + do_dh1 + dg_dh1
@@ -572,6 +587,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wix_updates += dh_dWix
         self.Wih_updates += dh_dWih
+        self.b_i_updates += temp.sum(1).reshape((64,1))
 
         # forget gate
         temp = error_c * self.c_t[tau-1] * self.net_f[tau]
@@ -584,6 +600,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wfx_updates += dh_dWfx
         self.Wfh_updates += dh_dWfh
+        self.b_f_updates += temp.sum(1).reshape((64,1))
 
         # cell
         temp = error_c * self.i_t[tau] * self.net_g[tau]
@@ -596,6 +613,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wcx_updates += dh_dWcx
         self.Wch_updates += dh_dWch
+        self.b_c_updates += temp.sum(1).reshape((64,1))
 
         cherror = dc_di_dh1 + dc_df_dh1 + dc_dg_dh1
 
@@ -611,8 +629,9 @@ class RecurrentLSTMLayer(Layer):
 
         if 0:
             ttemp2 = dh_dWfh[12, 55]  # for numerical gradient
-            print "layer.bprop: analytic dh_dWfh[tau=%d]= %e + %e = %e" % (
-                tau, ttemp1, ttemp2, ttemp1 + ttemp2)
+            logger.info("layer.bprop: analytic dh_dWfh[%d]= %e + %e = %e", (
+                tau, ttemp1, ttemp2, ttemp1 + ttemp2))
+
 
     def update(self, epoch):
         """
@@ -623,11 +642,14 @@ class RecurrentLSTMLayer(Layer):
         """
         self.learning_rule.apply_rule_LSTM(
             (self.Wix, self.Wfx, self.Wox, self.Wcx,
-             self.Wih, self.Wfh, self.Woh, self.Wch),
+             self.Wih, self.Wfh, self.Woh, self.Wch,
+             self.b_i, self.b_f, self.b_o, self.b_c),
             (self.Wix_updates, self.Wfx_updates,
              self.Wox_updates, self.Wcx_updates,
              self.Wih_updates, self.Wfh_updates,
-             self.Woh_updates, self.Wch_updates),
+             self.Woh_updates, self.Wch_updates,
+             self.b_i_updates, self.b_f_updates,
+             self.b_o_updates, self.b_c_updates),
             epoch)
 
 
