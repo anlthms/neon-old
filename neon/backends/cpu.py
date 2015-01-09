@@ -84,10 +84,10 @@ class CPUTensor(Tensor):
             int, array_like, CPUTensor: Transformed val
         """
         if isinstance(val, tuple):
-            val = tuple(x._tensor if isinstance(x, self.__class__) else x
-                        for x in val)
+            val = tuple(x._tensor.squeeze() if isinstance(x, self.__class__)
+                        else x for x in val)
         if isinstance(val, self.__class__):
-            val = val._tensor
+            val = val._tensor.squeeze()
         return val
 
     def asnumpyarray(self):
@@ -171,6 +171,10 @@ class CPUTensor(Tensor):
     def take(self, indices, axis=None):
         if type(indices) == self.__class__:
             indices = indices._tensor
+        # if indices are nx1 or 1xn, much of our code assumes these dims are
+        # collapsed, hence the squeeze call.
+        if type(indices) == np.ndarray:
+            indices = indices.squeeze()
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
@@ -984,8 +988,11 @@ class CPU(Backend):
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
             eslice = deltas.take(ofmlocs[dst], axis=0)
-            self.dot(inputs.take(rflinks, axis=0), eslice.transpose(),
-                     out=updatebuf)
+            if eslice.shape[1] > 1:
+                # vector eslices are treated as column vectors, so are already
+                # in the correct form, otherwise we need to flip.
+                eslice = eslice.transpose()
+            self.dot(inputs.take(rflinks, axis=0), eslice, out=updatebuf)
             self.add(out, updatebuf, out=out)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
@@ -1093,17 +1100,18 @@ class CPU(Backend):
                 self.add(bpropbuf[inds, col_inds], rdeltas[dst], bprop_slice)
                 bpropbuf[inds, col_inds] = bprop_slice[:]
             elif op == "avg" or op == "mean":
-                self.add(bpropbuf[links[dst]], rdeltas[dst], bprop_slice)
+                self.add(bpropbuf[links[dst]], rdeltas[dst].transpose(),
+                         bprop_slice)
                 bpropbuf[links[dst]] = bprop_slice[:]
             elif op == "l2":
                 inds = links[dst]
                 rf = rinputs.take(inds, axis=0)
-                denom = rfouts[dst].copy()
+                denom = rfouts[dst].transpose().copy()
                 # If the L2 norm is zero, the entire receptive field must be
                 # zeros. In that case, we set the L2 norm to 1 before using
                 # it to normalize the receptive field.
                 denom[denom._tensor == 0] = 1
-                self.divide(rf, denom, out=rf)
+                self.divide(rf, denom.repeat(rf.shape[0], axis=0), out=rf)
                 self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
                                                             fshape[1],
                                                             axis=0),

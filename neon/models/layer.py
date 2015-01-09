@@ -1926,11 +1926,13 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
                        self.conv.ofmsize * fm)
                 filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc], filt.transpose(),
-                                      out=self.prodbuf)
+                self.backend.multiply(error[loc].transpose().repeat(
+                    self.prodbuf.shape[0], axis=0),
+                    filt.transpose().repeat(self.prodbuf.shape[1], axis=1),
+                    out=self.prodbuf)
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, self.prodbuf,
                                       exerror_slice)
@@ -1949,10 +1951,10 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
                        self.conv.ofmsize * fm)
-                divout = self.output.take(loc, axis=0)
-                subout = self.subout.take(loc, axis=0)
+                divout = self.output.take(loc, axis=0).transpose()
+                subout = self.subout.take(loc, axis=0).transpose()
                 assert divout[subout.asnumpyarray() == 0].sum() == 0
                 subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
@@ -1965,15 +1967,18 @@ class LCNLayer(YAMLable):
                 frame = rrexinputs.take(rflinks, axis=0)
                 self.backend.multiply(frame, self.filters.transpose(),
                                       out=frame)
-                self.backend.multiply(frame, self.diverror[loc], out=frame)
+                self.backend.multiply(frame,
+                                      self.diverror[loc].transpose().repeat(
+                                          frame.shape[0], axis=0),
+                                      out=frame)
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
                 rframe_slice = rframe[fm:(fm + 1), self.fheight / 2,
                                       self.fwidth / 2]
                 self.backend.subtract(rframe_slice, divout, rframe_slice)
-                self.backend.multiply(error[loc],
-                                      frame, out=frame)
+                self.backend.multiply(error[loc].transpose().repeat(
+                    frame.shape[0], axis=0), frame, out=frame)
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, frame, exerror_slice)
         self.reshape_error()

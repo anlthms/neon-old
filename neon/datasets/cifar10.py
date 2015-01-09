@@ -116,7 +116,7 @@ class CIFAR10(Dataset):
         logger.info('loading: %s', filename)
         dict = deserialize(filename)
 
-        full_image = 'float32'(dict['data'])
+        full_image = np.float32(dict['data'])
         full_image /= 255.
 
         if self.dist_flag:
