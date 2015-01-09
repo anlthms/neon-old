@@ -178,8 +178,9 @@ class GBDist(GB):
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((targets[0].shape[0], self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        tempbuf1 = self.backend.zeros((targets[0].shape[0], self.batch_size))
+        tempbuf2 = self.backend.zeros((targets[0].shape[0], self.batch_size))
+        self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
         num_batches = len(inputs)
         for epoch in range(self.num_epochs):
