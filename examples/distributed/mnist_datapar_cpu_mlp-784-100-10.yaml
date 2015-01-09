@@ -14,23 +14,20 @@
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      dist_flag: *df,
-      dist_mode: &dm 'datapar', # data parallel
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-      # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
-      # datapar specific parameters:
-      batch_size: 300,
-      num_test_sample: 9900, #round down to a multiple of batch_size
-      # todo: following are for when mini-batches are also pickled
-      # num_nodes: 2,
-      # num_procs_per_node: 3,
-    },
-  ],
+  dataset: !obj:neon.datasets.mnist.MNIST {
+    dist_flag: *df,
+    dist_mode: &dm 'datapar', # data parallel
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+    # datapar specific parameters:
+    batch_size: 300,
+    num_test_sample: 9900, #round down to a multiple of batch_size
+    # todo: following are for when mini-batches are also pickled
+    # num_nodes: 2,
+    # num_procs_per_node: 3,
+  },
 
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
@@ -39,7 +36,6 @@
     num_epochs: 30,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     learning_rate: &lr 0.1,
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
@@ -68,7 +64,7 @@
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -83,7 +79,9 @@
         },
         nin: 100,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: node_normalized,
           scale: 4.0,
@@ -91,6 +89,9 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig

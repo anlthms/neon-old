@@ -9,6 +9,7 @@
     },
   },
 
+<<<<<<< HEAD
   datasets: [
     # Moby Dick data
     !obj:neon.datasets.mobydick.MOBYDICK {
@@ -18,7 +19,20 @@
       unrolls: &ur 4,
     },
   ],
+=======
+  dataset: &ds !obj:neon.datasets.mobydick.MOBYDICK {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10, # 10% gives 400 batches like in rnn2
+    unrolls: &ur 5, # how many letters the targets are ahead of the training
+  },
+>>>>>>> master
 
+  wp: &wt_init {
+  type: sparse_eigenvalued,
+  sparseness: 15,
+  eigenvalue: 1.2,
+  },
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
@@ -35,10 +49,10 @@
         pos: 0,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
-          lr_params: {
-            learning_rate: &lr 0.1,
+          lr_params: &lrp {
+            learning_rate: 0.1,
             backend: *be,
-            momentum_params: &mm {
+            momentum_params: {
               type: linear_monotone, # constant, nesterov dont work
               initial_coef: 0.9,
               saturated_coef: 0.99,
@@ -51,6 +65,7 @@
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
+<<<<<<< HEAD
         gate_activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: sparse_eigenvalued,
@@ -67,6 +82,10 @@
           loc: 0.0,
           scale: 0.1,
         },
+=======
+        weight_init: *wt_init,
+        weight_init_rec: *wt_init,
+>>>>>>> master
       },
       # output layer
       &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {
@@ -76,24 +95,18 @@
         pos: 1,
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
+          lr_params: *lrp,
         },
         nin: 64,
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: sparse_eigenvalued,
-          sparseness: 15,
-          eigenvalue: 1.2,
-        },
+        weight_init: *wt_init,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      backend: *be,
+      batch_size: *bs,
       olayer: *lastlayer,
     },
   },

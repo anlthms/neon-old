@@ -12,16 +12,13 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # CIFAR10 data
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 'halopar', # halo/tower split
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-    },
-  ],
+  dataset: !obj:neon.datasets.cifar10.CIFAR10 {
+    dist_flag: *df,
+    dist_mode: 'halopar', # halo/tower split
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+  },
 
   # Google Brain model specification
   model: !obj:neon.models.gb_dist.GBDist {
@@ -33,10 +30,8 @@
     pretraining: &pt True,
     visualize: False,
     spot_check: False,
-    pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
     layers: [
-      !obj:neon.models.layer.LocalFilteringLayerDist {
+      &ilayer !obj:neon.models.layer.LocalFilteringLayerDist {
         name: layer0,
         pretraining: *pt,
         sparsity: &sp 0.1,
@@ -177,7 +172,7 @@
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LayerDist {
+      &lastlayer !obj:neon.models.layer.LayerDist {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -206,6 +201,12 @@
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
+    pretrain_cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {
+      olayer: *ilayer,
+    },
   },
 
   # logging options that are passed to logging.basicConfig

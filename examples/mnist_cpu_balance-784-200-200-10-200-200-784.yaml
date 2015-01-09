@@ -4,206 +4,144 @@
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+ !obj:neon.experiments.generate_output.GenOutputExperiment {
+  zparam: 0.0,
+  olayout: [12, 6],
+  fshape: [28, 28],
+  figure_filename: 'ofn.png',
+
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
+  # MNIST data
+  dataset: &ds !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
+
+  lrule: &adad {
+    type: adadelta,
+    lr_params: {
+      epsilon: 0.000001,
+      rho: 0.95,
       backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
+    },
+  },
+
+  wt_cfgs: [
+    &wt_init_a {
+      type: autoscale,
+      bias_init: 0.0,
+    },
+    &wt_init_b {
+      type: autoscale,
+      bias_init: 0.0,
+      relu: 1,
     },
   ],
 
-  # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  # simple Balance model specification
+  model: !obj:neon.models.balance.Balance {
+    # serialized_path: './balance-simple.pkl',
     backend: *be,
-    num_epochs: 30,
+    num_epochs: 20,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.Layer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        nout: 784,
+      },
+      &h0 !obj:neon.models.layer2.FCLayer {
         name: h0,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.1,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant, #constant, nesterov
-              initial_coef: 0.90,
-            },
-          },
-        },
-        nin: 784,
-        nout: 200,
+        lrule_init: *adad,
+        weight_init: *wt_init_b,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.01,
-          bias_init: 0.0,
-        },
-      },
-      &covlayer !obj:neon.models.layer.Layer {
-        name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 200,
         nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
-        weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
-        },
       },
-      !obj:neon.models.layer.BranchLayer {
+      &h1 !obj:neon.models.layer2.FCLayer {
+        name: h1,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
+        nout: 200,
+      },
+      &blayer !obj:neon.models.layer2.BranchLayer {
         name: blayer,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        nin: 200,
         sublayers: [
-          !obj:neon.models.layer.Layer {
-            name: output,
-            backend: *be,
-            batch_size: *bs,
-            pos: 2,
-            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-              name: outputlr,
-              lr_params: {
-                learning_rate: *lr,
-                backend: *be,
-                momentum_params: *mm,
-              },
-            },
-            nin: 200,
-            nout: 10,
+          &classlayer !obj:neon.models.layer2.FCLayer {
+            name: classlayer,
+            lrule_init: *adad,
+            weight_init: *wt_init_a,
             activation: !obj:neon.transforms.softmax.Softmax {},
-            weight_init: {
-              type: node_normalized,
-              scale: 4.0,
-              bias_init: 0.0,
-            },
+            nout: &zidx 10,
           },
-          !obj:neon.models.layer.Layer {
-            name: output,
-            backend: *be,
-            batch_size: *bs,
-            pos: 2,
-            learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-              name: outputlr,
-              lr_params: {
-                learning_rate: *lr,
-                backend: *be,
-                momentum_params: *mm,
-              },
-            },
-            nin: 200,
+          &stylelayer !obj:neon.models.layer2.FCLayer {
+            name: stylelayer,
+            lrule_init: *adad,
+            weight_init: *wt_init_a,
             nout: 2,
-            activation: !obj:neon.transforms.softmax.Softmax {},
-            weight_init: {
-              type: node_normalized,
-              scale: 4.0,
-              bias_init: 0.0,
-            },
           },
         ],
       },
-      !obj:neon.models.layer.Layer {
-        name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 12,
+      &h3 !obj:neon.models.layer2.FCLayer {
+        name: h3,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
         nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
-        weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
-        },
       },
-      !obj:neon.models.layer.Layer {
-        name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 200,
+      &h4 !obj:neon.models.layer2.FCLayer {
+        name: h4,
+        lrule_init: *adad,
+        weight_init: *wt_init_b,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         nout: 200,
-        activation: !obj:neon.transforms.rectified.Rectlin {},
-        weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
-        },
       },
-      &outlayer !obj:neon.models.layer.Layer {
-        name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 200,
+      &outlayer !obj:neon.models.layer2.FCLayer {
+        name: outlayer,
+        lrule_init: *adad,
+        weight_init: *wt_init_a,
         nout: 784,
-        activation: !obj:neon.transforms.linear.Linear {},
-        weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
+      },
+      &sumsqcostlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        ref_label: output,
+        cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
+      },
+    ],
+    classlayers: [
+      *datalayer,
+      *h0,
+      *h1,
+      *classlayer,
+      &xentcostlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+          scale: 10,
         },
       },
     ],
-    cost: [
-      !obj:neon.transforms.sum_squared.SumSquaredDiffs {
-        olayer: *outlayer,
-      },
-      !obj:neon.transforms.cross_entropy.CrossEntropy {},
-      !obj:neon.transforms.xcov.XCovariance {
-        olayer: *covlayer,
+    stylelayers: [
+      *datalayer,
+      *h0,
+      *h1,
+      *blayer,
+      &xcovcostlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.xcov.XCovariance {
+          blkidx: 10,
+          scale: 10,
+        },
       },
     ],
+    zidx: *zidx,
   },
 
   # logging options that are passed to logging.basicConfig

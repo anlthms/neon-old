@@ -6,17 +6,18 @@ Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 """
 
+import cudanet
 import logging
 import numpy
-from neon.util.compat import MPI_INSTALLED, range
-if MPI_INSTALLED:
-    from mpi4py import MPI
 import math
-import cudanet
 import os
 
 from neon.backends.backend import Backend, Tensor
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.error import TooSlowToImplementError
+
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +30,10 @@ class GPUTensor(Tensor):
     cudanet is derived from cuda-convnet2.
 
     Arguments:
-        obj (numpy.ndarray): the actual data values (will be converted
+        obj (numpy.ndarray): The actual data values (will be converted
                              to a 2-d row matrix).  Python built-in types like
                              lists and tuples are also supported.
-        dtype (None, optional): underlying data type of the elements.
+        dtype (None, optional): Underlying data type of the elements.
                                 Not needed/used for this backend.
     """
     _tensor = None
@@ -83,7 +84,10 @@ class GPUTensor(Tensor):
             numpy.ndarray: Representation of the underlying
                            `cudanet.CUDAMatrix` tensor
         """
-        return self._tensor.asarray()
+        if type(self._tensor) == cudanet.CUDAMatrix:
+            return self._tensor.asarray()
+        else:
+            return self._tensor
 
     def __setstate__(self, state):
         """
@@ -243,195 +247,6 @@ class GPUTensor(Tensor):
 
     def __float__(self):
         raise NotImplementedError()
-
-    def __neg__(self):
-        return -1 * self
-
-    def __add__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-        Now supports limited broadcasting to add a vector to a matrix.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: containing the element-wise sum values.
-        """
-
-        if self.shape == other.shape:
-            target = cudanet.empty(self.shape)
-            if isinstance(other, GPUTensor):
-                self._tensor.add(other._tensor, target)
-            else:
-                self._tensor.add(other, target)
-            return GPUTensor(target)
-        else:
-            if other.shape[1] == 1:  # [Nx1] vector
-                ones = cudanet.empty((self.shape[0], 1))
-                ones.assign(1)
-                # outer product repmat (probably quite inefficient)
-                other = GPUTensor(cudanet.dot(ones, other._tensor.transpose()))
-            else:  # [1xN] vector
-                ones = cudanet.empty((self.shape[0], 1))
-                ones.assign(1)
-                other = GPUTensor(cudanet.dot(ones, other._tensor))
-            target = cudanet.empty(self.shape)
-            if isinstance(other, GPUTensor):
-                self._tensor.add(other._tensor, target)
-            else:
-                self._tensor.add(other, target)
-            return GPUTensor(target)
-
-    def __radd__(self, other):
-        """
-        Perform element-wise addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: containing the element-wise sum values.
-        """
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.add(other._tensor, target)
-        else:
-            self._tensor.add(other, target)
-        return GPUTensor(target)
-
-    def __iadd__(self, other):
-        """
-        Perform element-wise in-place addition with the items in other.
-
-        Arguments:
-            other (Tensor): The Tensor to add.  Must have the same
-                            dimensions as this Tensor, or be broadcastable
-                            as such.
-
-        Returns:
-            GPUTensor: updated view of this Tensor
-        """
-        if isinstance(other, GPUTensor):
-            self._tensor.add(other._tensor)
-        else:
-            self._tensor.add(other)
-        return self
-
-    def __sub__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.subtract(other._tensor, target)
-        else:
-            self._tensor.subtract(other, target)
-        return GPUTensor(target)
-
-    def __rsub__(self, other):
-        target = cudanet.empty(self.shape)
-        self._tensor.mult(-1.0, target)
-        if isinstance(other, GPUTensor):
-            target.add(other._tensor)
-        else:
-            target.add(other)
-        return GPUTensor(target)
-
-    def __isub__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.subtract(other._tensor)
-        else:
-            self._tensor.subtract(other)
-        return self
-
-    def __mul__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.mult(other._tensor, target)
-        else:
-            self._tensor.mult(other, target)
-        return GPUTensor(target)
-
-    def __rmul__(self, other):
-        return self * other
-
-    def __imul__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.mult(other._tensor)
-        else:
-            self._tensor.mult(other)
-        return self
-
-    def __div__(self, other):
-        # python2 floor rounded division
-        return self.__truediv__(other)
-
-    def __truediv__(self, other):
-        # python3 fractional division
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor, target)
-        else:
-            self._tensor.divide(other, target)
-        return GPUTensor(target)
-
-    def __rdiv__(self, other):
-        return self.__rtruediv__(other)
-
-    def __rtruediv__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, (float, int)):
-            other = GPUTensor(other * numpy.ones(self.shape))
-        if isinstance(other, GPUTensor):
-            other._tensor.divide(self._tensor, target)
-        elif isinstance(other, cudanet.CUDAMatrix):
-            other.divide(self._tensor, target)
-        else:
-            return NotImplemented
-        return GPUTensor(target)
-
-    def __idiv__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor)
-        else:
-            self._tensor.divide(other)
-        return self
-
-    def __itruediv__(self, other):
-        if isinstance(other, GPUTensor):
-            self._tensor.divide(other._tensor)
-        else:
-            self._tensor.divide(other)
-        return self
-
-    def __pow__(self, other, modulo=None):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, GPUTensor):
-            cudanet.pow(self._tensor, other._tensor, target)
-        else:
-            cudanet.pow(self._tensor, other, target)
-        return GPUTensor(target)
-
-    def __rpow__(self, other):
-        target = cudanet.empty(self.shape)
-        if isinstance(other, (float, int)):
-            other = GPUTensor(other)
-        if isinstance(other, GPUTensor):
-            cudanet.pow(other._tensor, self._tensor, target)
-        elif isinstance(other, cudanet.CUDAMatrix):
-            cudanet.pow(other, self._tensor, target)
-        else:
-            return NotImplemented
-        return GPUTensor(target)
-
-    def __ipow__(self, other):
-        if isinstance(other, GPUTensor):
-            cudanet.pow(self._tensor, other._tensor)
-        else:
-            cudanet.pow(self._tensor, other)
-        return self
 
     def copy(self):
         return GPUTensor(self._tensor.copy())
@@ -658,27 +473,42 @@ class GPU(Backend):
             numpy.ones(shape, dtype=dtype)))
 
     def wrap(self, obj):
+        """
+        Convert obj to a GPUTensor (if it is not already).  Useful for
+        transforming scalars like ints and floats.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to convert.
+
+        Returns:
+            GPUTensor: Potentially converted object.
+        """
         return GPUTensor(obj)
+
+    def _unwrap(self, obj):
+        """
+        Helper that extracts and returns the raw data underlying obj (if it is
+        a GPUTensor), otherwise returns the existing structure.
+
+        Arguments:
+            obj (int, float, GPUTensor): The object to extract raw data from
+
+        Returns:
+            int, float, cudanet.CUDAMatrix: raw data from object.
+
+        See Also:
+            `wrap`
+        """
+        if isinstance(obj, self.tensor_cls):
+            return obj._tensor
+        else:
+            return obj
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
         cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
         return out
-
-        # storage needed here is pretty atrocious.  Any way we could speed this
-        # up?  Would iterating element wise be faster?
-        # clip_mask = cudanet.empty((a.shape[0], a.shape[1]))
-        # clip_vals = cudanet.empty((a.shape[0], a.shape[1]))
-        # # clip values < a_min to a_min in out
-        # a._tensor.less_than(a_min, clip_mask)
-        # clip_vals.assign(a_min)
-        # cudanet.where(clip_mask, clip_vals, a._tensor, out._tensor)
-        # # clip values > a_max to a_max in out
-        # out._tensor.greater_than(a_max, clip_mask)
-        # clip_vals.assign(a_max)
-        # cudanet.where(clip_mask, clip_vals, out._tensor, out._tensor)
-        # return out
 
     def rng_init(self):
         seed = None
@@ -731,24 +561,115 @@ class GPU(Backend):
     def dot(self, a, b, out):
         cudanet.dot(a._tensor, b._tensor, out._tensor)
 
-    def add(self, a, b, out):
-        if type(a._tensor) != cudanet.CUDAMatrix:
-            b._tensor.add(a._tensor, out._tensor)
-        else:
-            a._tensor.add(b._tensor, out._tensor)
+    def add(self, left, right, out):
+        """
+        Perform element-wise addition on the operands left and right, storing
+        the result in the GPUTensor out.  Each operand and out is assumed to
+        have identical shape, or be broadcastable as such.
 
-    def subtract(self, a, b, out):
-        if type(a._tensor) != cudanet.CUDAMatrix:
-            b._tensor.subtract(a._tensor, out._tensor)
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.add(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.add(left, out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.add(right, out._tensor)
+        return out
+
+    def subtract(self, left, right, out):
+        """
+        Perform element-wise subtraction on the operands left and right,
+        storing the result in the GPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.subtract(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.subtract(left, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
-            a._tensor.subtract(b._tensor, out._tensor)
+            left = self.wrap(left)
+            left._tensor.subtract(right, out._tensor)
+        return out
 
-    def multiply(self, a, b, out):
-        a._tensor.mult(b._tensor, target=out._tensor)
+    def multiply(self, left, right, out):
+        """
+        Perform element-wise multiplication on the operands left and right,
+        storing the result in the GPUTensor out.  Each operand and out is
+        assumed to have identical shape, or be broadcastable as such.
 
-    def divide(self, a, b, out):
-        a._tensor.divide(b._tensor, out._tensor)
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.mult(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.mult(left, out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.mult(right, out._tensor)
+        return out
+
+    def divide(self, left, right, out):
+        """
+        Perform element-wise division on the operands left and right, storing
+        the result in out.  Each operand and out is assumed to have identical
+        shape, or be broadcastable as such.
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(left, self.tensor_cls):
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        else:
+            left = self.wrap(left)
+            left._tensor.divide(self._unwrap(right), out._tensor)
+        return out
+
+    def power(self, tsr, power, out):
+        """
+        Perform element-wise raise of tsr values to specified power,
+        storing the result in GPUTensor out.  Both GPUTensor's should have
+        identical shape.
+
+        Arguments:
+            tsr (GPUTensor): input to be transformed.
+            power (GPUTensor, numeric): Exponentiated value to be applied to
+                                        elements.  Examples include 2 (square),
+                                        0.5 (sqaure root).
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        cudanet.pow(tsr._tensor, self._unwrap(power), out._tensor)
+        return out
 
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
@@ -891,7 +812,10 @@ class GPU(Backend):
             self.not_equal(tsr, tmp, tmp)
             res = tmp.sum(axis, out)
         else:
-            res = ((self.fabs(tsr) ** order).sum(axis, out)) ** (1.0 / order)
+            tmp = self.empty(tsr.shape)
+            self.power(self.fabs(tsr), order, tmp)
+            res = tmp.sum(axis, out)
+            self.power(res, (1.0 / order), res)
         if out is None:
             out = res
         else:
@@ -905,7 +829,7 @@ class GPU(Backend):
         cudanet.xcov(a._tensor, b._tensor, out._tensor)
 
     def mean_norm(self, a, axis, out):
-        cudanet.mean_norm(a._tensor, axis, out._tensor)
+        a._tensor.mean_norm(axis, out._tensor)
 
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
@@ -1067,95 +991,424 @@ class GPU(Backend):
         Compute the updated gradient for a fully connected network layer.
 
         Arguments:
-            out (CPUTensor): Where to store the updated gradient value.
-            inputs (CPUTensor): Will be either the dataset input values (first
+            out (GPUTensor): Where to store the updated gradient value.
+            inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
-            deltas (CPUTensor): The error values for this layer
+            deltas (GPUTensor): The error values for this layer
         """
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
-    def fprop_conv(self, weights, inputs, outputs, links, ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, prodbuf):
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).  For this
+                              backend we expect these values to be square.
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  convolved outputs for a single receptive
+                                  field.  Not used for this backend.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+        """
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(
-            weights._tensor, inputs._tensor, outputs._tensor,
+            weights._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
             ngroups)
 
-    def bprop_conv(self, weights, error, berror, links,  ifmshape, ofmshape,
-                   ofmlocs, padding, stride, nifm, ngroups, bpropbuf):
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+        """
         cudanet.deconvolve_errors(
-            weights._tensor, error._tensor,
-            berror._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
+            weights._tensor, deltas._tensor,
+            out._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
             padding, stride, nifm, ngroups)
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
-                    updatebuf):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
+                    updatebuf, local=False):
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the updated gradient value.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (GPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+        """
         cudanet.deconvolve_wts(
-            error._tensor, inputs._tensor, updates._tensor,
+            deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[0])
+            padding, stride, nifm, ngroups, ofmshape[0], local)
 
-    def fprop_mpool(self, inputs, outputs, outputsbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        cudanet.max_pool(
-            inputs._tensor, outputs._tensor, nfm, fshape[1],
-            padding, stride, ofmshape[1])
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
 
-    def bprop_mpool(self, inputs, outputs, error, berror, berrorbuf, links,
-                    ifmshape, ofmshape, fshape, padding, stride, nfm, maxinds):
-        cudanet.max_pool_undo(
-            inputs._tensor, error._tensor, outputs._tensor,
-            berror._tensor, fshape[1], padding, stride, ofmshape[1])
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                                 each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  pooled outputs for a single receptive field.
+        """
+        op = op.lower()
+        if op == "max":
+            cudanet.max_pool(inputs._tensor, out._tensor, nifm, fshape[1],
+                             padding, stride, ofmshape[1])
+        elif op == "avg" or op == "mean":
+            cudanet.avg_pool(
+                imgs=inputs._tensor, target=out._tensor, channels=nifm,
+                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
+        elif op == "l2":
+            cudanet.l2_pool(
+                imgs=inputs._tensor, target=out._tensor, channels=nifm,
+                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
+        elif op == "unpool":
+            cudanet.unpool_forward(
+                smallMat=inputs._tensor, largeMat=out._tensor, channels=nifm,
+                sizeX=fshape[1], smallX=ifmshape[1], largeX=ofmshape[1])
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
 
-    def fprop_cmrnorm(self, inputs, outputs, ifmshape, nfm, ksize, alpha,
-                      beta):
-        cudanet.crossmap_response_norm(
-            inputs._tensor, outputs._tensor, nfm, ksize, alpha, beta)
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
 
-    def bprop_cmrnorm(self, inputs, outputs, error, berror, ifmshape, nfm,
-                      ksize, alpha, beta, tempbuf):
-        cudanet.crossmap_response_norm_undo(
-            inputs._tensor, error._tensor, outputs._tensor,
-            berror._tensor, nfm, ksize, alpha, beta)
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            fouts (GPUTensor): Forward propagated outputs from the previous
+                               layer.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (GPUTensor): The error values for this layer
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (GPUTensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (GPUTensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            bpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  backpropagated error for a single receptive
+                                  field
+        """
+        op = op.lower()
+        if op == "max":
+            cudanet.max_pool_undo(inputs._tensor, deltas._tensor,
+                                  fouts._tensor, out._tensor, fshape[1],
+                                  padding, stride, ofmshape[1])
+        elif op == "avg" or op == "mean":
+            cudanet.avg_pool_undo(
+                avgGrads=deltas._tensor, target=out._tensor, sizeX=fshape[0],
+                paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+        elif op == "l2":
+            cudanet.l2_pool_undo(
+                imgs=inputs._tensor, l2Grads=deltas._tensor,
+                l2Acts=fouts._tensor, target=out._tensor, sizeX=fshape[0],
+                paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[0])
+        elif op == "unpool":
+            cudanet.unpool_backward(
+                largeMat=inputs._tensor, smallMat=out._tensor,
+                channels=nifm, sizeX=fshape[1], smallX=ifmshape[1],
+                largeX=ofmshape[1])
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
 
-    def fprop_apool(self, inputs, outputs, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        cudanet.avg_pool(imgs=inputs, target=outputs, channels=nfm,
-                         sizeX=fshape[0], paddingStart=padding,
-                         moduleStride=stride, numModulesX=ofmshape[0])
+    def fprop_cmrnorm(self, out, inputs, ifmshape, nifm, ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a CrossMap response normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed across feature
+        maps at each pixel point.  The output will be same size as input.
 
-    def bprop_apool(self, outputs, error, berror, links, ifmshape, ofmshape,
-                    fshape, padding, stride, nfm):
-        cudanet.avg_pool_undo(avgGrads=error, target=berror, sizeX=fshape[0],
-                              paddingStart=padding, moduleStride=stride,
-                              numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
+        cudanet.crossmap_response_norm(inputs._tensor, out._tensor, nifm,
+                                       ksize, alpha, beta)
 
-    def fprop_l2pool(self, inputs, outputs, links, ifmshape, ofmshape,
-                     fshape, padding, stride, nfm):
-        cudanet.l2_pool(imgs=inputs, target=outputs, channels=nfm,
-                        sizeX=fshape[0], paddingStart=padding,
-                        moduleStride=stride, numModulesX=ofmshape[0])
+    def bprop_cmrnorm(self, out, fouts, inputs, deltas, ifmshape, nifm, ksize,
+                      alpha, beta, bpropbuf):
+        """
+        Backward propagate the error through a CrossMap response normalization
+        layer.
 
-    def bprop_l2pool(self, inputs, outputs, error, berror, links, ifmshape,
-                     ofmshape, fshape, padding, stride, nfm, prodbuf):
-        cudanet.l2_pool_undo(imgs=inputs, l2Grads=error, l2Acts=outputs,
-                             target=berror, sizeX=fshape[0],
-                             paddingStart=padding, moduleStride=stride,
-                             numModulesX=ofmshape[0])
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            fouts (GPUTensor): The forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (GPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            bpropbuf (GPUTensor): Temporary storage buffer used to hold the
+                                  normalized outputs for a single receptive
+                                  field.
+        """
+        cudanet.crossmap_response_norm_undo(inputs._tensor, deltas._tensor,
+                                            fouts._tensor, out._tensor, nifm,
+                                            ksize, alpha, beta)
 
-    def fprop_cmpool(self, inputs, weights, fmsize, out):
-        raise NotImplementedError("TODO!")
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
 
-    def bprop_cmpool(self, deltas, weights, fmsize, out):
-        raise NotImplementedError("TODO!")
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (GPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (GPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        cudanet.local_contrast_norm(imgs=inputs._tensor,
+                                    meanDiffs=meandiffs._tensor,
+                                    denoms=denoms._tensor, target=out._tensor,
+                                    imgSizeX=ifmshape[0], channels=nifm,
+                                    sizeX=ksize, scale=alpha, power=beta)
 
-    def update_cmpool(self, deltas, inputs, fmsize, updatebuf, out):
-        raise NotImplementedError("TODO!")
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            fouts (GPUTensor): The forward propagated results.
+            deltas (GPUTensor): The error values for this layer
+            meandiffs (GPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (GPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        cudanet.local_contrast_norm_undo(meanDiffs=meandiffs._tensor,
+                                         denoms=denoms._tensor,
+                                         respGrads=deltas._tensor,
+                                         respActs=fouts._tensor,
+                                         target=out._tensor,
+                                         channels=nifm,
+                                         sizeX=ksize, scale=alpha, power=beta)
+
+    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+        """
+        Forward propagate the inputs of a CrossMap Pooling layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        # Let's do this the naive way for now
+        cudanet.convolution(
+            weights._tensor, inputs._tensor, out._tensor,
+            ifmshape[0], ifmshape[0], ifmshape[1], 0, 1, weights.shape[0], 1)
+
+    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+        """
+        Backward propagate the error through a CrossMap pooling layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            weights (GPUTensor): The weight coefficient values for this layer.
+            deltas (GPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+        """
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+
+    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+        """
+        Compute the updated gradient for a CrossMap pooling layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the updated gradient value.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            deltas (GPUTensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            updatebuf (GPUTensor): Temporary storage buffer used to hold the
+                                   updated gradient for a single receptive
+                                   field
+        """
+        nfilters = out.shape[0]/inputs.shape[0]
+        cudanet.deconvolve_wts(
+            deltas._tensor, inputs._tensor, out._tensor, ifmshape[0],
+            ifmshape[0], ifmshape[1], 1, 0, 1, nfilters, 1, ifmshape[0])
+
+    def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
+                   rho, epsilon):
+        cudanet.adadelta_update(us_item._tensor, gs_item._tensor,
+                                ds_item._tensor, ls_item._tensor, rho,
+                                epsilon)
+        self.add(ps_item, ls_item, out=ps_item)
 
     def sync_stream(self):
         cudanet.sync_stream()
+
+    def set_weights(self, dev_weights, host_weights):
+        """
+        sets the GPUTensor dev_weights to the values in host_weights
+        """
+        dev_weights[:] = GPUTensor(numpy.array(host_weights, numpy.float32))
 
     def gen_weights(self, size, weight_params, dtype=None):
         """
@@ -1196,6 +1449,11 @@ class GPU(Backend):
             logger.info('generating %s normal(%0.2f, %0.2f) weights.',
                         str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
+        elif (weight_params['type'] == 'autoscale'):
+            low = 1.0/math.sqrt(size[0])
+            if 'relu' in weight_params:
+                low = low * math.sqrt(2)
+            weights = numpy.random.uniform(-low, low, size)
         elif (weight_params['type'] == 'sparse_eigenvalued'):
             # initialization for RNNS as in Sutskever 2013
             sparseness = 15
@@ -1267,16 +1525,16 @@ class GPUDataDist(GPU):
 
         out.copy_to_device()
 
-    def update_conv(self, weights, inputs, error, updates, links, ifmshape,
-                    ofmshape, ofmlocs, padding, stride, nifm, ngroups, fwidth,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
-        super(GPUDataDist, self).update_conv(weights, inputs, error, updates,
-                                             links, ifmshape, ofmshape,
-                                             ofmlocs, padding, stride, nifm,
+        super(GPUDataDist, self).update_conv(out, inputs, weights, deltas,
+                                             ofmshape, ofmlocs, ifmshape,
+                                             links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
 
-        updates.raw(False)[:] = MPI.COMM_WORLD.reduce(updates.raw(),
-                                                      op=MPI.SUM, root=0)
-        updates.raw(False)[:] = MPI.COMM_WORLD.bcast(updates.raw(False))
+        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
+                                                  root=0)
+        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
 
-        updates.copy_to_device()
+        out.copy_to_device()

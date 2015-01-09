@@ -7,81 +7,83 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
-    # set which numpy issues raise exceptions, warnings, etc.
-    # see: numpy.seterr()
     seterr_handling: {
       all: 'warn',
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
+  dataset: &ds !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
+
+  weight_inits: [
+    &wt_init {
+      type: normal,
+      loc: 0.0,
+      scale: 0.01,
+      bias_init: 0.0,
+    },
+    &wt_initb {
+      type: node_normalized,
+      scale: 4.0,
+      bias_init: 0.0,
     },
   ],
 
+  lrule: [
+    &gdm {
+      type: gradient_descent_momentum,
+      lr_params: {
+        learning_rate: 0.1,
+        backend: *be,
+        momentum_params: {
+          type: constant,
+          coef: 0.0,
+        },
+      },
+    },
+    &ada {
+      type: adadelta,
+      lr_params: {
+        rho: &ro 0.95,
+        epsilon: &eps 0.000001,
+        backend: *be,
+      },
+    },
+  ],
   # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 100,
-    serialized_path: './mlp-simple.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
-        name: h0,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant, # linear_monotone, nesterov
-              coef: 0.90,
-            },
-          },
-        },
-        nin: 784,
-        nout: 2000,
-        activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.01,
-          bias_init: 0.0,
-        },
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        nout: 784,
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
+        name: h0,
+        nout: 2000,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+      },
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 2000,
         nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_initb,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
-        },
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
 
   # logging options that are passed to logging.basicConfig

@@ -62,7 +62,7 @@ class MLPDist(MLP):
                                      'LayerWithNoBiasDist or LayerDist')
             layer.adjust_for_dist()
 
-    def fit(self, datasets):
+    def fit(self, dataset):
         """
         Learn model weights on the given datasets.
         """
@@ -70,17 +70,17 @@ class MLPDist(MLP):
             logger.debug("%s", str(layer))
         self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
-        ds = datasets[0]
+        ds = dataset
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_targets(train=True)['train']
-        assert 'batch_size' in self.__dict__
 
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in range(inputs.nbatches):
+            num_batches = len(inputs)
+            for batch in range(num_batches):
                 if self.comm.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -92,44 +92,44 @@ class MLPDist(MLP):
                 self.update(epoch)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
-                            error / inputs.nbatches)
+                            error / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def predict_set(self, ds, inputs, predsdict, setname):
+    def predict_set(self, ds, inputs):
+        for layer in self.layers:
+            layer.set_train_mode(False)
+        num_batches = len(inputs)
+        nout = self.layers[-1].nout
         if self.comm.rank == 0:
-            preds = self.backend.empty((inputs[setname].nbatches,
-                                       self.batch_size))
-            predsdict[setname] = preds
-
-        for batch in range(inputs[setname].nbatches):
-            inputs_batch = ds.get_batch(inputs[setname], batch)
+            preds = []
+        for batch in range(num_batches):
+            inputs_batch = ds.get_batch(inputs, batch)
+            preds_batch = self.backend.empty((nout, self.batch_size))
             self.fprop(inputs_batch)
-            if self.comm.rank == 0:
-                outputs = self.layers[-1].output
-                self.backend.argmax(outputs, axis=0,
-                                    out=preds[batch:(batch+1)])
+            preds_batch[:] = self.get_classifier_output()
+            preds.append(preds_batch)
+        return preds
 
-    def predict(self, datasets, train=True, test=True, validation=True):
+    def predict(self, train=True, test=True, validation=True):
         """
-        Generate and return predictions on the given datasets.
+        Generate and return predictions on the given dataset.
         """
-        res = []
-        for ds in datasets:
-            inputs = ds.get_inputs(train, test, validation)
-            predsdict = dict()
-            if train and 'train' in inputs:
-                self.predict_set(ds, inputs, predsdict, 'train')
-            if test and 'test' in inputs:
-                self.predict_set(ds, inputs, predsdict, 'test')
-            if validation and 'validation' in inputs:
-                self.predict_set(ds, inputs, predsdict, 'validation')
-            if self.comm.rank == 0:
-                if len(predsdict) is 0:
-                    logger.error("must specify >=1 of: train, test, "
-                                 "validation")
-                res.append(predsdict)
-        return res
+        ds = self.dataset
+        inputs = ds.get_inputs(train=train, test=test,
+                               validation=validation)
+        preds = dict()
+        if train and 'train' in inputs:
+            preds['train'] = self.predict_set(ds, inputs['train'])
+        if test and 'test' in inputs:
+            preds['test'] = self.predict_set(ds, inputs['test'])
+        if validation and 'validation' in inputs:
+            preds['validation'] = self.predict_set(ds,
+                                                   inputs['validation'])
+        if self.comm.rank == 0 and len(preds) is 0:
+            logger.error("must specify >=1 of: train, test, validation")
+
+        return preds
 
     def fprop(self, inputs):
         # call MLP's fprop: doesn't work for FC->FC connections
@@ -150,7 +150,7 @@ class MLPDist(MLP):
         # apply derivative on root node's FC layer output
         if self.comm.rank == 0:
             error = self.cost.apply_derivative(targets)
-            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
+            self.backend.divide(error, self.backend.wrap(self.batch_size),
                                 out=error)
         error._tensor = self.comm.bcast(error.raw())
         # Update the output layer.

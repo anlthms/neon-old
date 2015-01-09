@@ -27,7 +27,7 @@ def sum_squared_diffs(backend, outputs, targets, temp):
     return 0.5 * backend.sum(temp[0])
 
 
-def sum_squared_diffs_derivative(backend, outputs, targets, temp):
+def sum_squared_diffs_derivative(backend, outputs, targets, temp, scale=1.0):
     """
     Applies derivative of the sum of squared differences to pairwise elements
     from outputs and targets (with respect to the outputs).
@@ -44,6 +44,7 @@ def sum_squared_diffs_derivative(backend, outputs, targets, temp):
     """
 
     backend.subtract(outputs, targets, temp[0])
+    backend.multiply(temp[0], backend.wrap(scale), out=temp[0])
     return temp[0]
 
 
@@ -60,13 +61,16 @@ class SumSquaredDiffs(Cost):
             self.temp = [tempbuf]
         self.outputbuf = databuf
 
+    def get_berrbuf(self):
+        return self.temp[0]
+
     def apply_function(self, targets):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
         return sum_squared_diffs(self.backend, self.outputbuf,
-                                 targets, self.temp)
+                                 targets, self.temp) * self.scale
 
     def apply_derivative(self, targets):
         """
@@ -75,4 +79,4 @@ class SumSquaredDiffs(Cost):
         """
         return sum_squared_diffs_derivative(self.backend,
                                             self.outputbuf, targets,
-                                            self.temp)
+                                            self.temp, self.scale)

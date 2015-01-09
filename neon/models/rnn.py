@@ -24,28 +24,27 @@ class RNN(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['layers']:
+        for req_param in ['layers', 'batch_size']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
 
-    def fit(self, datasets):
-        self.grad_checker(datasets)  # check gradients first
+    def fit(self, dataset):
+        self.grad_checker(dataset)  # check gradients first
+
         """
-        Learn model weights on the given datasets.
+        Learn model weights on the given dataset.
         """
         for layer in self.layers:
             logger.info("%s", str(layer))
-        inputs = datasets[0].get_inputs(train=True)['train']
+        inputs = dataset.get_inputs(train=True)['train']
         # append an extra zero element to account for overflow
         # inputs = self.backend.zeros((inputset.shape[0]+1, inputset.shape[1]))
         # inputs[0:inputset.shape[0], 0:inputset.shape[1]] = inputset
         # no idea how to do this for the new data format!
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = nrecs
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
                                                    / self.unrolls)) - 1
@@ -116,7 +115,7 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def grad_checker(self, datasets):
+    def grad_checker(self, dataset):
         """
         Check gradients for LSTM layer:
           - W is replicated, only inject the eps once, repeat, average.
@@ -127,7 +126,7 @@ class RNN(Model):
         """
         for layer in self.layers:
             logger.info("%s", str(layer))
-        inputs = datasets[0].get_inputs(train=True)['train']
+        inputs = dataset[0].get_inputs(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
@@ -156,7 +155,8 @@ class RNN(Model):
 
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
-            logger.info("numpart for  tau=%d of %d is %e", tau, self.unrolls, num_part.raw())
+            logger.info("numpart for  tau=%d of %d is %e", tau,
+                        self.unrolls, num_part.raw())
             numerical += num_part
 
         # bprop for comparison
@@ -285,7 +285,8 @@ class RNN(Model):
             # output layers[1]:
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
-            error /= float(error.shape[0] * error.shape[1])
+            esize = error.shape[0] * error.shape[1]
+            self.backend.divide(error, self.backend.wrap(esize), out=error)
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1], tau)
 
@@ -350,7 +351,7 @@ class RNN(Model):
         return_buffer = return_buffer.transpose().reshape((-1,))
         return return_buffer
 
-    def predict(self, datasets, train=True, test=True, validation=False):
+    def predict(self, dataset, train=True, test=True, validation=False):
         """
         Iterate over data sets and call predict_set for each.
         This is called directly from the fit_predict_err experiment.
@@ -359,22 +360,19 @@ class RNN(Model):
             res: a list of (key,value) pairs, e.g. res[0]['train'] is a tensor
                  of class labels
         """
-        res = []
-        for dataset in datasets:
-            inputs = dataset.get_inputs(train=train, test=test)
-            preds = dict()
-            if train and 'train' in inputs:
-                preds['train'] = self.predict_set(inputs['train'])
-            if test and 'test' in inputs:
-                preds['test'] = self.predict_set(inputs['test'])
-            if validation and 'validation' in inputs:
-                preds['validation'] = self.predict_set(inputs['validation'])
-            if len(preds) is 0:
-                logger.error("must specify >=1 of: train, test, validation")
-            res.append(preds)
-        return res
+        inputs = dataset.get_inputs(train=train, test=test)
+        preds = dict()
+        if train and 'train' in inputs:
+            preds['train'] = self.predict_set(inputs['train'])
+        if test and 'test' in inputs:
+            preds['test'] = self.predict_set(inputs['test'])
+        if validation and 'validation' in inputs:
+            preds['validation'] = self.predict_set(inputs['validation'])
+        if len(preds) is 0:
+            logger.error("must specify >=1 of: train, test, validation")
+        return preds
 
-    def error_metrics(self, datasets, predictions, train=True, test=True,
+    def error_metrics(self, ds, preds, train=True, test=True,
                       validation=False):
         """
         Iterate over predictions from predict() and compare to the targets.
@@ -387,33 +385,31 @@ class RNN(Model):
             items.append('test')
         if validation:
             items.append('validation')
-        for idx in range(len(datasets)):
-            ds = datasets[idx]
-            preds = predictions[idx]
-            nin = self.layers[0].nin
-            targets = ds.get_inputs(train=True, test=True, validation=False)
-            targets['train'] = targets['train'][nin::, :]
-            targets['test'] = targets['test'][nin::, :]
-            for item in items:
-                if item in targets and item in preds:
-                    num_batches = targets[item].shape[0]/nin
-                    misclass = ds.backend.zeros(num_batches*nin)
-                    tempbuf = self.backend.zeros((num_batches+1,
-                                                  self.batch_size))
-                    for i in range(num_batches):
-                        ds.backend.argmax(targets[item][i*nin:(i+1)*nin, :],
-                                          axis=0, out=tempbuf[i, :])
-                    import numpy as np
-                    misclass = tempbuf.transpose().reshape((-1,))
-                    tmp = misclass[6000:6018].raw().astype(np.int8)
-                    logging.info("the target for %s is %s", item,
-                                 tmp.view('c'))
-                    tmp = preds[item][6000:6018].raw().astype(np.int8)
-                    logging.info("prediction for %s is %s", item,
-                                 tmp.view('c'))
-                    ds.backend.not_equal(preds[item], misclass, misclass)
-                    self.result = ds.backend.mean(misclass)
-                    logging.info("%s set misclass rate: %0.5f%%", item,
-                                 100 * self.result)
+
+        nin = self.layers[0].nin
+        targets = ds.get_inputs(train=True, test=True, validation=False)
+        targets['train'] = targets['train'][nin::, :]
+        targets['test'] = targets['test'][nin::, :]
+        for item in items:
+            if item in targets and item in preds:
+                num_batches = targets[item].shape[0]/nin
+                misclass = ds.backend.zeros(num_batches*nin)
+                tempbuf = self.backend.zeros((num_batches+1,
+                                              self.batch_size))
+                for i in range(num_batches):
+                    ds.backend.argmax(targets[item][i*nin:(i+1)*nin, :],
+                                      axis=0, out=tempbuf[i, :])
+                import numpy as np
+                misclass = tempbuf.transpose().reshape((-1,))
+                tmp = misclass[6000:6018].raw().astype(np.int8)
+                logging.info("the target for %s is %s", item,
+                             tmp.view('c'))
+                tmp = preds[item][6000:6018].raw().astype(np.int8)
+                logging.info("prediction for %s is %s", item,
+                             tmp.view('c'))
+                ds.backend.not_equal(preds[item], misclass, misclass)
+                self.result = ds.backend.mean(misclass)
+                logging.info("%s set misclass rate: %0.5f%%", item,
+                             100 * self.result)
         # TODO: return values instead?
         trace()  # just used to keep figures open

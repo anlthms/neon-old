@@ -23,8 +23,12 @@ class GB(MLP):
     """
     Google Brain class
     """
+    def __init__(self, **kwargs):
+        super(GB, self).__init__(**kwargs)
+        self.pretrain_cost.initialize(kwargs)
 
     def pretrain(self, ds, inputs):
+        num_batches = len(inputs)
         start_time = time.time()
         logger.debug('commencing unsupervised pretraining')
         for ind in range(len(self.trainable_layers)):
@@ -35,7 +39,7 @@ class GB(MLP):
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
-                for batch in range(inputs.nbatches):
+                for batch in range(num_batches):
                     logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
@@ -51,9 +55,9 @@ class GB(MLP):
                 tcost = trcost + tspcost
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
                             ' %0.2f', self.trainable_layers[ind], epoch,
-                            trcost / inputs.nbatches,
-                            tspcost / inputs.nbatches,
-                            tcost / inputs.nbatches)
+                            trcost / num_batches,
+                            tspcost / num_batches,
+                            tcost / num_batches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
@@ -71,13 +75,14 @@ class GB(MLP):
         """
         Learn model weights on the given datasets.
         """
+        num_batches = len(inputs)
         logger.info('commencing supervised training')
-        tempbuf = self.backend.empty((targets.nrows, self.batch_size))
+        tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
         self.temp = [tempbuf, tempbuf.copy()]
         start_time = time.time()
         for epoch in range(self.num_epochs):
             error = 0.0
-            for batch in range(inputs.nbatches):
+            for batch in range(num_batches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
@@ -92,7 +97,7 @@ class GB(MLP):
                 else:
                     self.update(epoch)
             logger.info('epoch: %d, training error: %0.5f',
-                        epoch, error / inputs.nbatches)
+                        epoch, error / num_batches)
         end_time = time.time()
         logger.info('Time taken: %0.2f', end_time - start_time)
 
@@ -162,12 +167,11 @@ class GB(MLP):
     def update_last(self, epoch):
         self.layers[-1].update(epoch)
 
-    def fit(self, datasets):
-        ds = datasets[0]
+    def fit(self, ds):
         inputs = ds.get_inputs(train=True)['train']
-        self.nin, self.nrecs = inputs.shape
+        self.nrecs = len(inputs) * self.batch_size
+        self.nin = inputs[0].shape[0]
         self.nlayers = len(self.layers)
-        assert 'batch_size' in self.__dict__
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]

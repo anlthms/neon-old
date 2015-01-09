@@ -175,13 +175,13 @@ class Backend(YAMLable):
 
     def add(self, left, right, out):
         """
-        Perform element-wise addition on the Tensor operands, storing the
-        resultant values in the out Tensor.  Each operand and out must have
-        identical shape or be broadcastable as such.
+        Perform element-wise addition on the operands, storing the resultant
+        values in the out Tensor.  Each operand and out must have identical
+        shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -194,13 +194,13 @@ class Backend(YAMLable):
 
     def subtract(self, left, right, out):
         """
-        Perform element-wise subtraction on the Tensor operands, storing the
-        resultant values in the out Tensor.  Each operand and out must have
-        identical shape or be broadcastable as such.
+        Perform element-wise subtraction on the operands, storing the resultant
+        values in the out Tensor.  Each operand and out must have identical
+        shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -213,13 +213,13 @@ class Backend(YAMLable):
 
     def multiply(self, left, right, out):
         """
-        Perform element-wise multiplication on the Tensor operands, storing the
+        Perform element-wise multiplication on the operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
         identical shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -232,13 +232,13 @@ class Backend(YAMLable):
 
     def divide(self, left, right, out):
         """
-        Perform element-wise division on the Tensor operands, storing the
+        Perform element-wise division on the operands, storing the
         resultant values in the out Tensor.  Each operand and out must have
         identical shape or be broadcastable as such.
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -293,8 +293,9 @@ class Backend(YAMLable):
 
         Arguments:
             tsr (Tensor): input to be transformed.
-            power (numeric): exponentiated value to be applied to element.
-                             Examples include 2 (square), 0.5 (sqaure root).
+            power (Tensor, numeric): exponentiated value to be applied to
+                                     element.  Examples include 2 (square),
+                                     0.5 (sqaure root).
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -650,6 +651,357 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
+        """
+        Forward propagate the inputs of a convolutional network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fpropbuf (Tensor): Temporary storage buffer used to hold the
+                               convolved outputs for a single receptive field.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
+        """
+        Backward propagate the error through a convolutional network layer.
+
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            bpropbuf (Tensor): Temporary storage buffer used to hold the
+                               backpropagated error for a single receptive
+                               field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
+                    updatebuf, local=False):
+        """
+        Compute the updated gradient for a convolutional network layer.
+
+        Arguments:
+            out (Tensor): Where to store the updated gradient value.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           convolution operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            ngroups (int): Number of groups.
+            fwidth (int): Filter width.
+            updatebuf (Tensor): Temporary storage buffer used to hold the
+                                updated gradient for a single receptive
+                                field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
+                   links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              number of height and width neurons).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            fpropbuf (Tensor): Temporary storage buffer used to hold the
+                               pooled outputs for a single receptive field.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
+                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
+
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            fouts (Tensor): Forward propagated outputs from the previous layer.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            deltas (Tensor): The error values for this layer
+            op (string): The type of pooling operation to apply.  We support
+                         "max", "avg", "l2" currently.
+            ofmshape (tuple): Dimensions of each output feature map (typically
+                              height and width).
+            ofmlocs (Tensor): Indices giving the location of each element in
+                              each output feature map stored in out.
+            fshape (tuple): Dimensions of each filter (typically height and
+                            width).
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            links (Tensor): Input receptive field indices.
+            nifm (int): Total number of input feature maps.
+            padding (int): Number of additional elements to include along each
+                           dimension of each local receptive field during the
+                           pooling operation.
+            stride (int): Number of neurons to shift the filter at each step.
+            bpropbuf (Tensor): Temporary storage buffer used to hold the
+                               backpropagated error for a single receptive
+                               field
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def fprop_cmrnorm(self, out, inputs, ifmshape, nifm, ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a CrossMap response normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed across feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            fpropbuf (Tensor): Temporary storage buffer used to hold the
+                               normalized outputs for a single receptive field.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_cmrnorm(self, out, fouts, inputs, deltas, ifmshape, nifm, ksize,
+                      alpha, beta, bpropbuf):
+        """
+        Backward propagate the error through a CrossMap response normalization
+        layer.
+
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            fouts (Tensor): The forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            deltas (Tensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+            bpropbuf (Tensor): Temporary storage buffer used to hold the
+                               normalized outputs for a single receptive field.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (Tensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (Tensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        raise NotImplementedError()
+
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+        NOTE:  This will overwrite the fouts
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            fouts (Tensor): The forward propagated results.
+            deltas (Tensor): The error values for this layer
+            meandiffs (Tensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (Tensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        raise NotImplementedError()
+
+    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+        """
+        Forward propagate the inputs of a CrossMap Pooling layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            weights (Tensor): The weight coefficient values for this layer.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+        """
+        Backward propagate the error through a CrossMap pooling layer.
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            weights (Tensor): The weight coefficient values for this layer.
+            deltas (Tensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+        """
+        Compute the updated gradient for a CrossMap pooling layer.
+
+        Arguments:
+            out (Tensor): Where to store the updated gradient value.
+            inputs (Tensor): Will be either the dataset input values (first
+                             layer), or the outputs from the previous layer.
+            deltas (Tensor): The error values for this layer
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              height and width).
+            updatebuf (Tensor): Temporary storage buffer used to hold the
+                                updated gradient for a single receptive
+                                field
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
 
 class Tensor(object):
     """
@@ -670,7 +1022,7 @@ class Tensor(object):
                       backend.
 
     Raises:
-        NotImplmentedError: Can't be instantiated directly.
+        NotImplementedError: Can't be instantiated directly.
     """
     shape = None
     dtype = None
