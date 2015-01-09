@@ -652,7 +652,8 @@ class Backend(YAMLable):
         raise NotImplementedError()
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf):
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
         produce output pre-activations (ready for transformation by an
@@ -678,6 +679,8 @@ class Backend(YAMLable):
             ngroups (int): Number of groups.
             fpropbuf (Tensor): Temporary storage buffer used to hold the
                                convolved outputs for a single receptive field.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -685,7 +688,8 @@ class Backend(YAMLable):
         raise NotImplementedError()
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf):
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
         """
         Backward propagate the error through a convolutional network layer.
 
@@ -709,6 +713,8 @@ class Backend(YAMLable):
             bpropbuf (Tensor): Temporary storage buffer used to hold the
                                backpropagated error for a single receptive
                                field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -717,7 +723,7 @@ class Backend(YAMLable):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+                    updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -744,6 +750,8 @@ class Backend(YAMLable):
             updatebuf (Tensor): Temporary storage buffer used to hold the
                                 updated gradient for a single receptive
                                 field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -876,6 +884,69 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (Tensor): Where to store the forward propagated results.
+            inputs (Tensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (Tensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (Tensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        raise NotImplementedError()
+
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+        NOTE:  This will overwrite the fouts
+        Arguments:
+            out (Tensor): Where to store the backward propagated errors.
+            fouts (Tensor): The forward propagated results.
+            deltas (Tensor): The error values for this layer
+            meandiffs (Tensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (Tensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        raise NotImplementedError()
+
     def fprop_cmpool(self, out, inputs, weights, ifmshape):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
@@ -951,7 +1022,7 @@ class Tensor(object):
                       backend.
 
     Raises:
-        NotImplmentedError: Can't be instantiated directly.
+        NotImplementedError: Can't be instantiated directly.
     """
     shape = None
     dtype = None

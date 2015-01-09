@@ -8,6 +8,7 @@ Cross entropy transform functions and classes.
 from neon.transforms.cost import Cost
 from neon.transforms.logistic import Logistic
 from neon.transforms.softmax import Softmax
+from neon.util.param import opt_param
 
 
 def cross_entropy(backend, outputs, targets, temp):
@@ -134,31 +135,27 @@ class CrossEntropy(Cost):
     """
     def __init__(self, **kwargs):
         super(CrossEntropy, self).__init__(**kwargs)
-        # The default cross entropy to use is where each output node
-        # can take on value with binary prob
-        if not hasattr(self, 'use_binary'):
-            self.use_binary = True
 
-        if not hasattr(self, 'shortcut_deriv'):
-            self.shortcut_deriv = False
-            if (isinstance(self.olayer.activation, Logistic)
-                    and self.use_binary):
-                self.shortcut_deriv = True
-
-            if (isinstance(self.olayer.activation, Softmax)
-                    and not self.use_binary):
-                self.shortcut_deriv = True
-
-        # Set the appropriate functions
-        self.ce_function = cross_entropy
-        self.cd_function = cross_entropy_derivative
-
-        if not self.use_binary:
+    def initialize(self, kwargs):
+        opt_param(self, ['shortcut_deriv'], True)
+        super(CrossEntropy, self).initialize(kwargs)
+        if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
-            self.cd_function = cross_entropy_multi_derivative
-
-        if self.shortcut_deriv:
-            self.cd_function = shortcut_derivative
+            if self.shortcut_deriv:
+                self.cd_function = shortcut_derivative
+                self.olayer.skip_act = True
+            else:
+                self.cd_function = cross_entropy_multi_derivative
+        elif isinstance(self.olayer.activation, Logistic):
+            self.ce_function = cross_entropy
+            if self.shortcut_deriv:
+                self.cd_function = shortcut_derivative
+                self.olayer.skip_act = True
+            else:
+                self.cd_function = cross_entropy_derivative
+        else:
+            self.ce_function = cross_entropy
+            self.cd_function = cross_entropy_derivative
 
     def __str__(self):
         return ("Cost Function: {bnry} {shrtct}\n".format(
@@ -169,6 +166,9 @@ class CrossEntropy(Cost):
             tempbuf = self.backend.empty(databuf.shape, self.temp_dtype)
             self.temp = [tempbuf, tempbuf.copy()]
         self.outputbuf = databuf
+
+    def get_berrbuf(self):
+        return self.temp[0]
 
     def apply_function(self, targets):
         """

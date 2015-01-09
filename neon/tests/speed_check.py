@@ -12,12 +12,12 @@ from neon.util.persist import deserialize
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Run sanity check examples')
-    parser.add_argument('--cpu', default=0, help='Run CPU sanity check',
+    parser = argparse.ArgumentParser(description='Run speed check examples')
+    parser.add_argument('--cpu', default=0, help='Run CPU speed check',
                         type=int)
-    parser.add_argument('--gpu', default=0, help='Run GPU sanity check',
+    parser.add_argument('--gpu', default=0, help='Run GPU speed check',
                         type=int)
-    parser.add_argument('--dist', default=0, help='Run distributed sanity ' +
+    parser.add_argument('--dist', default=0, help='Run distributed speed ' +
                         'check', type=int)
     return parser.parse_args()
 

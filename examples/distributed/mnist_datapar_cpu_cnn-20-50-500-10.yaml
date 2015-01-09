@@ -13,20 +13,17 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      dist_flag: *df,
-      dist_mode: &dm 'datapar', # data parallel
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-      # datapar specific parameters
-      batch_size: 300,
-      num_test_sample: 9900,
-    },
-  ],
-  
+  dataset: !obj:neon.datasets.mnist.MNIST {
+    dist_flag: *df,
+    dist_mode: &dm 'datapar', # data parallel
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+    # datapar specific parameters
+    batch_size: 300,
+    num_test_sample: 9900,
+  },
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
