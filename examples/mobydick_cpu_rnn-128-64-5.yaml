@@ -15,7 +15,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 10, # 10% gives 400 batches like in rnn2
-      unrolls: &ur 1,
+      unrolls: &ur 4,
     },
   ],
 
@@ -36,7 +36,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: {
-            learning_rate: &lr 0.0001,
+            learning_rate: &lr 0.1,
             backend: *be,
             momentum_params: &mm {
               type: linear_monotone, # constant, nesterov dont work
