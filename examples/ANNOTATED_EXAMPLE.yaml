@@ -38,10 +38,13 @@
 # -----------------
 # FitExperiment - train a model to learn a set of parameters
 # FitPredictErrorExperiment - as above, but also generate predictions and
-#                              evaluate performance
+#                             evaluate performance
 # GradientChecker - Use finite differences to check the gradients of an
 #                   experiment.  Currently this can be carried out using
 #                   the separately provided ``grad`` executable
+# GenOutputExperiment - fit experiment where at the end we want to visualize
+#                       the output compared to the input (useful for things
+#                       like autoencoders or balance networks).
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   # Fit*Experiment parameters:
   # --------------------------
@@ -49,20 +52,27 @@
   #           during the experiment.  Key parameter allowing the following types:
   #           CPU - 32-bit float numpy wrapped CPU based data
   #           Flexpoint - fixed decimal point wrapped CPU based data
-  #           GPU - 32-bit float cuda-convnet2 wrapped GPU based data
+  #           GPU - 32-bit float custom cuda-convnet2 wrapped GPU based data
   # datasets - list containing the input data to train/test against.  types:
   #            MNIST - handwritten digit image dataset
   #            CIFAR10 - 10 class object image dataset
+  #            I1K - Imagenet 1000 class image dataset
   #            SPARSENET - small natural image dataset (Olshausen and Field)
   #            Iris - RA Fisher's 3 class flower dataset
+  #            MOBYDICK - Content of the book Moby Dick
+  #            TFD - Toronto Face image dataset
   #            UniformRandom - synthetic random data
   #            ToyImages - synthetic image classification dataset
   # model - the type of machine learning algorithm to employ.  types:
-  #         MLP - feed-forward multi-layer perceptron neural network
+  #         MLP, MLPB, MLPDist - feed-forward multi-layer perceptron neural
+  #                              network
   #         RBM - restricted Boltzmann machine
+  #         RNN - Recurrent neural network
+  #         Balance - Balance network
   #         Autoencoder - stacked autoencoder
   #         DBN - deep belief network
-  #         GB - "google brain" style sparse autoencoder network
+  #         GB, GBDist - "google brain" style sparse autoencoder network
+  #         ConvnetDist - Halo parallel distributed convolutional network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
   backend: &be !obj:neon.backends.cpu.CPU {
