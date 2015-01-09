@@ -342,7 +342,7 @@ class WeightLayer(Layer):
         make_ebuf = self.backend.empty
         self.weights = self.backend.gen_weights(
             self.weight_shape, self.weight_init, self.weight_dtype)
-        self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
+        self.weight_updates = make_ebuf(self.weights.shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
         if self.use_biases:
