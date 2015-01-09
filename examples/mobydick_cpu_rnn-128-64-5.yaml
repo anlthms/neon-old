@@ -9,24 +9,12 @@
     },
   },
 
-<<<<<<< HEAD
-  datasets: [
-    # Moby Dick data
-    !obj:neon.datasets.mobydick.MOBYDICK {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10, # 10% gives 400 batches like in rnn2
-      unrolls: &ur 4,
-    },
-  ],
-=======
   dataset: &ds !obj:neon.datasets.mobydick.MOBYDICK {
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10, # 10% gives 400 batches like in rnn2
-    unrolls: &ur 5, # how many letters the targets are ahead of the training
+    unrolls: &ur 5,
   },
->>>>>>> master
 
   wp: &wt_init {
   type: sparse_eigenvalued,
@@ -65,27 +53,14 @@
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
-<<<<<<< HEAD
         gate_activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: sparse_eigenvalued,
-          sparseness: 15,
-          eigenvalue: 1.2,
-        },
-        # weight_init_rec: {
-        #   type: sparse_eigenvalued,
-        #   sparseness: 15,
-        #   eigenvalue: 1.2,
-        # },
+        weight_init: *wt_init,
+        # weight_init_rec: *wt_init,
         weight_init_rec: {
           type: normal,
           loc: 0.0,
           scale: 0.1,
         },
-=======
-        weight_init: *wt_init,
-        weight_init_rec: *wt_init,
->>>>>>> master
       },
       # output layer
       &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {

@@ -29,15 +29,17 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+        self.cost.initialize(kwargs)
 
     def fit(self, dataset):
-        self.grad_checker(dataset)  # check gradients first
+        self.dataset = dataset
+        self.grad_checker()  # check gradients first
 
         """
         Learn model weights on the given dataset.
         """
         for layer in self.layers:
-            logger.info("%s", str(layer))
+            logger.info("XXX %s", str(layer))
         inputs = dataset.get_inputs(train=True)['train']
         # append an extra zero element to account for overflow
         # inputs = self.backend.zeros((inputset.shape[0]+1, inputset.shape[1]))
@@ -71,8 +73,8 @@ class RNN(Model):
                 hidden_init = self.layers[0].output_list[-1]
                 cell_init = self.layers[0].c_t[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
-                    hidden_init *= 0
-                    cell_init *= 0
+                    self.backend.fill(hidden_init, 0)
+                    self.backend.fill(cell_init, 0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
@@ -115,7 +117,7 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def grad_checker(self, dataset):
+    def grad_checker(self):
         """
         Check gradients for LSTM layer:
           - W is replicated, only inject the eps once, repeat, average.
@@ -126,7 +128,7 @@ class RNN(Model):
         """
         for layer in self.layers:
             logger.info("%s", str(layer))
-        inputs = dataset[0].get_inputs(train=True)['train']
+        inputs = self.dataset.get_inputs(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
@@ -137,7 +139,7 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
-        eps = self.backend.wrap(1e-6)  # use float64 in cpu.py for this
+        eps = 1e-6  # use float64 in cpu.py for this
         numerical = 0
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
@@ -156,17 +158,17 @@ class RNN(Model):
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
             logger.info("numpart for  tau=%d of %d is %e", tau,
-                        self.unrolls, num_part.raw())
+                        self.unrolls, num_part)
             numerical += num_part
 
         # bprop for comparison
         self.bprop(targets[batch_inx, :], inputs[batch_inx, :])
 
-        analytical = self.layers[0].Wfh_updates[12, 55]
+        analytical = self.layers[0].Wfh_updates[12, 55].raw()
         logger.info("RNN grad_checker: suberror_eps", suberror_eps)
         logger.info("RNN grad_checker: suberror_ref", suberror_ref)
-        logger.info("RNN grad_checker: numerical", numerical.raw())
-        logger.info("RNN grad_checker: analytical", analytical.raw())
+        logger.info("RNN grad_checker: numerical", numerical)
+        logger.info("RNN grad_checker: analytical", analytical)
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None):
@@ -192,7 +194,8 @@ class RNN(Model):
         # fprop does a single full unroll
         for tau in range(0, unrolls):
             if tau == eps_tau:
-                self.layers[0].Wfh[12, 55] += eps  # inject eps
+                self.backend.add(self.layers[0].Wfh[12, 55],
+                                 eps, self.layers[0].Wfh[12, 55])  # inject eps
 
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
@@ -200,7 +203,8 @@ class RNN(Model):
             c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
             if tau == eps_tau:
-                self.layers[0].Wfh[12, 55] -= eps  # remove eps
+                self.backend.add(self.layers[0].Wfh[12, 55],
+                                 -eps, self.layers[0].Wfh[12, 55])  # remove eps
 
     def fprop(self, inputs, hidden_init=None,
               cell_init=None, debug=False, unrolls=None):
@@ -286,13 +290,14 @@ class RNN(Model):
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             esize = error.shape[0] * error.shape[1]
-            self.backend.divide(error, self.backend.wrap(esize), out=error)
+            self.backend.divide(error, esize, out=error)
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1], tau)
 
             # recurrent layers[0]: loop over different unrolling sizes
             error_h = self.layers[1].berror
-            error_c = 0 * error_h  # initialize this error with zeros?
+            error_c = self.backend.zeros((self.layers[1].nin,
+                                          self.batch_size)) # init w/ zeros?
             for t in list(range(1, tau))[::-1]:  # had (0, tau-1) in rnn2.
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t)
                 error_h = self.layers[0].berror
@@ -351,7 +356,7 @@ class RNN(Model):
         return_buffer = return_buffer.transpose().reshape((-1,))
         return return_buffer
 
-    def predict(self, dataset, train=True, test=True, validation=False):
+    def predict(self, train=True, test=True, validation=False):
         """
         Iterate over data sets and call predict_set for each.
         This is called directly from the fit_predict_err experiment.
@@ -360,7 +365,8 @@ class RNN(Model):
             res: a list of (key,value) pairs, e.g. res[0]['train'] is a tensor
                  of class labels
         """
-        inputs = dataset.get_inputs(train=train, test=test)
+        ds = self.dataset
+        inputs = ds.get_inputs(train=train, test=test)
         preds = dict()
         if train and 'train' in inputs:
             preds['train'] = self.predict_set(inputs['train'])
