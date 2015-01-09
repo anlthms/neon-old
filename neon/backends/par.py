@@ -34,9 +34,12 @@ class VecPar:
         start = mpi_rank * nin
         end = start + weights.shape[1]
         self.backend.fprop_fc_impl(out, inputs[start:end], weights)
-        recvobj = MPI.COMM_WORLD.reduce(sendobj=out.raw(), op=MPI.SUM)
-        recvobj = MPI.COMM_WORLD.bcast(obj=recvobj)
-        out._tensor = self.backend.array(recvobj)._tensor
+        #TODO: avoid this allocation.
+        recvbuf = np.zeros(out.shape, dtype=np.float32)
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
+                              recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
+        MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
+        out[:] = self.backend.array(recvbuf)
 
     def bprop_fc(self, out, weights, deltas):
         realnin = out.shape[0]
@@ -44,9 +47,20 @@ class VecPar:
         start = mpi_rank * nin
         end = start + weights.shape[1]
         self.backend.bprop_fc_impl(out[start:end], weights, deltas)
-        recvlst = MPI.COMM_WORLD.allgather(sendobj=out.raw()[start:end])
-        recvobj = np.vstack(recvlst)
-        out._tensor = self.backend.array(recvobj)._tensor
+
+        #TODO: avoid this allocation.
+        recvbuf = np.zeros(out.shape, dtype=np.float32)
+        rcount = np.ones(mpi_size) * nin
+        bs = out.shape[1]
+        scount = end - start
+        rcount[-1] = realnin - nin * (mpi_size - 1)
+        displ = np.arange(0, realnin - nin + 1, nin)
+        scount *= bs
+        rcount *= bs
+        displ *= bs
+        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.raw()[start:end], scount, MPI.FLOAT],
+                                  recvbuf=[recvbuf, rcount, displ, MPI.FLOAT])
+        out[:] = self.backend.array(recvbuf)
 
     def update_fc(self, out, inputs, deltas):
         realnin = inputs.shape[0]
