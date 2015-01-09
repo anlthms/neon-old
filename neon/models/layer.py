@@ -524,7 +524,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wix_updates += dh_dWix
         self.Wih_updates += dh_dWih
-        self.b_i_updates += temp.sum(1).reshape((64,1))
+        self.b_i_updates += temp.sum(1).reshape((self.nout, 1))
 
         # b. forget gate
         temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
@@ -538,7 +538,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wfx_updates += dh_dWfx
         self.Wfh_updates += dh_dWfh
-        self.b_f_updates += temp.sum(1).reshape((64,1))
+        self.b_f_updates += temp.sum(1).reshape((self.nout, 1))
 
         # c. output gate
         temp = error_h * self.c_phi[tau]*self.net_o[tau]
@@ -551,7 +551,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wox_updates += dh_dWox
         self.Woh_updates += dh_dWoh
-        self.b_o_updates += temp.sum(1).reshape((64,1))
+        self.b_o_updates += temp.sum(1).reshape((self.nout, 1))
 
         # d. cell
         temp = error_h * self.o_t[tau] * self.c_phip[tau] * \
@@ -565,7 +565,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wcx_updates += dh_dWcx
         self.Wch_updates += dh_dWch
-        self.b_c_updates += temp.sum(1).reshape((64,1))
+        self.b_c_updates += temp.sum(1).reshape((self.nout, 1))
 
         # e. collect terms
         hherror = di_dh1 + df_dh1 + do_dh1 + dg_dh1
@@ -587,7 +587,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wix_updates += dh_dWix
         self.Wih_updates += dh_dWih
-        self.b_i_updates += temp.sum(1).reshape((64,1))
+        self.b_i_updates += temp.sum(1).reshape((self.nout, 1))
 
         # forget gate
         temp = error_c * self.c_t[tau-1] * self.net_f[tau]
@@ -600,7 +600,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wfx_updates += dh_dWfx
         self.Wfh_updates += dh_dWfh
-        self.b_f_updates += temp.sum(1).reshape((64,1))
+        self.b_f_updates += temp.sum(1).reshape((self.nout, 1))
 
         # cell
         temp = error_c * self.i_t[tau] * self.net_g[tau]
@@ -613,7 +613,7 @@ class RecurrentLSTMLayer(Layer):
                      deltas=temp)
         self.Wcx_updates += dh_dWcx
         self.Wch_updates += dh_dWch
-        self.b_c_updates += temp.sum(1).reshape((64,1))
+        self.b_c_updates += temp.sum(1).reshape((self.nout, 1))
 
         cherror = dc_di_dh1 + dc_df_dh1 + dc_dg_dh1
 
