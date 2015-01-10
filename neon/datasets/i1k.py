@@ -296,6 +296,11 @@ class I1K(Dataset):
         self.end_val_batch = -1
         self.preprocess_done = False
         self.__dict__.update(kwargs)
+        
+        if not hasattr(self, 'save_dir'):
+            self.save_dir = os.path.join(self.repo_path,
+                                         self.__class__.__name__)
+
         if self.dist_flag:
             raise NotImplementedError('Dist not implemented for I1K!')
             if MPI_INSTALLED:
@@ -328,9 +333,10 @@ class I1K(Dataset):
 
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
-            save_dir = os.path.join(self.repo_path,
-                                    self.__class__.__name__)
-            self.save_dir = save_dir
+            # save_dir = os.path.join(self.repo_path,
+            #                         self.__class__.__name__)
+            # self.save_dir = save_dir
+            save_dir = self.save_dir
             # for now assuming that dataset is already there
             # ToS of imagenet prohibit distribution of URLs
 
@@ -385,10 +391,11 @@ class I1K(Dataset):
                 logger.info("total number of training files = %d",
                             len(train_jpeg_files))
                 self.output_batch_size = 3072
-                self.max_file_index = 3072 * 25
+                self.max_file_index = 3072 * 1 #25
+
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
-                self.val_max_file_index = 3072 * 5
+                self.val_max_file_index = 3072 * 1 #5
 
                 # this may not be most efficient
                 flat_labels = [
@@ -572,6 +579,11 @@ class I1K(Dataset):
         self.batch_type = batch_type
         self.raw_targets = raw_targets
         self.ring_buffer_size = ring_buffer_size
+        # # temp fix
+        self.nclasses = self.max_tar_file
+        # self.output_batch_size = 3072
+        # ###
+
         if self.output_batch_size % batch_size != 0:
             raise ValueError('self.output_batch_size % batch_size != 0')
         else:

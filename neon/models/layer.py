@@ -336,15 +336,17 @@ class RecurrentOutputLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas_o[tau] = error * self.pre_act_list[tau - 1]
+        self.backend.multiply(error, self.pre_act_list[tau - 1],
+                              out=self.deltas_o[tau])
         self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
-        self.weight_updates += self.temp_out
+        self.backend.add(self.weight_updates, self.temp_out,
+                         out=self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
-class RecurrentLSMTLayer(Layer):
+class RecurrentLSTMLayer(Layer):
 
     """
     Hidden layer with LSTM gates.
@@ -358,75 +360,36 @@ class RecurrentLSMTLayer(Layer):
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
                                                    learning_rule, activation)
+        sbe = self.backend
+
+        wshape = (self.nout, self.nout)
+        bshape = (self.batch_size, self.nout)
         # create weight matrices
-        self.Wxi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whi = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whf = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxo = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Who = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Wxc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
-        self.Whc = self.backend.gen_weights((nout, nout),
-                                            weight_init_rec,
-                                            weight_dtype)
+        for a in ['i', 'f', 'o', 'c']:
+            for b in ['h', 'x']:
+                setattr(self, 'W' + b + a,
+                        sbe.gen_weights(wshape, weight_init_rec, weight_dtype))
 
         # initialize buffers for intermediate values
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.f_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.o_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.g_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.c_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.h_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
+        for ival in ['i', 'f', 'o', 'g', 'c', 'h']:
+            setattr(self, ival+'_t',
+                    [sbe.zeros(bshape) for k in range(unrolls)])
 
         # preactivation -- do we really need to store this across unrolls?
-        self.net_ix = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ih = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ox = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_oh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
+        for a in ['i', 'f', 'o', 'g']:
+            for b in ['h', 'x']:
+                setattr(self, 'net_' + a + b,
+                        [sbe.zeros(bshape) for k in range(unrolls)])
 
         # misc
-        self.deltas = [self.backend.zeros((self.batch_size, nout))
+        self.deltas = [sbe.zeros(bshape)
                        for k in range(unrolls + 1)]
-        self.updates_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_rec = self.backend.zeros((self.nout, self.nout))
-        self.temp_in = self.backend.zeros((self.nout, self.nin))
+        self.updates_rec = sbe.zeros(wshape)
+        self.temp_rec = sbe.zeros(wshape)
+        self.temp_in = sbe.zeros((self.nout, self.nin))
         self.learning_rule.allocate_state_rec(self.updates_rec)
 
-        self.berror = backend.zeros((batch_size, nout))
+        self.berror = sbe.zeros(bshape)
 
     def fprop(self, y, inputs, tau):
         """
@@ -537,24 +500,22 @@ class RecurrentHiddenLayer(Layer):
                                        self.output_list[tau])
 
     def bprop(self, error, inputs, tau):
-        self.deltas[1] = error * self.pre_act_list[tau - 1]
-        self.backend.update_fc(self.temp_in,
-                               inputs[(tau - 1) * 128:tau * 128, :],
-                               self.deltas[1])
-        self.weight_updates += self.temp_in
+        sbe = self.backend
+        sbe.multiply(error, self.pre_act_list[tau - 1], out=self.deltas[1])
+        sbe.update_fc(self.temp_in, inputs[(tau-1)*128:tau*128, :],
+                      self.deltas[1])
+        sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
         for layer in list(range(0, tau - 1))[::-1]:
-            self.backend.bprop_fc(self.berror,
-                                  self.weights_rec,
-                                  self.deltas[tau - layer - 1])
-            self.deltas[tau - layer] = self.berror * self.pre_act_list[layer]
-            self.backend.update_fc(self.temp_rec,
-                                   self.output_list[layer],
-                                   self.deltas[tau - layer - 1])
-            self.updates_rec += self.temp_rec
-            self.backend.update_fc(self.temp_in,
-                                   inputs[layer * 128:(layer + 1) * 128, :],
-                                   self.deltas[tau - layer])
-            self.weight_updates += self.temp_in
+            sbe.bprop_fc(self.berror, self.weights_rec,
+                         self.deltas[tau - layer - 1])
+            sbe.multiply(self.berror, self.pre_act_list[layer],
+                         self.deltas[tau - layer])
+            sbe.update_fc(self.temp_rec, self.output_list[layer],
+                          self.deltas[tau - layer - 1])
+            sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
+            sbe.update_fc(self.temp_in, inputs[layer*128:(layer+1)*128, :],
+                          self.deltas[tau - layer])
+            sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -666,54 +627,6 @@ class DropOutLayer(YAMLable):
 
     def set_train_mode(self, mode):
         self.train_mode = mode
-
-
-class DataLayer(YAMLable):
-
-    """
-    Data Layer takes datasets as input and on fprop, passes forward the latest
-    batch
-    """
-
-    def __init__(self, name, backend, batch_size, datasets):
-        self.name = name
-        self.backend = backend
-        self.batch_size = batch_size
-        self.datasets = datasets
-        self.output = self.backend.empty((self.nout, batch_size))
-        self.current_batch = 0
-        self.partition = None
-
-    def init_datasets(self, train=True, test=True, validation=True):
-        self.train = train
-        self.test = test
-        self.validation = validation
-        self.inputs = self.datasets[0].get_inputs(
-            train=self.train, test=self.test, validation=self.validation)
-        self.targets = self.datasets[0].get_targets(
-            train=self.train, test=self.test, validation=self.validation)
-
-    def select_partition(self, partition):
-        self.current_batch = 0
-        self.partition = partition
-
-    def fprop(self, dummyvar):
-        if not self.partition:
-            raise ValueError('Dataset partition must be selected prior to use')
-
-        if self.partition not in self.inputs:
-            raise ValueError('Partition does not exist')
-
-        raise NotImplementedError('Have to implement DataLayer')
-
-    def bprop(self, error, inputs):
-        pass
-
-    def update(self, epoch):
-        pass
-
-    def set_train_mode(self, mode):
-        pass
 
 
 class RBMLayer(Layer):
@@ -1096,56 +1009,6 @@ class ConvLayer(LocalLayer):
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
-
-
-class ConvLayerMultiPass(Layer):
-
-    """
-    Convolutional layer that accumulates backpropagated error.
-
-    Multipass indicates that multiple back propagation passes can be made
-    (each corresponding to different cost), and the gradient will be
-    accumulated until an update is called, at which point the gradients will
-    be cleared
-    """
-
-    def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
-                 nofm, ifmshape, fshape, stride, weight_init, activation=None,
-                 pad=0, prev_names=[]):
-        super(ConvLayerMultiPass, self).__init__(name, backend, batch_size,
-                                                 pos, learning_rule,
-                                                 nifm, nofm, ifmshape,
-                                                 fshape, stride,
-                                                 activation=activation,
-                                                 pad=pad,
-                                                 prev_names=prev_names)
-        self.utemp = self.backend.empty(self.weights.shape,
-                                        self.updates_dtype)
-        self.updates[:] = self.backend.wrap(0.0)
-
-    def update(self, epoch):
-        self.learning_rule.apply_rule(self.weights, self.updates, epoch)
-        self.updates[:] = self.backend.wrap(0.0)
-
-    def bprop(self, error, inputs):
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
-        if self.pos > 0:
-            self.backend.bprop_conv(out=self.berror, weights=self.weights,
-                                    deltas=error, ofmshape=self.ofmshape,
-                                    ofmlocs=self.ofmlocs,
-                                    ifmshape=self.ifmshape, links=self.links,
-                                    padding=self.pad, stride=self.stride,
-                                    nifm=self.nifm, ngroups=1,
-                                    bpropbuf=self.bpropbuf)
-        self.backend.update_conv(out=self.utemp, inputs=inputs,
-                                 weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
-                                 ifmshape=self.ifmshape, links=self.links,
-                                 nifm=self.nifm, padding=self.pad,
-                                 stride=self.stride, ngroups=1,
-                                 fwidth=self.fwidth, updatebuf=self.updatebuf)
-        self.backend.add(self.utemp, self.updates, out=self.updates)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):

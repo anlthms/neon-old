@@ -8,10 +8,35 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.i1k.I1K {
+  dataset: &ds !obj:neon.datasets.i1k.I1K {
+    backend: *be,
+    load_path: '/usr/local/data', #directory where .tar files are stored
+    repo_path: '/usr/local/data/alex', #directory to use for writing files
+    serialized_path: '/usr/local/data/alex/I1K/I1K_dataset.pkl', #delete if loading files from scratch
+    # sample_pct: .1,
+    max_tar_file: 4, #use this instead of sample_pct
+    macro_batched: True,
+    output_image_size: &ois 256,
+    # macro batch start and end indices for train and val datasets
+    # need #macro batches * output_batch_size to divide nrecs
+    start_train_batch: 0,
+    end_train_batch: 0,
+    start_val_batch: 0,
+    end_val_batch: 0,
+  },
+
+  weight_inits: &wt_init {
+    type: uniform,
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    lr_params: {
+      learning_rate: 0.01,
       backend: *be,
+<<<<<<< HEAD
       load_path: '/usr/local/data', #directory where .tar files are stored
       repo_path: '/usr/local/data', #directory to use for writing files
       serialized_path: '/usr/local/data/I1K/I1K_dataset.pkl', #delete if loading files from scratch
@@ -25,127 +50,69 @@
       end_train_batch: 0,
       start_val_batch: 0,
       end_val_batch: 0,
+=======
+      momentum_params: {
+        type: linear_monotone, #constant, nesterov
+        initial_coef: 0.90,
+        start_epoch: 5,
+        saturate_epoch: 5,
+        saturated_coef: 0.99,
+      },
+>>>>>>> master
     },
-  ],
+  },
 
-  # CNN model specification
-  # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 1,
     batch_size: &bs 128,
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        nofm: 3,
+        is_local: True,
+        ofmshape: [*ois, *ois],
+      },
+      !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer1lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
-          },
-        },
-        nifm: 3,
         nofm: 16,
-        ifmshape: [*ois, *ois],
         fshape: [4, 4],
         stride: 4,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        lrule_init: *gdm,
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer2,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        nifm: 16,
-        ifmshape: [64, 64],
+        op: 'max',
         fshape: [4, 4],
         stride: 4,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer3,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nifm: 16,
         nofm: 32,
-        ifmshape: [16, 16],
         fshape: [2, 2],
         stride: 2,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        lrule_init: *gdm,
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer4,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        nifm: 32,
-        ifmshape: [8, 8],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
         name: layer5,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: layer5lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 512, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 500,
         nout: 1000,
+<<<<<<< HEAD
         activation: !obj:neon.transforms.softmax.Softmax {
           shortcut_deriv: True,
           },
@@ -154,13 +121,20 @@
           low: -0.1,
           high: 0.1,
         },
+=======
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+>>>>>>> master
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

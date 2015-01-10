@@ -10,6 +10,7 @@ import numpy as np
 
 from neon.datasets.synthetic import UniformRandom
 from neon.experiments.experiment import Experiment
+from neon.models.mlp import MLPB
 from neon.util.compat import range
 
 
@@ -26,7 +27,7 @@ class GradientChecker(Experiment):
 
     def transfer(self, experiment):
         self.model = experiment.model
-        self.datasets = experiment.datasets
+        self.dataset = experiment.dataset
 
     def save_state(self):
         for ind in range(len(self.trainable_layers)):
@@ -74,6 +75,44 @@ class GradientChecker(Experiment):
                      diff, layer.name)
         return False
 
+    def check_layerb(self, layer):
+        # Check up to this many weights.
+        nmax = 30
+        if type(layer.updates) == list:
+            updates = layer.updates[0].raw().ravel()
+        else:
+            updates = layer.updates.raw().ravel()
+        weights = layer.weights.raw().ravel()
+        grads = np.zeros(weights.shape)
+        inds = np.random.choice(np.arange(weights.shape[0]),
+                                min(weights.shape[0], nmax),
+                                replace=False)
+        for ind in inds:
+            saved = weights[ind]
+            weights[ind] += self.eps
+            self.model.data_layer.reset_counter()
+            self.model.fprop()
+            cost1 = self.model.cost_layer.get_cost()
+
+            weights[ind] -= 2 * self.eps
+            self.model.data_layer.reset_counter()
+            self.model.fprop()
+            cost2 = self.model.cost_layer.get_cost()
+
+            grads[ind] = ((cost1 - cost2) / self.model.batch_size *
+                          layer.learning_rule.learning_rate / (2 * self.eps))
+            weights[ind] = saved
+
+        grads -= updates
+        diff = np.linalg.norm(grads[inds]) / nmax
+        if diff < 0.0002:
+            logger.info('diff %g. layer %s OK.', diff, layer.name)
+            return True
+
+        logger.error('diff %g. gradient check failed on layer %s.',
+                     diff, layer.name)
+        return False
+
     def run(self):
         """
         Actually carry out each of the experiment steps.
@@ -92,30 +131,53 @@ class GradientChecker(Experiment):
             self.weights.append(layer.weights.copy())
             self.trainable_layers.append(ind)
 
-        if not hasattr(layer, 'datasets'):
-            self.datasets[0] = UniformRandom(self.model.batch_size,
-                                             self.model.batch_size,
-                                             self.model.layers[0].nin,
-                                             self.model.layers[-1].nout)
-            self.datasets[0].set_batch_size(self.model.batch_size)
-            self.datasets[0].backend = self.model.backend
-            self.datasets[0].load()
-        ds = self.datasets[0]
-        inputs = ds.get_batch(ds.get_inputs(train=True)['train'], 0)
-        targets = ds.get_batch(ds.get_targets(train=True)['train'], 0)
+        if not hasattr(layer, 'dataset'):
+            if isinstance(self.model, MLPB):
+                datashape = (self.model.data_layer.nout,
+                             self.model.cost_layer.nin)
+            else:
+                datashape = (self.model.layers[0].nin,
+                             self.model.layers[-1].nout)
+            self.dataset = UniformRandom(self.model.batch_size,
+                                         self.model.batch_size,
+                                         datashape[0], datashape[1])
+            self.dataset.set_batch_size(self.model.batch_size)
+            self.dataset.backend = self.model.backend
+            self.dataset.load()
+        ds = self.dataset
 
-        self.model.fprop(inputs)
-        self.model.bprop(targets, inputs)
-        self.model.update(0)
+        if isinstance(self.model, MLPB):
+            self.model.data_layer.dataset = ds
+            self.model.data_layer.use_set('train')
+            self.model.fprop()
+            self.model.bprop()
+            self.model.update(0)
 
-        self.save_state()
-        self.model.fprop(inputs)
-        self.model.bprop(targets, inputs)
-        self.model.update(0)
-        self.load_state()
+            self.save_state()
+            self.model.data_layer.reset_counter()
+            self.model.fprop()
+            self.model.bprop()
+            self.model.update(0)
+            self.load_state()
+        else:
+            inputs = ds.get_batch(ds.get_inputs(train=True)['train'], 0)
+            targets = ds.get_batch(ds.get_targets(train=True)['train'], 0)
+
+            self.model.fprop(inputs)
+            self.model.bprop(targets, inputs)
+            self.model.update(0)
+
+            self.save_state()
+            self.model.fprop(inputs)
+            self.model.bprop(targets, inputs)
+            self.model.update(0)
+            self.load_state()
 
         for ind in self.trainable_layers[::-1]:
             layer = self.model.layers[ind]
-            result = self.check_layer(layer, inputs, targets)
+            if isinstance(self.model, MLPB):
+                result = self.check_layerb(layer)
+            else:
+                result = self.check_layer(layer, inputs, targets)
             if result is False:
                 break

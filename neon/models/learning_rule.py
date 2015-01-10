@@ -164,7 +164,7 @@ class GradientDescentMomentum(GradientDescent):
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         # print epoch, learning_rate
-        #i = 0
+        i = 0
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             self.backend.multiply(vs_item,
                                   self.backend.wrap(momentum_coef),
@@ -174,16 +174,16 @@ class GradientDescentMomentum(GradientDescent):
                                   out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
 
-            # if i==0:
-            #     self.backend.multiply(ps_item,
-            #                           self.backend.wrap(self.weight_decay),
-            #                           out=us_item)
-            #     self.backend.multiply(us_item,
-            #                           self.backend.wrap(learning_rate),
-            #                           out=us_item)
-            #     self.backend.subtract(vs_item, us_item, out=vs_item)
-            #     i+=1
-            #     learning_rate *= 2.
+            if i==0:
+                self.backend.multiply(ps_item,
+                                      self.backend.wrap(self.weight_decay),
+                                      out=us_item)
+                self.backend.multiply(us_item,
+                                      self.backend.wrap(learning_rate),
+                                      out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
+                i+=1
+                learning_rate *= 2.
 
             self.backend.add(ps_item, vs_item, out=ps_item)
 
