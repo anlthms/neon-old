@@ -77,8 +77,9 @@ class GB(MLP):
         """
         num_batches = len(inputs)
         logger.info('commencing supervised training')
-        tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        tempbuf1 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        tempbuf2 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
         for epoch in range(self.num_epochs):
             error = 0.0
