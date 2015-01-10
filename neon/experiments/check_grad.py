@@ -89,7 +89,7 @@ class GradientChecker(Experiment):
             layer = self.model.layers[ind]
             if not (hasattr(layer, 'weights') and hasattr(layer, 'updates')):
                 continue
-            self.weights.append(layer.weights.copy())
+            self.weights.append(layer.backend.copy(layer.weights))
             self.trainable_layers.append(ind)
 
         if not hasattr(layer, 'datasets'):

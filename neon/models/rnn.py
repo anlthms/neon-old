@@ -40,7 +40,8 @@ class RNN(Model):
         # inputs = self.backend.zeros((inputset.shape[0]+1, inputset.shape[1]))
         # inputs[0:inputset.shape[0], 0:inputset.shape[1]] = inputset
         # no idea how to do this for the new data format!
-        targets = inputs.copy()  # use targets = inputs for sequence prediction
+        # use targets = inputs for sequence prediction
+        targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128

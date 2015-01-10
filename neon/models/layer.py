@@ -1473,7 +1473,7 @@ class LocalDeFilteringLayer(object):
             # Share the weights with the previous layer.
             self.weights = prev.weights
         else:
-            self.weights = prev.weights.copy()
+            self.weights = prev.backend.copy(prev.weights)
         self.updates = prev.backend.empty(self.weights.shape)
         self.prodbuf = prev.backend.empty((prev.fsize, prev.batch_size))
         self.bpropbuf = prev.backend.empty((prev.nofm, prev.batch_size))
@@ -1854,7 +1854,7 @@ class LCNLayer(YAMLable):
                                                      self.filters.shape[1]))
             self.sqtemp = backend.empty(self.output.shape)
             for fm in range(nifm):
-                self.bprop_filters[fm] = self.filters.copy()
+                self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
                 fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
@@ -2121,7 +2121,7 @@ class LCNLayerDist(LCNLayer):
                                                      self.filters.shape[1]))
             self.sqtemp = self.backend.empty(self.output.shape)
             for fm in range(self.nifm):
-                self.bprop_filters[fm] = self.filters.copy()
+                self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (self.nifm, self.fheight, self.fwidth))
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0

@@ -293,9 +293,6 @@ class GPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
-    def copy(self):
-        return GPUTensor(self._tensor.copy())
-
     def copy_to_device(self):
         self._tensor.copy_to_device()
 
@@ -535,6 +532,19 @@ class GPU(Backend):
         else:
             return obj
 
+    def copy(self, tsr):
+        """
+        Construct and return a deep copy of the GPUTensor passed.
+
+        Arguments:
+            tsr (GPUTensor): the object to copy
+
+        Returns:
+            GPUTensor: new array object with the same values as tsr.
+        """
+        assert type(tsr) == self.tensor_cls
+        return self.tensor_cls(tsr._tensor.copy())
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),
@@ -589,10 +599,6 @@ class GPU(Backend):
         seq = numpy.random.normal(loc, scale, size)
         dtype = self.default_dtype_if_missing(None)
         return self.tensor_cls(numpy.array(seq, dtype), dtype)
-
-    def copy(self, a):
-        assert type(a) == self.tensor_cls
-        return a.copy()
 
     def add(self, left, right, out):
         """
@@ -1461,7 +1467,7 @@ class GPU(Backend):
             weights = numpy.zeros(size).flatten()
             nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
             weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
-            weights = weights.reshape(size).copy()
+            weights = self.copy(weights.reshape(size))
             if size[0] == size[1]:
                 temp = numpy.linalg.eig(weights)
                 max_eig = numpy.max(numpy.absolute(temp[0]))
@@ -1481,7 +1487,7 @@ class GPU(Backend):
         else:
             raise AttributeError("invalid weight_params specified")
 
-        return GPUTensor(numpy.array(weights, 'float32'))
+        return self.tensor_cls(numpy.array(weights, 'float32'))
 
 
 class GPUDataDist(GPU):

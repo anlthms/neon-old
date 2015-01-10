@@ -75,7 +75,7 @@ class GB(MLP):
         num_batches = len(inputs)
         logger.info('commencing supervised training')
         tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        self.temp = [tempbuf, self.backend.copy(tempbuf)]
         start_time = time.time()
         for epoch in range(self.num_epochs):
             error = 0.0
@@ -219,7 +219,7 @@ class GB(MLP):
             inc *= -0.9
             count = 0
             for col in range(self.nin):
-                saved = inputs.copy()
+                saved = self.backend.copy(inputs)
                 inputs[:, col] += inc
                 self.normalize(inputs)
                 self.fprop(inputs)
@@ -235,7 +235,8 @@ class GB(MLP):
                 if self.layers[0].nifm == 3:
                     img = inputs[ind].asnumpyarray().reshape((3, ifmshape[0],
                                                               ifmshape[1]))
-                    rimg = img.copy().reshape((ifmshape[0], ifmshape[1], 3))
+                    rimg = self.backend.copy(img).reshape((ifmshape[0],
+                                                           ifmshape[1], 3))
                     for dim in range(3):
                         rimg[:ifmshape[0], :ifmshape[1], dim] = (
                             img[dim, :ifmshape[0], :ifmshape[1]])
@@ -256,7 +257,7 @@ class GB(MLP):
             img = img.reshape((nfm, height, width))
             if nfm == 3:
                 # Plot in color.
-                rimg = img.copy().reshape((height, width, 3))
+                rimg = self.backend.copy(img).reshape((height, width, 3))
                 for dim in range(3):
                     rimg[:height, :width, dim] = img[dim, :height, :width]
                 plt.imshow(rimg, interpolation='nearest')

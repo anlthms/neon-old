@@ -24,7 +24,7 @@ def test_xcov_cputensor():
     expected_result = 0.5 * (acc**2.).sum()
 
     be = CPU(rng_seed=0)
-    outputs = CPUTensor(a.copy())
+    outputs = CPUTensor(be.copy(a))
     tempbuf1 = be.empty((k1, n))
     tempbuf2 = be.empty((k2, n))
     tempbuf3 = be.empty((k1, k2))
@@ -46,7 +46,7 @@ def test_xcov_gputensor():
 
     from neon.backends.gpu import GPU, GPUTensor
     be = GPU(rng_seed=0)  # to ensure cublas_init() is called.
-    outputs = GPUTensor(a.copy())
+    outputs = GPUTensor(be.copy(a))
     tempbuf1 = be.empty((k1, n))
     tempbuf2 = be.empty((k2, n))
     tempbuf3 = be.empty((k1, k2))
@@ -71,7 +71,7 @@ def test_xcov_derivative_cputensor():
     s[k1:] = acc.T.dot(c2)/n
 
     be = CPU(rng_seed=0)
-    outputs = CPUTensor(a.copy())
+    outputs = CPUTensor(be.copy(a))
     tempbuf1 = be.empty((k1, n))
     tempbuf2 = be.empty((k2, n))
     tempbuf3 = be.empty((k1, k2))
@@ -99,7 +99,7 @@ def test_xcov_derivative_gputensor():
     s[:k1] = acc.dot(c1)/n
     s[k1:] = acc.T.dot(c2)/n
 
-    outputs = GPUTensor(a.copy())
+    outputs = GPUTensor(be.copy(a))
     tempbuf1 = be.empty((k1, n))
     tempbuf2 = be.empty((k2, n))
     tempbuf3 = be.empty((k1, k2))

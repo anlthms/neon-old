@@ -153,10 +153,6 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
-    def copy(self):
-        return self.__class__(np.copy(self._tensor),
-                              dtype=self._tensor.dtype)
-
     def transpose(self):
         return self.__class__(self._tensor.transpose(),
                               dtype=self._tensor.dtype)
@@ -324,6 +320,18 @@ class CPU(Backend):
         else:
             return obj
 
+    def copy(self, tsr):
+        """
+        Construct and return a deep copy of the CPUTensor passed.
+
+        Arguments:
+            tsr (CPUTensor): the object to copy
+
+        Returns:
+            CPUTensor: new array object with the same values as tsr.
+        """
+        return self.tensor_cls(np.copy(tsr._tensor))
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self._tensor_cls(np.empty_like(a._tensor))
@@ -393,9 +401,6 @@ class CPU(Backend):
             Tensor: Of specified size filled with these random numbers.
         """
         return self.tensor_cls(np.random.normal(loc, scale, size), dtype)
-
-    def copy(self, a):
-        return self.tensor_cls(np.copy(a))
 
     def add(self, left, right, out):
         """
@@ -1106,7 +1111,7 @@ class CPU(Backend):
             elif op == "l2":
                 inds = links[dst]
                 rf = rinputs.take(inds, axis=0)
-                denom = rfouts[dst].transpose().copy()
+                denom = self.copy(rfouts[dst].transpose())
                 # If the L2 norm is zero, the entire receptive field must be
                 # zeros. In that case, we set the L2 norm to 1 before using
                 # it to normalize the receptive field.
@@ -1184,11 +1189,11 @@ class CPU(Backend):
         rinputs = inputs.reshape((nifm, H, W, N))
         rout = out.reshape((nifm, H, W, N))
         rfouts = fouts.reshape((nifm, H, W, N))
-        otemp = rfouts.copy()
+        otemp = self.copy(rfouts)
         # We can do this because rinputs[rfouts == 0].sum() == 0
         otemp[otemp._tensor == 0] = 1.0
         self.divide(rinputs, otemp, out=otemp)
-        itemp = rinputs.copy()
+        itemp = self.copy(rinputs)
         # We can do this because rfouts[rinputs == 0].sum() == 0
         itemp[itemp._tensor == 0] = 1.0
         self.divide(rfouts, itemp, out=itemp)

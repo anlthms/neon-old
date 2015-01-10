@@ -179,7 +179,7 @@ class GBDist(GB):
         """
         logger.info('commencing supervised training')
         tempbuf = self.backend.zeros((targets[0].shape[0], self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        self.temp = [tempbuf, self.backend.copy(tempbuf)]
         start_time = time.time()
         num_batches = len(inputs)
         for epoch in range(self.num_epochs):
