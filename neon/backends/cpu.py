@@ -1111,7 +1111,7 @@ class CPU(Backend):
                 # zeros. In that case, we set the L2 norm to 1 before using
                 # it to normalize the receptive field.
                 denom[denom._tensor == 0] = 1
-                self.divide(rf, denom.repeat(rf.shape[0], axis=0), out=rf)
+                self.divide(rf, denom, out=rf)
                 self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
                                                             fshape[1],
                                                             axis=0),
