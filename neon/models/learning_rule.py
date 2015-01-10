@@ -7,6 +7,7 @@ i.e. how the learning should proceed.
 """
 
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,11 @@ class GradientDescentMomentum(GradientDescent):
         self.velocity = []
         self.velocity_rec = None
         self.velocity_dtype = param_dtype
+        if 'schedule' in lr_params:
+            self.schedule_flag = True
+            self.schedule = lr_params['schedule']
+        else:
+            self.schedule_flag = False
 
     def allocate_state(self, params):
         self.velocity = []
@@ -155,36 +161,44 @@ class GradientDescentMomentum(GradientDescent):
         3. velo = velo - upda  combine old and new part
         4. update the actual weights.
         """
-        # print 'called learning rule'
+        learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
-        i = 0
+        # print epoch, learning_rate
+        #i = 0
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             self.backend.multiply(vs_item,
                                   self.backend.wrap(momentum_coef),
                                   out=vs_item)
-            # todo: dbg modofied this added: '/100.'
-            # todo: this is hacky for imagenet only
-            if i == 0:
-                learning_rate = .01
-            else:
-                learning_rate = .02
-
             self.backend.multiply(us_item,
                                   self.backend.wrap(learning_rate),
                                   out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
-            # reuse us_item for weight decay term
-            if i == 0:  # only apply for weights, not biases
-                self.backend.multiply(ps_item,
-                                      self.backend.wrap(self.weight_decay),
-                                      out=us_item)
-                self.backend.multiply(us_item,
-                                      self.backend.wrap(learning_rate),
-                                      out=us_item)
-                self.backend.subtract(vs_item, us_item, out=vs_item)
+
+            # if i==0:
+            #     self.backend.multiply(ps_item,
+            #                           self.backend.wrap(self.weight_decay),
+            #                           out=us_item)
+            #     self.backend.multiply(us_item,
+            #                           self.backend.wrap(learning_rate),
+            #                           out=us_item)
+            #     self.backend.subtract(vs_item, us_item, out=vs_item)
+            #     i+=1
+            #     learning_rate *= 2.
 
             self.backend.add(ps_item, vs_item, out=ps_item)
-            i += 1
+
+    def get_learning_rate(self, epoch):
+        if self.schedule_flag:
+            if self.schedule['type'] == 'step':
+                div_factor = np.floor(
+                    (epoch + 1) / self.schedule['step_epochs'])
+                return self.learning_rate * (
+                    self.schedule['ratio'] ** div_factor)
+            else:
+                raise NotImplementedError("learning rate schedule type not "
+                                          "supported")
+        else:
+            return self.learning_rate
 
     def get_momentum_coef(self, epoch):
         """
@@ -244,8 +258,42 @@ class GradientDescentMomentum(GradientDescent):
         return coef
 
 
+class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
+
+    def apply_rule(self, params, updates, epoch):
+        """
+        Steps for momentum:
+        1. velo = mu * velo    scale down old velocity
+        2. upda = eps * upda   scale down new updates
+        3. velo = velo - upda  combine old and new part
+        4. update the actual weights.
+        """
+        learning_rate = self.get_learning_rate(epoch)
+        momentum_coef = self.get_momentum_coef(epoch)
+        for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            self.backend.multiply(vs_item,
+                                  self.backend.wrap(momentum_coef),
+                                  out=vs_item)
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(learning_rate),
+                                  out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            # reuse us_item for weight decay term
+            # note: usually want to only apply for weights, not biases
+            self.backend.multiply(ps_item,
+                                  self.backend.wrap(self.weight_decay),
+                                  out=us_item)
+            self.backend.multiply(us_item,
+                                  self.backend.wrap(learning_rate),
+                                  out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+
+            self.backend.add(ps_item, vs_item, out=ps_item)
+
 # TODO:  Use the built-in ada-delta update funcs in the backends to make this
 # cleaner/faster
+
+
 class AdaDelta(LearningRule):
 
     """

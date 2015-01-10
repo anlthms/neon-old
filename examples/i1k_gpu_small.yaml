@@ -51,6 +51,11 @@
             learning_rate: &lr .01,
             weight_decay: &wd .0005,
             backend: *be,
+            schedule: &sc {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+            },
             momentum_params: &mm {
               type: constant, #constant, nesterov
               initial_coef: 0.90,
@@ -99,6 +104,7 @@
           name: layer2lr,
           lr_params: {
             learning_rate: *lr,
+            schedule: *sc,
             backend: *be,
             momentum_params: *mm,
             weight_decay: *wd,
@@ -114,7 +120,7 @@
         weight_init: {
           type: normal,
           scale: .01,
-          bias_init: 1.0,
+          bias_init: .1, #1.0,
         },
       },
       !obj:neon.models.layer.CrossMapResponseNormLayer {
@@ -148,6 +154,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
             weight_decay: *wd,
           },
@@ -175,6 +182,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
             weight_decay: *wd,
           },
@@ -189,7 +197,7 @@
         weight_init: {
           type: normal,
           scale: .03,
-          bias_init: 1.0,
+          bias_init: .1, # 1.0,
         },
       },
       !obj:neon.models.layer.ConvLayer {
@@ -202,6 +210,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
             weight_decay: *wd,
           },
@@ -216,7 +225,7 @@
         weight_init: {
           type: normal,
           scale: .03,
-          bias_init: 1.0,
+          bias_init: .1, #1.0,
         },
       },
       !obj:neon.models.layer.MaxPoolingLayer {
@@ -240,6 +249,7 @@
             learning_rate: *lr,
             weight_decay: *wd,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
           },
         },
@@ -249,7 +259,7 @@
         weight_init: {
           type: normal,
           scale: .01,
-          bias_init: 1.0,
+          bias_init: .1, #1.0,
         },
       },
       !obj:neon.models.layer.DropOutLayer {
@@ -270,6 +280,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
             weight_decay: *wd,
           },
@@ -280,7 +291,7 @@
         weight_init: {
           type: normal,
           scale: .01,
-          bias_init: 1.0,
+          bias_init: .1, #1.0,
         },
       },
       !obj:neon.models.layer.DropOutLayer {
@@ -301,6 +312,7 @@
           lr_params: {
             learning_rate: *lr,
             backend: *be,
+            schedule: *sc,
             momentum_params: *mm,
             weight_decay: *wd,
           },
@@ -313,7 +325,7 @@
         weight_init: {
           type: normal,
           scale: .01,
-          bias_init: -7.0,
+          bias_init: 0., #-7.0,
         },
       },
     ],

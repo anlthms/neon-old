@@ -45,7 +45,7 @@ class GPUTensor(Tensor):
         else:
             if type(obj) == list:
                 obj = numpy.array(obj)
-            if type(obj) == numpy.ndarray:
+            if isinstance(obj, numpy.ndarray):
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
                 # (though the elements can be tuples/lists to create arbitrary
                 # n dimensions)
@@ -56,7 +56,8 @@ class GPUTensor(Tensor):
                                      "matrices.  You specifed %d-D" %
                                      obj.ndim)
                 logger.debug('Copying to GPU')
-                if dtype not in (numpy.float32, numpy.int32) or dtype is None:
+                if dtype not in (numpy.float32, numpy.int32,
+                                 'float32') or dtype is None:
                     logger.debug('Dtype %s is unsupported in GPU '
                                  'backend, defaulting float32', dtype)
                     obj = numpy.array(obj, dtype=numpy.float32)
@@ -1370,7 +1371,7 @@ class GPU(Backend):
                         str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'autoscale'):
-            low = 1.0/math.sqrt(size[0])
+            low = 1.0 / math.sqrt(size[0])
             if 'relu' in weight_params:
                 low = low * math.sqrt(2)
             weights = numpy.random.uniform(-low, low, size)
@@ -1384,7 +1385,7 @@ class GPU(Backend):
                 eigenvalue = weight_params['eigenvalue']
             logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
                         (str(size), sparseness, eigenvalue))
-            elements = size[0]*size[1]
+            elements = size[0] * size[1]
             nonzeros = size[0] * sparseness
             weights = numpy.zeros(size).flatten()
             nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]

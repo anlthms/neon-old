@@ -23,9 +23,7 @@ import sys
 import threading
 import Queue
 import multiprocessing as mp
-import neon.util.shmarray as shm
 # importing scipy.io breaks multiprocessing! don't do it here!
-# import scipy.io
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +47,12 @@ def my_unpickle(filename):
     fo.close()
     return contents
 
-# thread that handles loading the macrobatch from pickled file on disk
-
 
 class LoadFile(threading.Thread):
+
+    '''
+    thread that handles loading the macrobatch from pickled file on disk
+    '''
 
     def __init__(self, file_name_queue, macro_batch_queue):
         threading.Thread.__init__(self)
@@ -73,11 +73,13 @@ class LoadFile(threading.Thread):
             global macroq_flag
             macroq_flag = False
 
-# thread that decompresses/translates/crops/flips jpeg images on CPU in mini-
-# batches
-
 
 class DecompressImages(threading.Thread):
+
+    '''
+    thread that decompresses/translates/crops/flips jpeg images on CPU in mini-
+    batches
+    '''
 
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
@@ -93,7 +95,10 @@ class DecompressImages(threading.Thread):
         self.jpeg_strings = jpeg_strings
         self.targets_macro = targets_macro
         self.backend = backend
-        self.inputs = shm.create(
+        # if using multiprocessing [not working yet]
+        # self.inputs = mp.RawArray(ctypes.c_float,
+        #     ((self.cropped_image_size ** 2) * 3 * self.batch_size))
+        self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
             dtype='float32')
         self.num_processes = num_processes
@@ -107,7 +112,7 @@ class DecompressImages(threading.Thread):
             for i, jpeg_string in enumerate(
                     self.jpeg_strings['data'][start_id:end_id]):
                 img = Image.open(StringIO(jpeg_string))
-                # horizontal translations of image
+                # translations of image
                 csx = np.random.randint(0, self.diff_size)
                 csy = np.random.randint(0, self.diff_size)
                 img = img.crop((csx, csy,
@@ -117,24 +122,21 @@ class DecompressImages(threading.Thread):
                 flip_horizontal = np.random.randint(0, 2)
                 if flip_horizontal == 1:
                     img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                if(img.mode != 'RGB'):
+                    img = img.convert('RGB')
                 crop_mean_img = (
                     self.mean_img[:, csx:csx + self.cropped_image_size,
                                   csy:csy + self.cropped_image_size])
-                if img.mode == 'L':  # greyscale
-                    logger.debug('greyscale image found... tiling')
-                    self.inputs[:, i + offset, np.newaxis] = (
-                        np.transpose(np.tile(
-                            np.array(img, dtype='float32')[:, :, np.newaxis],
-                            (1, 1, 3)), axes=[2, 0, 1]) - crop_mean_img
-                        ).reshape((-1, 1))
-                else:
-                    self.inputs[:, i + offset, np.newaxis] = (
-                        np.transpose(np.array(
-                            img, dtype='float32')[:, :, 0:3],
-                            axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
+                self.inputs[:, i + offset] = (
+                    np.transpose(np.array(
+                        img, dtype='float32')[:, :, 0:3],
+                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
         else:
             csx = self.diff_size / 2
             csy = csx
+            crop_mean_img = (
+                self.mean_img[:, csx:csx + self.cropped_image_size,
+                              csy:csy + self.cropped_image_size])
             for i, jpeg_string in enumerate(
                     self.jpeg_strings['data'][start_id:end_id]):
                 img = Image.open(StringIO(jpeg_string))
@@ -142,42 +144,37 @@ class DecompressImages(threading.Thread):
                 img = img.crop((csx, csy,
                                 csx + self.cropped_image_size,
                                 csy + self.cropped_image_size))
-                crop_mean_img = (
-                    self.mean_img[:, csx:csx + self.cropped_image_size,
-                                  csy:csy + self.cropped_image_size])
-                if img.mode == 'L':  # greyscale
-                    logger.debug('greyscale image found... tiling')
-                    self.inputs[:, i + offset, np.newaxis] = (
-                        np.transpose(np.tile(
-                            np.array(img, dtype='float32')[:, :, np.newaxis],
-                            (1, 1, 3)), axes=[2, 0, 1]) - crop_mean_img
-                        ).reshape((-1, 1))
-                else:
-                    self.inputs[:, i + offset, np.newaxis] = (
-                        np.transpose(np.array(
-                            img, dtype='float32')[:, :, 0:3],
-                            axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
+                if(img.mode != 'RGB'):
+                    img = img.convert('RGB')
+                self.inputs[:, i + offset] = (
+                    np.transpose(np.array(
+                        img, dtype='float32')[:, :, 0:3],
+                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
 
     def run(self):
         # provide mini batch from macro batch
         start_idx = self.mb_id * self.batch_size
         end_idx = (self.mb_id + 1) * self.batch_size
 
-        start_list = range(
-            start_idx, end_idx, self.batch_size / self.num_processes)
-        end_list = range(start_idx + self.batch_size / self.num_processes,
-                         end_idx + 1, self.batch_size / self.num_processes)
-        offset_list = range(
-            0, self.batch_size, self.batch_size / self.num_processes)
+        # if using multiprocessing [not working yet]
+        # start_list = range(
+        #     start_idx, end_idx, self.batch_size / self.num_processes)
+        # end_list = range(start_idx + self.batch_size / self.num_processes,
+        #                  end_idx + 1, self.batch_size / self.num_processes)
+        # offset_list = range(
+        #     0, self.batch_size, self.batch_size / self.num_processes)
+        # procs = [mp.Process(target=self.jpeg_decoder, args=[x1, x2, x3,
+        #          self.inputs]) for (
+        #     x1, x2, x3) in zip(start_list, end_list, offset_list)]
+        # for proc in procs:
+        #     proc.daemon = True
+        #     proc.start()
 
-        procs = [mp.Process(target=self.jpeg_decoder, args=[x1, x2, x3]) for (
-            x1, x2, x3) in zip(start_list, end_list, offset_list)]
-        for proc in procs:
-            proc.daemon = True
-            proc.start()
+        # single process decompression
+        self.jpeg_decoder(start_idx, end_idx, 0)
 
         targets = self.targets_macro[:, start_idx:end_idx].copy()
-        [proc.join() for proc in procs]
+        #[proc.join() for proc in procs]
 
         logger.debug('mini-batch decompress end %d', self.mb_id)
 
@@ -190,11 +187,13 @@ class DecompressImages(threading.Thread):
             global miniq_flag
             miniq_flag = False
 
-# ring buffer for GPU backend to assist in transferring data from host to gpu
-# the buffers live on host
-
 
 class RingBuffer(object):
+
+    '''
+    ring buffer for GPU backend to assist in transferring data from host to gpu
+    the buffers that live on host
+    '''
 
     def __init__(self, max_size, batch_size, num_targets, num_input_dims):
         self.max_size = max_size
@@ -224,10 +223,12 @@ class RingBuffer(object):
         if self.id == self.max_size:
             self.id = 0
 
-# thread to transfer data to GPU
-
 
 class GPUTransfer(threading.Thread):
+
+    '''
+    thread to transfer data to GPU
+    '''
 
     def __init__(self, mb_id, mini_batch_queue, gpu_queue, backend,
                  ring_buffer):
@@ -436,10 +437,6 @@ class I1K(Dataset):
                             'validation', 0,
                             val_label_sample,
                             val_file_sample)
-                    self.cur_train_macro_batch = 0
-                    self.cur_train_mini_batch = 0
-                    self.cur_val_macro_batch = 0
-                    self.cur_val_mini_batch = 0
                 else:
                     raise NotImplementedError("Only macro-batched input is "
                                               "supported for ImageNet-1000")
@@ -480,13 +477,15 @@ class I1K(Dataset):
                 img.save(f, "JPEG")
                 tgt.append(f.getvalue())
             else:
-                # this is still in row order
-                if img.mode == 'L':  # greyscale
-                    logger.debug('greyscale image found... tiling')
-                    tgt[i] = np.tile(
-                        np.array(img, dtype='float32').reshape((1, -1)), 3)
-                else:
-                    tgt[i] = np.array(img, dtype='float32').reshape((1, -1))
+                raise NotImplementedError('returning as np.array not '
+                                          'supported')
+            # this is still in row order
+            # if img.mode == 'L':  # greyscale
+            #         logger.debug('greyscale image found... tiling')
+            #         tgt[i] = np.tile(
+            #             np.array(img, dtype='float32').reshape((1, -1)), 3)
+            #     else:
+            #         tgt[i] = np.array(img, dtype='float32').reshape((1, -1))
 
         return tgt
 
@@ -507,18 +506,14 @@ class I1K(Dataset):
             jpeg_strings = my_unpickle(file_path)
             for jpeg_string in jpeg_strings['data']:
                 img = Image.open(StringIO(jpeg_string))
-                if img.mode == 'L':  # greyscale
-                    logger.debug('greyscale image found... tiling')
-                    self.mean_img += np.transpose(np.tile(
-                        np.array(img, dtype='float32')[:, :, np.newaxis],
-                        (1, 1, 3)), axes=[2, 0, 1])
-                else:
-                    self.mean_img += np.transpose(np.array(
-                        img, dtype='float32')[:, :, 0:3],
-                        axes=[2, 0, 1])  # .reshape((-1, 1))
+                if(img.mode != 'RGB'):
+                    img = img.convert('RGB')
+                self.mean_img += np.transpose(np.array(
+                    img, dtype='float32')[:, :, 0:3],
+                    axes=[2, 0, 1])  # .reshape((-1, 1))
 
-        self.mean_img = self.mean_img / \
-            (self.n_train_batches * self.output_batch_size)
+        self.mean_img = (self.mean_img /
+                         (self.n_train_batches * self.output_batch_size))
         logger.info("done preprocessing images (computing mean image)")
 
     def get_next_macro_batch_id(self, batch_type, macro_batch_index):
@@ -537,21 +532,11 @@ class I1K(Dataset):
                 next_macro_batch_id = self.start_val_batch
         return next_macro_batch_id
 
-    def get_macro_batch(self, macro_batch_index):
+    def get_macro_batch(self):
         j = 0
-        num_iter = 1
-        if self.macro_batch_queue.empty():
-            # using same buffer size as ring buffer for macro batch (host mem)
-            num_iter = self.ring_buffer_size
-            self.macro_batch_onque = macro_batch_index
-        else:
+        for i in range(self.num_iter_macro):
             self.macro_batch_onque = self.get_next_macro_batch_id(
                 self.batch_type, self.macro_batch_onque)
-
-        for i in range(num_iter):
-            if i > 0:
-                self.macro_batch_onque = self.get_next_macro_batch_id(
-                    self.batch_type, macro_batch_index)
             batch_path = os.path.join(
                 self.save_dir, 'macro_batches7_' + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque))
@@ -566,7 +551,10 @@ class I1K(Dataset):
                 macroq.put(t)
             else:
                 t.start()
+                # if macroq is not empty then set macroq_flag to True
                 macroq_flag = True
+
+        self.num_iter_macro = 1
 
     def get_next_mini_batch_id(self, batch_type, mini_batch_index):
         next_mini_batch_id = mini_batch_index + 1
@@ -579,7 +567,7 @@ class I1K(Dataset):
         return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, batch_type,
-                                 raw_targets=False, ring_buffer_size=2):
+                                 raw_targets=False, ring_buffer_size=3):
         self.batch_size = batch_size
         self.batch_type = batch_type
         self.raw_targets = raw_targets
@@ -612,80 +600,105 @@ class I1K(Dataset):
         macroq_flag = False
         miniq_flag = False
         gpuq_flag = False
+        if batch_type == 'training':
+            self.macro_batch_onque = self.end_train_batch
+            self.macro_batch_onque2 = self.end_train_batch
+        elif batch_type == 'validation':
+            self.macro_batch_onque = self.end_val_batch
+            self.macro_batch_onque2 = self.end_val_batch
+        self.mini_batch_onque2 = self.num_minibatches_in_macro - 1
 
-        # self.mean_img = np.zeros(((self.output_image_size ** 2) * 3,1),
-        #    dtype='float32')
+        self.mini_batch_onque = self.num_minibatches_in_macro - 1
+        self.gpu_batch_onque = self.num_minibatches_in_macro - 1
+        self.num_iter_mini = self.ring_buffer_size
+        self.num_iter_gpu = self.ring_buffer_size
+        self.num_iter_macro = self.ring_buffer_size
+
         if not self.preprocess_done:
             self.preprocess_images()
             self.preprocess_done = True
 
-    def del_mini_batch_producer():
-        # todo: need to implement this for graceful ending of threads
-        pass
+    def del_queue(self, qname):
+        while not qname.empty():
+            qname.get()
+            qname.task_done()
 
-    def get_mini_batch(self):
-        # keep track of most recent batch and return the next batch
-        if self.batch_type == 'training':
-            cur_mini_batch_id = self.cur_train_mini_batch
-            if cur_mini_batch_id == 0:
-                # when cur_mini_batch is 0 enque a macro batch
-                logger.debug("train processing macro batch: %d",
-                             self.cur_train_macro_batch)
-                self.get_macro_batch(self.cur_train_macro_batch)
-                self.cur_train_macro_batch = self.get_next_macro_batch_id(
-                    'training', self.cur_train_macro_batch)
-        elif self.batch_type == 'validation':
-            cur_mini_batch_id = self.cur_val_mini_batch
-            if cur_mini_batch_id == 0:
-                logger.debug(
-                    "val processing macro batch: %d", self.cur_val_macro_batch)
-                self.get_macro_batch(self.cur_val_macro_batch)
-                self.cur_val_macro_batch = self.get_next_macro_batch_id(
-                    'validation', self.cur_val_macro_batch)
-        else:
-            raise ValueError('Invalid batch_type in get_batch')
+    def del_mini_batch_producer(self):
+        # graceful ending of thread queues
+        self.del_queue(self.file_name_queue)
+        self.del_queue(self.macro_batch_queue)
+        self.del_queue(self.mini_batch_queue)
+        self.del_queue(self.gpu_queue)
+        global macroq, miniq, gpuq
+        self.del_queue(macroq)
+        self.del_queue(miniq)
+        self.del_queue(gpuq)
 
-        num_iter_mini = 1
-        num_iter_gpu = 1
-        if cur_mini_batch_id == 0:
-            # assuming at least num_iter mini batches in macro
-            num_iter_mini = self.ring_buffer_size
-            num_iter_gpu = self.ring_buffer_size
-            self.mini_batch_onque = cur_mini_batch_id
-            self.gpu_batch_onque = cur_mini_batch_id
-        else:
-            self.mini_batch_onque = self.get_next_mini_batch_id(
-                self.batch_type, self.mini_batch_onque)
-            self.gpu_batch_onque = self.get_next_mini_batch_id(
-                self.batch_type, self.gpu_batch_onque)
+    def get_mini_batch2(self):
+        # non threaded version of get_mini_batch for debugging
+        self.mini_batch_onque2 = self.get_next_mini_batch_id(
+            self.batch_type, self.mini_batch_onque2)
+        j = 0
 
-        # deque next macro batch
-        if self.mini_batch_onque == 0:
-            try:
-                self.macro_batch_queue.task_done()
-            except:
-                # allow for the first get from macro_batch_queue
-                pass
-            self.jpeg_strings = self.macro_batch_queue.get(block=True)
-            # todo: this part could also be threaded for speedup
-            # during run time extract labels
-            labels = self.jpeg_strings['labels']
+        if self.mini_batch_onque2 == 0:
+            self.macro_batch_onque2 = self.get_next_macro_batch_id(
+                self.batch_type, self.macro_batch_onque2)
+            batch_path = os.path.join(
+                self.save_dir, 'macro_batches7_' + str(self.output_image_size),
+                '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
+            fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
+                self.batch_type, self.macro_batch_onque2,
+                j / self.output_batch_size))
+            self.jpeg_strings2 = my_unpickle(fname)
+
+            labels = self.jpeg_strings2['labels']
             # flatten the labels list of lists to a single list
             labels = [item for sublist in labels for item in sublist]
             labels = np.asarray(labels, dtype='float32')  # -1.
             if not self.raw_targets:
-                self.targets_macro = np.zeros(
+                self.targets_macro2 = np.zeros(
                     (self.nclasses, self.output_batch_size), dtype='float32')
                 for col in range(self.nclasses):
-                    self.targets_macro[col] = labels == col
+                    self.targets_macro2[col] = labels == col
             else:
-                self.targets_macro = labels.reshape((1, -1))
+                self.targets_macro2 = labels.reshape((1, -1))
 
-        # decompress jpegs and create translations, crops and reflections
-        for i in range(num_iter_mini):
-            if i > 0:
-                self.mini_batch_onque = self.get_next_mini_batch_id(
-                    self.batch_type, self.mini_batch_onque)
+        # provide mini batch from macro batch
+        start_idx = self.mini_batch_onque2 * self.batch_size
+        end_idx = (self.mini_batch_onque2 + 1) * self.batch_size
+
+        targets = self.targets_macro2[:, start_idx:end_idx].copy()
+        self.jpeg_decoder(start_idx, end_idx)
+
+        return GPUTensor(self.inputs), GPUTensor(targets)
+
+    def get_mini_batch(self):
+        # threaded version of get_mini_batch
+        for i in range(self.num_iter_mini):
+            self.mini_batch_onque = self.get_next_mini_batch_id(
+                self.batch_type, self.mini_batch_onque)
+            if self.mini_batch_onque == 0:
+                self.get_macro_batch()
+                # deque next macro batch
+                try:
+                    self.macro_batch_queue.task_done()
+                except:
+                    # allow for the first get from macro_batch_queue
+                    pass
+                self.jpeg_strings = self.macro_batch_queue.get(block=True)
+                labels = self.jpeg_strings['labels']
+                # flatten the labels list of lists to a single list
+                labels = [item for sublist in labels for item in sublist]
+                labels = np.asarray(labels, dtype='float32')
+                if not self.raw_targets:
+                    self.targets_macro = np.zeros((self.nclasses,
+                                                   self.output_batch_size),
+                                                  dtype='float32')
+                    for col in range(self.nclasses):
+                        self.targets_macro[col] = labels == col
+                else:
+                    self.targets_macro = labels.reshape((1, -1))
+
             di = DecompressImages(self.mini_batch_onque, self.mini_batch_queue,
                                   self.batch_size, self.output_image_size,
                                   self.cropped_image_size, self.jpeg_strings,
@@ -700,16 +713,9 @@ class I1K(Dataset):
                 di.start()
                 miniq_flag = True
 
-        # todo:
-        # test file reading speeds 3M, 30M, 90M, 300M for best macro size
-        # multiple MPI processes reading diff files from same disk
-        # todo: run this with page locked memory?
-
-        # host -> gpu transfer
-        for i in range(num_iter_gpu):
-            if i > 0:
-                self.gpu_batch_onque = self.get_next_mini_batch_id(
-                    self.batch_type, self.gpu_batch_onque)
+        for i in range(self.num_iter_gpu):
+            self.gpu_batch_onque = self.get_next_mini_batch_id(
+                self.batch_type, self.gpu_batch_onque)
             gt = GPUTransfer(self.gpu_batch_onque,
                              self.mini_batch_queue, self.gpu_queue,
                              self.backend, self.ring_buffer)
@@ -721,16 +727,63 @@ class I1K(Dataset):
                 gt.start()
                 gpuq_flag = True
 
-        if self.batch_type == 'training':
-            self.cur_train_mini_batch = self.get_next_mini_batch_id(
-                self.batch_type, cur_mini_batch_id)
-        elif self.batch_type == 'validation':
-            self.cur_val_mini_batch = self.get_next_mini_batch_id(
-                self.batch_type, cur_mini_batch_id)
-
         inputs_backend, targets_backend = self.gpu_queue.get(block=True)
         self.gpu_queue.task_done()
+        self.num_iter_mini = 1
+        self.num_iter_gpu = 1
+
         return inputs_backend, targets_backend
+
+    def jpeg_decoder(self, start_id, end_id):
+        # helps with non-threaded decoding of jpegs
+        # convert jpeg string to numpy array
+        self.inputs = np.empty(
+            ((self.cropped_image_size ** 2) * 3, self.batch_size),
+            dtype='float32')
+        self.diff_size = self.output_image_size - self.cropped_image_size
+        if not self.raw_targets:
+            # use raw_targets as a proxy for training vs testing performance
+            for i, jpeg_string in enumerate(
+                    self.jpeg_strings2['data'][start_id:end_id]):
+                img = Image.open(StringIO(jpeg_string))
+                # translations of image
+                csx = np.random.randint(0, self.diff_size)
+                csy = np.random.randint(0, self.diff_size)
+                img = img.crop((csx, csy,
+                                csx + self.cropped_image_size,
+                                csy + self.cropped_image_size))
+                # horizontal reflections of the image
+                flip_horizontal = np.random.randint(0, 2)
+                if flip_horizontal == 1:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                if(img.mode != 'RGB'):
+                    img = img.convert('RGB')
+                crop_mean_img = (
+                    self.mean_img[:, csx:csx + self.cropped_image_size,
+                                  csy:csy + self.cropped_image_size])
+                self.inputs[:, i, np.newaxis] = (
+                    np.transpose(np.array(
+                        img, dtype='float32')[:, :, 0:3],
+                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
+        else:
+            csx = self.diff_size / 2
+            csy = csx
+            crop_mean_img = (
+                self.mean_img[:, csx:csx + self.cropped_image_size,
+                              csy:csy + self.cropped_image_size])
+            for i, jpeg_string in enumerate(
+                    self.jpeg_strings2['data'][start_id:end_id]):
+                img = Image.open(StringIO(jpeg_string))
+                # center crop of image
+                img = img.crop((csx, csy,
+                                csx + self.cropped_image_size,
+                                csy + self.cropped_image_size))
+                if(img.mode != 'RGB'):
+                    img = img.convert('RGB')
+                self.inputs[:, i, np.newaxis] = (
+                    np.transpose(np.array(
+                        img, dtype='float32')[:, :, 0:3],
+                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
 
     # code below adapted from Alex Krizhevsky's cuda-convnet2 library,
     # make-data.py
@@ -841,19 +894,15 @@ class I1K(Dataset):
 
 # End of Krizhevsky code and Google Apache license
 
-# for multi-threaded image resize, not yet supported
+'''
+Functions below are for multi-threaded image resize, not yet supported
+'''
 
 
 def resize_jpeg(jpeg_file_list, output_image_size, crop_to_square):
     tgt = []
     print 'called resize_jpeg'
     jpeg_strings = [jpeg.read() for jpeg in jpeg_file_list]
-    print output_image_size, crop_to_square
-    # else:
-    # as numpy array, row order
-    #     tgt = np.empty(
-    #         (len(jpeg_strings), (output_image_size ** 2) * 3),
-    #         dtype='float32')
     for i, jpeg_string in enumerate(jpeg_strings):
         img = Image.open(StringIO(jpeg_string))
 
@@ -880,13 +929,9 @@ def resize_jpeg(jpeg_file_list, output_image_size, crop_to_square):
 
     return tgt
 
-# multi-threaded image resize, not yet supported
-
 
 def resize_jpeg_helper(args):
     return resize_jpeg(*args)
-
-# multi-threaded image resize, not yet supported
 
 
 class ResizeImages(mp.Process):
@@ -920,9 +965,6 @@ class ResizeImages(mp.Process):
             start_idx, end_idx, self.obs / self.num_processes)
         end_list = range(start_idx + self.obs / self.num_processes,
                          end_idx + 1, self.obs / self.num_processes)
-        #offset_list = range(0, self.obs, self.obs / self.num_processes)
-        # print [(self.mb_id, x1, x2, x3) for (x1,x2,x3) in zip(start_list,
-        # end_list, offset_list)]
         logger.info('before loop')
 
         pool = mp.Pool(processes=self.num_processes)
