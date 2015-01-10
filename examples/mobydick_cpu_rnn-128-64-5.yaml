@@ -17,9 +17,9 @@
   },
 
   wp: &wt_init {
-  type: sparse_eigenvalued,
-  sparseness: 15,
-  eigenvalue: 1.2,
+    type: sparse_eigenvalued,
+    sparseness: 15,
+    eigenvalue: 1.2,
   },
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {

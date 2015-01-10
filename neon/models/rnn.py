@@ -29,6 +29,7 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
+        trace()
         self.cost.initialize(kwargs)
 
     def fit(self, dataset):
@@ -139,7 +140,7 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
-        eps = 1e-6  # use float64 in cpu.py for this
+        eps = 1e-3  # use float64 in cpu.py for this
         numerical = 0
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
@@ -154,21 +155,21 @@ class RNN(Model):
                            debug=(True if batch == -1 else False))
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_ref = self.cost.apply_function(target_out)
-
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
-            logger.info("numpart for  tau=%d of %d is %e", tau,
-                        self.unrolls, num_part)
+            logger.info("numpart for  tau=%d of %d is %e",
+                        tau, self.unrolls, num_part)
             numerical += num_part
 
         # bprop for comparison
-        self.bprop(targets[batch_inx, :], inputs[batch_inx, :])
+        self.bprop(targets[batch_inx, :], inputs[batch_inx, :], numgrad=True)
 
-        analytical = self.layers[0].Wfh_updates[12, 55].raw()
-        logger.info("RNN grad_checker: suberror_eps", suberror_eps)
-        logger.info("RNN grad_checker: suberror_ref", suberror_ref)
-        logger.info("RNN grad_checker: numerical", numerical)
-        logger.info("RNN grad_checker: analytical", analytical)
+        analytical = self.layers[0].Wih_updates[12, 55].raw()
+        logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
+        logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
+        logger.info("RNN grad_checker: numerical %e", numerical)
+        logger.info("RNN grad_checker: analytical %e", analytical)
+        trace()
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None):
@@ -194,8 +195,9 @@ class RNN(Model):
         # fprop does a single full unroll
         for tau in range(0, unrolls):
             if tau == eps_tau:
-                self.backend.add(self.layers[0].Wfh[12, 55],
-                                 eps, self.layers[0].Wfh[12, 55])  # inject eps
+                print "injecting eps %d" %tau,
+                self.backend.add(self.layers[0].Wih[12, 55],
+                                 eps, self.layers[0].Wfh[12, 55])
 
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
@@ -203,7 +205,8 @@ class RNN(Model):
             c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
             if tau == eps_tau:
-                self.backend.add(self.layers[0].Wfh[12, 55],
+                print "removing eps"
+                self.backend.add(self.layers[0].Wih[12, 55],
                                  -eps, self.layers[0].Wfh[12, 55])  # remove eps
 
     def fprop(self, inputs, hidden_init=None,
@@ -236,7 +239,7 @@ class RNN(Model):
             self.layers[1].fprop(inputs=y, tau=tau)
 
     def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
-              debug=False):
+              debug=False, numgrad=False):
         """
         bprop for the RNN is a bit weird because the delta from the output
         layer to the recurrent layer needs to dealt with outside the layer
@@ -270,6 +273,8 @@ class RNN(Model):
         self.backend.fill(self.layers[1].weight_updates, 0)
         if 'Wix_updates' in self.layers[0].__dict__:
             # reset these things back to zero
+            #for a in ['i', 'f', 'o', 'c',]:
+            #    for b in ['x', 'h']:
             self.backend.fill(self.layers[0].Wix_updates, 0)
             self.backend.fill(self.layers[0].Wfx_updates, 0)
             self.backend.fill(self.layers[0].Wox_updates, 0)
@@ -299,7 +304,7 @@ class RNN(Model):
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size)) # init w/ zeros?
             for t in list(range(1, tau))[::-1]:  # had (0, tau-1) in rnn2.
-                self.layers[0].bprop(error_h, error_c, inputs, tau, t)
+                self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
                 error_h = self.layers[0].berror
                 error_c = self.layers[0].cerror
             # last layer: put output[-1], i.e. hidden init, into output[end]
@@ -311,7 +316,7 @@ class RNN(Model):
                 # assuming it's ok to overwrite? (These are reused throughout!)
                 self.layers[0].output_list[tau - 1] = hidden_init  # TESTING
                 self.layers[0].c_t[tau - 1] = cell_init  # TESTING
-                self.layers[0].bprop(error_h, error_c, inputs, tau, t)
+                self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
 
     def update(self, epoch):
         for layer in self.layers:

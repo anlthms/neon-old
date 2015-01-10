@@ -475,16 +475,15 @@ class RecurrentLSTMLayer(Layer):
         phi.apply_both(be, self.net_g[tau], self.g_t[tau])
 
         # combine the parts and compute output.
-        be.multiply(self.f_t[tau],cell, self.c_t[tau])
+        be.multiply(self.f_t[tau], cell, self.c_t[tau])
         be.multiply(self.i_t[tau], self.g_t[tau], self.c_phip[tau])
-
         be.add(self.c_t[tau], self.c_phip[tau], self.c_t[tau])
         self.c_phip[tau] = self.c_t[tau].copy()
 
         phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
 
-    def bprop(self, error_h, error_c, inputs, tau_tot, tau):
+    def bprop(self, error_h, error_c, inputs, tau_tot, tau, numgrad=False):
         """
         For LSTM, inject h-error and c-error, get 8 W's and h, c out. It's
         more complicated than bprop thorugh a standard layer mostly because
@@ -628,7 +627,7 @@ class RecurrentLSTMLayer(Layer):
         be.add(di_dh1, df_dh1, hherror)
         be.add(do_dh1, hherror, hherror)
         be.add(dg_dh1, hherror, hherror)
-        ttemp1 = dh_dWfh[12, 55]  # used for num grad checks
+        ttemp1 = dh_dWfh[12, 55].raw()  # used for num grad checks
 
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
@@ -700,10 +699,10 @@ class RecurrentLSTMLayer(Layer):
         be.add(hherror, cherror, self.berror)
         be.add(ccerror, hcerror, self.cerror)
 
-        if 0:
-            ttemp2 = dh_dWfh[12, 55]  # for numerical gradient
-            logger.info("layer.bprop: analytic dh_dWfh[%d]= %e + %e = %e", (
-                tau, ttemp1, ttemp2, ttemp1 + ttemp2))
+        if numgrad:
+            ttemp2 = dh_dWfh[12, 55].raw()  # for numerical gradient
+            logger.info("layer.bprop: analytic dh_dWfh[%d]= %e + %e = %e",
+                        tau, ttemp1, ttemp2, ttemp1 + ttemp2)
 
 
     def update(self, epoch):
