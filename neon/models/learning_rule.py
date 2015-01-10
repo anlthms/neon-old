@@ -282,8 +282,6 @@ class AdaDelta(LearningRule):
 
     """
     Adadelta based learning rule updates.  See Zeiler2012 for instance.
-    TODO: Use the built-in ada-delta update funcs in the backends to make this
-    cleaner/faster
     """
 
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
