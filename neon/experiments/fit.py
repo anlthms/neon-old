@@ -77,12 +77,12 @@ class FitExperiment(Experiment):
                      ds.num_processes] = [tmp1, tmp2, tmp3, tmp4, tmp5]
                     # number of batches to train for this yaml file
                     # (<= total available)
-                    ds.n_train_batches = (ds.end_train_batch - 
-                        ds.start_train_batch + 1)
+                    ds.n_train_batches = (ds.end_train_batch -
+                                          ds.start_train_batch + 1)
                     # number of batches to validation for this yaml
                     # file (<= total available)
-                    ds.n_val_batches = (ds.end_val_batch - 
-                        ds.start_val_batch + 1)
+                    ds.n_val_batches = (ds.end_val_batch -
+                                        ds.start_val_batch + 1)
             else:
                 ds.load()
                 serialize(ds, ds.serialized_path)

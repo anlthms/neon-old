@@ -277,7 +277,7 @@ class DataLayer(Layer):
                                                  test=True)
             return True if (setname in inputs_dic) else False
 
-    def use_set(self, setname):
+    def use_set(self, setname, predict=False):
         ds = self.dataset
         if ds.macro_batched:
             sn = 'val' if (setname == 'validation') else setname
@@ -288,9 +288,10 @@ class DataLayer(Layer):
                 nrecs = ds.max_file_index
             setattr(ds, 'cur_' + sn + '_macro_batch', startb)
             self.num_batches = int(np.ceil((nrecs + 0.0) / self.batch_size))
-            ln = 'training' if (setname =='train') else setname
+            ln = 'training' if (setname == 'train') else setname
             ds.init_mini_batch_producer(batch_size=self.batch_size,
-                                        batch_type=ln)
+                                        batch_type=ln,
+                                        predict=predict)
         else:
             self.inputs = ds.get_inputs(train=True, validation=True,
                                         test=True)[setname]
@@ -298,6 +299,14 @@ class DataLayer(Layer):
                                        test=True)[setname]
             self.num_batches = len(self.inputs)
         self.batch_idx = 0
+
+    def cleanup(self):
+        ds = self.dataset
+        if ds.macro_batched:
+            # delete macro batch helper queues
+            ds.del_mini_batch_producer()
+        else:
+            pass
 
 
 class ActivationLayer(Layer):
@@ -347,26 +356,39 @@ class WeightLayer(Layer):
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
-        if self.use_biases:
+        self.params_wt = [self.weights]
+        self.updates_wt = [self.weight_updates]
+
+        if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
             self.backend.fill(self.biases, self.weight_init['bias_init'])
-            self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
-            self.params = [self.weights, self.biases]
-            self.updates = [self.weight_updates, self.bias_updates]
-        else:
-            self.params = [self.weights]
-            self.updates = [self.weight_updates]
+            self.bias_updates = make_ebuf(self.bias_shape,
+                                          self.updates_dtype)
+            self.params_bias = [self.biases]
+            self.updates_bias = [self.bias_updates]
+            opt_param(self, ['brule_init'], self.lrule_init)
+            self.gen_bias_learning_rule()
 
         if self.accumulate:
-            self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
-                             self.updates)
+            self.utemp_wt = map(lambda x: make_ebuf(x.shape,
+                                                    self.updates_dtype),
+                                self.updates_wt)
+            self.utemp_b = map(lambda x: make_ebuf(x.shape,
+                                                   self.updates_dtype),
+                               self.updates_bias)
         self.gen_learning_rule()
 
     def update(self, epoch):
-        self.learning_rule.apply_rule(self.params, self.updates, epoch)
+        self.learning_rule.apply_rule(self.params_wt, self.updates_wt, epoch)
+        if self.use_biases:
+            self.bias_rule.apply_rule(
+                self.params_bias, self.updates_bias, epoch)
         if self.accumulate:
-            for upm in self.updates:
+            for upm in self.updates_wt:
                 self.backend.fill(upm, 0.0)
+            if self.use_biases is True:
+                for upm in self.updates_bias:
+                    self.backend.fill(upm, 0.0)
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
@@ -374,6 +396,7 @@ class WeightLayer(Layer):
 
     def gen_learning_rule(self):
         lrname = self.name + '_lr'
+        gdmwd = 'gradient_descent_momentum_weight_decay'
         if self.lrule_init['type'] == 'gradient_descent':
             self.learning_rule = lr.GradientDescent(
                 name=lrname, lr_params=self.lrule_init['lr_params'])
@@ -386,9 +409,34 @@ class WeightLayer(Layer):
         elif self.lrule_init['type'] == 'adadelta':
             self.learning_rule = lr.AdaDelta(
                 name=lrname, lr_params=self.lrule_init['lr_params'])
+        elif self.lrule_init['type'] == gdmwd:
+            self.learning_rule = lr.GradientDescentMomentumWeightDecay(
+                name=lrname, lr_params=self.lrule_init['lr_params'])
         else:
             raise AttributeError("invalid learning rule params specified")
-        self.learning_rule.allocate_state(self.updates)
+        self.learning_rule.allocate_state(self.updates_wt)
+
+    def gen_bias_learning_rule(self):
+        brname = self.name + '_lr'
+        gdmwd = 'gradient_descent_momentum_weight_decay'
+        if self.brule_init['type'] == 'gradient_descent':
+            self.bias_rule = lr.GradientDescent(
+                name=brname, lr_params=self.brule_init['lr_params'])
+        elif self.brule_init['type'] == 'gradient_descent_pretrain':
+            self.bias_rule = lr.GradientDescentPretrain(
+                name=brname, lr_params=self.brule_init['lr_params'])
+        elif self.brule_init['type'] == 'gradient_descent_momentum':
+            self.bias_rule = lr.GradientDescentMomentum(
+                name=brname, lr_params=self.brule_init['lr_params'])
+        elif self.brule_init['type'] == 'adadelta':
+            self.bias_rule = lr.AdaDelta(
+                name=brname, lr_params=self.brule_init['lr_params'])
+        elif self.brule_init['type'] == gdmwd:
+            self.bias_rule = lr.GradientDescentMomentumWeightDecay(
+                name=brname, lr_params=self.brule_init['lr_params'])
+        else:
+            raise AttributeError("invalid learning rule params specified")
+        self.bias_rule.allocate_state(self.updates_bias)
 
 
 class FCLayer(WeightLayer):
@@ -420,16 +468,21 @@ class FCLayer(WeightLayer):
             self.backend.bprop_fc(out=self.berror, weights=self.weights,
                                   deltas=error)
 
-        upm = self.utemp if self.accumulate else self.updates
-
-        self.backend.update_fc(out=upm[0], inputs=inputs, deltas=error)
+        upm_wt = self.utemp_wt if self.accumulate else self.updates_wt
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=upm[1])
+            upm_bias = self.utemp_b if self.accumulate else self.updates_bias
+
+        self.backend.update_fc(out=upm_wt[0], inputs=inputs, deltas=error)
+        if self.use_biases is True:
+            self.backend.sum(error, axis=1, out=upm_bias[0])
 
         if self.accumulate:
-            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            self.backend.add(
+                upm_wt[0], self.updates_wt[0], out=self.updates_wt[0])
             if self.use_biases is True:
-                self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+                self.backend.add(
+                    upm_bias[0], self.updates_bias[0],
+                    out=self.updates_bias[0])
 
 
 class PoolingLayer(Layer):
@@ -536,8 +589,10 @@ class ConvLayer(WeightLayer):
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
 
-        upm = self.utemp if self.accumulate else self.updates
-        self.backend.update_conv(out=upm[0], inputs=inputs,
+        upm_wt = self.utemp_wt if self.accumulate else self.updates_wt
+        if self.use_biases is True:
+            upm_bias = self.utemp_b if self.accumulate else self.updates_bias
+        self.backend.update_conv(out=upm_wt[0], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
@@ -546,11 +601,14 @@ class ConvLayer(WeightLayer):
                                  fwidth=self.fwidth, updatebuf=self.updatebuf,
                                  local=self.local_conv)
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=upm[1])
+            self.backend.sum(error, axis=1, out=upm_bias[0])
         if self.accumulate:
-            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            self.backend.add(
+                upm_wt[0], self.updates_wt[0], out=self.updates_wt[0])
             if self.use_biases is True:
-                self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+                self.backend.add(
+                    upm_bias[0], self.updates_bias[0],
+                    out=self.updates_bias[0])
 
 
 class DropOutLayer(Layer):
@@ -668,6 +726,7 @@ class ListLayer(Layer):
     during bprop, it splits the backward errors into the components and
         accumulates into a common berror
     """
+
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
         for l in self.sublayers:

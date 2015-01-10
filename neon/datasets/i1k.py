@@ -83,7 +83,7 @@ class DecompressImages(threading.Thread):
 
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
-                 num_processes, mean_img, raw_targets):
+                 num_processes, mean_img, predict):
         threading.Thread.__init__(self)
         self.mb_id = mb_id
         # mini-batch queue
@@ -103,53 +103,39 @@ class DecompressImages(threading.Thread):
             dtype='float32')
         self.num_processes = num_processes
         self.mean_img = mean_img
-        self.raw_targets = raw_targets
+        self.predict = predict
 
     def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
-        if not self.raw_targets:
-            # use raw_targets as a proxy for training vs testing performance
-            for i, jpeg_string in enumerate(
-                    self.jpeg_strings['data'][start_id:end_id]):
-                img = Image.open(StringIO(jpeg_string))
-                # translations of image
-                csx = np.random.randint(0, self.diff_size)
-                csy = np.random.randint(0, self.diff_size)
-                img = img.crop((csx, csy,
-                                csx + self.cropped_image_size,
-                                csy + self.cropped_image_size))
-                # horizontal reflections of the image
-                flip_horizontal = np.random.randint(0, 2)
-                if flip_horizontal == 1:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                if(img.mode != 'RGB'):
-                    img = img.convert('RGB')
-                crop_mean_img = (
-                    self.mean_img[:, csx:csx + self.cropped_image_size,
-                                  csy:csy + self.cropped_image_size])
-                self.inputs[:, i + offset] = (
-                    np.transpose(np.array(
-                        img, dtype='float32')[:, :, 0:3],
-                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
-        else:
+        if self.predict:  # during prediction just use center crop & no flips
             csx = self.diff_size / 2
             csy = csx
             crop_mean_img = (
                 self.mean_img[:, csx:csx + self.cropped_image_size,
                               csy:csy + self.cropped_image_size])
-            for i, jpeg_string in enumerate(
-                    self.jpeg_strings['data'][start_id:end_id]):
-                img = Image.open(StringIO(jpeg_string))
-                # center crop of image
-                img = img.crop((csx, csy,
-                                csx + self.cropped_image_size,
-                                csy + self.cropped_image_size))
-                if(img.mode != 'RGB'):
-                    img = img.convert('RGB')
-                self.inputs[:, i + offset] = (
-                    np.transpose(np.array(
-                        img, dtype='float32')[:, :, 0:3],
-                        axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
+        for i, jpeg_string in enumerate(
+                self.jpeg_strings['data'][start_id:end_id]):
+            img = Image.open(StringIO(jpeg_string))
+            if not self.predict:  # for training
+                # translations of image
+                csx = np.random.randint(0, self.diff_size)
+                csy = np.random.randint(0, self.diff_size)
+                # horizontal reflections of the image
+                flip_horizontal = np.random.randint(0, 2)
+                if flip_horizontal == 1:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                crop_mean_img = (
+                    self.mean_img[:, csx:csx + self.cropped_image_size,
+                                  csy:csy + self.cropped_image_size])
+            img = img.crop((csx, csy,
+                            csx + self.cropped_image_size,
+                            csy + self.cropped_image_size))
+            if(img.mode != 'RGB'):
+                img = img.convert('RGB')
+            self.inputs[:, i + offset] = (
+                np.transpose(np.array(
+                    img, dtype='float32')[:, :, 0:3],
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
 
     def run(self):
         # provide mini batch from macro batch
@@ -296,7 +282,7 @@ class I1K(Dataset):
         self.end_val_batch = -1
         self.preprocess_done = False
         self.__dict__.update(kwargs)
-        
+
         if not hasattr(self, 'save_dir'):
             self.save_dir = os.path.join(self.repo_path,
                                          self.__class__.__name__)
@@ -390,12 +376,13 @@ class I1K(Dataset):
                 # macro batch size
                 logger.info("total number of training files = %d",
                             len(train_jpeg_files))
-                self.output_batch_size = 3072
-                self.max_file_index = 3072 * 1 #25
+                self.max_file_index = (self.output_batch_size *
+                                       self.num_train_macro_batches)
 
                 jpeg_file_sample = train_jpeg_files[0:self.max_file_index]
                 label_sample = train_labels[0:self.max_file_index]
-                self.val_max_file_index = 3072 * 1 #5
+                self.val_max_file_index = (self.output_batch_size *
+                                           self.num_val_macro_batches)
 
                 # this may not be most efficient
                 flat_labels = [
@@ -417,7 +404,7 @@ class I1K(Dataset):
                 if self.macro_batched:
                     # Write training batches
                     self.num_train_macro_batches = self.write_batches(
-                        os.path.join(save_dir, 'macro_batches7_'
+                        os.path.join(save_dir, 'macro_batches_'
                                      + str(self.output_image_size)),
                         'training', 0,
                         label_sample, jpeg_file_sample)
@@ -439,7 +426,7 @@ class I1K(Dataset):
                         val_label_sample = val_label_sample[
                             0:self.val_max_file_index]
                         self.num_val_macro_batches = self.write_batches(
-                            os.path.join(save_dir, 'macro_batches7_'
+                            os.path.join(save_dir, 'macro_batches_'
                                          + str(self.output_image_size)),
                             'validation', 0,
                             val_label_sample,
@@ -504,7 +491,7 @@ class I1K(Dataset):
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)
             batch_path = os.path.join(self.save_dir,
-                                      'macro_batches7_' +
+                                      'macro_batches_' +
                                       str(self.output_image_size),
                                       '%s_batch_%d' % ('training', i))
             j = 0
@@ -545,7 +532,7 @@ class I1K(Dataset):
             self.macro_batch_onque = self.get_next_macro_batch_id(
                 self.batch_type, self.macro_batch_onque)
             batch_path = os.path.join(
-                self.save_dir, 'macro_batches7_' + str(self.output_image_size),
+                self.save_dir, 'macro_batches_' + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque))
             self.file_name_queue.put(
                 os.path.join(batch_path, '%s_batch_%d.%d' % (
@@ -565,42 +552,35 @@ class I1K(Dataset):
 
     def get_next_mini_batch_id(self, batch_type, mini_batch_index):
         next_mini_batch_id = mini_batch_index + 1
-        if batch_type == 'training':
-            if next_mini_batch_id >= self.num_minibatches_in_macro:
-                next_mini_batch_id = 0
-        elif batch_type == 'validation':
-            if next_mini_batch_id >= self.num_minibatches_in_macro:
-                next_mini_batch_id = 0
+        if next_mini_batch_id >= self.num_minibatches_in_macro:
+            next_mini_batch_id = 0
         return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, batch_type,
-                                 raw_targets=False, ring_buffer_size=3):
+                                 predict=False, ring_buffer_size=3):
         self.batch_size = batch_size
         self.batch_type = batch_type
-        self.raw_targets = raw_targets
+        self.predict = predict
         self.ring_buffer_size = ring_buffer_size
-        # # temp fix
         self.nclasses = self.max_tar_file
-        # self.output_batch_size = 3072
-        # ###
 
         if self.output_batch_size % batch_size != 0:
             raise ValueError('self.output_batch_size % batch_size != 0')
         else:
             self.num_minibatches_in_macro = self.output_batch_size / batch_size
         if isinstance(self.backend, GPU):
-            if raw_targets:
-                self.ring_buffer = RingBuffer(
-                    max_size=ring_buffer_size,
-                    batch_size=batch_size,
-                    num_targets=1,
-                    num_input_dims=(self.cropped_image_size ** 2) * 3)
-            else:
-                self.ring_buffer = RingBuffer(
-                    max_size=ring_buffer_size,
-                    batch_size=batch_size,
-                    num_targets=self.nclasses,
-                    num_input_dims=(self.cropped_image_size ** 2) * 3)
+            # if raw_targets:
+            #     self.ring_buffer = RingBuffer(
+            #         max_size=ring_buffer_size,
+            #         batch_size=batch_size,
+            #         num_targets=1,
+            #         num_input_dims=(self.cropped_image_size ** 2) * 3)
+            # else:
+            self.ring_buffer = RingBuffer(
+                max_size=ring_buffer_size,
+                batch_size=batch_size,
+                num_targets=self.nclasses,
+                num_input_dims=(self.cropped_image_size ** 2) * 3)
         self.file_name_queue = Queue.Queue()
         self.macro_batch_queue = Queue.Queue()
         self.mini_batch_queue = Queue.Queue()
@@ -656,7 +636,7 @@ class I1K(Dataset):
             self.macro_batch_onque2 = self.get_next_macro_batch_id(
                 self.batch_type, self.macro_batch_onque2)
             batch_path = os.path.join(
-                self.save_dir, 'macro_batches7_' + str(self.output_image_size),
+                self.save_dir, 'macro_batches_' + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
             fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
                 self.batch_type, self.macro_batch_onque2,
@@ -667,13 +647,13 @@ class I1K(Dataset):
             # flatten the labels list of lists to a single list
             labels = [item for sublist in labels for item in sublist]
             labels = np.asarray(labels, dtype='float32')  # -1.
-            if not self.raw_targets:
-                self.targets_macro2 = np.zeros(
-                    (self.nclasses, self.output_batch_size), dtype='float32')
-                for col in range(self.nclasses):
-                    self.targets_macro2[col] = labels == col
-            else:
-                self.targets_macro2 = labels.reshape((1, -1))
+            # if not self.raw_targets:
+            self.targets_macro2 = np.zeros(
+                (self.nclasses, self.output_batch_size), dtype='float32')
+            for col in range(self.nclasses):
+                self.targets_macro2[col] = labels == col
+            # else:
+            #     self.targets_macro2 = labels.reshape((1, -1))
 
         # provide mini batch from macro batch
         start_idx = self.mini_batch_onque2 * self.batch_size
@@ -702,21 +682,21 @@ class I1K(Dataset):
                 # flatten the labels list of lists to a single list
                 labels = [item for sublist in labels for item in sublist]
                 labels = np.asarray(labels, dtype='float32')
-                if not self.raw_targets:
-                    self.targets_macro = np.zeros((self.nclasses,
-                                                   self.output_batch_size),
-                                                  dtype='float32')
-                    for col in range(self.nclasses):
-                        self.targets_macro[col] = labels == col
-                else:
-                    self.targets_macro = labels.reshape((1, -1))
+                # if not self.raw_targets:
+                self.targets_macro = np.zeros((self.nclasses,
+                                               self.output_batch_size),
+                                              dtype='float32')
+                for col in range(self.nclasses):
+                    self.targets_macro[col] = labels == col
+                # else:
+                #     self.targets_macro = labels.reshape((1, -1))
 
             di = DecompressImages(self.mini_batch_onque, self.mini_batch_queue,
                                   self.batch_size, self.output_image_size,
                                   self.cropped_image_size, self.jpeg_strings,
                                   self.targets_macro, self.backend,
                                   self.num_processes, self.mean_img,
-                                  self.raw_targets)
+                                  self.predict)
             di.setDaemon(True)
             global miniq_flag
             if miniq_flag:
@@ -753,8 +733,8 @@ class I1K(Dataset):
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
             dtype='float32')
         self.diff_size = self.output_image_size - self.cropped_image_size
-        if not self.raw_targets:
-            # use raw_targets as a proxy for training vs testing performance
+        if not self.predict:
+            # use predict for training vs testing performance
             for i, jpeg_string in enumerate(
                     self.jpeg_strings2['data'][start_id:end_id]):
                 img = Image.open(StringIO(jpeg_string))

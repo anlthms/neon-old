@@ -1,7 +1,8 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
+# Experiment settings to train/test the FULL version of AlexNet CNN on ImageNet.
+# For smaller version run i1k_gpu_small.yaml instead
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
@@ -13,21 +14,21 @@
     backend: *be,
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
-    serialized_path: '/usr/local/data/I1K/I1K_small_alexnet.pkl', #delete if loading files from scratch
+    serialized_path: '/usr/local/data/I1K/I1K_alexnet.pkl', #delete if loading files from scratch
     macro_batched: True,
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     max_tar_file: &mtf 1000,
     output_batch_size: 3072,
-    num_train_macro_batches: 25, #max available train macro_batches
-    num_val_macro_batches: 5, #max available val macro batches
+    num_train_macro_batches: 417, #max available train macro_batches
+    num_val_macro_batches: 16, #max available val macro batches
     #number of cpu processes for image resizing and decompression
     num_processes: 4, #not impl yet
-    # macro batch start and end indices to use  for train and val datasets
+    # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 24,
+    end_train_batch: 416,
     start_val_batch: 0,
-    end_val_batch: 4,
+    end_val_batch: 15,
   },
 
   weight_inits: &wt_init0 {
@@ -85,9 +86,9 @@
 
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: 60,
-    batch_size: &bs 128,
-    serialized_path: '/usr/local/data/I1K/I1K_small_alexnet_model.pkl',
+    num_epochs: 90,
+    batch_size: &bs 256, #128,
+    #serialized_path: '/usr/local/data/I1K/I1K_alexnet_model8.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,

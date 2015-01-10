@@ -1040,7 +1040,6 @@ class GPU(Backend):
                                     convolution (False, the default)
         """
         assert ifmshape[0] == ifmshape[1]
-        #print weights.shape, inputs.shape, out.shape, ifmshape, ofmshape, padding, stride, nifm, ngroups
         cudanet.convolution(
             weights._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
