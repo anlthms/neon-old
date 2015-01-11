@@ -13,14 +13,21 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10, # 10% gives 400 batches like in rnn2
-    unrolls: &ur 5,
+    unrolls: &ur 2,
   },
 
-  wp: &wt_init {
+# define two alternative weight inits and use normal for debuggin LSTM
+  wp: &wt_init_sparse {
     type: sparse_eigenvalued,
     sparseness: 15,
     eigenvalue: 1.2,
   },
+  ww: &wt_init_normal {
+    type: normal,
+    loc: 0.0,
+    scale: 0.1,
+  },
+
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
@@ -30,7 +37,7 @@
     make_plots: True,
     layers: [
       # recurrent layer, can be RecurrentHiddenLayer or RecurrentLSTMLayer
-      !obj:neon.models.layer.RecurrentLSTMLayer { #
+      !obj:neon.models.layer.RecurrentHiddenLayer { #
         name: recurrent,
         backend: *be,
         batch_size: *bs,
@@ -53,14 +60,10 @@
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
-        gate_activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: *wt_init,
-        # weight_init_rec: *wt_init,
-        weight_init_rec: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.1,
-        },
+        #gate_activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: *wt_init_normal,
+        weight_init_rec: *wt_init_normal,
+
       },
       # output layer
       &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {
@@ -76,7 +79,7 @@
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: *wt_init,
+        weight_init: *wt_init_normal,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {

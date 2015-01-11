@@ -323,8 +323,8 @@ class RecurrentOutputLayer(Layer):
                                                output_dtype)
                             for k in range(unrolls)]
         self.temp_out = self.backend.zeros((nout, nin))
-        self.deltas_o = [self.backend.zeros((nout, batch_size))
-                         for k in range(unrolls + 1)]
+        # self.deltas_o = [self.backend.zeros((nout, batch_size))
+        #                  for k in range(unrolls + 1)]
         if pos > 0:
             self.berror = backend.zeros((self.nin, self.batch_size))
 
@@ -335,13 +335,16 @@ class RecurrentOutputLayer(Layer):
             self.activation.apply_both(self.backend,
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
+        else:
+            raise FuckingError
 
     def bprop(self, error, inputs, tau):
         self.backend.multiply(error, self.pre_act_list[tau - 1],
-                              out=self.deltas_o[tau])
-        self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
+                              out=self.berror)
+        self.backend.update_fc(self.temp_out, inputs, self.berror)
         self.backend.add(self.weight_updates, self.temp_out,
                          out=self.weight_updates)
+        print "RecurrentOutputLayer.bprop", self.weight_updates[12,55]
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -468,8 +471,8 @@ class RecurrentLSTMLayer(Layer):
         sig.apply_both(be, self.net_o[tau], self.o_t[tau])
 
         # classic RNN cell
-        be.fprop_fc(out=self.temp_x[tau], inputs=inputs, weights=self.Wcx)
-        be.fprop_fc(out=self.temp_h[tau], inputs=y, weights=self.Wch)
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wcx)
+        be.fprop_fc(self.temp_h[tau], y, self.Wch)
         be.add(self.temp_x[tau], self.temp_h[tau], self.net_g[tau])
         be.add(self.net_g[tau], self.b_c, self.net_g[tau])
         phi.apply_both(be, self.net_g[tau], self.g_t[tau])
@@ -482,6 +485,7 @@ class RecurrentLSTMLayer(Layer):
 
         phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
+        #print "fprop just made a change to output_list[", tau, "]"
 
     def bprop(self, error_h, error_c, inputs, tau_tot, tau, numgrad=False):
         """
@@ -759,24 +763,32 @@ class RecurrentHiddenLayer(Layer):
         self.berror = backend.zeros((nout, batch_size))
 
     def fprop(self, y, inputs, tau, cell=None):
+        from matplotlib import pyplot as plt # inputs look good
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         self.backend.fprop_fc(z1, y, self.weights_rec)
-        self.backend.fprop_fc(z2, inputs, self.weights)
+        self.backend.fprop_fc(z2, inputs, self.weights) # (64, 128)*(128, 50)
+        # check if z2 changes, self.weights[12, 110]
+        print "-- in RecurrentHiddenLayer.fprop weight", self.weights[12, 110],
+        print "leads to z1",  z1[12,40:43] # zeros first, then nonzero. ok.
+        #trace()
         self.backend.add(z1, z2, self.pre_act_list[tau])
         if self.activation is not None:
             self.activation.apply_both(self.backend,
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
-
-    def bprop(self, error, inputs, tau, t):
+        else:
+            raise FuckingError
+    def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
         """
         This function has been refactored:
         [done] remove duplicate code
         [done] remove the loop altogether.
         [todo] If the if statement can't be supported, revert to duplicated
                code
+        Not sure why tau is passed but not used.
         """
+        print "++ in RecurrentHiddenLayer.bprop t", t, "tau", tau
         sbe = self.backend
         sbe.multiply(error, self.pre_act_list[t], out=error)  # finish computing error
         if (t > 0):  # can be moved down for a single if().
@@ -790,7 +802,9 @@ class RecurrentHiddenLayer(Layer):
                                inputs=inputs[t*128:(t+1)*128, :],
                                deltas=error)
         sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
-
+        print "bprop self.weight_updates increment", self.temp_in.sum(), "from error", error.sum()
+        #trace() # no error passed ub, both times round!
+        # if is somewhat not cool for GPU / hardware.
         if (t > 0):
             # recurrent weight update (apply prev. delta)
             self.backend.update_fc(out=self.temp_rec,

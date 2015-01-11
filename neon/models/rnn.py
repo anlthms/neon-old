@@ -29,7 +29,6 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        trace()
         self.cost.initialize(kwargs)
 
     def fit(self, dataset):
@@ -139,24 +138,47 @@ class RNN(Model):
                            (batch+1)*128*self.unrolls+128)
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
+        # ----------------------------------------
+        num_target = self.layers[1].weights # output layer sort of works
+        an_target = self.layers[1].weight_updates # output layer sort of works
+        num_i, num_j = 12, 56 # for output
 
-        eps = 1e-3  # use float64 in cpu.py for this
+        num_target = self.layers[0].weights #  num gradient -1.085769e-04
+        an_target = self.layers[0].weight_updates #  anal 0
+        num_i, num_j = 12, 110 # for input, 110 is "n"
+
+        # num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
+        # an_target = self.layers[0].updates_rec # anal 0
+        # num_i, num_j = 12, 63 # for recurrentl
+
+        #num_target = self.layers[0].Wfx
+        #an_target = self.layers[0].Wfx_updates
+
+
+        # ----------------------------------------
+        eps = 1e-6  # use float64 in cpu.py for this
         numerical = 0
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
-            # fprop with epsilon
+            print "CALLING PFROP WITH EPSILON, tau=", tau
             self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
-                           debug=(True if batch == -1 else False))
+                           debug=(True if batch == -1 else False),
+                           num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
+            #fuck_eps = self.layers[1].output_list[3]
             suberror_eps = self.cost.apply_function(target_out)
 
-            # fprop without epison
+            print "CALLING PFROP WITHOUT EPSILON, tau=", tau
             self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
-                           debug=(True if batch == -1 else False))
+                           debug=(True if batch == -1 else False),
+                           num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
+            #fuck_ref = self.layers[1].output_list[3]
             suberror_ref = self.cost.apply_function(target_out)
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
+            #fuck_part = fuck_ref.raw().sum() - fuck_eps.raw().sum()
+            #print "diff in layers[1].output_list[3]", fuck_part
             logger.info("numpart for  tau=%d of %d is %e",
                         tau, self.unrolls, num_part)
             numerical += num_part
@@ -164,15 +186,16 @@ class RNN(Model):
         # bprop for comparison
         self.bprop(targets[batch_inx, :], inputs[batch_inx, :], numgrad=True)
 
-        analytical = self.layers[0].Wih_updates[12, 55].raw()
+        analytical = an_target[num_i, num_j].raw()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
         logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
         logger.info("RNN grad_checker: numerical %e", numerical)
         logger.info("RNN grad_checker: analytical %e", analytical)
-        trace()
+        trace()  # off by a factor of 4 for Wout.
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
-                  cell_init=None, debug=False, unrolls=None):
+                  cell_init=None, debug=False, unrolls=None,
+                  num_target=None, num_i=0, num_j=0):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -194,20 +217,25 @@ class RNN(Model):
         c = cell_init
         # fprop does a single full unroll
         for tau in range(0, unrolls):
+            print "inner loop, tau=", tau
             if tau == eps_tau:
                 print "injecting eps %d" %tau,
-                self.backend.add(self.layers[0].Wih[12, 55],
-                                 eps, self.layers[0].Wfh[12, 55])
+                #trace()
+                num_target[num_i, num_j] = num_target[num_i, num_j].raw() + eps
+                print "done"
 
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
             y = self.layers[0].output_list[tau]
-            c = self.layers[0].c_t[tau]
+            #print "testing", y[0,0].raw()
+            if 'c_t' in self.layers[0].__dict__:
+                c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
+
             if tau == eps_tau:
-                print "removing eps"
-                self.backend.add(self.layers[0].Wih[12, 55],
-                                 -eps, self.layers[0].Wfh[12, 55])  # remove eps
+                print "removing eps",
+                num_target[num_i, num_j] = num_target[num_i, num_j].raw() - eps
+                print "done"
 
     def fprop(self, inputs, hidden_init=None,
               cell_init=None, debug=False, unrolls=None):
@@ -235,15 +263,13 @@ class RNN(Model):
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
             y = self.layers[0].output_list[tau]
-            c = self.layers[0].c_t[tau]
+            if 'c_t' in self.layers[0].__dict__:
+                c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
 
     def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
               debug=False, numgrad=False):
         """
-        bprop for the RNN is a bit weird because the delta from the output
-        layer to the recurrent layer needs to dealt with outside the layer
-        code. Therefore there is a backend call to bprop_fc here. NOT COOL!
         Refactor:
         This bprop has an OUTER FOOR LOOP over t-BPTT unrollings
             for a given unrolling depth, we go output-hidden-hidden-input
@@ -259,11 +285,12 @@ class RNN(Model):
         if cell_init is None:
             cell_init = self.backend.zeros((self.layers[1].nin,
                                             self.batch_size))
-        full_unroll = True
+        full_unroll = 1-numgrad  # don't unroll if num grad is done
         if full_unroll:
             min_unroll = 1
         else:
             min_unroll = self.unrolls
+            print "bprop skipping partial unrolls"
 
         # clear updates [TODO] Move these to layer.update
         if 'weight_updates' in self.layers[0].__dict__:
@@ -293,29 +320,32 @@ class RNN(Model):
 
             # output layers[1]:
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
-            error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
+            error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :]) # GOOD NONZERO ERROR!
             esize = error.shape[0] * error.shape[1]
             self.backend.divide(error, esize, out=error)
             self.layers[1].bprop(error,
                                  self.layers[0].output_list[tau - 1], tau)
 
             # recurrent layers[0]: loop over different unrolling sizes
-            error_h = self.layers[1].berror
+            error_h = self.layers[1].berror # FUCK, NO ERROR FROM LAYER 1!!! (berror does not even exist)
+            trace()
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size)) # init w/ zeros?
             for t in list(range(1, tau))[::-1]:  # had (0, tau-1) in rnn2.
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
                 error_h = self.layers[0].berror
-                error_c = self.layers[0].cerror
+                if 'cerror' in self.layers[0].__dict__:
+                    error_c = self.layers[0].cerror
             # last layer: put output[-1], i.e. hidden init, into output[end]
             """Do we even need to bprop this deep? Computes an error that is
             not used anywhere, W_h into zero, only update to W_x is used! """
             # This is not the culprit, makes no difference.
-            if False:
+            if True:
                 t = 0
                 # assuming it's ok to overwrite? (These are reused throughout!)
                 self.layers[0].output_list[tau - 1] = hidden_init  # TESTING
-                self.layers[0].c_t[tau - 1] = cell_init  # TESTING
+                if 'c_t' in self.layers[0].__dict__:
+                    self.layers[0].c_t[tau - 1] = cell_init  # TESTING
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
 
     def update(self, epoch):
