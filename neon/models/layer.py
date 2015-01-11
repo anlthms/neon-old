@@ -340,7 +340,7 @@ class RecurrentOutputLayer(Layer):
 
     def bprop(self, error, inputs, tau):
         self.backend.multiply(error, self.pre_act_list[tau - 1],
-                              out=self.berror)
+                              out=self.berror) # berror has the wrong shape. 979b3 was using
         self.backend.update_fc(self.temp_out, inputs, self.berror)
         self.backend.add(self.weight_updates, self.temp_out,
                          out=self.weight_updates)
