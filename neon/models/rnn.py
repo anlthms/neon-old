@@ -71,10 +71,12 @@ class RNN(Model):
                            debug=(True if batch == -1 else False))
                 self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
-                cell_init = self.layers[0].c_t[-1]
+                if 'c_t' in self.layers[0].__dict__:
+                    cell_init = self.layers[0].c_t[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
                     self.backend.fill(hidden_init, 0)
-                    self.backend.fill(cell_init, 0)
+                    if 'c_t' in self.layers[0].__dict__:
+                        self.backend.fill(cell_init, 0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
@@ -139,17 +141,17 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
         # ----------------------------------------
-        num_target = self.layers[1].weights # output layer sort of works
-        an_target = self.layers[1].weight_updates # output layer sort of works
+        num_target = self.layers[1].weights # num
+        an_target = self.layers[1].weight_updates # anal factor 4
         num_i, num_j = 12, 56 # for output
 
         num_target = self.layers[0].weights #  num gradient -1.085769e-04
-        an_target = self.layers[0].weight_updates #  anal 0
+        an_target = self.layers[0].weight_updates #  anal factor 4
         num_i, num_j = 12, 110 # for input, 110 is "n"
 
-        # num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
-        # an_target = self.layers[0].updates_rec # anal 0
-        # num_i, num_j = 12, 63 # for recurrentl
+        num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
+        an_target = self.layers[0].updates_rec # anal factor 4. not even sure why.
+        num_i, num_j = 12, 63 # for recurrentl
 
         #num_target = self.layers[0].Wfx
         #an_target = self.layers[0].Wfx_updates
@@ -191,7 +193,7 @@ class RNN(Model):
         logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
         logger.info("RNN grad_checker: numerical %e", numerical)
         logger.info("RNN grad_checker: analytical %e", analytical)
-        trace()  # off by a factor of 4 for Wout.
+        #trace()  # off by a factor of 4 for Wout.
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None,
@@ -328,7 +330,6 @@ class RNN(Model):
 
             # recurrent layers[0]: loop over different unrolling sizes
             error_h = self.layers[1].berror # FUCK, NO ERROR FROM LAYER 1!!! (berror does not even exist)
-            trace()
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size)) # init w/ zeros?
             for t in list(range(1, tau))[::-1]:  # had (0, tau-1) in rnn2.
