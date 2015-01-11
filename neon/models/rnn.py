@@ -149,9 +149,9 @@ class RNN(Model):
         an_target = self.layers[0].weight_updates #  anal factor 4
         num_i, num_j = 12, 110 # for input, 110 is "n"
 
-        # num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
-        # an_target = self.layers[0].updates_rec # anal factor 4. not even sure why.
-        # num_i, num_j = 12, 63 # for recurrentl
+        num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
+        an_target = self.layers[0].updates_rec # anal fac 4 to 3.659200e-05
+        num_i, num_j = 12, 63 # for recurrentl
 
         #num_target = self.layers[0].Wfx
         #an_target = self.layers[0].Wfx_updates
