@@ -337,11 +337,21 @@ class RecurrentOutputLayer(Layer):
                                        self.output_list[tau])
         else:
             raise FuckingError
+    # old bprop from 979b3
+    # def bprop(self, error, inputs, tau):
+    #     error = error * self.pre_act_list[tau - 1]
+    #     self.backend.bprop_fc(self.berror,  # moved here from rnn
+    #                           self.weights,
+    #                           error)
+    #     self.backend.update_fc(out=self.temp_out,
+    #                            inputs=inputs,
+    #                            deltas=error)
+    #     self.weight_updates += self.temp_out
 
     def bprop(self, error, inputs, tau):
-        self.backend.multiply(error, self.pre_act_list[tau - 1],
-                              out=self.berror) # berror has the wrong shape. 979b3 was using
-        self.backend.update_fc(self.temp_out, inputs, self.berror)
+        print "berror", self.berror.shape # (64, 50), in 979 we had
+        self.backend.multiply(error, self.pre_act_list[tau - 1], out=self.berror) # berror has the wrong shape. 979b3 was using
+        self.backend.update_fc(self.temp_out, inputs, self.berror) # berror has wrong shape??
         self.backend.add(self.weight_updates, self.temp_out,
                          out=self.weight_updates)
         print "RecurrentOutputLayer.bprop", self.weight_updates[12,55]
