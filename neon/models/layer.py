@@ -336,39 +336,18 @@ class RecurrentOutputLayer(Layer):
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
         else:
-            raise FuckingError
-    # old bprop from 979b3
-    # def bprop(self, error, inputs, tau):
-    #     error = error * self.pre_act_list[tau - 1] # error is 128
-    #     self.backend.bprop_fc(self.berror,  # moved here from rnn  # berror is 64
-    #                           self.weights,
-    #                           error)
-    #     self.backend.update_fc(out=self.temp_out,
-    #                            inputs=inputs,
-    #                            deltas=error)
-    #     self.weight_updates += self.temp_out
+            raise ImNotCoolWithThisError
+
 
     def bprop(self, error, inputs, tau):
-        # old bprop from 979b3
-        self.backend.multiply(error, self.pre_act_list[tau - 1], error) # error is 128
-        self.backend.bprop_fc(self.berror,  # moved here from rnn  # berror is 64
+        self.backend.multiply(error, self.pre_act_list[tau - 1], error)
+        self.backend.bprop_fc(self.berror,
                               self.weights,
                               error)
         self.backend.update_fc(out=self.temp_out,
                                inputs=inputs,
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_out, self.weight_updates)
-
-        """This has been modified by alex I think. bprop used to be a sequence
-        of prop_fc, update_fc, now the bprop_fc is gone. Possibly he took this
-        from a state where it had not been moved here yet!
-        """
-        # print "berror", self.berror.shape # (64, 50), in 979 we had
-        # self.backend.multiply(error, self.pre_act_list[tau - 1], error) # berror has the wrong shape. 979b3 was using
-        # self.backend.update_fc(self.temp_out, inputs, self.berror) # berror has wrong shape??
-        # self.backend.add(self.weight_updates, self.temp_out,
-        #                  out=self.weight_updates)
-        # print "RecurrentOutputLayer.bprop", self.weight_updates[12,55]
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -787,15 +766,11 @@ class RecurrentHiddenLayer(Layer):
         self.berror = backend.zeros((nout, batch_size))
 
     def fprop(self, y, inputs, tau, cell=None):
-        from matplotlib import pyplot as plt # inputs look good
+        from matplotlib import pyplot as plt
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         self.backend.fprop_fc(z1, y, self.weights_rec)
-        self.backend.fprop_fc(z2, inputs, self.weights) # (64, 128)*(128, 50)
-        # check if z2 changes, self.weights[12, 110]
-        #print "-- in RecurrentHiddenLayer.fprop weight", self.weights[12, 110],
-        #print "leads to z1",  z1[12,40:43] # zeros first, then nonzero. ok.
-        #trace()
+        self.backend.fprop_fc(z2, inputs, self.weights)
         self.backend.add(z1, z2, self.pre_act_list[tau])
         if self.activation is not None:
             self.activation.apply_both(self.backend,
@@ -812,7 +787,6 @@ class RecurrentHiddenLayer(Layer):
                code
         Not sure why tau is passed but not used.
         """
-        #print "++ in RecurrentHiddenLayer.bprop t", t, "tau", tau
         sbe = self.backend
         sbe.multiply(error, self.pre_act_list[t], out=error)  # finish computing error
         if (t > 0):  # can be moved down for a single if().
@@ -826,9 +800,7 @@ class RecurrentHiddenLayer(Layer):
                                inputs=inputs[t*128:(t+1)*128, :],
                                deltas=error)
         sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
-        #print "bprop self.weight_updates increment", self.temp_in.sum(), "from error", error.sum()
-        #trace() # no error passed ub, both times round!
-        # if is somewhat not cool for GPU / hardware.
+
         if (t > 0):
             # recurrent weight update (apply prev. delta)
             self.backend.update_fc(out=self.temp_rec,

@@ -22,7 +22,7 @@
     sparseness: 15,
     eigenvalue: 1.2,
   },
-  ww: &wt_init_normal {
+  ww: &wt_init {
     type: normal,
     loc: 0.0,
     scale: 0.1,
@@ -61,8 +61,8 @@
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
         #gate_activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: *wt_init_normal,
-        weight_init_rec: *wt_init_normal,
+        weight_init: *wt_init,
+        weight_init_rec: *wt_init,
 
       },
       # output layer
@@ -79,7 +79,7 @@
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: *wt_init_normal,
+        weight_init: *wt_init,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
