@@ -141,20 +141,25 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
         # ----------------------------------------
-        num_target = self.layers[1].weights # num
-        an_target = self.layers[1].weight_updates # anal factor 4
-        num_i, num_j = 12, 56 # for output
-
-        num_target = self.layers[0].weights #  num gradient -1.085769e-04
-        an_target = self.layers[0].weight_updates #  anal factor 4
-        num_i, num_j = 12, 110 # for input, 110 is "n"
-
-        #num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
-        #an_target = self.layers[0].updates_rec # anal fac 4 to 3.659200e-05
-        #num_i, num_j = 12, 63 # for recurrentl
+        numgrad = "output"
+        if numgrad is "output":
+            num_target = self.layers[1].weights # num
+            an_target = self.layers[1].weight_updates # anal factor 4
+            num_i, num_j = 15, 56 # for output
+        elif numgrad is "input":
+            num_target = self.layers[0].weights #  num gradient -1.085769e-04
+            an_target = self.layers[0].weight_updates #  anal factor 4
+            num_i, num_j = 12, 110 # for input, 110 is "n"
+        elif numgrad is "rec":
+            num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
+            an_target = self.layers[0].updates_rec # anal fac 4 to 3.659200e-05
+            num_i, num_j = 12, 63 # for recurrent
 
         #num_target = self.layers[0].Wfx
         #an_target = self.layers[0].Wfx_updates
+
+        """Interesteingly this only seems to work with 2 unrolls - with 5
+        the """
 
 
         # ----------------------------------------
@@ -162,31 +167,26 @@ class RNN(Model):
         numerical = 0 # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
-            print "CALLING PFROP WITH EPSILON, tau=", tau
             self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            #fuck_eps = self.layers[1].output_list[3]
             suberror_eps = self.cost.apply_function(target_out)
 
-            print "CALLING PFROP WITHOUT EPSILON, tau=", tau
             self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            #fuck_ref = self.layers[1].output_list[3]
             suberror_ref = self.cost.apply_function(target_out)
+            trace()
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
-            #fuck_part = fuck_ref.raw().sum() - fuck_eps.raw().sum()
-            #print "diff in layers[1].output_list[3]", fuck_part
             logger.info("numpart for  tau=%d of %d is %e",
                         tau, self.unrolls, num_part)
             numerical += num_part
 
         # bprop for comparison
-        self.bprop(targets[batch_inx, :], inputs[batch_inx, :], numgrad=True)
+        self.bprop(targets[batch_inx, :], inputs[batch_inx, :], numgrad=numgrad)
 
         analytical = an_target[num_i, num_j].raw()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
@@ -264,7 +264,7 @@ class RNN(Model):
             self.layers[1].fprop(inputs=y, tau=tau)
 
     def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
-              debug=False, numgrad=False):
+              debug=False, numgrad=None):
         """
         Refactor:
         This bprop has an OUTER FOOR LOOP over t-BPTT unrollings
@@ -281,12 +281,11 @@ class RNN(Model):
         if cell_init is None:
             cell_init = self.backend.zeros((self.layers[1].nin,
                                             self.batch_size))
-        full_unroll = 1-numgrad  # don't unroll if num grad is done
-        if full_unroll:
+        if numgrad is None:
             min_unroll = 1
         else:
             min_unroll = self.unrolls
-            print "bprop skipping partial unrolls"
+            print "bprop skipping partial unrolls for numerical checks!"
 
         # clear updates [TODO] Move these to layer.update
         if 'weight_updates' in self.layers[0].__dict__:
@@ -319,16 +318,17 @@ class RNN(Model):
             error = self.cost.apply_derivative(targets[nin*tau:nin*(tau+1), :])
             esize = error.shape[0] * error.shape[1]
             self.backend.divide(error, esize, out=error)
-            self.layers[1].bprop(error,
-                                 self.layers[0].output_list[tau - 1], tau)
+            self.layers[1].bprop(error, self.layers[0].output_list[tau - 1],
+                                 tau, numgrad)
 
             # recurrent layers[0]: loop over different unrolling sizes
             error_h = self.layers[1].berror
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size))
             for t in list(range(0, tau))[::-1]: # restored to 0 as in old RNN
+                # gets state the first time it's called, then looses it.
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.layers[0].berror
+                error_h = self.layers[0].berror.copy() # is this a copy or a reference?
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
             # # last layer: put output[-1], i.e. hidden init, into output[end]

@@ -13,7 +13,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10, # 10% gives 400 batches like in rnn2
-    unrolls: &ur 2,
+    unrolls: &ur 5,
   },
 
 # define two alternative weight inits and use normal for debuggin LSTM

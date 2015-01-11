@@ -339,7 +339,7 @@ class RecurrentOutputLayer(Layer):
             raise ImNotCoolWithThisError
 
 
-    def bprop(self, error, inputs, tau):
+    def bprop(self, error, inputs, tau, numgrad=False):
         self.backend.multiply(error, self.pre_act_list[tau - 1], error)
         self.backend.bprop_fc(self.berror,
                               self.weights,
@@ -347,6 +347,8 @@ class RecurrentOutputLayer(Layer):
         self.backend.update_fc(out=self.temp_out,
                                inputs=inputs,
                                deltas=error)
+        if numgrad is "output":
+            print "RecurrentOutputLayer.bprop inc out", self.temp_out[12, 56]
         self.backend.add(self.weight_updates, self.temp_out, self.weight_updates)
 
     def update(self, epoch):
@@ -785,7 +787,8 @@ class RecurrentHiddenLayer(Layer):
         [done] remove the loop altogether.
         [todo] If the if statement can't be supported, revert to duplicated
                code
-        Not sure why tau is passed but not used.
+        Not sure why tau is passed but not used. Not that this is called for
+        decrementing t.
         """
         sbe = self.backend
         sbe.multiply(error, self.pre_act_list[t], out=error)  # finish computing error
@@ -807,7 +810,10 @@ class RecurrentHiddenLayer(Layer):
                                    inputs=self.output_list[t - 1],
                                    deltas=error)
             sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
-
+        if numgrad is "input":
+            print "RecurrentHiddenLayer.bprop inc in", self.temp_in[12, 110]
+        if numgrad is "rec":
+            print "RecurrentHiddenLayer.bprop inc rec", self.temp_rec[12, 63]
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         self.learning_rule.apply_rule_rec(self.weights_rec,
