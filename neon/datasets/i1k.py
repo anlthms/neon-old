@@ -27,6 +27,8 @@ import multiprocessing as mp
 
 logger = logging.getLogger(__name__)
 
+# prefix for directory name where macro_batches are stored
+prefix_macro = 'macro_batches_'
 # global queues to start threads
 macroq = Queue.Queue()
 miniq = Queue.Queue()
@@ -404,7 +406,7 @@ class I1K(Dataset):
                 if self.macro_batched:
                     # Write training batches
                     self.num_train_macro_batches = self.write_batches(
-                        os.path.join(save_dir, 'macro_batches_'
+                        os.path.join(save_dir, prefix_macro
                                      + str(self.output_image_size)),
                         'training', 0,
                         label_sample, jpeg_file_sample)
@@ -426,7 +428,7 @@ class I1K(Dataset):
                         val_label_sample = val_label_sample[
                             0:self.val_max_file_index]
                         self.num_val_macro_batches = self.write_batches(
-                            os.path.join(save_dir, 'macro_batches_'
+                            os.path.join(save_dir, prefix_macro
                                          + str(self.output_image_size)),
                             'validation', 0,
                             val_label_sample,
@@ -491,7 +493,7 @@ class I1K(Dataset):
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)
             batch_path = os.path.join(self.save_dir,
-                                      'macro_batches_' +
+                                      prefix_macro +
                                       str(self.output_image_size),
                                       '%s_batch_%d' % ('training', i))
             j = 0
@@ -532,7 +534,7 @@ class I1K(Dataset):
             self.macro_batch_onque = self.get_next_macro_batch_id(
                 self.batch_type, self.macro_batch_onque)
             batch_path = os.path.join(
-                self.save_dir, 'macro_batches_' + str(self.output_image_size),
+                self.save_dir, prefix_macro + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque))
             self.file_name_queue.put(
                 os.path.join(batch_path, '%s_batch_%d.%d' % (
@@ -625,6 +627,8 @@ class I1K(Dataset):
         self.del_queue(macroq)
         self.del_queue(miniq)
         self.del_queue(gpuq)
+        del self.file_name_queue, self.macro_batch_queue
+        del self.mini_batch_queue, self.gpu_queue
 
     def get_mini_batch2(self):
         # non threaded version of get_mini_batch for debugging
@@ -636,7 +640,7 @@ class I1K(Dataset):
             self.macro_batch_onque2 = self.get_next_macro_batch_id(
                 self.batch_type, self.macro_batch_onque2)
             batch_path = os.path.join(
-                self.save_dir, 'macro_batches_' + str(self.output_image_size),
+                self.save_dir, prefix_macro + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
             fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
                 self.batch_type, self.macro_batch_onque2,

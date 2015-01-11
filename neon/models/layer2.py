@@ -356,14 +356,13 @@ class WeightLayer(Layer):
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
-
+        opt_param(self, ['brule_init'], None)
         if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
             self.backend.fill(self.biases, self.weight_init['bias_init'])
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
-            opt_param(self, ['brule_init'], None)
         else:
             self.params = [self.weights]
             self.updates = [self.weight_updates]
@@ -387,8 +386,8 @@ class WeightLayer(Layer):
         else:
             self.learning_rule.apply_rule([self.weights],
                                           [self.weight_updates], epoch)
-            self.learning_rule.apply_rule([self.biases],
-                                          [self.bias_updates], epoch)
+            self.bias_rule.apply_rule([self.biases],
+                                      [self.bias_updates], epoch)
 
         if self.accumulate:
             for upm in self.updates:
@@ -402,19 +401,18 @@ class WeightLayer(Layer):
         lrname = self.name + '_lr'
         if lrule_init['type'] == 'gradient_descent':
             return lr.GradientDescent(name=lrname,
-                     lr_params=lrule_init['lr_params'])
+                                      lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_pretrain':
-            return lr.GradientDescentPretrain(name=lrname,
-                     lr_params=lrule_init['lr_params'])
+            return lr.GradientDescentPretrain(
+                name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum':
-            return lr.GradientDescentMomentum(name=lrname,
-                     lr_params=lrule_init['lr_params'])
+            return lr.GradientDescentMomentum(
+                name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
-            return lr.GradientDescentMomentumWeightDecay(name=lrname,
-                     lr_params=lrule_init['lr_params'])
+            return lr.GradientDescentMomentumWeightDecay(
+                name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'adadelta':
-            return lr.AdaDelta(name=lrname,
-                     lr_params=lrule_init['lr_params'])
+            return lr.AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
         else:
             raise AttributeError("invalid learning rule params specified")
 
@@ -458,6 +456,7 @@ class FCLayer(WeightLayer):
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
             if self.use_biases is True:
                 self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+
 
 class PoolingLayer(Layer):
 
