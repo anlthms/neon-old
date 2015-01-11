@@ -62,11 +62,12 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     """
 
     # Compute (t*log(y)).
-    backend.clip(outputs, backend.epsilon, 1, out=temp[1])
-    backend.log(temp[1], out=temp[1])
+    backend.clip(outputs, backend.epsilon, 1, out=temp[1]) # THIS IS NEW!
+    backend.log(temp[1], out=temp[1]) # WAS log(outputs)
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    return backend.sum(temp[0])
+    print "FUCK", temp[0].shape # never arrive here.
+    return backend.sum(temp[0]) # WAS MEAN
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
@@ -136,6 +137,37 @@ class CrossEntropy(Cost):
     def __init__(self, **kwargs):
         super(CrossEntropy, self).__init__(**kwargs)
 
+# the old way that has been removed:
+
+#      def __init__(self, **kwargs):
+#          super(CrossEntropy, self).__init__(**kwargs)
+#          # The default cross entropy to use is where each output node
+#          # can take on value with binary prob
+#          if not hasattr(self, 'use_binary'):
+#              self.use_binary = True
+# -
+#          if not hasattr(self, 'shortcut_deriv'):
+#              self.shortcut_deriv = False
+#              if (isinstance(self.olayer.activation, Logistic)
+#                      and self.use_binary):
+#                  self.shortcut_deriv = True
+# -
+#              if (isinstance(self.olayer.activation, Softmax)
+#                      and not self.use_binary):
+#                  self.shortcut_deriv = True
+# -
+#          # Set the appropriate functions
+#          self.ce_function = cross_entropy
+#          self.cd_function = cross_entropy_derivative
+# -
+#          if not self.use_binary:
+#              self.ce_function = cross_entropy_multi
+#              self.cd_function = cross_entropy_multi_derivative
+
+#          # if self.shortcut_deriv:
+#              # self.cd_function = shortcut_derivative
+
+
     def initialize(self, kwargs):
         opt_param(self, ['shortcut_deriv'], True)
         super(CrossEntropy, self).initialize(kwargs)
@@ -144,6 +176,7 @@ class CrossEntropy(Cost):
             if self.shortcut_deriv:
                 self.cd_function = shortcut_derivative
                 self.olayer.skip_act = True
+                print "ce:init:Softmax skip"
             else:
                 self.cd_function = cross_entropy_multi_derivative
         elif isinstance(self.olayer.activation, Logistic):
@@ -151,6 +184,7 @@ class CrossEntropy(Cost):
             if self.shortcut_deriv:
                 self.cd_function = shortcut_derivative
                 self.olayer.skip_act = True
+                print "ce:init:Logistic skip" # we hit this. is this good or bad?
             else:
                 self.cd_function = cross_entropy_derivative
         else:
@@ -168,6 +202,7 @@ class CrossEntropy(Cost):
         self.outputbuf = databuf
 
     def get_berrbuf(self):
+        # THIS IS NEW AND I DONT KNOW WHAT IT DOES
         return self.temp[0]
 
     def apply_function(self, targets):

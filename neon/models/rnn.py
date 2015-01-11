@@ -178,7 +178,6 @@ class RNN(Model):
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_ref = self.cost.apply_function(target_out)
-            trace()
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
             logger.info("numpart for  tau=%d of %d is %e",
