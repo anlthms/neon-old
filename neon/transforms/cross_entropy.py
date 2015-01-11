@@ -66,7 +66,7 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1]) # WAS log(outputs)
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    print "FUCK", temp[0].shape # never arrive here.
+    print "FUCK", temp[0].shape # never arrive here. That's good, not using multi.
     return backend.sum(temp[0]) # WAS MEAN
 
 
@@ -184,7 +184,7 @@ class CrossEntropy(Cost):
             if self.shortcut_deriv:
                 self.cd_function = shortcut_derivative
                 self.olayer.skip_act = True
-                print "ce:init:Logistic skip" # we hit this. is this good or bad?
+                print "ce:init:Logistic skip" # we hit this. is this good or bad? Good.
             else:
                 self.cd_function = cross_entropy_derivative
         else:
@@ -202,7 +202,7 @@ class CrossEntropy(Cost):
         self.outputbuf = databuf
 
     def get_berrbuf(self):
-        # THIS IS NEW AND I DONT KNOW WHAT IT DOES
+        # THIS IS NEW, used by layer2 only.
         return self.temp[0]
 
     def apply_function(self, targets):
