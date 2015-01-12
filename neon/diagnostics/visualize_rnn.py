@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 plt.interactive(1)
 import numpy as np
 from neon.util.compat import range
-from ipdb import set_trace as trace
+# from ipdb import set_trace as trace
 
 
 class VisualizeRNN(object):
@@ -60,7 +60,7 @@ class VisualizeRNN(object):
         plt.title('cell.T')
 
         plt.subplot(2, 4, 5)
-        plt.imshow(W_ih.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_ih, vmin=-1, vmax=1, interpolation='nearest')
         plt.title('input')
         plt.subplot(2, 4, 6)
         plt.imshow(W_fh, vmin=-1, vmax=1, interpolation='nearest')

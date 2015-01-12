@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class RNN(Model):
 
     """
-    Recurrent neural network
+    Recurrent neural network. Supports LSTM and standard RNN layers.
     """
 
     def __init__(self, **kwargs):
@@ -29,25 +29,19 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        print "INITIALIZING WITH KWARGS", kwargs
-        self.cost.initialize(kwargs) # THIS IS THE PROBLEM!!!!
+        self.cost.initialize(kwargs)
 
     def fit(self, dataset):
         self.dataset = dataset
-        self.grad_checker()  # check gradients first
-
+        self.grad_checker()
         """
         Learn model weights on the given dataset.
         """
         for layer in self.layers:
             logger.info("XXX %s", str(layer))
         inputs = dataset.get_inputs(train=True)['train']
-        # append an extra zero element to account for overflow
-        # inputs = self.backend.zeros((inputset.shape[0]+1, inputset.shape[1]))
-        # inputs[0:inputset.shape[0], 0:inputset.shape[1]] = inputset
-        # no idea how to do this for the new data format!
         targets = inputs.copy()  # use targets = inputs for sequence prediction
-        nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
+        nrecs = inputs.shape[0]
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
                                                    / self.unrolls)) - 1
@@ -81,7 +75,6 @@ class RNN(Model):
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
-                # print "i", self.layers[0].b_i[0:3].transpose(), "f", self.layers[0].b_f[0:3].transpose(), "o", self.layers[0].b_o[0:3].transpose(), "g", self.layers[0].b_c[0:3].transpose()
                 suberror = self.cost.apply_function(target_out)
                 suberror /= float(self.batch_size * self.layers[0].nin)
                 suberrorlist.append(suberror)
@@ -141,39 +134,31 @@ class RNN(Model):
                            (batch+1)*128*self.unrolls+128)
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
-        # ----------------------------------------
+
         numgrad = "lstm_ch"
         if numgrad is "output":
-            num_target = self.layers[1].weights # num
-            an_target = self.layers[1].weight_updates # anal factor 4
-            num_i, num_j = 15, 56 # for output
+            num_target = self.layers[1].weights
+            an_target = self.layers[1].weight_updates
+            num_i, num_j = 15, 56
         elif numgrad is "input":
-            num_target = self.layers[0].weights #  num gradient -1.085769e-04
-            an_target = self.layers[0].weight_updates #  anal factor 4
-            num_i, num_j = 12, 110 # for input, 110 is "n"
+            num_target = self.layers[0].weights
+            an_target = self.layers[0].weight_updates
+            num_i, num_j = 12, 110  # 110 is "n"
         elif numgrad is "rec":
-            num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
-            an_target = self.layers[0].updates_rec # anal fac 4 to 3.659200e-05
-            num_i, num_j = 12, 63 # for recurrent
+            num_target = self.layers[0].weights_rec
+            an_target = self.layers[0].updates_rec
+            num_i, num_j = 12, 63
         elif numgrad is "lstm_x":
-            num_target = self.layers[0].Wfx # (64, 128)
+            num_target = self.layers[0].Wfx
             an_target = self.layers[0].Wfx_updates
-            num_i, num_j = 12, 110 # for input
+            num_i, num_j = 12, 110
         elif numgrad is "lstm_ih" or "lstm_fh" or "lstm_oh" or "lstm_ch":
-            num_target = self.layers[0].Wch # (64, 128)
+            num_target = self.layers[0].Wch
             an_target = self.layers[0].Wch_updates
-            num_i, num_j = 12, 55 # for recurrent
-            # Wch has a bug!
+            num_i, num_j = 12, 55
 
-
-
-        """Interesteingly this only seems to work with 2 unrolls - with 5
-        the """
-
-
-        # ----------------------------------------
         eps = 1e-2  # use float64 in cpu.py for this
-        numerical = 0 # initialize buffer
+        numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
             self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
@@ -194,7 +179,8 @@ class RNN(Model):
             numerical += num_part
 
         # bprop for comparison
-        self.bprop(targets[batch_inx, :], inputs[batch_inx, :], numgrad=numgrad)
+        self.bprop(targets[batch_inx, :],
+                   inputs[batch_inx, :], numgrad=numgrad)
 
         analytical = an_target[num_i, num_j].raw()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
@@ -202,7 +188,7 @@ class RNN(Model):
         logger.info("RNN grad_checker: numerical %e", numerical)
         logger.info("RNN grad_checker: analytical %e", analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
-        trace()  # off by a factor of 4 for Wout.
+        trace()
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None,
@@ -293,9 +279,8 @@ class RNN(Model):
             min_unroll = 1
         else:
             min_unroll = self.unrolls
-            print "bprop skipping partial unrolls for numerical checks!"
 
-        # clear updates [TODO] Move these to layer.update
+        # [TODO] Move these to layer.update
         if 'weight_updates' in self.layers[0].__dict__:
             self.backend.fill(self.layers[0].weight_updates, 0)
         if 'updates_rec' in self.layers[0].__dict__:
@@ -303,8 +288,6 @@ class RNN(Model):
         self.backend.fill(self.layers[1].weight_updates, 0)
         if 'Wix_updates' in self.layers[0].__dict__:
             # reset these things back to zero
-            #for a in ['i', 'f', 'o', 'c',]:
-            #    for b in ['x', 'h']:
             self.backend.fill(self.layers[0].Wix_updates, 0)
             self.backend.fill(self.layers[0].Wfx_updates, 0)
             self.backend.fill(self.layers[0].Wox_updates, 0)
@@ -333,21 +316,11 @@ class RNN(Model):
             error_h = self.layers[1].berror
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size))
-            for t in list(range(0, tau))[::-1]: # restored to 0 as in old RNN
-                # gets state the first time it's called, then looses it.
+            for t in list(range(0, tau))[::-1]:  # restored to 0 as in old RNN
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.layers[0].berror.copy() # is this a copy or a reference?
+                error_h = self.layers[0].berror.copy()  # note copy here!
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
-            # last layer: put output[-1], i.e. hidden init, into output[end]
-            if False: # seems to work as a fix if we only do the full unroll. But if we
-                # loop shorter unrolls, I don't think we can overwrite this.
-                t = 0
-                # assuming it's ok to overwrite? (These are reused throughout!)
-                self.layers[0].output_list[tau - 1] = hidden_init  # TESTING
-                if 'c_t' in self.layers[0].__dict__:
-                    self.layers[0].c_t[tau - 1] = cell_init  # TESTING
-                self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
 
     def update(self, epoch):
         for layer in self.layers:

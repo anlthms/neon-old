@@ -62,12 +62,11 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     """
 
     # Compute (t*log(y)).
-    backend.clip(outputs, backend.epsilon, 1, out=temp[1]) # THIS IS NEW!
-    backend.log(temp[1], out=temp[1]) # WAS log(outputs)
+    backend.clip(outputs, backend.epsilon, 1, out=temp[1])
+    backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    print "FUCK", temp[0].shape # never arrive here. That's good, not using multi.
-    return backend.sum(temp[0]) # WAS MEAN
+    return backend.sum(temp[0])
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
@@ -128,6 +127,7 @@ def shortcut_derivative(backend, outputs, targets, temp, scale=1.0):
     backend.multiply(temp[0], scale, out=temp[0])
     return temp[0]
 
+
 class CrossEntropy(Cost):
 
     """
@@ -137,8 +137,7 @@ class CrossEntropy(Cost):
         super(CrossEntropy, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
-        #opt_param(self, ['shortcut_deriv'], True)
-        opt_param(self, ['shortcut_deriv'], False) # I disagree with ^^
+        opt_param(self, ['shortcut_deriv'], True)
         super(CrossEntropy, self).initialize(kwargs)
         if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
@@ -152,7 +151,6 @@ class CrossEntropy(Cost):
             if self.shortcut_deriv:
                 self.cd_function = shortcut_derivative
                 self.olayer.skip_act = True
-                print "WARNING! using shortcut_derivative"
             else:
                 self.cd_function = cross_entropy_derivative
         else:
@@ -170,7 +168,7 @@ class CrossEntropy(Cost):
         self.outputbuf = databuf
 
     def set_berrbuf(self):
-        # THIS IS NEW, used by layer2 only.
+        # used by layer2 only.
         return self.temp[0]
 
     def apply_function(self, targets):
@@ -187,4 +185,3 @@ class CrossEntropy(Cost):
         """
         return self.cd_function(self.backend, self.outputbuf,
                                 targets, self.temp, self.scale)
-

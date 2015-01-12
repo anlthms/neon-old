@@ -14,7 +14,6 @@ from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray import gdist_consts as gc
 from neon.util.distarray.local_array import LocalArray
 from neon.util.persist import YAMLable
-from ipdb import set_trace as trace
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -338,7 +337,6 @@ class RecurrentOutputLayer(Layer):
         else:
             raise ImNotCoolWithThisError
 
-
     def bprop(self, error, inputs, tau, numgrad=False):
         self.backend.multiply(error, self.pre_act_list[tau - 1], error)
         self.backend.bprop_fc(self.berror,
@@ -348,8 +346,10 @@ class RecurrentOutputLayer(Layer):
                                inputs=inputs,
                                deltas=error)
         if numgrad is "output":
-            print "RecurrentOutputLayer.bprop inc out", self.temp_out[12, 56]
-        self.backend.add(self.weight_updates, self.temp_out, self.weight_updates)
+            logger.info("RecurrentOutputLayer.bprop inc out %f",
+                        self.temp_out[12, 56])
+        self.backend.add(self.weight_updates, self.temp_out,
+                         self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -381,7 +381,7 @@ class RecurrentLSTMLayer(Layer):
                                                  activation=activation)
 
         # things that are not initalized by the super class
-        self.gate_activation = gate_activation # same for activation in super.
+        self.gate_activation = gate_activation  # same for activation in super
         be = backend
         net_sze = (self.nout, batch_size)  # tuple with activation size.
 
@@ -395,12 +395,19 @@ class RecurrentLSTMLayer(Layer):
         for a in ['i', 'f', 'o', 'c']:
             setattr(self, 'W' + a + 'x',
                     be.gen_weights((nout, nin), weight_init_rec, weight_dtype))
-            setattr(self, 'W' + a + 'h',
-                    be.gen_weights((nout, nout), weight_init_rec, weight_dtype))
+            setattr(self, 'W' + a + 'h', be.gen_weights((nout, nout),
+                                                        weight_init_rec,
+                                                        weight_dtype))
             setattr(self, 'b_' + a, be.zeros((nout, 1)))
             setattr(self, 'W' + a + 'x_updates', be.zeros((nout, nin)))
             setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
             setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
+
+        # If this isn't initialized correctly, get NaNs pretty quickly.
+        be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
+        be.add(be.zeros((nout, 1)), -1, self.b_f)  # sigmoid(-1) closes gate
+        be.add(be.zeros((nout, 1)), 1, self.b_o)   # open
+        self.b_c = be.zeros((nout, 1))  # no need to be messed with
 
         # and for higher up entities in the LSTM cell.
         self.c_t = [be.zeros(net_sze) for k in range(unrolls)]
@@ -457,7 +464,7 @@ class RecurrentLSTMLayer(Layer):
         # input gate
         be.fprop_fc(self.temp_x[tau], inputs, self.Wix)
         be.fprop_fc(self.temp_h[tau], y, self.Wih)
-        be.add(self.temp_x[tau],self.temp_h[tau], self.net_i[tau])
+        be.add(self.temp_x[tau], self.temp_h[tau], self.net_i[tau])
         be.add(self.net_i[tau], self.b_i, self.net_i[tau])
         sig.apply_both(be, self.net_i[tau], self.i_t[tau])
 
@@ -490,7 +497,6 @@ class RecurrentLSTMLayer(Layer):
 
         phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
-        #print "fprop just made a change to output_list[", tau, "]"
 
     def bprop(self, error_h, error_c, inputs, tau_tot, tau, numgrad=False):
         """
@@ -559,17 +565,17 @@ class RecurrentLSTMLayer(Layer):
         dc_df_dh1 = di_dh1.copy()
         dc_dg_dh1 = di_dh1.copy()
 
-
         """--------------------------
         PART 1: original dh2/dh1 terms
         --------------------------"""
         temp = be.zeros((self.nout, self.batch_size))
         # a. Input gate
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] * self.net_i[tau]
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] \
+        #        * self.net_i[tau]
         be.multiply(error_h, self.o_t[tau], temp)
-        be.multiply(self.c_phip[tau] ,temp, temp)
-        be.multiply(self.g_t[tau] ,temp, temp)
-        be.multiply(self.net_i[tau] ,temp, temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.g_t[tau], temp, temp)
+        be.multiply(self.net_i[tau], temp, temp)
         be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
         be.update_fc(out=dh_dWix,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -584,11 +590,12 @@ class RecurrentLSTMLayer(Layer):
                self.b_i_updates)
 
         # b. forget gate
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.c_t[tau-1] * self.net_f[tau]
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.c_t[tau-1] \
+        #        * self.net_f[tau]
         be.multiply(error_h, self.o_t[tau], temp)
-        be.multiply(self.c_phip[tau] ,temp, temp)
-        be.multiply(self.c_t[tau-1] ,temp, temp)
-        be.multiply(self.net_f[tau] ,temp, temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.c_t[tau-1], temp, temp)
+        be.multiply(self.net_f[tau], temp, temp)
         be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
         be.update_fc(out=dh_dWfx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -605,7 +612,7 @@ class RecurrentLSTMLayer(Layer):
         # c. output gate
         # temp = error_h * self.c_phi[tau] * self.net_o[tau]
         be.multiply(error_h, self.c_phi[tau], temp)
-        be.multiply(self.net_o[tau] ,temp, temp)
+        be.multiply(self.net_o[tau], temp, temp)
         be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
         be.update_fc(out=dh_dWox,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -620,11 +627,12 @@ class RecurrentLSTMLayer(Layer):
                self.b_o_updates)
 
         # d. cell
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.i_t[tau] * self.net_g[tau]
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.i_t[tau] \
+        #        * self.net_g[tau]
         be.multiply(error_h, self.o_t[tau], temp)
-        be.multiply(self.c_phip[tau] ,temp, temp)
-        be.multiply(self.i_t[tau] ,temp, temp)
-        be.multiply(self.net_g[tau] ,temp, temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.i_t[tau], temp, temp)
+        be.multiply(self.net_g[tau], temp, temp)
         be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
         be.update_fc(out=dh_dWcx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -643,10 +651,11 @@ class RecurrentLSTMLayer(Layer):
         be.add(do_dh1, hherror, hherror)
         be.add(dg_dh1, hherror, hherror)
 
-        ttemp1i = dh_dWih[12, 55].raw()  # used for num grad checks
-        ttemp1f = dh_dWfh[12, 55].raw()  # used for num grad checks
-        ttemp1o = dh_dWoh[12, 55].raw()  # used for num grad checks
-        ttemp1c = dh_dWch[12, 55].raw()  # used for num grad checks
+        # used for num grad checks
+        ttemp1i = dh_dWih[12, 55].raw()
+        ttemp1f = dh_dWfh[12, 55].raw()
+        ttemp1o = dh_dWoh[12, 55].raw()
+        ttemp1c = dh_dWch[12, 55].raw()
 
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
@@ -654,9 +663,9 @@ class RecurrentLSTMLayer(Layer):
 
         # dc2/dh1 terms:
         # input gate
-        #temp = error_c * self.g_t[tau] * self.net_i[tau]
+        # temp = error_c * self.g_t[tau] * self.net_i[tau]
         be.multiply(error_c, self.g_t[tau], temp)
-        be.multiply(self.net_i[tau] ,temp, temp)
+        be.multiply(self.net_i[tau], temp, temp)
         be.bprop_fc(out=dc_di_dh1, weights=self.Wih, deltas=temp)
         be.update_fc(out=dh_dWix,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -671,9 +680,9 @@ class RecurrentLSTMLayer(Layer):
                self.b_i_updates)
 
         # forget gate
-        #temp = error_c * self.c_t[tau-1] * self.net_f[tau]
+        # temp = error_c * self.c_t[tau-1] * self.net_f[tau]
         be.multiply(error_c, self.c_t[tau-1], temp)
-        be.multiply(self.net_f[tau] ,temp, temp)
+        be.multiply(self.net_f[tau], temp, temp)
         be.bprop_fc(out=dc_df_dh1, weights=self.Wfh, deltas=temp)
         be.update_fc(out=dh_dWfx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -688,9 +697,9 @@ class RecurrentLSTMLayer(Layer):
                self.b_f_updates)
 
         # cell
-        #temp = error_c * self.i_t[tau] * self.net_g[tau]
+        # temp = error_c * self.i_t[tau] * self.net_g[tau]
         be.multiply(error_c, self.i_t[tau], temp)
-        be.multiply(self.net_g[tau] ,temp, temp)
+        be.multiply(self.net_g[tau], temp, temp)
         be.bprop_fc(out=dc_dg_dh1, weights=self.Wch, deltas=temp)
         be.update_fc(out=dh_dWcx,
                      inputs=inputs[tau*128:(tau+1)*128, :],
@@ -708,13 +717,13 @@ class RecurrentLSTMLayer(Layer):
         be.add(cherror, dc_dg_dh1, cherror)
 
         # dh2/dc1 term:
-        #hcerror = error_h * self.o_t[tau] * self.c_phip[tau] * self.f_t[tau]
+        # hcerror = error_h * self.o_t[tau] * self.c_phip[tau] * self.f_t[tau]
         be.multiply(error_h, self.o_t[tau], hcerror)
-        be.multiply(self.c_phip[tau] ,hcerror, hcerror)
-        be.multiply(self.f_t[tau] ,hcerror, hcerror)
+        be.multiply(self.c_phip[tau], hcerror, hcerror)
+        be.multiply(self.f_t[tau], hcerror, hcerror)
 
         # dc2/dc1 term:
-        #ccerror = error_c * self.f_t[tau]
+        # ccerror = error_c * self.f_t[tau]
         be.multiply(error_c, self.f_t[tau], ccerror)
 
         # wrap up:
@@ -722,22 +731,21 @@ class RecurrentLSTMLayer(Layer):
         be.add(ccerror, hcerror, self.cerror)
 
         if numgrad is "lstm_ih":
-            ttemp2i = dh_dWih[12, 55].raw()  # for numerical gradient
+            ttemp2i = dh_dWih[12, 55].raw()
             logger.info("layer.LSTM.bprop: analytic dh_dWih[%d]= %e + %e = %e",
                         tau, ttemp1i, ttemp2i, ttemp1i + ttemp2i)
         if numgrad is "lstm_fh":
-            ttemp2f = dh_dWfh[12, 55].raw()  # for numerical gradient
+            ttemp2f = dh_dWfh[12, 55].raw()
             logger.info("layer.LSTM.bprop: analytic dh_dWfh[%d]= %e + %e = %e",
                         tau, ttemp1f, ttemp2f, ttemp1f + ttemp2f)
         if numgrad is "lstm_oh":
-            ttemp2o = dh_dWoh[12, 55].raw()  # for numerical gradient
+            ttemp2o = dh_dWoh[12, 55].raw()
             logger.info("layer.LSTM.bprop: analytic dh_dWoh[%d]= %e + %e = %e",
                         tau, ttemp1o, ttemp2o, ttemp1o + ttemp2o)
         if numgrad is "lstm_ch":
-            ttemp2c = dh_dWch[12, 55].raw()  # for numerical gradient
+            ttemp2c = dh_dWch[12, 55].raw()
             logger.info("layer.LSTM.bprop: analytic dh_dWch[%d]= %e + %e = %e",
                         tau, ttemp1c, ttemp2c, ttemp1c + ttemp2c)
-
 
     def update(self, epoch):
         """
@@ -746,17 +754,24 @@ class RecurrentLSTMLayer(Layer):
 
         DEBUG: Disable some updates here
         """
-        self.learning_rule.apply_rule_LSTM(
-            (self.Wix, self.Wfx, self.Wox, self.Wcx,
-             self.Wih, self.Wfh, self.Woh, self.Wch,
-             self.b_i, self.b_f, self.b_o, self.b_c),
-            (self.Wix_updates, self.Wfx_updates,
-             self.Wox_updates, self.Wcx_updates,
-             self.Wih_updates, self.Wfh_updates,
-             self.Woh_updates, self.Wch_updates,
-             self.b_i_updates, self.b_f_updates,
-             self.b_o_updates, self.b_c_updates),
-            epoch)
+        try:
+            self.learning_rule.apply_rule_LSTM(
+                (self.Wix, self.Wfx, self.Wox, self.Wcx,
+                 self.Wih, self.Wfh, self.Woh, self.Wch,
+                 self.b_i, self.b_f, self.b_o, self.b_c),
+                (self.Wix_updates, self.Wfx_updates,
+                 self.Wox_updates, self.Wcx_updates,
+                 self.Wih_updates, self.Wfh_updates,
+                 self.Woh_updates, self.Wch_updates,
+                 self.b_i_updates, self.b_f_updates,
+                 self.b_o_updates, self.b_c_updates),
+                epoch)
+        except FloatingPointError as me:
+            #logger.info("Caught FloatingPointError in LSTM update: %s", me[0])
+            if 'overflow' in me[0]:
+                raise me
+            # import ipdb; ipdb.set_trace()
+
 
 
 class RecurrentHiddenLayer(Layer):
@@ -771,7 +786,6 @@ class RecurrentHiddenLayer(Layer):
                  activation, weight_init, weight_init_rec, learning_rule,
                  weight_dtype=None, delta_dtype=None, updates_dtype=None,
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
-        # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
                                                    learning_rule,
@@ -793,7 +807,6 @@ class RecurrentHiddenLayer(Layer):
         self.berror = backend.zeros((nout, batch_size))
 
     def fprop(self, y, inputs, tau, cell=None):
-        from matplotlib import pyplot as plt
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         self.backend.fprop_fc(z1, y, self.weights_rec)
@@ -804,7 +817,8 @@ class RecurrentHiddenLayer(Layer):
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
         else:
-            raise FuckingError
+            raise ImNotCoolWithThisError
+
     def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
         """
         This function has been refactored:
@@ -816,8 +830,8 @@ class RecurrentHiddenLayer(Layer):
         decrementing t.
         """
         sbe = self.backend
-        sbe.multiply(error, self.pre_act_list[t], out=error)  # finish computing error
-        if (t > 0):  # can be moved down for a single if(). OR can compute it, the result will never be used.
+        sbe.multiply(error, self.pre_act_list[t], out=error)
+        if (t > 0):  # can move down or just compute (but it's not used)
             # compute error (apply prev. delta)
             self.backend.bprop_fc(out=self.berror,  # output for next iteration
                                   weights=self.weights_rec,
@@ -832,13 +846,16 @@ class RecurrentHiddenLayer(Layer):
         if (t > 0):
             # recurrent weight update (apply prev. delta)
             self.backend.update_fc(out=self.temp_rec,
-                                   inputs=self.output_list[t - 1], # WATCH OUT IF t==0
+                                   inputs=self.output_list[t - 1],  # avoid t=0
                                    deltas=error)
             sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
         if numgrad is "input":
-            print "RecurrentHiddenLayer.bprop inc in", self.temp_in[12, 110]
+            logger.info("RecurrentHiddenLayer.bprop inc in %f",
+                        self.temp_in[12, 110])
         if numgrad is "rec":
-            print "RecurrentHiddenLayer.bprop inc rec", self.temp_rec[12, 63]
+            logger.info("RecurrentHiddenLayer.bprop inc rec %f",
+                        self.temp_rec[12, 63])
+
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         self.learning_rule.apply_rule_rec(self.weights_rec,
