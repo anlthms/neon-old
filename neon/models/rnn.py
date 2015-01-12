@@ -52,9 +52,11 @@ class RNN(Model):
         logger.info('commencing model fitting')
         suberrorlist = []
         errorlist = []
+        error = self.backend.empty((1, 1))
+        suberror = self.backend.empty(num_batches)
         for epoch in range(self.num_epochs):
-            error = 0
-            suberror = self.backend.zeros(num_batches)
+            self.backend.fill(error, 0)
+            self.backend.fill(suberror, 0)
             hidden_init = None
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
@@ -72,10 +74,13 @@ class RNN(Model):
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
                 suberror = self.cost.apply_function(target_out)
-                suberror /= float(self.batch_size * self.layers[0].nin)
-                suberrorlist.append(suberror)
-                error += suberror / num_batches
-            errorlist.append(error)
+                self.backend.divide(suberror, float(self.batch_size *
+                                                    self.layers[0].nin),
+                                    suberror)
+                suberrorlist.append(float(suberror.asnumpyarray()))
+                self.backend.divide(suberror, num_batches, suberror)
+                self.backend.add(error, suberror, error)
+            errorlist.append(float(error.asnumpyarray()))
             if self.make_plots is True:
                 viz.plot_weights(self.layers[0].weights.asnumpyarray(),
                                  self.layers[0].weights_rec.asnumpyarray(),
@@ -87,7 +92,7 @@ class RNN(Model):
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
             logger.info('epoch: %d, total training error per element: %0.5f',
-                        epoch, error)
+                        epoch, error.asnumpyarray())
             for layer in self.layers:
                 logger.debug("%s", layer)
 

@@ -1273,7 +1273,9 @@ class LocalFilteringLayer(LocalLayer):
         self.bprop(berror, inputs)
         self.update(epoch)
         rcost = cost.apply_function(inputs)
-        spcost = self.sparsity * self.pooling.output.sum()
+        spcost = self.backend.empty((1, 1))
+        self.backend.sum(self.pooling.output, axes=None, out=spcost)
+        self.backend.multiply(spcost, self.sparsity, spcost)
         return rcost, spcost
 
     def fprop(self, inputs):

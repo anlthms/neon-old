@@ -43,16 +43,18 @@ class RBM(Model):
         # exact multiple of batch size.
         num_batches = len(inputs)
         logger.info('commencing model fitting')
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
+            self.backend.fill(error, 0.0)
             for batch in range(num_batches):
                 inputs_batch = ds.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)
-                error += self.cost.apply_function(inputs_batch)
+                self.backend.add(error, self.cost.apply_function(inputs_batch),
+                                 error)
                 self.update(epoch)
             logger.info('epoch: %d, total training error: %0.5f', epoch,
-                        error / num_batches)
+                        error.asnumpyarray() / num_batches)
 
     def positive(self, inputs):
         """Wrapper for RBMLayer.positive"""

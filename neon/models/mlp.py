@@ -87,11 +87,13 @@ class MLP(Model):
                                      error)
                 self.update(epoch)
             if self.dist_mode == 'datapar':
-                error = MPI.COMM_WORLD.reduce(error.asnumpyarray(), op=MPI.SUM)
+                error[0, 0] = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
+                                                    op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 epoch,
-                                error / num_batches / MPI.COMM_WORLD.size)
+                                error.asnumpyarray() / num_batches /
+                                MPI.COMM_WORLD.size)
             else:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
                             error.asnumpyarray() / num_batches)

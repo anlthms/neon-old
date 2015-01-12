@@ -57,8 +57,8 @@ class Balance(MLP):
                 self.output_layer = l
 
     def get_error(self, targets, inputs):
-        error = 0.0
-        error += self.cost[0].apply_function(inputs)
+        error = self.backend.zeros((1, 1))
+        self.backend.add(error, self.cost[0].apply_function(inputs), error)
         # for c,t in zip(self.cost, [inputs, targets, targets]):
         #     error += c.apply_function(t)
         return error

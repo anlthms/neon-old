@@ -28,14 +28,17 @@ class GB(MLP):
         num_batches = len(inputs)
         start_time = time.time()
         logger.debug('commencing unsupervised pretraining')
+        tcost = self.backend.empty((1, 1))
+        trcost = self.backend.empty((1, 1))
+        tspcost = self.backend.empty((1, 1))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
             for epoch in range(self.num_pretrain_epochs):
-                tcost = 0.0
-                trcost = 0.0
-                tspcost = 0.0
+                self.backend.fill(tcost, 0.0)
+                self.backend.fill(trcost, 0.0)
+                self.backend.fill(tspcost, 0.0)
                 for batch in range(num_batches):
                     logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
@@ -47,14 +50,14 @@ class GB(MLP):
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
                                                    epoch)
-                    trcost += rcost
-                    tspcost += spcost
-                tcost = trcost + tspcost
+                    self.backend.add(trcost, rcost, trcost)
+                    self.backend.add(tspcost, spcost, tspcost)
+                self.backend.add(trcost, tspcost, tcost)
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
                             ' %0.2f', self.trainable_layers[ind], epoch,
-                            trcost / num_batches,
-                            tspcost / num_batches,
-                            tcost / num_batches)
+                            trcost.asnumpyarray() / num_batches,
+                            tspcost.asnumpyarray() / num_batches,
+                            tcost.asnumpyarray() / num_batches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
@@ -77,8 +80,9 @@ class GB(MLP):
         tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
         self.temp = [tempbuf, self.backend.copy(tempbuf)]
         start_time = time.time()
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
+            self.backend.fill(error, 0.0)
             for batch in range(num_batches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -88,13 +92,15 @@ class GB(MLP):
                     self.bprop_last(targets_batch, inputs_batch)
                 else:
                     self.bprop(targets_batch, inputs_batch)
-                error += self.cost.apply_function(targets_batch)
+                self.backend.add(error,
+                                 self.cost.apply_function(targets_batch),
+                                 error)
                 if epoch < self.num_initial_epochs:
                     self.update_last(epoch)
                 else:
                     self.update(epoch)
             logger.info('epoch: %d, training error: %0.5f',
-                        epoch, error / num_batches)
+                        epoch, error.asnumpyarray() / num_batches)
         end_time = time.time()
         logger.info('Time taken: %0.2f', end_time - start_time)
 
