@@ -59,8 +59,8 @@ class RNN(Model):
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
                                    (batch+1)*128*self.unrolls+128)
-                self.fprop(inputs[batch_inx, :], hidden_init=hidden_init,
-                           cell_init=cell_init,
+                self.fprop(inputs[batch_inx, :],
+                           hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
@@ -68,7 +68,7 @@ class RNN(Model):
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
-                if batch % 20 is 0:  # reset hidden state periodically
+                if batch % self.reset_period is 0:  # reset hidden state periodically
                     self.backend.fill(hidden_init, 0)
                     if 'c_t' in self.layers[0].__dict__:
                         self.backend.fill(cell_init, 0)
@@ -92,7 +92,7 @@ class RNN(Model):
                               self.layers[0].Wfh.raw(),
                               self.layers[0].Woh.raw(),
                               self.layers[0].Wch.raw(),
-                              fig=4)
+                              scale=.5, fig=4)
                 viz.plot_lstm(self.layers[0].i_t[0].raw(),
                               self.layers[0].f_t[0].raw(),
                               self.layers[0].o_t[0].raw(),
@@ -101,7 +101,7 @@ class RNN(Model):
                               self.layers[0].net_f[0].raw(),
                               self.layers[0].net_o[0].raw(),
                               self.layers[0].net_g[0].raw(),
-                              fig=5)
+                              scale=5, fig=5)
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].net_i,
                                      self.layers[0].i_t,
@@ -343,15 +343,21 @@ class RNN(Model):
                                              / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
-        hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
+        hidden_init = None
+        cell_init = None
         for batch in xrange(num_batches):
             batch_inx = range(batch*128*self.unrolls,
                               (batch+1)*128*self.unrolls+128)
-            self.fprop(inputs[batch_inx, :], hidden_init, unrolls=self.unrolls)
+            self.fprop(inputs[batch_inx, :],
+                       hidden_init=hidden_init, cell_init=cell_init,
+                       unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
-            if batch % 20 is 0:
-                    hidden_init = self.backend.zeros((self.layers[1].nin,
-                                                      self.batch_size))
+            if 'c_t' in self.layers[0].__dict__:
+                    cell_init = self.layers[0].c_t[-1]
+            if batch % self.reset_period is 0:
+                    self.backend.fill(hidden_init, 0)
+                    if 'c_t' in self.layers[0].__dict__:
+                        self.backend.fill(cell_init, 0)
             for tau in range(self.unrolls):
                 letters = self.backend.empty(50, dtype=int)
                 self.backend.argmax(self.layers[1].output_list[tau],

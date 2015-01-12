@@ -39,7 +39,8 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
-    def plot_lstm(self, W_ix, W_fx, W_ox, W_cx, W_ih, W_fh, W_oh, W_ch, fig=4):
+    def plot_lstm(self, W_ix, W_fx, W_ox, W_cx, W_ih, W_fh, W_oh, W_ch,
+                  scale=1, fig=4):
         """
         Visizualize the three weight matrices after every epoch. Serves to
         check that weights are structured, not exploding, and get upated
@@ -47,29 +48,29 @@ class VisualizeRNN(object):
         plt.figure(fig)
         plt.clf()
         plt.subplot(2, 4, 1)
-        plt.imshow(W_ix.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_ix.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('input.T')
         plt.subplot(2, 4, 2)
-        plt.imshow(W_fx.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_fx.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('forget.T')
         plt.subplot(2, 4, 3)
-        plt.imshow(W_ox.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_ox.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('output.T')
         plt.subplot(2, 4, 4)
-        plt.imshow(W_cx.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_cx.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('cell.T')
 
         plt.subplot(2, 4, 5)
-        plt.imshow(W_ih, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_ih, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('input')
         plt.subplot(2, 4, 6)
-        plt.imshow(W_fh, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_fh, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('forget')
         plt.subplot(2, 4, 7)
-        plt.imshow(W_oh, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_oh, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('output')
         plt.subplot(2, 4, 8)
-        plt.imshow(W_ch, vmin=-1, vmax=1, interpolation='nearest')
+        plt.imshow(W_ch, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('cell')
 
         # plt.colorbar()
