@@ -29,7 +29,8 @@ class RNN(Model):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.nlayers = len(self.layers)
-        self.cost.initialize(kwargs)
+        print "INITIALIZING WITH KWARGS", kwargs
+        self.cost.initialize(kwargs) # THIS IS THE PROBLEM!!!!
 
     def fit(self, dataset):
         self.dataset = dataset

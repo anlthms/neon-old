@@ -31,6 +31,7 @@ class Cost(object):
 
         if not hasattr(self, 'batch_size'):
             self.batch_size = self.olayer.batch_size
+        print "super batchsize", self.batch_size
 
         if not hasattr(self, 'olayer_data'):
             self.olayer_data = 'output'
