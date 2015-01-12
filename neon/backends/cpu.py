@@ -161,9 +161,6 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.reshape(shape),
                               dtype=self._tensor.dtype)
 
-    def argmax(self, axis):
-        return self.__class__(self._tensor.argmax(axis))
-
     def take(self, indices, axis=None):
         if type(indices) == self.__class__:
             indices = indices._tensor
@@ -808,7 +805,13 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        out._tensor[:] = np.reshape(np.argmin(tsr._tensor, axis), out.shape)
+        try:
+            tsr._tensor.argmin(axis, out._tensor)
+        except ValueError:
+            # numpy does not have the option to keepdims in the argmin result
+            # so we may be dealing with mismatched shapes that we need to
+            # restore in a costlier way.
+            out._tensor[:] = np.reshape(tsr._tensor.argmin(axis), out.shape)
         return out
 
     def argmax(self, tsr, axis, out):
@@ -828,7 +831,13 @@ class CPU(Backend):
         Returns:
             CPUTensor: reference to out
         """
-        out._tensor[:] = np.reshape(np.argmax(tsr._tensor, axis), out.shape)
+        try:
+            tsr._tensor.argmax(axis, out._tensor)
+        except ValueError:
+            # numpy does not have the option to keepdims in the argmax result
+            # so we may be dealing with mismatched shapes that we need to
+            # restore in a costlier way.
+            out._tensor[:] = np.reshape(tsr._tensor.argmax(axis), out.shape)
         return out
 
     def fabs(self, x, out=None):
