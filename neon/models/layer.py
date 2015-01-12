@@ -751,26 +751,18 @@ class RecurrentLSTMLayer(Layer):
         """
         Need to think of something new here, can't have a new rule for each
         of the matrices. Why does apply_rule not take different weights?
-
-        DEBUG: Disable some updates here
         """
-        try:
-            self.learning_rule.apply_rule_LSTM(
-                (self.Wix, self.Wfx, self.Wox, self.Wcx,
-                 self.Wih, self.Wfh, self.Woh, self.Wch,
-                 self.b_i, self.b_f, self.b_o, self.b_c),
-                (self.Wix_updates, self.Wfx_updates,
-                 self.Wox_updates, self.Wcx_updates,
-                 self.Wih_updates, self.Wfh_updates,
-                 self.Woh_updates, self.Wch_updates,
-                 self.b_i_updates, self.b_f_updates,
-                 self.b_o_updates, self.b_c_updates),
-                epoch)
-        except FloatingPointError as me:
-            #logger.info("Caught FloatingPointError in LSTM update: %s", me[0])
-            if 'overflow' in me[0]:
-                raise me
-            # import ipdb; ipdb.set_trace()
+        self.learning_rule.apply_rule_LSTM(
+            (self.Wix, self.Wfx, self.Wox, self.Wcx,
+             self.Wih, self.Wfh, self.Woh, self.Wch,
+             self.b_i, self.b_f, self.b_o, self.b_c),
+            (self.Wix_updates, self.Wfx_updates,
+             self.Wox_updates, self.Wcx_updates,
+             self.Wih_updates, self.Wfh_updates,
+             self.Woh_updates, self.Wch_updates,
+             self.b_i_updates, self.b_f_updates,
+             self.b_o_updates, self.b_c_updates),
+            epoch)
 
 
 
