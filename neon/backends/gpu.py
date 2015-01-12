@@ -359,18 +359,6 @@ class GPUTensor(Tensor):
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
-    def min(self, axis=None):
-        result = self._tensor.min(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
-
-    def max(self, axis=None):
-        result = self._tensor.max(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
-
     def log(self):
         target = cudanet.empty(self.shape)
         cudanet.log(self._tensor, target)
@@ -969,35 +957,49 @@ class GPU(Backend):
             tsr._tensor.mean(axis=axes, target=out._tensor)
         return out
 
-    def min(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.min(axis=0).min(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-        if out is None:
-            res = x._tensor.min(axis)
-        else:
-            res = x._tensor.min(axis, out._tensor)
-        return GPUTensor(res)
+    def min(self, tsr, axes, out):
+        """
+        Calculates the minimal element value along the specified axes.
 
-    def max(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.max(axis=0).max(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-        if out is None:
-            res = x._tensor.max(axis)
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to compute the minimum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the minimum.  If set to None, we will
+                                        compute the overall minimal value
+                                        across all dimensions.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for min.  "
+                        "You specified: %s", str(axes))
         else:
-            res = x._tensor.max(axis, out._tensor)
-        return GPUTensor(res)
+            tsr._tensor.min(axis=axes, target=out._tensor)
+        return out
+
+    def max(self, tsr, axes, out):
+        """
+        Calculates the maximal element value along the specified axes.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to compute the maximum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the maximum.  If set to None, we will
+                                        compute the overall maximal value
+                                        across all dimensions.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for max.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.max(axis=axes, target=out._tensor)
+        return out
 
     def argmin(self, tsr, axis, out):
         """

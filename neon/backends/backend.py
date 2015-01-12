@@ -493,16 +493,16 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def min(self, tsr, axis, out):
+    def min(self, tsr, axes, out):
         """
-        Calculates the minimal element value along the specified axis.
+        Calculates the minimal element value along the specified axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the minimum
-            axis (int, optional): the dimension along which to find the
-                                  minimum.  If set to None, we will
-                                  compute the overall minimal value
-                                  across all dimensions.
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the minimum.  If set to None, we will
+                                        compute the overall minimal value
+                                        across all dimensions.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -513,16 +513,16 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def max(self, tsr, axis, out):
+    def max(self, tsr, axes, out):
         """
-        Calculates the maximal element value along the specified axis.
+        Calculates the maximal element value along the specified axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the maximum
-            axis (int, optional): the dimension along which to find the
-                                  maximum.  If set to None, we will
-                                  compute the overall maximal value
-                                  across all dimensions.
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the maximum.  If set to None, we will
+                                        compute the overall maximal value
+                                        across all dimensions.
             out (Tensor): where the result will be stored.
 
         Returns:

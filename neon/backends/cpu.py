@@ -755,23 +755,41 @@ class CPU(Backend):
         np.mean(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
         return out
 
-    def min(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.min(x._tensor, axis, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return self.tensor_cls(res)
+    def min(self, tsr, axes, out):
+        """
+        Calculates the minimal element value along the specified axes.
 
-    def max(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.max(x._tensor, axis, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return self.tensor_cls(res)
+        Arguments:
+            tsr (CPUTensor): the CPUTensor on which to compute the minimum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the minimum.  If set to None, we will
+                                        compute the overall minimal value
+                                        across all dimensions.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.amin(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
+
+    def max(self, tsr, axes, out):
+        """
+        Calculates the maximal element value along the specified axes.
+
+        Arguments:
+            tsr (CPUTensor): the CPUTensor on which to compute the maximum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the maximum.  If set to None, we will
+                                        compute the overall maximal value
+                                        across all dimensions.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.amax(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
 
     def argmin(self, tsr, axis, out):
         """

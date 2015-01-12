@@ -112,21 +112,33 @@ class Layer(YAMLable):
                  be_nm=self.backend.__class__.__name__,
                  y_avg=float(self.backend.mean(self.output, axes=None,
                                                out=temp).asnumpyarray()),
-                 y_min=self.backend.min(self.output),
-                 y_absmin=self.backend.min(self.backend.fabs(self.output)),
-                 y_max=self.backend.max(self.output),
+                 y_min=float(self.backend.min(self.output, axes=None,
+                                              out=temp).asnumpyarray()),
+                 y_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.output), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 y_max=float(self.backend.max(self.output, axes=None,
+                                              out=temp).asnumpyarray()),
                  y_dtype=self.output.dtype,
                  z_avg=float(self.backend.mean(self.pre_act, axes=None,
                                                out=temp).asnumpyarray()),
-                 z_min=self.backend.min(self.pre_act),
-                 z_absmin=self.backend.min(self.backend.fabs(self.pre_act)),
-                 z_max=self.backend.max(self.pre_act),
+                 z_min=float(self.backend.min(self.pre_act, axes=None,
+                                              out=temp).asnumpyarray()),
+                 z_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.pre_act), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 z_max=float(self.backend.max(self.pre_act, axes=None,
+                                              out=temp).asnumpyarray()),
                  z_dtype=self.pre_act.dtype,
                  w_avg=float(self.backend.mean(self.weights, axes=None,
                                                out=temp).asnumpyarray()),
-                 w_min=self.backend.min(self.weights),
-                 w_absmin=self.backend.min(self.backend.fabs(self.weights)),
-                 w_max=self.backend.max(self.weights),
+                 w_min=float(self.backend.min(self.weights, axes=None,
+                                              out=temp).asnumpyarray()),
+                 w_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.weights), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 w_max=float(self.backend.max(self.weights, axes=None,
+                                              out=temp).asnumpyarray()),
                  w_dtype=self.weights.dtype))
 
     def fprop(self, inputs):
@@ -1038,8 +1050,10 @@ class ConvLayer(LocalLayer):
                  self.backend.__class__.__name__,
                  float(self.backend.mean(self.weights, axes=None,
                                          out=temp).asnumpyarray()),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
+                 float(self.backend.min(self.weights, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.weights, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
@@ -1241,8 +1255,10 @@ class LocalFilteringLayer(LocalLayer):
                  self.backend.__class__.__name__,
                  float(self.backend.mean(self.weights, axes=None,
                                          out=temp).asnumpyarray()),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
+                 float(self.backend.min(self.weights, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.weights, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def pretrain_mode(self, pooling):
         self.learning_rule.set_pretrain_mode(True)
@@ -1556,12 +1572,16 @@ class MaxPoolingLayer(LocalLayer):
                  self.backend.__class__.__name__,
                  float(self.backend.mean(self.maxinds, axes=None,
                                          out=temp).asnumpyarray()),
-                 self.backend.min(self.maxinds),
-                 self.backend.max(self.maxinds),
+                 float(self.backend.min(self.maxinds, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.maxinds, axes=None,
+                                        out=temp).asnumpyarray()),
                  float(self.backend.mean(self.output, axes=None,
                                          out=temp).asnumpyarray()),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output)))
+                 float(self.backend.min(self.output, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.output, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op="max",
