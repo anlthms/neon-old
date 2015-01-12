@@ -359,12 +359,6 @@ class GPUTensor(Tensor):
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
 
-    def mean(self, axis=None):
-        result = self._tensor.mean(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
-
     def min(self, axis=None):
         result = self._tensor.min(axis)
         logger.debug('Copying to host')
@@ -946,16 +940,34 @@ class GPU(Backend):
         Returns:
             Tensor: reference to out
         """
-        if axes is None:
-            out.fill(tsr._tensor.sum(axis=0).sum(axis=1))
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for sum.  "
+                        "You specified: %s", str(axes))
         else:
             tsr._tensor.sum(axis=axes, target=out._tensor)
         return out
 
-    def mean(self, x):
-        if x is None:
-            return float('NaN')
-        return x.mean()
+    def mean(self, tsr, axes, out):
+        """
+        Calculates the arithmetic mean of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the average
+            axes (int, list, optional): the dimension(s) along which to
+                                        average.  If set to None, we will
+                                        average over all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for mean.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.mean(axis=axes, target=out._tensor)
+        return out
 
     def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:

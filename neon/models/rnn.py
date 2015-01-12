@@ -266,7 +266,7 @@ class RNN(Model):
                     logging.info("prediction for %s is %s", item,
                                  tmp.view('c'))
                     ds.backend.not_equal(preds[item], misclass, misclass)
-                    self.result = ds.backend.mean(misclass)
+                    ds.backend.mean(misclass, axes=None, out=self.result)
                     logging.info("%s set misclass rate: %0.5f%%", item,
-                                 100 * self.result)
+                                 100 * self.result.asnumpyarray())
         # TODO: return values instead?

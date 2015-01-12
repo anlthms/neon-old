@@ -86,4 +86,3 @@ class TestCPUTensor(object):
         tns = CPUTensor([[1, 2], [3, 4]])
         tns.fill(-9.5)
         assert_tensor_equal(tns, CPUTensor([[-9.5, -9.5], [-9.5, -9.5]]))
-

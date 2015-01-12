@@ -95,6 +95,7 @@ class Layer(YAMLable):
             self.berror_dtype = berror_dtype
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
                 "utilizing {be_nm} backend\n\t"
                 "y: mean={y_avg:g}, min={y_min:g}, abs_min={y_absmin:g}, "
@@ -109,17 +110,20 @@ class Layer(YAMLable):
                 (lyr_nm=self.name, nin=self.nin, nout=self.nout,
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__,
-                 y_avg=self.backend.mean(self.output),
+                 y_avg=float(self.backend.mean(self.output, axes=None,
+                                               out=temp).asnumpyarray()),
                  y_min=self.backend.min(self.output),
                  y_absmin=self.backend.min(self.backend.fabs(self.output)),
                  y_max=self.backend.max(self.output),
                  y_dtype=self.output.dtype,
-                 z_avg=self.backend.mean(self.pre_act),
+                 z_avg=float(self.backend.mean(self.pre_act, axes=None,
+                                               out=temp).asnumpyarray()),
                  z_min=self.backend.min(self.pre_act),
                  z_absmin=self.backend.min(self.backend.fabs(self.pre_act)),
                  z_max=self.backend.max(self.pre_act),
                  z_dtype=self.pre_act.dtype,
-                 w_avg=self.backend.mean(self.weights),
+                 w_avg=float(self.backend.mean(self.weights, axes=None,
+                                               out=temp).asnumpyarray()),
                  w_min=self.backend.min(self.weights),
                  w_absmin=self.backend.min(self.backend.fabs(self.weights)),
                  w_max=self.backend.max(self.weights),
@@ -1026,12 +1030,14 @@ class ConvLayer(LocalLayer):
             self.pre_act = self.output
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("ConvLayer %s: %d ifms, %d filters, "
                 "utilizing %s backend\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nifm, self.nofm,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
+                 float(self.backend.mean(self.weights, axes=None,
+                                         out=temp).asnumpyarray()),
                  self.backend.min(self.weights),
                  self.backend.max(self.weights)))
 
@@ -1227,12 +1233,14 @@ class LocalFilteringLayer(LocalLayer):
             self.tied_weights = tied_weights
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("LocalFilteringLayer %s: %d ifms, "
                 "utilizing %s backend\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nifm,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
+                 float(self.backend.mean(self.weights, axes=None,
+                                         out=temp).asnumpyarray()),
                  self.backend.min(self.weights),
                  self.backend.max(self.weights)))
 
@@ -1539,16 +1547,19 @@ class MaxPoolingLayer(LocalLayer):
         assert fshape[0] * fshape[1] <= 2 ** 15
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
                 "utilizing %s backend\n\t"
                 "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t"
                 "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.maxinds),
+                 float(self.backend.mean(self.maxinds, axes=None,
+                                         out=temp).asnumpyarray()),
                  self.backend.min(self.maxinds),
                  self.backend.max(self.maxinds),
-                 self.backend.mean(self.output),
+                 float(self.backend.mean(self.output, axes=None,
+                                         out=temp).asnumpyarray()),
                  self.backend.min(self.output),
                  self.backend.max(self.output)))
 

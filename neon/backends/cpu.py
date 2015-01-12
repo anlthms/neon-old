@@ -196,13 +196,6 @@ class CPUTensor(Tensor):
     def exp(self):
         return self.__class__(np.exp(self._tensor))
 
-    def mean(self, axis=None, dtype='float32', out=None):
-        res = np.mean(self._tensor, axis, dtype, out)
-        if axis is None:
-            return res
-        else:
-            return self.__class__(res)
-
     def sumsq(self, axis=None, dtype='float32', out=None):
         res = np.sum(self._tensor * self._tensor, axis, dtype, out)
         if axis is None:
@@ -744,14 +737,23 @@ class CPU(Backend):
         np.sum(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
         return out
 
-    def mean(self, x, axis=None, dtype='float32', out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        res = np.mean(x._tensor, axis, dtype, out, keepdims)
-        if axis is None and not keepdims:
-            return res
-        else:
-            return self.tensor_cls(res)
+    def mean(self, tsr, axes, out):
+        """
+        Calculates the arithmetic mean of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (CPUTensor): the Tensor on which to compute the average
+            axes (int, list, optional): the dimension(s) along which to
+                                        average.  If set to None, we will
+                                        average over all dimensions.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.mean(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
 
     def min(self, x, axis=None, out=None, keepdims=False):
         if x is None:
@@ -1056,7 +1058,7 @@ class CPU(Backend):
                 maxvals = rf[ofmlocs[dst], range(rf.shape[1])]
                 fpropbuf[dst] = maxvals
             elif op.lower() == "avg" or op.lower() == "mean":
-                fpropbuf[dst] = rf.mean(axis=0)
+                fpropbuf[dst] = rf._tensor.mean(axis=0)
             elif op.lower() == "l2":
                 fpropbuf[dst] = self.norm(rf, 2, axis=0)
             else:
