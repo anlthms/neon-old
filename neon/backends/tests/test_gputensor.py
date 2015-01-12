@@ -56,14 +56,12 @@ class TestGPUTensor(object):
         tns = self.gpt([[1, 2], [3, 4]])
         assert str(tns) == "[[ 1.  2.]\n [ 3.  4.]]"
 
-    @nottest  # TODO: fix this comparison
     def test_scalar_slicing(self):
         tns = self.gpt([[1, 2], [3, 4]])
         res = tns[1, 0]
         assert res.shape == (1, 1)
-        assert_tensor_equal(res, self.gpt(3))
+        assert_tensor_equal(res, self.gpt([[3]]))
 
-    @nottest  # TODO: fix this comparison
     def test_range_slicing(self):
         tns = self.gpt([[1, 2], [3, 4]])
         res = tns[0:2, 0]
@@ -87,3 +85,8 @@ class TestGPUTensor(object):
         tns = self.gpt([[1, 2], [3, 4]])
         res = tns.transpose()
         assert_tensor_equal(res, self.gpt([[1, 3], [2, 4]]))
+
+    def test_fill(self):
+        tns = self.gpt([[1, 2], [3, 4]])
+        tns.fill(-9.5)
+        assert_tensor_equal(tns, self.gpt([[-9.5, -9.5], [-9.5, -9.5]]))

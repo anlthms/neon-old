@@ -55,8 +55,8 @@ class RNN(Model):
         error = self.backend.empty((1, 1))
         suberror = self.backend.empty(num_batches)
         for epoch in range(self.num_epochs):
-            self.backend.fill(error, 0)
-            self.backend.fill(suberror, 0)
+            error.fill(0)
+            suberror.fill(0)
             hidden_init = None
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*128*self.unrolls,
@@ -133,11 +133,11 @@ class RNN(Model):
 
         # clear deltas
         for tau in range(min_unroll, self.unrolls+1):
-            self.backend.fill(self.layers[0].deltas[tau], 0)
-            self.backend.fill(self.layers[1].deltas_o[tau], 0)
-        self.backend.fill(self.layers[0].weight_updates, 0)
-        self.backend.fill(self.layers[0].updates_rec, 0)
-        self.backend.fill(self.layers[1].weight_updates, 0)
+            self.layers[0].deltas[tau].fill(0)
+            self.layers[1].deltas_o[tau].fill(0)
+        self.layers[0].weight_updates.fill(0)
+        self.layers[0].updates_rec.fill(0)
+        self.layers[1].weight_updates.fill(0)
 
         # fill deltas
         for tau in range(min_unroll, self.unrolls+1):

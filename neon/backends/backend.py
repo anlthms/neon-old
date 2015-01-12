@@ -1100,6 +1100,24 @@ class Tensor(object):
         """
         raise NotImplementedError()
 
+    def fill(self, value):
+        """
+        Assign specified value to each element of this Tensor.
+
+        Arguments:
+            value (numeric): The value to be assigned to each element.
+
+        Return:
+            Tensor: updated view of the data.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Tensor.__setitem__`,
+        """
+        raise NotImplementedError()
+
     def log(self):
         """
         Computes the elementwise natural logarithmic transform on this tensor.

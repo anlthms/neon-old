@@ -65,7 +65,7 @@ class MLP(Model):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            self.backend.fill(error, 0)
+            error.fill(0)
             for batch in range(num_batches):
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
@@ -186,7 +186,7 @@ class MLP(Model):
             for item in items:
                 if item in targets and item in preds:
                     num_batches = len(targets[item])
-                    self.backend.fill(misclass_sum, 0)
+                    misclass_sum.fill(0)
                     for batch in range(num_batches):
                         targets_batch = ds.get_batch(targets[item], batch)
                         preds_batch = ds.get_batch(preds[item], batch)
@@ -216,7 +216,7 @@ class MLP(Model):
                 dataset.cur_val_macro_batch = dataset.start_val_batch
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
 
-            dataset.backend.fill(tot_err, 0)
+            tot_err.fill(0)
             for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch(
                     self.batch_size, batch_type, raw_targets=True)

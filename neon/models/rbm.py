@@ -45,7 +45,7 @@ class RBM(Model):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            self.backend.fill(error, 0.0)
+            error.fill(0.0)
             for batch in range(num_batches):
                 inputs_batch = ds.get_batch(inputs, batch)
                 self.positive(inputs_batch)

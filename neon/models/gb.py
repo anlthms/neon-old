@@ -36,9 +36,9 @@ class GB(MLP):
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
             for epoch in range(self.num_pretrain_epochs):
-                self.backend.fill(tcost, 0.0)
-                self.backend.fill(trcost, 0.0)
-                self.backend.fill(tspcost, 0.0)
+                tcost.fill(0.0)
+                trcost.fill(0.0)
+                tspcost.fill(0.0)
                 for batch in range(num_batches):
                     logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
@@ -82,7 +82,7 @@ class GB(MLP):
         start_time = time.time()
         error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            self.backend.fill(error, 0.0)
+            error.fill(0.0)
             for batch in range(num_batches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)

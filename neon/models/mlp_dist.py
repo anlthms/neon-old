@@ -79,7 +79,7 @@ class MLPDist(MLP):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            self.backend.fill(error, 0)
+            error.fill(0)
             num_batches = len(inputs)
             for batch in range(num_batches):
                 if self.comm.rank == 0:

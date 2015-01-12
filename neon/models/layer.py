@@ -77,7 +77,7 @@ class Layer(YAMLable):
         self.use_biases = 'bias_init' in weight_init
         if self.use_biases:
             self.biases = self.backend.empty((nout, 1), weight_dtype)
-            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.biases.fill(weight_init['bias_init'])
             self.bias_updates = self.backend.empty(self.biases.shape,
                                                    updates_dtype)
             self.params = [self.weights, self.biases]
@@ -1294,7 +1294,7 @@ class LocalFilteringLayer(LocalLayer):
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.fill(self.berror, 0)
+            self.berror.fill(0)
             for dst in range(self.ofmsize):
                 # Use the same filter that was used for forward propagation
                 # of this receptive field.
@@ -1489,7 +1489,7 @@ class LocalDeFilteringLayer(object):
         self.prev = prev
 
     def fprop(self, inputs):
-        self.backend.fill(self.output, 0)
+        self.output.fill(0)
         for dst in range(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:
@@ -1914,7 +1914,7 @@ class LCNLayer(YAMLable):
         self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs):
-        self.backend.fill(self.exinputs, 0)
+        self.exinputs.fill(0)
         self.fprop_sub_normalize(inputs)
         self.fprop_div_normalize()
 
@@ -1925,7 +1925,7 @@ class LCNLayer(YAMLable):
         self.berror = self.berror.reshape((self.nin, self.batch_size))
 
     def bprop_sub_normalize(self, error, inputs):
-        self.backend.fill(self.exerror, 0)
+        self.exerror.fill(0)
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
@@ -1940,7 +1940,7 @@ class LCNLayer(YAMLable):
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
-        self.backend.fill(self.exerror, 0)
+        self.exerror.fill(0)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
         assert self.diverror[self.subout.asnumpyarray() == 0].asnumpyarray(
@@ -2172,7 +2172,7 @@ class LCNLayerDist(LCNLayer):
                 self.routput.shape), self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs_):
-        self.backend.fill(self.exinputs, 0)
+        self.exinputs.fill(0)
         inputs = self.input.get_fprop_view(inputs_)
         self.fprop_sub_normalize(inputs)
         # distributed version
@@ -2180,7 +2180,7 @@ class LCNLayerDist(LCNLayer):
         self.fprop_div_normalize()
 
     def bprop_div_normalize(self, error, inputs):
-        self.backend.fill(self.exerror, 0)
+        self.exerror.fill(0)
         self.backend.cube(self.output, out=self.diverror)
 
         self.subout = self.input.get_local_acts()

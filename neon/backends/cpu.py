@@ -174,6 +174,19 @@ class CPUTensor(Tensor):
         return self.__class__(self._tensor.take(indices, axis),
                               self._tensor.dtype)
 
+    def fill(self, value):
+        """
+        Assign specified value to each element of this CPUTensor.
+
+        Arguments:
+            value (numeric): The value to be assigned to each element.
+
+        Return:
+            CPUTensor: updated view of the data.
+        """
+        self._tensor.fill(value)
+        return self
+
     def repeat(self, repeats, axis):
         return self.__class__(self._tensor.repeat(repeats, axis))
 
@@ -714,10 +727,6 @@ class CPU(Backend):
         self.greater(x, 0, out=out)
         return out
 
-    def fill(self, out, val):
-        out._tensor.fill(val)
-        return out
-
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
@@ -954,7 +963,7 @@ class CPU(Backend):
                                   backpropagated error for a single receptive
                                   field
         """
-        self.fill(out, 0.0)
+        out.fill(0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             self.dot(weights, deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
@@ -991,7 +1000,7 @@ class CPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
-        self.fill(out, 0.0)
+        out.fill(0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
@@ -1087,7 +1096,7 @@ class CPU(Backend):
                                   field
         """
         op = op.lower()
-        self.fill(bpropbuf, 0.0)
+        bpropbuf.fill(0.0)
         if op == "avg" or op == "mean":
             self.divide(deltas, fshape[0] * fshape[1], deltas)
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
@@ -1204,7 +1213,7 @@ class CPU(Backend):
         self.power(otemp, 1.0 / beta, out=otemp)
         self.multiply(otemp, rfouts, out=otemp)
         self.multiply(otemp, -2 * alpha * beta, out=otemp)
-        self.fill(rout, 0.0)
+        rout.fill(0.0)
         for i in range(nifm):
             for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nifm)):
                 self.multiply(otemp[i], rinputs[j], out=bpropbuf)
@@ -1231,7 +1240,7 @@ class CPU(Backend):
         tmp = self.empty([fmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
             ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
-            self.fill(ofm, 0.0)
+            ofm.fill(0.0)
             for ifmind in range(weights.shape[0]):
                 ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
                 self.multiply(ifm, weights[ifmind, ofmind], tmp)
@@ -1265,7 +1274,7 @@ class CPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
-        self.fill(out, 0.0)
+        out.fill(0.0)
         fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(out.shape[1]):
             ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]

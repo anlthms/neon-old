@@ -81,3 +81,9 @@ class TestCPUTensor(object):
         tns = CPUTensor([[1, 2], [3, 4]])
         res = tns.transpose()
         assert_tensor_equal(res, CPUTensor([[1, 3], [2, 4]]))
+
+    def test_fill(self):
+        tns = CPUTensor([[1, 2], [3, 4]])
+        tns.fill(-9.5)
+        assert_tensor_equal(tns, CPUTensor([[-9.5, -9.5], [-9.5, -9.5]]))
+

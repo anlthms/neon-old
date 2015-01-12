@@ -330,6 +330,19 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
+    def fill(self, value):
+        """
+        Assign specified value to each element of this CPUTensor.
+
+        Arguments:
+            value (numeric): The value to be assigned to each element.
+
+        Return:
+            CPUTensor: updated view of the data.
+        """
+        self._tensor.assign(value)
+        return self
+
     def sumsq(self, axis=None):
         """
         Sum of squares of elements of a CudanetTensor. If axis is None,
@@ -919,9 +932,6 @@ class GPU(Backend):
     def rectlin_derivative(self, x, out):
         self.greater(x, 0, out=out)
 
-    def fill(self, x, val):
-        x[:] = val
-
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
@@ -937,8 +947,7 @@ class GPU(Backend):
             Tensor: reference to out
         """
         if axes is None:
-            result = self.tensor_cls(tsr._tensor.sum(axis=0).sum(axis=1))
-            self.fill(out, result)
+            out.fill(tsr._tensor.sum(axis=0).sum(axis=1))
         else:
             tsr._tensor.sum(axis=axes, target=out._tensor)
         return out
