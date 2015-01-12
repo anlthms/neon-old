@@ -142,7 +142,7 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
         # ----------------------------------------
-        numgrad = "output"
+        numgrad = "lstm_ch"
         if numgrad is "output":
             num_target = self.layers[1].weights # num
             an_target = self.layers[1].weight_updates # anal factor 4
@@ -155,16 +155,24 @@ class RNN(Model):
             num_target = self.layers[0].weights_rec # num gradient 1.462686e-04
             an_target = self.layers[0].updates_rec # anal fac 4 to 3.659200e-05
             num_i, num_j = 12, 63 # for recurrent
+        elif numgrad is "lstm_x":
+            num_target = self.layers[0].Wfx # (64, 128)
+            an_target = self.layers[0].Wfx_updates
+            num_i, num_j = 12, 110 # for input
+        elif numgrad is "lstm_ih" or "lstm_fh" or "lstm_oh" or "lstm_ch":
+            num_target = self.layers[0].Wch # (64, 128)
+            an_target = self.layers[0].Wch_updates
+            num_i, num_j = 12, 55 # for recurrent
+            # Wch has a bug!
 
-        #num_target = self.layers[0].Wfx
-        #an_target = self.layers[0].Wfx_updates
+
 
         """Interesteingly this only seems to work with 2 unrolls - with 5
         the """
 
 
         # ----------------------------------------
-        eps = 1e-6  # use float64 in cpu.py for this
+        eps = 1e-2  # use float64 in cpu.py for this
         numerical = 0 # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
@@ -331,17 +339,15 @@ class RNN(Model):
                 error_h = self.layers[0].berror.copy() # is this a copy or a reference?
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
-            # # last layer: put output[-1], i.e. hidden init, into output[end]
-            # """Do we even need to bprop this deep? Computes an error that is
-            # not used anywhere, W_h into zero, only update to W_x is used! """
-            # # This is not the culprit, makes no difference.
-            # if True:
-            #     t = 0
-            #     # assuming it's ok to overwrite? (These are reused throughout!)
-            #     self.layers[0].output_list[tau - 1] = hidden_init  # TESTING
-            #     if 'c_t' in self.layers[0].__dict__:
-            #         self.layers[0].c_t[tau - 1] = cell_init  # TESTING
-            #     self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
+            # last layer: put output[-1], i.e. hidden init, into output[end]
+            if False: # seems to work as a fix if we only do the full unroll. But if we
+                # loop shorter unrolls, I don't think we can overwrite this.
+                t = 0
+                # assuming it's ok to overwrite? (These are reused throughout!)
+                self.layers[0].output_list[tau - 1] = hidden_init  # TESTING
+                if 'c_t' in self.layers[0].__dict__:
+                    self.layers[0].c_t[tau - 1] = cell_init  # TESTING
+                self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
 
     def update(self, epoch):
         for layer in self.layers:

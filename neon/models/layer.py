@@ -527,6 +527,8 @@ class RecurrentLSTMLayer(Layer):
                 dg_dJ = d/dJ s(Wcx*x+Wch*h+b)
 
         Over multiple time-steps, berror feeds back in as error.
+        [TODO] Currently using a bunch of if statements to catch propagating
+        into outputs[-1], which should not wrap but be 0.
         """
         be = self.backend
 
@@ -576,7 +578,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wix_updates, dh_dWix, self.Wix_updates)
-        be.add(self.Wih_updates, dh_dWih, self.Wih_updates)
+        if (tau > 0):
+            be.add(self.Wih_updates, dh_dWih, self.Wih_updates)
         be.add(self.b_i_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_i_updates)
 
@@ -594,7 +597,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wfx_updates, dh_dWfx, self.Wfx_updates)
-        be.add(self.Wfh_updates, dh_dWfh, self.Wfh_updates)
+        if (tau > 0):
+            be.add(self.Wfh_updates, dh_dWfh, self.Wfh_updates)
         be.add(self.b_f_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_f_updates)
 
@@ -610,7 +614,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wox_updates, dh_dWox, self.Wox_updates)
-        be.add(self.Woh_updates, dh_dWoh, self.Woh_updates)
+        if (tau > 0):
+            be.add(self.Woh_updates, dh_dWoh, self.Woh_updates)
         be.add(self.b_o_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_o_updates)
 
@@ -628,7 +633,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wcx_updates, dh_dWcx, self.Wcx_updates)
-        be.add(self.Wch_updates, dh_dWch, self.Wch_updates)
+        if (tau > 0):
+            be.add(self.Wch_updates, dh_dWch, self.Wch_updates)
         be.add(self.b_c_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_c_updates)
 
@@ -636,7 +642,11 @@ class RecurrentLSTMLayer(Layer):
         be.add(di_dh1, df_dh1, hherror)
         be.add(do_dh1, hherror, hherror)
         be.add(dg_dh1, hherror, hherror)
-        ttemp1 = dh_dWfh[12, 55].raw()  # used for num grad checks
+
+        ttemp1i = dh_dWih[12, 55].raw()  # used for num grad checks
+        ttemp1f = dh_dWfh[12, 55].raw()  # used for num grad checks
+        ttemp1o = dh_dWoh[12, 55].raw()  # used for num grad checks
+        ttemp1c = dh_dWch[12, 55].raw()  # used for num grad checks
 
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
@@ -655,7 +665,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wix_updates, dh_dWix, self.Wix_updates)
-        be.add(self.Wih_updates, dh_dWih, self.Wih_updates)
+        if (tau > 0):
+            be.add(self.Wih_updates, dh_dWih, self.Wih_updates)
         be.add(self.b_i_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_i_updates)
 
@@ -671,7 +682,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wfx_updates, dh_dWfx, self.Wfx_updates)
-        be.add(self.Wfh_updates, dh_dWfh, self.Wfh_updates)
+        if (tau > 0):
+            be.add(self.Wfh_updates, dh_dWfh, self.Wfh_updates)
         be.add(self.b_f_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_f_updates)
 
@@ -687,7 +699,8 @@ class RecurrentLSTMLayer(Layer):
                      inputs=self.output_list[tau - 1],
                      deltas=temp)
         be.add(self.Wcx_updates, dh_dWcx, self.Wcx_updates)
-        be.add(self.Wch_updates, dh_dWch, self.Wch_updates)
+        if (tau > 0):
+            be.add(self.Wch_updates, dh_dWch, self.Wch_updates)
         be.add(self.b_c_updates, temp.sum(1).reshape((self.nout, 1)),
                self.b_c_updates)
 
@@ -708,10 +721,22 @@ class RecurrentLSTMLayer(Layer):
         be.add(hherror, cherror, self.berror)
         be.add(ccerror, hcerror, self.cerror)
 
-        if numgrad:
-            ttemp2 = dh_dWfh[12, 55].raw()  # for numerical gradient
-            logger.info("layer.bprop: analytic dh_dWfh[%d]= %e + %e = %e",
-                        tau, ttemp1, ttemp2, ttemp1 + ttemp2)
+        if numgrad is "lstm_ih":
+            ttemp2i = dh_dWih[12, 55].raw()  # for numerical gradient
+            logger.info("layer.LSTM.bprop: analytic dh_dWih[%d]= %e + %e = %e",
+                        tau, ttemp1i, ttemp2i, ttemp1i + ttemp2i)
+        if numgrad is "lstm_fh":
+            ttemp2f = dh_dWfh[12, 55].raw()  # for numerical gradient
+            logger.info("layer.LSTM.bprop: analytic dh_dWfh[%d]= %e + %e = %e",
+                        tau, ttemp1f, ttemp2f, ttemp1f + ttemp2f)
+        if numgrad is "lstm_oh":
+            ttemp2o = dh_dWoh[12, 55].raw()  # for numerical gradient
+            logger.info("layer.LSTM.bprop: analytic dh_dWoh[%d]= %e + %e = %e",
+                        tau, ttemp1o, ttemp2o, ttemp1o + ttemp2o)
+        if numgrad is "lstm_ch":
+            ttemp2c = dh_dWch[12, 55].raw()  # for numerical gradient
+            logger.info("layer.LSTM.bprop: analytic dh_dWch[%d]= %e + %e = %e",
+                        tau, ttemp1c, ttemp2c, ttemp1c + ttemp2c)
 
 
     def update(self, epoch):
@@ -792,7 +817,7 @@ class RecurrentHiddenLayer(Layer):
         """
         sbe = self.backend
         sbe.multiply(error, self.pre_act_list[t], out=error)  # finish computing error
-        if (t > 0):  # can be moved down for a single if().
+        if (t > 0):  # can be moved down for a single if(). OR can compute it, the result will never be used.
             # compute error (apply prev. delta)
             self.backend.bprop_fc(out=self.berror,  # output for next iteration
                                   weights=self.weights_rec,
@@ -807,7 +832,7 @@ class RecurrentHiddenLayer(Layer):
         if (t > 0):
             # recurrent weight update (apply prev. delta)
             self.backend.update_fc(out=self.temp_rec,
-                                   inputs=self.output_list[t - 1],
+                                   inputs=self.output_list[t - 1], # WATCH OUT IF t==0
                                    deltas=error)
             sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
         if numgrad is "input":
