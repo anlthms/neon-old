@@ -77,8 +77,9 @@ class MLPDist(MLP):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
+            self.backend.fill(error, 0)
             num_batches = len(inputs)
             for batch in range(num_batches):
                 if self.comm.rank == 0:
@@ -88,11 +89,13 @@ class MLPDist(MLP):
                 self.fprop(inputs_batch)
                 self.bprop(targets_batch, inputs_batch)
                 if self.comm.rank == 0:
-                    error += self.cost.apply_function(targets_batch)
+                    self.backend.add(error,
+                                     self.cost.apply_function(targets_batch),
+                                     error)
                 self.update(epoch)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
-                            error / num_batches)
+                            error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 

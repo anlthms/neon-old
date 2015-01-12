@@ -330,22 +330,6 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None, out=None):
-        """
-        Sum elements of a GPUTensor. If axis is None, all elements are
-        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
-        axis and return a GPUTensor.
-        """
-        if axis is None:
-            result = self._tensor.sum(axis=0).sum(axis=1)
-            logger.debug('Copying to host')
-            result.copy_to_host()
-            return result.numpy_array[0][0]
-
-        result = self._tensor.sum(axis=axis, target=out._tensor)
-        logger.debug('major change in functionality of sum')
-        return GPUTensor(result)
-
     def sumsq(self, axis=None):
         """
         Sum of squares of elements of a CudanetTensor. If axis is None,
@@ -938,10 +922,26 @@ class GPU(Backend):
     def fill(self, x, val):
         x[:] = val
 
-    def sum(self, x, axis=None, out=None):
-        if x is None:
-            return float('NaN')
-        return x.sum(axis=axis, out=out)
+    def sum(self, tsr, axes, out):
+        """
+        Calculates the summation of the elements along the specified axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to perform the sum
+            axes (int, list, optional): the dimension(s) along which to sum.
+                                        If set to None, we will sum over all
+                                        dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+        """
+        if axes is None:
+            result = self.tensor_cls(tsr._tensor.sum(axis=0).sum(axis=1))
+            self.fill(out, result)
+        else:
+            tsr._tensor.sum(axis=axes, target=out._tensor)
+        return out
 
     def mean(self, x):
         if x is None:

@@ -54,11 +54,11 @@ class GradientChecker(Experiment):
             saved = weights[ind]
             weights[ind] += self.eps
             self.model.fprop(inputs)
-            cost1 = self.model.cost.apply_function(targets)
+            cost1 = self.model.cost.apply_function(targets).asnumpyarray()
 
             weights[ind] -= 2 * self.eps
             self.model.fprop(inputs)
-            cost2 = self.model.cost.apply_function(targets)
+            cost2 = self.model.cost.apply_function(targets).asnumpyarray()
 
             grads[ind] = ((cost1 - cost2) / self.model.layers[-1].batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))

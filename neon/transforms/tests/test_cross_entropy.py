@@ -18,7 +18,7 @@ def test_cross_entropy_cputensor():
     expected_result = np.sum((- targets.asnumpyarray()) *
                              np.log(outputs.asnumpyarray()) -
                              (1 - targets.asnumpyarray()) *
-                             np.log(1 - outputs.asnumpyarray()))
+                             np.log(1 - outputs.asnumpyarray()), keepdims=True)
     assert_tensor_near_equal(expected_result, cross_entropy(be, outputs,
                                                             targets, temp))
 
@@ -33,7 +33,7 @@ def test_cross_entropy_gputensor():
     expected_result = np.sum((- targets.asnumpyarray()) *
                              np.log(outputs.asnumpyarray()) -
                              (1 - targets.asnumpyarray()) *
-                             np.log(1 - outputs.asnumpyarray()))
+                             np.log(1 - outputs.asnumpyarray()), keepdims=True)
     assert_tensor_near_equal(expected_result, cross_entropy(be, outputs,
                                                             targets, temp),
                              tolerance=1e-6)

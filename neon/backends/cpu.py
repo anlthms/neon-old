@@ -190,13 +190,6 @@ class CPUTensor(Tensor):
         else:
             return self.__class__(res)
 
-    def sum(self, axis=None, dtype='float32', out=None):
-        res = np.sum(self._tensor, axis, dtype, out)
-        if axis is None:
-            return res
-        else:
-            return self.__class__(res)
-
     def sumsq(self, axis=None, dtype='float32', out=None):
         res = np.sum(self._tensor * self._tensor, axis, dtype, out)
         if axis is None:
@@ -725,11 +718,22 @@ class CPU(Backend):
         out._tensor.fill(val)
         return out
 
-    def sum(self, obj, axis=None, out=None):
-        if axis is None:
-            return np.sum(obj._tensor)
-        res = np.sum(obj._tensor, axis=axis, out=out._tensor, keepdims=True)
-        return self.tensor_cls(res)
+    def sum(self, tsr, axes, out):
+        """
+        Calculates the summation of the elements along the specified axes.
+
+        Arguments:
+            tsr (CPUTensor): the Tensor on which to perform the sum
+            axes (int, list, optional): the dimension(s) along which to sum.
+                                        If set to None, we will sum over all
+                                        dimensions.
+            out (CPUTensor): where the result will be stored.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.sum(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
 
     def mean(self, x, axis=None, dtype='float32', out=None, keepdims=False):
         if x is None:

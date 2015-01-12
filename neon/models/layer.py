@@ -144,7 +144,7 @@ class Layer(YAMLable):
         self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                deltas=error)
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=self.bias_updates)
+            self.backend.sum(error, axes=1, out=self.bias_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -296,7 +296,7 @@ class LayerMultiPass(Layer):
                          out=self.weight_updates)
 
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=self.utemp[1])
+            self.backend.sum(error, axes=1, out=self.utemp[1])
             self.backend.add(self.utemp[1], self.bias_updates,
                              out=self.bias_updates)
 
@@ -1906,7 +1906,8 @@ class LCNLayer(YAMLable):
 
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.asnumpyarray() == 0.0].sum() == 0.0
+        assert self.subout[self.meanfm.asnumpyarray() == 0.0].asnumpyarray(
+            ).sum() == 0.0
         self.meanfm[self.meanfm.asnumpyarray() == 0.0] = 1.0
         self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
 
@@ -1940,7 +1941,8 @@ class LCNLayer(YAMLable):
         self.backend.fill(self.exerror, 0)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.asnumpyarray() == 0].sum() == 0.0
+        assert self.diverror[self.subout.asnumpyarray() == 0].asnumpyarray(
+            ).sum() == 0.0
         self.subout[self.subout.asnumpyarray() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
         # this is for the non-padded, non-halo matrix only
@@ -1953,7 +1955,8 @@ class LCNLayer(YAMLable):
                        self.conv.ofmsize * fm)
                 divout = self.output.take(loc, axis=0).transpose()
                 subout = self.subout.take(loc, axis=0).transpose()
-                assert divout[subout.asnumpyarray() == 0].sum() == 0
+                assert divout[subout.asnumpyarray() == 0].asnumpyarray(
+                    ).sum() == 0
                 subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 

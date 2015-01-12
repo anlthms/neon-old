@@ -24,7 +24,8 @@ def sum_squared_diffs(backend, outputs, targets, temp):
     """
     backend.subtract(outputs, targets, temp[0])
     backend.multiply(temp[0], temp[0], temp[0])
-    return 0.5 * backend.sum(temp[0])
+    result = backend.empty([1, ] + list(outputs.shape[1:]))
+    return 0.5 * backend.sum(temp[0], axes=0, out=result)
 
 
 def sum_squared_diffs_derivative(backend, outputs, targets, temp, scale=1.0):
