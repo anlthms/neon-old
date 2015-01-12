@@ -163,8 +163,9 @@ class CrossEntropy(Cost):
 
     def set_outputbuf(self, databuf):
         if not self.outputbuf or self.outputbuf.shape != databuf.shape:
-            tempbuf = self.backend.empty(databuf.shape, self.temp_dtype)
-            self.temp = [tempbuf, tempbuf.copy()]
+            tempbuf1 = self.backend.empty(databuf.shape, self.temp_dtype)
+            tempbuf2 = self.backend.empty(databuf.shape, self.temp_dtype)
+            self.temp = [tempbuf1, tempbuf2]
         self.outputbuf = databuf
 
     def get_berrbuf(self):
