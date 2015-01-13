@@ -32,7 +32,7 @@
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 10,
     batch_size: &bs 50,
     reset_period: 50,
     unrolls: *ur,
