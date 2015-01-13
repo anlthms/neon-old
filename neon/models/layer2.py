@@ -347,7 +347,7 @@ class WeightLayer(Layer):
         self.use_biases = 'bias_init' in self.weight_init
         if self.use_biases:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.backend.fill(self.biases, self.weight_init['bias_init'])
+            self.biases.fill(self.weight_init['bias_init'])
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
@@ -364,7 +364,7 @@ class WeightLayer(Layer):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         if self.accumulate:
             for upm in self.updates:
-                self.backend.fill(upm, 0.0)
+                upm.fill(0.0)
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
