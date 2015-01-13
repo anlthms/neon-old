@@ -9,6 +9,7 @@ import logging
 import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
+from neon.util.param import opt_param, req_param
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -25,10 +26,7 @@ class MLP(Model):
     def __init__(self, **kwargs):
         self.dist_mode = None
         self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
+        req_param(self, ['layers', 'batch_size'])
         self.nlayers = len(self.layers)
         self.result = 0
         self.cost.initialize(kwargs)
@@ -267,10 +265,8 @@ class MLPB(MLP):
     def __init__(self, **kwargs):
         self.dist_mode = None
         self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
+        req_param(self, ['layers', 'batch_size'])
+        opt_param(self, ['step_print'], -1)
         self.result = 0
         kwargs = {"backend": self.backend, "batch_size": self.batch_size}
         self.data_layer = self.layers[0]
@@ -297,61 +293,13 @@ class MLPB(MLP):
             error = None if nl is None else nl.berror
             ll.bprop(error)
 
-    def predict(self, items=['train', 'test', 'validation']):
-        """
-        Generate and return predictions on the given datasets.
-        """
-        for layer in self.layers:
-            layer.set_train_mode(False)
-        preds = dict()
-        for sn in items:
-            res = self.predict_set(sn)
-            if res is not None:
-                preds[sn] = res
-        return preds
-
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
         for layer in self.layers:
             printfunc("%s", str(layer))
 
-    def error_metrics(self, ds, preds, items=['train', 'test', 'validation']):
-        targets = ds.get_targets(train=True, test=True, validation=True)
-        for item in items:
-            if item not in targets or item not in preds:
-                continue
-            self.result = self.misclass_rate(preds[item], targets[item])
-            logloss = self.logloss(preds[item], targets[item])
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                         item, 100 * self.result, logloss)
-
-    def predict_set(self, setname):
-        if not self.data_layer.has_set(setname):
-            return None
-        self.data_layer.use_set(setname)
-        self.data_layer.reset_counter()
-        preds = []
-        while self.data_layer.has_more_data():
-            self.fprop()
-            preds.append(self.get_classifier_output().copy())
-        return preds
-
     def get_classifier_output(self):
         return self.class_layer.output
-
-    def print_progress(self, error, epoch, mb_id):
-        '''
-        print progress after every macrobatch
-        '''
-        ds = self.data_layer.dataset
-        if ds.macro_batched:
-            step_print = ds.num_minibatches_in_macro
-            if mb_id % step_print == 0:
-                logger.info('%d.%d logloss=%0.5f' % (epoch,
-                                                     mb_id / step_print - 1,
-                                                     error / mb_id))
-        else:
-            pass
 
     def fit(self, dataset):
         """
@@ -361,29 +309,32 @@ class MLPB(MLP):
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
-            error = 0.0
+            error, mb_id = 0.0, 1
             self.data_layer.reset_counter()
-            mb_id = 1
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
                 self.update(epoch)
                 error += self.cost_layer.get_cost()
-                self.print_progress(error, epoch, mb_id)
+                if self.step_print > 0 and mb_id % self.step_print:
+                    logger.info('%d.%d logloss=%0.5f', epoch,
+                                mb_id / self.step_print - 1, error / mb_id)
                 mb_id += 1
             logger.info('epoch: %d, total training error: %0.5f', epoch,
                         error / self.data_layer.num_batches)
             self.print_layers(debug=True)
         self.data_layer.cleanup()
 
-    def predict_and_error(self, dataset):
+    def predict_and_error(self):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        for setname in ['train', 'validation']:
+        for setname in ['train', 'test', 'validation']:
+            if self.data_layer.has_set(setname) is False:
+                continue
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
-            misclass_sum = 0.0
+            misclass_sum, logloss_sum = 0.0, 0.0
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
                 self.fprop()
@@ -393,6 +344,7 @@ class MLPB(MLP):
                 self.backend.argmax(probs, axis=0, out=predlabels)
                 self.backend.not_equal(predlabels, labels, misclass)
                 misclass_sum += self.backend.sum(misclass)
-            logging.info("%s set misclass rate: %0.5f%%" % (
-                setname, 100 * misclass_sum / nrecs))
+                logloss_sum += self.cost_layer.cost.apply_logloss(targets)
+            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
+                setname, 100 * misclass_sum / nrecs, logloss_sum / nrecs))
             self.data_layer.cleanup()
