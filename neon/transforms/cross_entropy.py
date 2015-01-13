@@ -168,7 +168,7 @@ class CrossEntropy(Cost):
             self.temp = [tempbuf1, tempbuf2]
         self.outputbuf = databuf
 
-    def set_berrbuf(self):
+    def get_berrbuf(self):
         # used by layer2 only.
         return self.temp[0]
 
