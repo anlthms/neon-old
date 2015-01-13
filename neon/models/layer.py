@@ -405,7 +405,7 @@ class RecurrentLSTMLayer(Layer):
 
         # If this isn't initialized correctly, get NaNs pretty quickly.
         be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
-        be.add(be.zeros((nout, 1)), -1, self.b_f)  # sigmoid(-1) closes gate
+        be.add(be.zeros((nout, 1)), 0, self.b_f)  # sigmoid(-1) closes gate. +5 following clockwork RNN paper "to encourage long term memory"
         be.add(be.zeros((nout, 1)), 1, self.b_o)   # open
         self.b_c = be.zeros((nout, 1))  # no need to be messed with
 

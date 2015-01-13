@@ -33,7 +33,10 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        self.grad_checker()
+        self.grad_checker(numgrad = "lstm_ch")
+        # pick one: "output":"input":"rec"
+        #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
+
         """
         Learn model weights on the given dataset.
         """
@@ -84,24 +87,33 @@ class RNN(Model):
                 viz.plot_weights(self.layers[0].weights.raw(),
                                  self.layers[0].Wih.raw(),
                                  self.layers[1].weights.raw())
+                import numpy as np
                 viz.plot_lstm(self.layers[0].Wix.raw(),
                               self.layers[0].Wfx.raw(),
                               self.layers[0].Wox.raw(),
                               self.layers[0].Wcx.raw(),
-                              self.layers[0].Wih.raw(),
-                              self.layers[0].Wfh.raw(),
-                              self.layers[0].Woh.raw(),
-                              self.layers[0].Wch.raw(),
-                              scale=.5, fig=4)
-                viz.plot_lstm(self.layers[0].i_t[0].raw(),
+                              np.hstack((self.layers[0].Wih.raw(),
+                                        self.layers[0].b_i.raw(),
+                                        self.layers[0].b_i.raw() )),
+                              np.hstack((self.layers[0].Wfh.raw(),
+                                        self.layers[0].b_f.raw(),
+                                        self.layers[0].b_f.raw() )),
+                              np.hstack((self.layers[0].Woh.raw(),
+                                        self.layers[0].b_o.raw(),
+                                        self.layers[0].b_o.raw() )),
+                              np.hstack((self.layers[0].Wch.raw(),
+                                        self.layers[0].b_c.raw(),
+                                        self.layers[0].b_c.raw() )),
+                              scale=1.1, fig=4)
+                viz.plot_lstm(self.layers[0].i_t[0].raw(),  # sigmoid(stuff)
                               self.layers[0].f_t[0].raw(),
                               self.layers[0].o_t[0].raw(),
-                              self.layers[0].g_t[0].raw(),
-                              self.layers[0].net_i[0].raw(),
-                              self.layers[0].net_f[0].raw(),
-                              self.layers[0].net_o[0].raw(),
-                              self.layers[0].net_g[0].raw(),
-                              scale=5, fig=5)
+                              self.layers[0].g_t[1].raw(),
+                              self.layers[0].net_i[0].raw(), # sig'(stuff)
+                              self.layers[0].c_t[0].raw(),
+                              self.layers[0].c_t[1].raw(), # what is g and what is c?
+                              self.layers[0].c_phi[1].raw(),
+                              scale=21, fig=5)
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].net_i,
                                      self.layers[0].i_t,
@@ -113,7 +125,7 @@ class RNN(Model):
             for layer in self.layers:
                 logger.debug("%s", layer)
 
-    def grad_checker(self):
+    def grad_checker(self, numgrad="lstm_ch"):
         """
         Check gradients for LSTM layer:
           - W is replicated, only inject the eps once, repeat, average.
@@ -135,7 +147,6 @@ class RNN(Model):
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
-        numgrad = "lstm_ch"
         if numgrad is "output":
             num_target = self.layers[1].weights
             an_target = self.layers[1].weight_updates
@@ -152,7 +163,19 @@ class RNN(Model):
             num_target = self.layers[0].Wfx
             an_target = self.layers[0].Wfx_updates
             num_i, num_j = 12, 110
-        elif numgrad is "lstm_ih" or "lstm_fh" or "lstm_oh" or "lstm_ch":
+        elif numgrad is "lstm_ih":
+            num_target = self.layers[0].Wih
+            an_target = self.layers[0].Wih_updates
+            num_i, num_j = 12, 55
+        elif numgrad is  "lstm_fh":
+            num_target = self.layers[0].Wfh
+            an_target = self.layers[0].Wfh_updates
+            num_i, num_j = 12, 55
+        elif numgrad is "lstm_oh":
+            num_target = self.layers[0].Woh
+            an_target = self.layers[0].Woh_updates
+            num_i, num_j = 12, 55
+        elif numgrad is  "lstm_ch":
             num_target = self.layers[0].Wch
             an_target = self.layers[0].Wch_updates
             num_i, num_j = 12, 55
@@ -188,7 +211,6 @@ class RNN(Model):
         logger.info("RNN grad_checker: numerical %e", numerical)
         logger.info("RNN grad_checker: analytical %e", analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
-        trace()
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
                   cell_init=None, debug=False, unrolls=None,
