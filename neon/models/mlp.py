@@ -9,6 +9,7 @@ import logging
 import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
+from neon.util.param import opt_param, req_param
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -25,10 +26,8 @@ class MLP(Model):
     def __init__(self, **kwargs):
         self.dist_mode = None
         self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
+        req_param(self, ['layers', 'batch_size'])
+
         self.nlayers = len(self.layers)
         self.result = 0
         self.cost.initialize(kwargs)
@@ -270,12 +269,11 @@ class MLPB(MLP):
     def __init__(self, **kwargs):
         self.dist_mode = None
         self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
+        req_param(self, ['layers', 'batch_size'])
+        opt_param(self, ['accumulate'], False)
         self.result = 0
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size}
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate}
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
