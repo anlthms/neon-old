@@ -74,7 +74,7 @@ class RNN(Model):
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
-                if batch % self.reset_period is 0:  # reset hidden state
+                if (batch % self.reset_period) == 0:  # reset hidden state
                     hidden_init.fill(0)
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
@@ -384,7 +384,7 @@ class RNN(Model):
             hidden_init = self.layers[0].output_list[-1]
             if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
-            if batch % self.reset_period is 0:
+            if (batch % self.reset_period) == 0:
                     hidden_init.fill(0)
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
@@ -419,7 +419,7 @@ class RNN(Model):
             preds['test'] = self.predict_set(inputs['test'])
         if validation and 'validation' in inputs:
             preds['validation'] = self.predict_set(inputs['validation'])
-        if len(preds) is 0:
+        if len(preds) == 0:
             logger.error("must specify >=1 of: train, test, validation")
         return preds
 
