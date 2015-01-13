@@ -765,7 +765,6 @@ class RecurrentLSTMLayer(Layer):
             epoch)
 
 
-
 class RecurrentHiddenLayer(Layer):
 
     """

@@ -34,7 +34,7 @@ class VecPar:
         start = mpi_rank * nin
         end = start + weights.shape[1]
         self.backend.fprop_fc_impl(out, inputs[start:end], weights)
-        #TODO: avoid this allocation.
+        # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
@@ -48,7 +48,7 @@ class VecPar:
         end = start + weights.shape[1]
         self.backend.bprop_fc_impl(out[start:end], weights, deltas)
 
-        #TODO: avoid this allocation.
+        # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         rcount = np.ones(mpi_size) * nin
         bs = out.shape[1]
@@ -58,7 +58,8 @@ class VecPar:
         scount *= bs
         rcount *= bs
         displ *= bs
-        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.raw()[start:end], scount, MPI.FLOAT],
+        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.raw()[start:end],
+                                           scount, MPI.FLOAT],
                                   recvbuf=[recvbuf, rcount, displ, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
 
@@ -88,14 +89,14 @@ class DataPar:
 
         model.batch_size = self.batch_size
         logger.info('Node: %d: Changed batch size from %d to %d',
-                     mpi_rank, backend.actual_batch_size, model.batch_size)
+                    mpi_rank, backend.actual_batch_size, model.batch_size)
 
     def distribute(self, batchdata):
         return self.backend.wrap(batchdata[:, self.start:self.end])
 
     def update_fc(self, out, inputs, deltas):
         self.backend.update_fc_impl(out, inputs, deltas)
-        #TODO: avoid this allocation.
+        # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
