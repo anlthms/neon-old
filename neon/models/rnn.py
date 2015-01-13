@@ -41,7 +41,7 @@ class RNN(Model):
         Learn model weights on the given dataset.
         """
         for layer in self.layers:
-            logger.info("XXX %s", str(layer))
+            logger.info("%s", str(layer))
         inputs = dataset.get_inputs(train=True)['train']
         targets = inputs.copy()  # use targets = inputs for sequence prediction
         nrecs = inputs.shape[0]
@@ -322,9 +322,6 @@ class RNN(Model):
         # this loop is a property of t-BPTT through different depth.
         # inside this loop, go through the input-hidden-output stack.
         for tau in range(min_unroll, self.unrolls+1):
-            if debug:
-                logger.info("bprop target %d of %d is: %f", tau, self.unrolls,
-                            targets[nin*tau:nin*(tau+1), :].argmax(0)[0])
 
             # output layers[1]:
             self.cost.set_outputbuf(self.layers[1].output_list[tau - 1])
@@ -455,4 +452,4 @@ class RNN(Model):
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result)
         # TODO: return values instead?
-        trace()  # just used to keep figures open
+        #trace()  # just used to keep figures open
