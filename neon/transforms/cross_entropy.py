@@ -10,6 +10,7 @@ from neon.transforms.logistic import Logistic
 from neon.transforms.softmax import Softmax
 from neon.util.param import opt_param
 
+
 def cross_entropy(backend, outputs, targets, temp):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
@@ -189,7 +190,7 @@ class CrossEntropy(Cost):
 
         self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])
         return cross_entropy_multi(self.backend, self.temp[0], targets,
-                self.temp)
+                                   self.temp)
 
     def apply_function(self, targets):
         """

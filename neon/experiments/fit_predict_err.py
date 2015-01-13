@@ -9,7 +9,6 @@ is evaluated on the predictions made.
 import logging
 
 from neon.experiments.fit import FitExperiment
-from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +37,4 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
-
         self.model.predict_and_error()
-
