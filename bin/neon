@@ -31,9 +31,9 @@ def parse_args():
                         help='call ipython debugger on uncaught exception')
     parser.add_argument('-t', '--trace', action='store', nargs=2,
                         metavar=('file_filter', 'output_file'),
-                        help='Trace through function calls. Optional argument '
-                             'is a regex filter on the name of the source files '
-                             'to confine the trace to.')
+                        help='Trace through function calls. Optional '
+                             'argument is a regex filter on the name of the '
+                             'source files to confine the trace to.')
     return(parser.parse_args())
 
 
