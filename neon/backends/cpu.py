@@ -11,7 +11,6 @@ import math
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
-from neon.backends.par import VecPar
 from neon.util.compat import MPI_INSTALLED, range
 
 if MPI_INSTALLED:
@@ -172,12 +171,7 @@ class CPU(Backend):
         self.__dict__.update(kwargs)
         self.err_init()
         self.rng_init()
-        if 'vecpar' in self.__dict__ and self.vecpar is True:
-            self.par = VecPar(self)
-            self.gen_weights = self.par.gen_weights
-            self.fprop_fc = self.par.fprop_fc
-            self.bprop_fc = self.par.bprop_fc
-            self.update_fc = self.par.update_fc
+        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:

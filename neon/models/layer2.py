@@ -214,7 +214,8 @@ class CostLayer(Layer):
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.berror, self.backend.wrap(self.batch_size),
+        self.backend.divide(self.berror,
+                            self.backend.wrap(self.backend.actual_batch_size),
                             out=self.berror)
 
     def get_cost(self):

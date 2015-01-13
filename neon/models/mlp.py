@@ -34,6 +34,12 @@ class MLP(Model):
         self.cost.initialize(kwargs)
         assert self.layers[-1].nout <= 2 ** 15
 
+    def link_and_initialize(self, initlayer=None):
+        """
+        To make legacy config files work.
+        """
+        pass
+
     def fit(self, dataset):
         """
         Learn model weights on the given dataset.
@@ -259,17 +265,15 @@ class MLPB(MLP):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
         self.result = 0
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size}
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
 
-        self.link_and_initialize(self.layers, kwargs)
-
         assert self.layers[-1].nout <= 2 ** 15
 
-    def link_and_initialize(self, layer_list, kwargs, initlayer=None):
-        for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
+    def link_and_initialize(self, initlayer=None):
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size}
+        for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
             ll.initialize(kwargs)
 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class VecPar:
     def __init__(self, backend):
         if mpi_rank == 0:
-            logger.info('MPI mode. Number of nodes = %d.', mpi_size)
+            logger.info('Vecpar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
 
     def gen_weights(self, size, weight_params, dtype=None):
@@ -35,7 +35,7 @@ class VecPar:
         end = start + weights.shape[1]
         self.backend.fprop_fc_impl(out, inputs[start:end], weights)
         #TODO: avoid this allocation.
-        recvbuf = np.zeros(out.shape, dtype=np.float32)
+        recvbuf = np.empty(out.shape, dtype=np.float32)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
         MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
@@ -49,7 +49,7 @@ class VecPar:
         self.backend.bprop_fc_impl(out[start:end], weights, deltas)
 
         #TODO: avoid this allocation.
-        recvbuf = np.zeros(out.shape, dtype=np.float32)
+        recvbuf = np.empty(out.shape, dtype=np.float32)
         rcount = np.ones(mpi_size) * nin
         bs = out.shape[1]
         scount = end - start
@@ -68,3 +68,36 @@ class VecPar:
         start = mpi_rank * nin
         end = start + out.shape[1]
         self.backend.update_fc_impl(out, inputs[start:end], deltas)
+
+
+class DataPar:
+    def __init__(self, backend, model):
+        if mpi_rank == 0:
+            logger.info('Datapar mode. Number of nodes = %d.', mpi_size)
+        self.backend = backend
+        self.batch_size = backend.actual_batch_size / mpi_size
+        last_rank = mpi_size - 1
+        if mpi_rank == last_rank:
+            self.start = self.batch_size * last_rank
+            self.batch_size = backend.actual_batch_size - self.start
+            print 'last node', self.batch_size
+        else:
+            self.start = mpi_rank * self.batch_size
+            print 'node', mpi_rank, self.batch_size
+        self.end = self.start + self.batch_size
+
+        model.batch_size = self.batch_size
+        logger.info('Node: %d: Changed batch size from %d to %d',
+                     mpi_rank, backend.actual_batch_size, model.batch_size)
+
+    def distribute(self, batchdata):
+        return self.backend.wrap(batchdata[:, self.start:self.end])
+
+    def update_fc(self, out, inputs, deltas):
+        self.backend.update_fc_impl(out, inputs, deltas)
+        #TODO: avoid this allocation.
+        recvbuf = np.empty(out.shape, dtype=np.float32)
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
+                              recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
+        MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
+        out[:] = self.backend.array(recvbuf)
