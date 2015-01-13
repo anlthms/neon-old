@@ -133,9 +133,9 @@ class Backend(YAMLable):
         Uniform random number generation of samples in range [low, high).
 
         Arguments:
-            low (float, optional): Minimal sample value.  Defaults to 0.0
-            high (float, optional): Maximal sample value (open-ended range).
-                                    Defaults to 1.0.
+            low (numeric, optional): Minimal sample value.  Defaults to 0.0
+            high (numeric, optional): Maximal sample value (open-ended range).
+                                      Defaults to 1.0.
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
 
@@ -156,9 +156,10 @@ class Backend(YAMLable):
         mean loc, and with standard deviation scale.
 
         Arguments:
-            loc (float, optional): Central value for Gaussian.  Defaults to 0.0
-            scale (float, optional): Standard deviation for samples.  Defaults
-                                     to 1.0
+            loc (numeric, optional): Central value for Gaussian.  Defaults to
+                                     0.0
+            scale (numeric, optional): Standard deviation for samples.
+                                       Defaults to 1.0
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
 
@@ -306,18 +307,30 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def dot(self, left, right, out):
+    def dot(self, left, right, out, alpha=1, beta=0):
         """
         Perform sum product between the last axis of left and the second last
         axis of right, storing the result in out.  Note that this dot product
         is equivalent to the inner product if operands are vectors, and matrix
-        multiplication if both operands are matrices.  All Tensor's should have
-        the same shape or be broadcastable as such.
+        multiplication if both operands are matrices.  We support BLAS Level 3
+        general matrix multiplication (GEMM) functionality by including
+        additional scalars alpha and beta.  The general form of the multiply
+        is: out <- alpha * left * right + beta * out, but will be
+        short-circuited to: out <- alpha * left * right if beta has value 0
+        (the default).  All Tensor's should have commensurate shape or be
+        broadcastable as such.
 
         Arguments:
             left (Tensor): left-hand side operand.
             right (Tensor): right-hand side operand.
-            out (Tensor): where the result will be stored.
+            out (Tensor): where the result will be stored.  Note that this
+                          object should differ from left and right.
+            alpha (numeric, optional): scalar to multiply the resultant sum
+                                       product by.  Defaults to 1.
+            beta (numeric, optional): scalar to pre-multiply out values by
+                                      prior to adding to sum product.  Defaults
+                                      to 0, which implies no such addition of
+                                      prior out values.
 
         Returns:
             Tensor: reference to out
@@ -334,8 +347,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -353,8 +366,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -372,8 +385,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -391,8 +404,8 @@ class Backend(YAMLable):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -410,8 +423,8 @@ class Backend(YAMLable):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -429,8 +442,8 @@ class Backend(YAMLable):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (Tensor): left-hand side operand.
-            right (Tensor): right-hand side operand.
+            left (Tensor, numeric): left-hand side operand.
+            right (Tensor, numeric): right-hand side operand.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -480,16 +493,16 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def min(self, tsr, axis, out):
+    def min(self, tsr, axes, out):
         """
-        Calculates the minimal element value along the specified axis.
+        Calculates the minimal element value along the specified axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the minimum
-            axis (int, optional): the dimension along which to find the
-                                  minimum.  If set to None, we will
-                                  compute the overall minimal value
-                                  across all dimensions.
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the minimum.  If set to None, we will
+                                        compute the overall minimal value
+                                        across all dimensions.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -500,16 +513,16 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def max(self, tsr, axis, out):
+    def max(self, tsr, axes, out):
         """
-        Calculates the maximal element value along the specified axis.
+        Calculates the maximal element value along the specified axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the maximum
-            axis (int, optional): the dimension along which to find the
-                                  maximum.  If set to None, we will
-                                  compute the overall maximal value
-                                  across all dimensions.
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the maximum.  If set to None, we will
+                                        compute the overall maximal value
+                                        across all dimensions.
             out (Tensor): where the result will be stored.
 
         Returns:
@@ -890,21 +903,21 @@ class Backend(YAMLable):
         Forward propagate the inputs of a local contrast normalization layer
         to produce output pre-activations (ready for transformation by an
         activation function).  The normalization is computed within feature
-        maps at each pixel point.  The output will be same size as input.
+        maps at each pixel point.  The output will be the same size as input.
 
         Arguments:
             out (Tensor): Where to store the forward propagated results.
             inputs (Tensor): Will be either the dataset input values (first
-                                layer), or the outputs from the previous layer.
+                             layer), or the outputs from the previous layer.
             meandiffs (Tensor): Storage buffer that keeps the difference
-                                   between the avg pools surrounding each
-                                   pixel and the pixel itself.  Should not be
-                                   overwritten in between calls to fprop and
-                                   bprop.
+                                between the avg pools surrounding each
+                                pixel and the pixel itself.  Should not be
+                                overwritten in between calls to fprop and
+                                bprop.
             denoms (Tensor): Storage buffer that keeps the denominators of
-                                the normalization calculated during fprop.
-                                Should not be overwritten in between calls to
-                                fprop and bprop.
+                             the normalization calculated during fprop.
+                             Should not be overwritten in between calls to
+                             fprop and bprop.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
@@ -921,20 +934,23 @@ class Backend(YAMLable):
         """
         Backward propagate the error through a local contrast normalization
         layer.
-        NOTE:  This will overwrite the fouts
+
+        Notes:
+            This will overwrite fouts
+
         Arguments:
             out (Tensor): Where to store the backward propagated errors.
             fouts (Tensor): The forward propagated results.
             deltas (Tensor): The error values for this layer
             meandiffs (Tensor): Storage buffer that keeps the difference
-                                   between the avg pools surrounding each
-                                   pixel and the pixel itself.  Should not be
-                                   overwritten in between calls to fprop and
-                                   bprop.
+                                between the avg pools surrounding each
+                                pixel and the pixel itself.  Should not be
+                                overwritten in between calls to fprop and
+                                bprop.
             denoms (Tensor): Storage buffer that keeps the denominators of
-                                the normalization calculated during fprop.
-                                Should not be overwritten in between calls to
-                                fprop and bprop.
+                             the normalization calculated during fprop.
+                             Should not be overwritten in between calls to
+                             fprop and bprop.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
@@ -943,7 +959,6 @@ class Backend(YAMLable):
             alpha (int): scalar multiplier to multiply the normalization
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
-
         """
         raise NotImplementedError()
 
@@ -1033,15 +1048,16 @@ class Tensor(object):
 
     def __getitem__(self, key):
         """
-        Extract a subset view of the items via fancy indexing. e.g. A[5:10, :]
-
-        Notes:
-            This approach tends to be slower in speed than
-            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
-            recommended.
+        Extract a subset view of the items via slice style indexing
+        along each dimension. e.g. A[5:10, :].  Each slice consists of
+        start_idx:stop_idx:step_size triplets.  If step_size isn't specified it
+        defaults to 1.  If start_idx isn't specified it defaults to 0.  If
+        stop_idx isn't specified it defaults to the total number of elements
+        along that dimension.  As such a slice value of ':' allows one to
+        select all elements along that dimension.
 
         Arguments:
-            key (int, slice): indices of the slice to take
+            key (int, slice, tuple): indices of each dimension's slice.
 
         Returns:
             Tensor: view of self corresponding to the subset items.
@@ -1056,16 +1072,16 @@ class Tensor(object):
 
     def __setitem__(self, key, value):
         """
-        Assign the specified value to a subset of elements found by fancy
-        indexing.
-
-        Notes:
-            This approach tends to be slower in speed than
-            :py:func:`~neon.backends.backend.Tensor.take`, so use of that is
-            recommended.
+        Assign the specified value to a subset of elements found via slice
+        style indexing along each dimension. e.g. A[5:10, :] = 4.5.
+        Each slice consists of start_idx:stop_idx:step_size triplets.  If
+        step_size isn't specified it defaults to 1.  If start_idx isn't
+        specified it defaults to 0.  If stop_idx isn't specified it defaults
+        to the total number of elements along that dimension.  As such a slice
+        value of ':' allows one to select all elements along that dimension.
 
         Arguments:
-            key (int, slice): indices of the slice to be assigned
+            key (int, slice, tuple): indices of each dimension's slice.
             value (numeric array, Tensor): values to be assigned to the
                                           extracted element subset.  If an
                                           array it should be the same shape
@@ -1074,9 +1090,6 @@ class Tensor(object):
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
-
-        See Also:
-            :py:func:`~neon.backends.backend.Tensor.take`,
         """
         raise NotImplementedError()
 
@@ -1126,7 +1139,7 @@ class Tensor(object):
 
     def transpose(self):
         """
-        Returns a view of the data in this Tensor whereby rows and column
+        Returns a view of the data in this Tensor whereby row and column
         elements are swapped.
 
         Return:
@@ -1157,6 +1170,23 @@ class Tensor(object):
 
         See Also:
             :py:func:`~neon.backends.backend.Tensor.__getitem__`,
+        """
+        raise NotImplementedError()
+
+    def fill(self, value):
+        """
+        Assign specified value to each element of this Tensor.
+
+        Arguments:
+            value (numeric): The value to be assigned to each element.
+
+        Return:
+            Tensor: updated view of the data.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+
+        See Also:
             :py:func:`~neon.backends.backend.Tensor.__setitem__`,
         """
         raise NotImplementedError()

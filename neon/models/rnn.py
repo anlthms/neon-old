@@ -43,7 +43,8 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s", str(layer))
         inputs = dataset.get_inputs(train=True)['train']
-        targets = inputs.copy()  # use targets = inputs for sequence prediction
+        # use targets = inputs for sequence prediction
+        targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]
         viz = VisualizeRNN()
         num_batches = int(math.floor((nrecs + 0.0) / 128
@@ -54,9 +55,11 @@ class RNN(Model):
         logger.info('commencing model fitting')
         suberrorlist = []
         errorlist = []
+        error = self.backend.empty((1, 1))
+        suberror = self.backend.empty(num_batches)
         for epoch in range(self.num_epochs):
-            error = 0
-            suberror = self.backend.zeros(num_batches)
+            error.fill(0)
+            suberror.fill(0)
             hidden_init = None
             cell_init = None
             for batch in xrange(num_batches):
@@ -72,47 +75,50 @@ class RNN(Model):
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
                 if batch % self.reset_period is 0:  # reset hidden state
-                    self.backend.fill(hidden_init, 0)
+                    hidden_init.fill(0)
                     if 'c_t' in self.layers[0].__dict__:
-                        self.backend.fill(cell_init, 0)
+                        cell_init.fill(0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
                 suberror = self.cost.apply_function(target_out)
-                suberror /= float(self.batch_size * self.layers[0].nin)
-                suberrorlist.append(suberror)
-                error += suberror / num_batches
-            errorlist.append(error)
+                self.backend.divide(suberror, float(self.batch_size *
+                                                    self.layers[0].nin),
+                                    suberror)
+                suberrorlist.append(float(suberror.asnumpyarray()))
+                self.backend.divide(suberror, num_batches, suberror)
+                self.backend.add(error, suberror, error)
+            errorlist.append(float(error.asnumpyarray()))
             if self.make_plots is True:
-                viz.plot_weights(self.layers[0].weights.raw(),
-                                 self.layers[0].Wih.raw(),
-                                 self.layers[1].weights.raw())
+                viz.plot_weights(self.layers[0].weights.asnumpyarray(),
+                                 self.layers[0].Wih.asnumpyarray(),
+                                 self.layers[1].weights.asnumpyarray())
                 import numpy as np
-                viz.plot_lstm(self.layers[0].Wix.raw(),
-                              self.layers[0].Wfx.raw(),
-                              self.layers[0].Wox.raw(),
-                              self.layers[0].Wcx.raw(),
-                              np.hstack((self.layers[0].Wih.raw(),
-                                        self.layers[0].b_i.raw(),
-                                        self.layers[0].b_i.raw())),
-                              np.hstack((self.layers[0].Wfh.raw(),
-                                        self.layers[0].b_f.raw(),
-                                        self.layers[0].b_f.raw())),
-                              np.hstack((self.layers[0].Woh.raw(),
-                                        self.layers[0].b_o.raw(),
-                                        self.layers[0].b_o.raw())),
-                              np.hstack((self.layers[0].Wch.raw(),
-                                        self.layers[0].b_c.raw(),
-                                        self.layers[0].b_c.raw())),
+                viz.plot_lstm(self.layers[0].Wix.asnumpyarray(),
+                              self.layers[0].Wfx.asnumpyarray(),
+                              self.layers[0].Wox.asnumpyarray(),
+                              self.layers[0].Wcx.asnumpyarray(),
+                              np.hstack((self.layers[0].Wih.asnumpyarray(),
+                                        self.layers[0].b_i.asnumpyarray(),
+                                        self.layers[0].b_i.asnumpyarray())),
+                              np.hstack((self.layers[0].Wfh.asnumpyarray(),
+                                        self.layers[0].b_f.asnumpyarray(),
+                                        self.layers[0].b_f.asnumpyarray())),
+                              np.hstack((self.layers[0].Woh.asnumpyarray(),
+                                        self.layers[0].b_o.asnumpyarray(),
+                                        self.layers[0].b_o.asnumpyarray())),
+                              np.hstack((self.layers[0].Wch.asnumpyarray(),
+                                        self.layers[0].b_c.asnumpyarray(),
+                                        self.layers[0].b_c.asnumpyarray())),
                               scale=1.1, fig=4)
-                viz.plot_lstm(self.layers[0].i_t[0].raw(),  # sigmoid(stuff)
-                              self.layers[0].f_t[0].raw(),
-                              self.layers[0].o_t[0].raw(),
-                              self.layers[0].g_t[1].raw(),
-                              self.layers[0].net_i[0].raw(),  # sig'(stuff)
-                              self.layers[0].c_t[0].raw(),
-                              self.layers[0].c_t[1].raw(),  # c=f*c_-1 + i*g
-                              self.layers[0].c_phi[1].raw(),
+                viz.plot_lstm(self.layers[0].i_t[0].asnumpyarray(),  # sigmoid(stuff)
+                              self.layers[0].f_t[0].asnumpyarray(),
+                              self.layers[0].o_t[0].asnumpyarray(),
+                              self.layers[0].g_t[1].asnumpyarray(),
+                              self.layers[0].net_i[0].asnumpyarray(),  # sig'(stuff)
+                              self.layers[0].c_t[0].asnumpyarray(),
+                              self.layers[0].c_t[1].asnumpyarray(),  # c=f*c_-1 + i*g
+                              self.layers[0].c_phi[1].asnumpyarray(),
                               scale=21, fig=5)
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].net_i,
@@ -121,7 +127,7 @@ class RNN(Model):
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
             logger.info('epoch: %d, total training error per element: %0.5f',
-                        epoch, error)
+                        epoch, error.asnumpyarray())
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -137,7 +143,8 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s", str(layer))
         inputs = self.dataset.get_inputs(train=True)['train']
-        targets = inputs.copy()  # use targets = inputs for sequence prediction
+        # use targets = inputs for sequence prediction
+        targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -188,13 +195,13 @@ class RNN(Model):
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_eps = self.cost.apply_function(target_out)
+            suberror_eps = self.cost.apply_function(target_out).asnumpyarray()
 
             self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_ref = self.cost.apply_function(target_out)
+            suberror_ref = self.cost.apply_function(target_out).asnumpyarray()
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
             logger.info("numpart for  tau=%d of %d is %e",
@@ -205,7 +212,7 @@ class RNN(Model):
         self.bprop(targets[batch_inx, :],
                    inputs[batch_inx, :], numgrad=numgrad)
 
-        analytical = an_target[num_i, num_j].raw()
+        analytical = an_target[num_i, num_j].asnumpyarray()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
         logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
         logger.info("RNN grad_checker: numerical %e", numerical)
@@ -237,7 +244,9 @@ class RNN(Model):
 
         for tau in range(0, unrolls):
             if tau == eps_tau:
-                num_target[num_i, num_j] = num_target[num_i, num_j].raw() + eps
+                num_target[num_i, num_j] = (num_target[num_i,
+                                                       num_j].asnumpyarray() +
+                                            eps)
 
             self.layers[0].fprop(y=y, inputs=inputs[nin*tau:nin*(tau+1), :],
                                  tau=tau, cell=c)
@@ -247,7 +256,9 @@ class RNN(Model):
             self.layers[1].fprop(inputs=y, tau=tau)
 
             if tau == eps_tau:
-                num_target[num_i, num_j] = num_target[num_i, num_j].raw() - eps
+                num_target[num_i, num_j] = (num_target[num_i,
+                                                       num_j].asnumpyarray() -
+                                            eps)
 
     def fprop(self, inputs, hidden_init=None,
               cell_init=None, debug=False, unrolls=None):
@@ -283,7 +294,7 @@ class RNN(Model):
               debug=False, numgrad=None):
         """
         Refactor:
-        This bprop has an OUTER FOOR LOOP over t-BPTT unrollings
+        This bprop has an OUTER FOR LOOP over t-BPTT unrollings
             for a given unrolling depth, we go output-hidden-hidden-input
             which breaks down as:
                   layers[1].bprop -- output layer
@@ -304,20 +315,20 @@ class RNN(Model):
 
         # [TODO] Move these to layer.update
         if 'weight_updates' in self.layers[0].__dict__:
-            self.backend.fill(self.layers[0].weight_updates, 0)
+            self.layers[0].weight_updates.fill(0)
         if 'updates_rec' in self.layers[0].__dict__:
-            self.backend.fill(self.layers[0].updates_rec, 0)
-        self.backend.fill(self.layers[1].weight_updates, 0)
+            self.layers[0].updates_rec.fill(0)
+        self.layers[1].weight_updates.fill(0)
         if 'Wix_updates' in self.layers[0].__dict__:
             # reset these things back to zero
-            self.backend.fill(self.layers[0].Wix_updates, 0)
-            self.backend.fill(self.layers[0].Wfx_updates, 0)
-            self.backend.fill(self.layers[0].Wox_updates, 0)
-            self.backend.fill(self.layers[0].Wcx_updates, 0)
-            self.backend.fill(self.layers[0].Wih_updates, 0)
-            self.backend.fill(self.layers[0].Wfh_updates, 0)
-            self.backend.fill(self.layers[0].Woh_updates, 0)
-            self.backend.fill(self.layers[0].Wch_updates, 0)
+            self.layers[0].Wix_updates.fill(0)
+            self.layers[0].Wfx_updates.fill(0)
+            self.layers[0].Wox_updates.fill(0)
+            self.layers[0].Wcx_updates.fill(0)
+            self.layers[0].Wih_updates.fill(0)
+            self.layers[0].Wfh_updates.fill(0)
+            self.layers[0].Woh_updates.fill(0)
+            self.layers[0].Wch_updates.fill(0)
 
         # this loop is a property of t-BPTT through different depth.
         # inside this loop, go through the input-hidden-output stack.
@@ -337,7 +348,7 @@ class RNN(Model):
                                           self.batch_size))
             for t in list(range(0, tau))[::-1]:  # restored to 0 as in old RNN
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.layers[0].berror.copy()  # note copy here!
+                error_h = self.backend.copy(self.layers[0].berror)
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
 
@@ -378,7 +389,7 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         self.backend.fill(cell_init, 0)
             for tau in range(self.unrolls):
-                letters = self.backend.empty(50, dtype=int)
+                letters = self.backend.empty(50, dtype='int32')
                 self.backend.argmax(self.layers[1].output_list[tau],
                                     axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
@@ -430,26 +441,27 @@ class RNN(Model):
         targets = ds.get_inputs(train=True, test=True, validation=False)
         targets['train'] = targets['train'][nin::, :]
         targets['test'] = targets['test'][nin::, :]
+        self.result = ds.backend.empty((1, 1))
         for item in items:
             if item in targets and item in preds:
-                num_batches = targets[item].shape[0]/nin
-                misclass = ds.backend.zeros(num_batches*nin)
-                tempbuf = self.backend.zeros((num_batches+1,
+                num_batches = targets[item].shape[0] / nin
+                misclass = ds.backend.zeros(num_batches * nin)
+                tempbuf = self.backend.zeros((num_batches + 1,
                                               self.batch_size))
                 for i in range(num_batches):
-                    ds.backend.argmax(targets[item][i*nin:(i+1)*nin, :],
+                    ds.backend.argmax(targets[item][i * nin:(i + 1) * nin, :],
                                       axis=0, out=tempbuf[i, :])
                 import numpy as np
                 misclass = tempbuf.transpose().reshape((-1,))
-                tmp = misclass[6000:6018].raw().astype(np.int8)
+                tmp = misclass[6000:6018].asnumpyarray().astype(np.int8)
                 logging.info("the target for %s is %s", item,
                              tmp.view('c'))
-                tmp = preds[item][6000:6018].raw().astype(np.int8)
+                tmp = preds[item][6000:6018].asnumpyarray().astype(np.int8)
                 logging.info("prediction for %s is %s", item,
                              tmp.view('c'))
                 ds.backend.not_equal(preds[item], misclass, misclass)
-                self.result = ds.backend.mean(misclass)
+                ds.backend.mean(misclass, axes=None, out=self.result)
                 logging.info("%s set misclass rate: %0.5f%%", item,
-                             100 * self.result)
+                             100 * self.result.asnumpyarray())
         # TODO: return values instead?
         #trace()  # just used to keep figures open

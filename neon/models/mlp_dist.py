@@ -77,8 +77,9 @@ class MLPDist(MLP):
         # we may include 1 smaller-sized partial batch if num recs is not an
         # exact multiple of batch size.
         logger.info('commencing model fitting')
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
+            error.fill(0)
             num_batches = len(inputs)
             for batch in range(num_batches):
                 if self.comm.rank == 0:
@@ -88,11 +89,13 @@ class MLPDist(MLP):
                 self.fprop(inputs_batch)
                 self.bprop(targets_batch, inputs_batch)
                 if self.comm.rank == 0:
-                    error += self.cost.apply_function(targets_batch)
+                    self.backend.add(error,
+                                     self.cost.apply_function(targets_batch),
+                                     error)
                 self.update(epoch)
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
-                            error / num_batches)
+                            error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
 
@@ -150,9 +153,8 @@ class MLPDist(MLP):
         # apply derivative on root node's FC layer output
         if self.comm.rank == 0:
             error = self.cost.apply_derivative(targets)
-            self.backend.divide(error, self.backend.wrap(self.batch_size),
-                                out=error)
-        error._tensor = self.comm.bcast(error.raw())
+            self.backend.divide(error, self.batch_size, out=error)
+        error._tensor = self.comm.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)

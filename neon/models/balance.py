@@ -60,4 +60,4 @@ class Balance(MLPB):
             layer.fprop(y)
             y = layer.output
             if layer is self.branch_layer:
-                y[self.zidx:] = self.backend.wrap(self.zparam)
+                y[self.zidx:] = self.zparam
