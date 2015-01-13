@@ -133,7 +133,7 @@ class Layer(YAMLable):
             self.berrorbuf = make_ebuf((ifmsize, buf_size))
 
         ofmstarts = self.backend.array(range(0, (ofmsize * nofm),
-                                             ofmsize)).raw()
+                                             ofmsize)).asnumpyarray()
         self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='i32')
         for dst in range(ofmsize):
             self.ofmlocs[dst] = ofmstarts + dst
@@ -165,7 +165,7 @@ class Layer(YAMLable):
                 src += stride * ifmshape[1] - src % ifmshape[1]
                 assert src % ifmshape[1] == 0
             self.links[dst] = self.backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
+        self.rlinks = self.links.asnumpyarray()
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
