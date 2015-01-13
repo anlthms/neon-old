@@ -1344,7 +1344,10 @@ class CPU(Backend):
         """
         Backward propagate the error through a local contrast normalization
         layer.
-        NOTE:  This will overwrite the fouts
+
+        Notes:
+            This will overwrite fouts
+
         Arguments:
             out (CPUTensor): Where to store the backward propagated errors.
             fouts (CPUTensor): The forward propagated results.
@@ -1366,7 +1369,6 @@ class CPU(Backend):
             alpha (int): scalar multiplier to multiply the normalization
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
-
         """
         (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
         self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)

@@ -903,21 +903,21 @@ class Backend(YAMLable):
         Forward propagate the inputs of a local contrast normalization layer
         to produce output pre-activations (ready for transformation by an
         activation function).  The normalization is computed within feature
-        maps at each pixel point.  The output will be same size as input.
+        maps at each pixel point.  The output will be the same size as input.
 
         Arguments:
             out (Tensor): Where to store the forward propagated results.
             inputs (Tensor): Will be either the dataset input values (first
-                                layer), or the outputs from the previous layer.
+                             layer), or the outputs from the previous layer.
             meandiffs (Tensor): Storage buffer that keeps the difference
-                                   between the avg pools surrounding each
-                                   pixel and the pixel itself.  Should not be
-                                   overwritten in between calls to fprop and
-                                   bprop.
+                                between the avg pools surrounding each
+                                pixel and the pixel itself.  Should not be
+                                overwritten in between calls to fprop and
+                                bprop.
             denoms (Tensor): Storage buffer that keeps the denominators of
-                                the normalization calculated during fprop.
-                                Should not be overwritten in between calls to
-                                fprop and bprop.
+                             the normalization calculated during fprop.
+                             Should not be overwritten in between calls to
+                             fprop and bprop.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
@@ -934,20 +934,23 @@ class Backend(YAMLable):
         """
         Backward propagate the error through a local contrast normalization
         layer.
-        NOTE:  This will overwrite the fouts
+
+        Notes:
+            This will overwrite fouts
+
         Arguments:
             out (Tensor): Where to store the backward propagated errors.
             fouts (Tensor): The forward propagated results.
             deltas (Tensor): The error values for this layer
             meandiffs (Tensor): Storage buffer that keeps the difference
-                                   between the avg pools surrounding each
-                                   pixel and the pixel itself.  Should not be
-                                   overwritten in between calls to fprop and
-                                   bprop.
+                                between the avg pools surrounding each
+                                pixel and the pixel itself.  Should not be
+                                overwritten in between calls to fprop and
+                                bprop.
             denoms (Tensor): Storage buffer that keeps the denominators of
-                                the normalization calculated during fprop.
-                                Should not be overwritten in between calls to
-                                fprop and bprop.
+                             the normalization calculated during fprop.
+                             Should not be overwritten in between calls to
+                             fprop and bprop.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
             nifm (int): Total number of input feature maps.
@@ -956,7 +959,6 @@ class Backend(YAMLable):
             alpha (int): scalar multiplier to multiply the normalization
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
-
         """
         raise NotImplementedError()
 
