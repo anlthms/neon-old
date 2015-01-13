@@ -81,10 +81,8 @@ class DataPar:
         if mpi_rank == last_rank:
             self.start = self.batch_size * last_rank
             self.batch_size = backend.actual_batch_size - self.start
-            print 'last node', self.batch_size
         else:
             self.start = mpi_rank * self.batch_size
-            print 'node', mpi_rank, self.batch_size
         self.end = self.start + self.batch_size
 
         model.batch_size = self.batch_size
