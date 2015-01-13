@@ -1080,7 +1080,7 @@ class CPU(Backend):
             if op.lower() == "max":
                 # Save the index of the maximum value within the receptive
                 # fields.
-                ofmlocs[dst] = rf.argmax(axis=0)
+                ofmlocs[dst] = rf._tensor.argmax(axis=0)
                 # Set the pre-activations to the maximum value.
                 maxvals = rf[ofmlocs[dst], range(rf.shape[1])]
                 fpropbuf[dst] = maxvals

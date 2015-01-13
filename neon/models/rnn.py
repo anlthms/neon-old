@@ -248,6 +248,7 @@ class RNN(Model):
             targets = ds.get_inputs(train=True, test=True, validation=False)
             targets['train'] = targets['train'][nin::, :]
             targets['test'] = targets['test'][nin::, :]
+            self.result = ds.backend.empty((1, 1))
             for item in items:
                 if item in targets and item in preds:
                     num_batches = targets[item].shape[0]/nin
