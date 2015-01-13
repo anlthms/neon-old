@@ -330,7 +330,7 @@ class CPU(Backend):
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
-            out = self._tensor_cls(np.empty_like(a._tensor))
+            out = self.tensor_cls(np.empty_like(a._tensor))
         np.clip(a._tensor, a_min, a_max, out._tensor)
         return out
 
@@ -929,7 +929,8 @@ class CPU(Backend):
         self.dot(deltas, inputs.transpose(), out)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf):
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
         produce output pre-activations (ready for transformation by an
@@ -956,18 +957,28 @@ class CPU(Backend):
             fpropbuf (CPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        ofmsize = ofmshape[0] * ofmshape[1]
+        fsize = len(links[0])
+        for dst in range(ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
             rflinks = links[dst]
-            self.dot(weights.transpose(), inputs.take(rflinks, axis=0),
-                     out=fpropbuf)
+            if local is False:
+                self.dot(weights.transpose(),
+                         inputs.take(rflinks, axis=0), out=fpropbuf)
+            else:
+                self.dot(weights[(fsize*dst):(fsize*(dst+1))].transpose(),
+                         inputs.take(rflinks, axis=0), out=fpropbuf)
+
             out[ofmlocs[dst]] = fpropbuf
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf):
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
         """
         Backward propagate the error through a convolutional network layer.
 
@@ -991,17 +1002,25 @@ class CPU(Backend):
             bpropbuf (CPUTensor): Temporary storage buffer used to hold the
                                   backpropagated error for a single receptive
                                   field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
+        fsize = links.shape[1]
         out.fill(0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
-            self.dot(weights, deltas.take(ofmlocs[dst], axis=0), bpropbuf)
             rflinks = links[dst]
+            if local is False:
+                self.dot(weights,
+                         deltas.take(ofmlocs[dst], axis=0), bpropbuf)
+            else:
+                self.dot(weights[(fsize*dst):(fsize*(dst+1))],
+                         deltas.take(ofmlocs[dst], axis=0), out=bpropbuf)
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+                    updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1028,7 +1047,10 @@ class CPU(Backend):
             updatebuf (CPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
+        fsize = links.shape[1]
         out.fill(0.0)
         for dst in range(ofmshape[0] * ofmshape[1]):
             # Accumulate the weight updates, going over all
@@ -1039,8 +1061,12 @@ class CPU(Backend):
                 # vector eslices are treated as column vectors, so are already
                 # in the correct form, otherwise we need to flip.
                 eslice = eslice.transpose()
-            self.dot(inputs.take(rflinks, axis=0), eslice, out=updatebuf)
-            self.add(out, updatebuf, out=out)
+            if local is False:
+                self.dot(inputs.take(rflinks, axis=0), eslice, out=updatebuf)
+                self.add(out, updatebuf, out=out)
+            else:
+                self.dot(inputs.take(rflinks, axis=0), eslice,
+                         out=out[(fsize*dst):(fsize*(dst+1))])
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):
@@ -1159,10 +1185,7 @@ class CPU(Backend):
                 # it to normalize the receptive field.
                 denom[denom._tensor == 0] = 1
                 self.divide(rf, denom, out=rf)
-                self.multiply(rdeltas[dst:(dst + 1)].repeat(fshape[0] *
-                                                            fshape[1],
-                                                            axis=0),
-                              rf, out=ofmlocs)
+                self.multiply(rdeltas[dst], rf, out=ofmlocs)
                 self.add(bpropbuf[inds], ofmlocs, bprop_slice)
                 bpropbuf[inds] = bprop_slice[:]
             else:
@@ -1250,6 +1273,125 @@ class CPU(Backend):
                     self.add(bpropbuf, itemp[i], out=bpropbuf)
                 self.add(rout[i], bpropbuf, out=rout[i])
         self.multiply(deltas, out, out=out)
+
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (CPUTensor): Where to store the forward propagated results.
+            inputs (CPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (CPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (CPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        rinputs = inputs._tensor.reshape((nifm, H, W, N))
+        rmeandiff = meandiffs._tensor.reshape((nifm, H, W, N))
+        routputs = out._tensor.reshape((nifm, H, W, N))
+
+        for y in xrange(H):
+            starty = y - ksize/2
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x - ksize/2
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rinputs.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
+                rmeandiff[:, x, y, :] = rinputs[:, x, y, :] - patch.mean(
+                    axis=(1, 2))
+
+        for y in xrange(H):
+            starty = y - ksize/2
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x - ksize/2
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rmeandiff.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
+                np.square(patch).sum(axis=(1, 2), out=routputs[:, x, y, :])
+
+        self.multiply(out, alpha, out=denoms)
+        self.add(denoms, 1, out=denoms)
+        self.power(denoms, -beta, out=out)
+        self.multiply(inputs, out, out=out)
+
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+        NOTE:  This will overwrite the fouts
+        Arguments:
+            out (CPUTensor): Where to store the backward propagated errors.
+            fouts (CPUTensor): The forward propagated results.
+            deltas (CPUTensor): The error values for this layer
+            meandiffs (CPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (CPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
+        self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
+        self.multiply(fouts, deltas, out=fouts)
+        self.divide(fouts, denoms, out=fouts)
+        rfouts = fouts._tensor.reshape((nifm, H, W, N))
+        rberror = out._tensor.reshape((nifm, H, W, N))
+
+        offset = ksize/2 - ksize + 1
+        for y in xrange(H):
+            starty = y + offset
+            yidx = range(max(starty, 0), min(starty + ksize, H))
+            hh = len(yidx)
+            for x in xrange(W):
+                startx = x + offset
+                xidx = range(max(startx, 0), min(startx + ksize, W))
+                ww = len(xidx)
+                patch = rfouts.take(xidx, axis=1).take(
+                    yidx, axis=2).reshape((nifm, hh, ww, N))
+                np.sum(patch, axis=(1, 2), out=rberror[:, x, y, :])
+
+        self.multiply(out, meandiffs, out=out)
+        self.power(denoms, -beta, out=fouts)
+        self.multiply(deltas, fouts, out=fouts)
+        self.add(out, fouts, out=out)
 
     def fprop_cmpool(self, out, inputs, weights, ifmshape):
         """

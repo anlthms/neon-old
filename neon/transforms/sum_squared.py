@@ -63,6 +63,9 @@ class SumSquaredDiffs(Cost):
             self.temp = [tempbuf]
         self.outputbuf = databuf
 
+    def get_berrbuf(self):
+        return self.temp[0]
+
     def apply_function(self, targets):
         """
         Apply the sum of squared differences cost function to the datasets

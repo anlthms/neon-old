@@ -23,6 +23,9 @@ class GB(MLP):
     """
     Google Brain class
     """
+    def __init__(self, **kwargs):
+        super(GB, self).__init__(**kwargs)
+        self.pretrain_cost.initialize(kwargs)
 
     def pretrain(self, ds, inputs):
         num_batches = len(inputs)
@@ -77,8 +80,9 @@ class GB(MLP):
         """
         num_batches = len(inputs)
         logger.info('commencing supervised training')
-        tempbuf = self.backend.empty((targets[0].shape[0], self.batch_size))
-        self.temp = [tempbuf, self.backend.copy(tempbuf)]
+        tempbuf1 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        tempbuf2 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
         error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
@@ -170,8 +174,7 @@ class GB(MLP):
     def update_last(self, epoch):
         self.layers[-1].update(epoch)
 
-    def fit(self, datasets):
-        ds = datasets[0]
+    def fit(self, ds):
         inputs = ds.get_inputs(train=True)['train']
         self.nrecs = len(inputs) * self.batch_size
         self.nin = inputs[0].shape[0]

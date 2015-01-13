@@ -49,6 +49,8 @@ class XCovariance(Cost):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
+    def initialize(self, kwargs):
+        super(XCovariance, self).initialize(kwargs)
         if self.blkidx > self.outputbuf.shape[0]:
             raise ValueError("blkidx %d too large" % self.blkidx)
 
@@ -67,6 +69,9 @@ class XCovariance(Cost):
                                           self.temp_dtype)
             self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
         self.outputbuf = databuf
+
+    def get_berrbuf(self):
+        return self.temp[3]
 
     def apply_function(self, targets):
         """

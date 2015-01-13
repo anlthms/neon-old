@@ -39,18 +39,18 @@ class FitPredictErrorExperiment(FitExperiment):
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
 
-        if self.datasets[0].macro_batched:
-            self.model.predict_and_error(self.datasets[0])
+        if self.dataset.macro_batched:
+            self.model.predict_and_error(self.dataset)
 
         else:
             # generate predictions
-            predictions = self.model.predict(self.datasets)
+            predictions = self.model.predict()
 
             # report errors
             if self.dist_flag:
                 if MPI_INSTALLED:
                     from mpi4py import MPI
                     if MPI.COMM_WORLD.rank == 0:
-                        self.model.error_metrics(self.datasets, predictions)
+                        self.model.error_metrics(self.dataset, predictions)
             else:
-                self.model.error_metrics(self.datasets, predictions)
+                self.model.error_metrics(self.dataset, predictions)

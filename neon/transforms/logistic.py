@@ -13,9 +13,8 @@ class Logistic(Activation):
     """
     Embodiment of a logistic activation function.
     """
-    def __init__(self, use_binary=True, shortcut_deriv=False):
+    def __init__(self):
         self.tmp = None
-        self.shortcut_deriv = shortcut_deriv
         self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
@@ -63,5 +62,3 @@ class Logistic(Activation):
         # inputs
         backend.subtract(1.0, outputs, out=inputs)
         backend.multiply(inputs, outputs, out=inputs)
-        if self.shortcut_deriv:
-            inputs[:] = 1.0

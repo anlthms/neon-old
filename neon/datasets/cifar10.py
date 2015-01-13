@@ -66,16 +66,6 @@ class CIFAR10(Dataset):
             infile.extractall(save_dir)
             infile.close()
 
-    def sample_training_data(self):
-        if self.sample_pct != 100:
-            train_idcs = np.arange(self.inputs['train'].shape[0])
-            ntrain_actual = (self.inputs['train'].shape[0] *
-                             int(self.sample_pct) / 100)
-            np.random.shuffle(train_idcs)
-            train_idcs = train_idcs[0:ntrain_actual]
-            self.inputs['train'] = self.inputs['train'][train_idcs]
-            self.targets['train'] = self.targets['train'][train_idcs]
-
     def adjust_for_dist(self):
         # computes the indices to load from input data for the dist case
 

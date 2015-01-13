@@ -53,12 +53,13 @@ class GenOutputExperiment(FitExperiment):
         # load the data and train the model
         super(GenOutputExperiment, self).run()
 
-        ds = self.datasets[0]
+        ds = self.dataset
         inputs = ds.get_inputs(train=True, test=True, validation=True)['train']
         inputs_batch = ds.get_batch(inputs, self.batchnum)
 
         if isinstance(self.model, Balance):
-            self.model.generate_output(inputs_batch, self.zparam)
+            self.model.zparam = self.zparam
+            self.model.generate_output(inputs_batch)
             outputs_batch = self.model.get_reconstruction_output()
         else:
             self.model.fprop(inputs_batch)

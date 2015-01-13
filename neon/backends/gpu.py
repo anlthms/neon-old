@@ -1107,7 +1107,8 @@ class GPU(Backend):
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf):
+                   links, nifm, padding, stride, ngroups, fpropbuf,
+                   local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
         produce output pre-activations (ready for transformation by an
@@ -1135,6 +1136,8 @@ class GPU(Backend):
             fpropbuf (GPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.  Not used for this backend.
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         assert ifmshape[0] == ifmshape[1]
         cudanet.convolution(
@@ -1143,7 +1146,8 @@ class GPU(Backend):
             ngroups)
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf):
+                   links, padding, stride, nifm, ngroups, bpropbuf,
+                   local=False):
         """
         Backward propagate the error through a convolutional network layer.
 
@@ -1167,6 +1171,8 @@ class GPU(Backend):
             bpropbuf (GPUTensor): Temporary storage buffer used to hold the
                                   backpropagated error for a single receptive
                                   field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         cudanet.deconvolve_errors(
             weights._tensor, deltas._tensor,
@@ -1175,7 +1181,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+                    updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1202,11 +1208,13 @@ class GPU(Backend):
             updatebuf (GPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
+            local (bool, optional): Whether to do local filtering (True) or
+                                    convolution (False, the default)
         """
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[0])
+            padding, stride, nifm, ngroups, ofmshape[0], local)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
                    links, nifm, padding, stride, fpropbuf):
@@ -1369,6 +1377,79 @@ class GPU(Backend):
                                             fouts._tensor, out._tensor, nifm,
                                             ksize, alpha, beta)
 
+    def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
+                      ksize, alpha, beta):
+        """
+        Forward propagate the inputs of a local contrast normalization layer
+        to produce output pre-activations (ready for transformation by an
+        activation function).  The normalization is computed within feature
+        maps at each pixel point.  The output will be same size as input.
+
+        Arguments:
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
+                                layer), or the outputs from the previous layer.
+            meandiffs (GPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (GPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+        """
+        cudanet.local_contrast_norm(imgs=inputs._tensor,
+                                    meanDiffs=meandiffs._tensor,
+                                    denoms=denoms._tensor, target=out._tensor,
+                                    imgSizeX=ifmshape[0], channels=nifm,
+                                    sizeX=ksize, scale=alpha, power=beta)
+
+    def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
+                      nifm, ksize, alpha, beta):
+        """
+        Backward propagate the error through a local contrast normalization
+        layer.
+
+        Arguments:
+            out (GPUTensor): Where to store the backward propagated errors.
+            fouts (GPUTensor): The forward propagated results.
+            deltas (GPUTensor): The error values for this layer
+            meandiffs (GPUTensor): Storage buffer that keeps the difference
+                                   between the avg pools surrounding each
+                                   pixel and the pixel itself.  Should not be
+                                   overwritten in between calls to fprop and
+                                   bprop.
+            denoms (GPUTensor): Storage buffer that keeps the denominators of
+                                the normalization calculated during fprop.
+                                Should not be overwritten in between calls to
+                                fprop and bprop.
+            ifmshape (tuple): Dimensions of each input feature map (typically
+                              number of height and width neurons).
+            nifm (int): Total number of input feature maps.
+            ksize (int): Kernel size. This defines the channel indices to sum
+                         over.
+            alpha (int): scalar multiplier to multiply the normalization
+                         denominator by.
+            beta (int): scalar power to raise the normalization denominator by
+
+        """
+        cudanet.local_contrast_norm_undo(meanDiffs=meandiffs._tensor,
+                                         denoms=denoms._tensor,
+                                         respGrads=deltas._tensor,
+                                         respActs=fouts._tensor,
+                                         target=out._tensor,
+                                         channels=nifm,
+                                         sizeX=ksize, scale=alpha, power=beta)
+
     def fprop_cmpool(self, out, inputs, weights, ifmshape):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
@@ -1383,7 +1464,10 @@ class GPU(Backend):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
         """
-        raise NotImplementedError("TODO!")
+        # Let's do this the naive way for now
+        cudanet.convolution(
+            weights._tensor, inputs._tensor, out._tensor,
+            ifmshape[0], ifmshape[0], ifmshape[1], 0, 1, weights.shape[0], 1)
 
     def bprop_cmpool(self, out, weights, deltas, ifmshape):
         """
@@ -1413,7 +1497,10 @@ class GPU(Backend):
                                    updated gradient for a single receptive
                                    field
         """
-        raise NotImplementedError("TODO!")
+        nfilters = out.shape[0]/inputs.shape[0]
+        cudanet.deconvolve_wts(
+            deltas._tensor, inputs._tensor, out._tensor, ifmshape[0],
+            ifmshape[0], ifmshape[1], 1, 0, 1, nfilters, 1, ifmshape[0])
 
     def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
                    rho, epsilon):

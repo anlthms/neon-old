@@ -24,15 +24,15 @@ class RBM(Model):
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
+        self.cost.initialize(kwargs)
 
-    def fit(self, datasets):
+    def fit(self, dataset):
         """
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
             logger.info("%s", str(layer))
-        ds = datasets[0]
-        inputs = ds.get_inputs(train=True)['train']
+        inputs = dataset.get_inputs(train=True)['train']
         nin = self.layers[0].nin
         self.nlayers = len(self.layers)
         if 'temp_dtype' not in self.__dict__:
@@ -47,7 +47,7 @@ class RBM(Model):
         for epoch in range(self.num_epochs):
             error.fill(0.0)
             for batch in range(num_batches):
-                inputs_batch = ds.get_batch(inputs, batch)
+                inputs_batch = dataset.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)
                 self.backend.add(error, self.cost.apply_function(inputs_batch),

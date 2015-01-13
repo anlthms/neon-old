@@ -38,6 +38,43 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
+    def plot_lstm(self, w_ix, w_fx, w_ox, w_cx, w_ih, w_fh, w_oh, w_ch, fig=4):
+        """
+        Visizualize the three weight matrices after every epoch. Serves to
+        check that weights are structured, not exploding, and get upated
+        """
+        plt.figure(fig)
+        plt.clf()
+        plt.subplot(2, 4, 1)
+        plt.imshow(w_ix.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('input.T')
+        plt.subplot(2, 4, 2)
+        plt.imshow(w_fx.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('forget.T')
+        plt.subplot(2, 4, 3)
+        plt.imshow(w_ox.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('output.T')
+        plt.subplot(2, 4, 4)
+        plt.imshow(w_cx.T, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('cell.T')
+
+        plt.subplot(2, 4, 5)
+        plt.imshow(w_ih, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('input')
+        plt.subplot(2, 4, 6)
+        plt.imshow(w_fh, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('forget')
+        plt.subplot(2, 4, 7)
+        plt.imshow(w_oh, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('output')
+        plt.subplot(2, 4, 8)
+        plt.imshow(w_ch, vmin=-1, vmax=1, interpolation='nearest')
+        plt.title('cell')
+
+        # plt.colorbar()
+        plt.draw()
+        plt.show()
+
     def plot_error(self, suberror_list, error_list):
         plt.figure(1)
         plt.clf()
@@ -58,28 +95,28 @@ class VisualizeRNN(object):
 
         plt.figure(3)
         plt.clf()
-        for i in range(4):
-            plt.subplot(4, 5, 5*i+1)
+        for i in range(len(pre1)):  # loop over unrolling
+            plt.subplot(len(pre1), 5, 5 * i + 1)
             plt.imshow(pre1[i].asnumpyarray(), vmin=-1, vmax=1,
                        interpolation='nearest')
             if i == 0:
                 plt.title('pre1 or g\'1')
-            plt.subplot(4, 5, 5*i+2)
+            plt.subplot(len(pre1), 5, 5 * i + 2)
             plt.imshow(out1[i].asnumpyarray(), vmin=-1, vmax=1,
                        interpolation='nearest')
             if i == 0:
                 plt.title('out1')
-            plt.subplot(4, 5, 5*i+3)
+            plt.subplot(len(pre1), 5, 5 * i + 3)
             plt.imshow(pre2[i].asnumpyarray(), vmin=-1, vmax=1,
                        interpolation='nearest')
             if i == 0:
                 plt.title('pre2 or g\'2')
-            plt.subplot(4, 5, 5*i+4)
+            plt.subplot(len(pre1), 5, 5 * i + 4)
             plt.imshow(out2[i].asnumpyarray(), vmin=-1, vmax=1,
                        interpolation='nearest')
             if i == 0:
                 plt.title('out2')
-            plt.subplot(4, 5, 5*i+5)
+            plt.subplot(len(pre1), 5, 5 * i + 5)
             plt.imshow(targets[i*128:(i+1)*128, :].asnumpyarray(),
                        vmin=-1, vmax=1, interpolation='nearest')
             if i == 0:

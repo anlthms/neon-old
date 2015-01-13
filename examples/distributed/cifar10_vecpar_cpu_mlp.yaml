@@ -9,16 +9,14 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      dist_flag: *df,
-      dist_mode: 'vecpar', # FC split
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-      # serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Cpu_{rank}.pkl',
-    },
-  ],
+  dataset: !obj:neon.datasets.cifar10.CIFAR10 {
+    dist_flag: *df,
+    dist_mode: 'vecpar', # FC split
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+    # serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Cpu_{rank}.pkl',
+  },
 
   # simple MLP model specification
   model: !obj:neon.models.mlp_dist.MLPDist {
