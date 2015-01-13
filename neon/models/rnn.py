@@ -33,7 +33,7 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        self.grad_checker(numgrad = "lstm_ch")
+        self.grad_checker(numgrad="lstm_ch")
         # pick one: "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
 
@@ -71,7 +71,7 @@ class RNN(Model):
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
-                if batch % self.reset_period is 0:  # reset hidden state periodically
+                if batch % self.reset_period is 0:  # reset hidden state
                     self.backend.fill(hidden_init, 0)
                     if 'c_t' in self.layers[0].__dict__:
                         self.backend.fill(cell_init, 0)
@@ -94,24 +94,24 @@ class RNN(Model):
                               self.layers[0].Wcx.raw(),
                               np.hstack((self.layers[0].Wih.raw(),
                                         self.layers[0].b_i.raw(),
-                                        self.layers[0].b_i.raw() )),
+                                        self.layers[0].b_i.raw())),
                               np.hstack((self.layers[0].Wfh.raw(),
                                         self.layers[0].b_f.raw(),
-                                        self.layers[0].b_f.raw() )),
+                                        self.layers[0].b_f.raw())),
                               np.hstack((self.layers[0].Woh.raw(),
                                         self.layers[0].b_o.raw(),
-                                        self.layers[0].b_o.raw() )),
+                                        self.layers[0].b_o.raw())),
                               np.hstack((self.layers[0].Wch.raw(),
                                         self.layers[0].b_c.raw(),
-                                        self.layers[0].b_c.raw() )),
+                                        self.layers[0].b_c.raw())),
                               scale=1.1, fig=4)
                 viz.plot_lstm(self.layers[0].i_t[0].raw(),  # sigmoid(stuff)
                               self.layers[0].f_t[0].raw(),
                               self.layers[0].o_t[0].raw(),
                               self.layers[0].g_t[1].raw(),
-                              self.layers[0].net_i[0].raw(), # sig'(stuff)
+                              self.layers[0].net_i[0].raw(),  # sig'(stuff)
                               self.layers[0].c_t[0].raw(),
-                              self.layers[0].c_t[1].raw(), # what is g and what is c?
+                              self.layers[0].c_t[1].raw(),  # c=f*c_-1 + i*g
                               self.layers[0].c_phi[1].raw(),
                               scale=21, fig=5)
                 viz.plot_error(suberrorlist, errorlist)
@@ -167,7 +167,7 @@ class RNN(Model):
             num_target = self.layers[0].Wih
             an_target = self.layers[0].Wih_updates
             num_i, num_j = 12, 55
-        elif numgrad is  "lstm_fh":
+        elif numgrad is "lstm_fh":
             num_target = self.layers[0].Wfh
             an_target = self.layers[0].Wfh_updates
             num_i, num_j = 12, 55
@@ -175,12 +175,12 @@ class RNN(Model):
             num_target = self.layers[0].Woh
             an_target = self.layers[0].Woh_updates
             num_i, num_j = 12, 55
-        elif numgrad is  "lstm_ch":
+        elif numgrad is "lstm_ch":
             num_target = self.layers[0].Wch
             an_target = self.layers[0].Wch_updates
             num_i, num_j = 12, 55
 
-        eps = 1e-2  # use float64 in cpu.py for this
+        eps = 1e-2  # better to use float64 in cpu.py for this
         numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):

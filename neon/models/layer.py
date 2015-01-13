@@ -404,9 +404,10 @@ class RecurrentLSTMLayer(Layer):
             setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
 
         # If this isn't initialized correctly, get NaNs pretty quickly.
-        be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
-        be.add(be.zeros((nout, 1)), 0, self.b_f)  # sigmoid(-1) closes gate. +5 following clockwork RNN paper "to encourage long term memory"
-        be.add(be.zeros((nout, 1)), 1, self.b_o)   # open
+        be.add(be.zeros((nout, 1)), 0, self.b_i)   # sigmoid(1) opens the gate
+        # +5 following clockwork RNN paper "to encourage long term memory"
+        be.add(be.zeros((nout, 1)), 1, self.b_f)  # sigmoid(-1) closes gate.
+        be.add(be.zeros((nout, 1)), 0, self.b_o)   # sigmoid(1) open
         self.b_c = be.zeros((nout, 1))  # no need to be messed with
 
         # and for higher up entities in the LSTM cell.
@@ -763,7 +764,6 @@ class RecurrentLSTMLayer(Layer):
              self.b_i_updates, self.b_f_updates,
              self.b_o_updates, self.b_c_updates),
             epoch)
-
 
 
 class RecurrentHiddenLayer(Layer):
