@@ -36,7 +36,7 @@
     batch_size: &bs 50,
     reset_period: 50,
     unrolls: *ur,
-    make_plots: True,
+    make_plots: False,
     shortcut_deriv: False,
     layers: [
       # recurrent layer, can be RecurrentHiddenLayer or RecurrentLSTMLayer

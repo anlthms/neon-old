@@ -111,13 +111,13 @@ class RNN(Model):
                                         self.layers[0].b_c.asnumpyarray(),
                                         self.layers[0].b_c.asnumpyarray())),
                               scale=1.1, fig=4)
-                viz.plot_lstm(self.layers[0].i_t[0].asnumpyarray(),  # sigmoid(stuff)
+                viz.plot_lstm(self.layers[0].i_t[0].asnumpyarray(),
                               self.layers[0].f_t[0].asnumpyarray(),
                               self.layers[0].o_t[0].asnumpyarray(),
                               self.layers[0].g_t[1].asnumpyarray(),
-                              self.layers[0].net_i[0].asnumpyarray(),  # sig'(stuff)
+                              self.layers[0].net_i[0].asnumpyarray(),
                               self.layers[0].c_t[0].asnumpyarray(),
-                              self.layers[0].c_t[1].asnumpyarray(),  # c=f*c_-1 + i*g
+                              self.layers[0].c_t[1].asnumpyarray(),
                               self.layers[0].c_phi[1].asnumpyarray(),
                               scale=21, fig=5)
                 viz.plot_error(suberrorlist, errorlist)
@@ -464,4 +464,5 @@ class RNN(Model):
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result.asnumpyarray())
         # TODO: return values instead?
-        #trace()  # just used to keep figures open
+        if make_plots:
+            trace()  # just used to keep figures open
