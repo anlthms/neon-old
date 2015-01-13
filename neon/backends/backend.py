@@ -1006,6 +1006,8 @@ class Backend(YAMLable):
     def configure(self, model, vecpar=False, datapar=False):
         # Save the batch_size value specified in the configuration file.
         self.actual_batch_size = model.batch_size
+        self.vecpar = vecpar
+        self.datapar = datapar
         if vecpar is True:
             self.par = VecPar(self, model)
             self.gen_weights = self.par.gen_weights
@@ -1017,9 +1019,9 @@ class Backend(YAMLable):
             self.update_fc = self.par.update_fc
 
     def distribute(self, data):
-        if self.par is None:
-            return self.wrap(data)
-        return self.par.distribute(data)
+        if self.datapar is True:
+            return self.par.distribute(data)
+        return self.wrap(data)
 
 
 class Tensor(object):

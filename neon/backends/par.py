@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class VecPar:
-    def __init__(self, backend):
+    def __init__(self, backend, model):
         if mpi_rank == 0:
             logger.info('Vecpar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
@@ -77,12 +77,9 @@ class DataPar:
             logger.info('Datapar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
         self.batch_size = backend.actual_batch_size / mpi_size
-        last_rank = mpi_size - 1
-        if mpi_rank == last_rank:
-            self.start = self.batch_size * last_rank
+        self.start = mpi_rank * self.batch_size
+        if mpi_rank == (mpi_size - 1):
             self.batch_size = backend.actual_batch_size - self.start
-        else:
-            self.start = mpi_rank * self.batch_size
         self.end = self.start + self.batch_size
 
         model.batch_size = self.batch_size
