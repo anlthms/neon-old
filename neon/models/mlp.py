@@ -376,14 +376,17 @@ class MLPB(MLP):
             self.print_layers(debug=True)
         self.data_layer.cleanup()
 
-    def predict_and_error(self, dataset):
+    def predict_and_error(self):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        for setname in ['train', 'validation']:
+        for setname in ['train', 'test', 'validation']:
+            if self.data_layer.has_set(setname) is False:
+                continue
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
             misclass_sum = 0.0
+            logloss_sum = 0.0
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
                 self.fprop()
@@ -393,6 +396,7 @@ class MLPB(MLP):
                 self.backend.argmax(probs, axis=0, out=predlabels)
                 self.backend.not_equal(predlabels, labels, misclass)
                 misclass_sum += self.backend.sum(misclass)
-            logging.info("%s set misclass rate: %0.5f%%" % (
-                setname, 100 * misclass_sum / nrecs))
+                logloss_sum += self.cost_layer.cost.apply_logloss(targets)
+            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
+                setname, 100 * misclass_sum / nrecs, logloss_sum / nrecs))
             self.data_layer.cleanup()

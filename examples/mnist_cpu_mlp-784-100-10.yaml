@@ -32,16 +32,18 @@
     },
   ],
 
-  lrule: &gdm {
-    type: gradient_descent_momentum,
-    lr_params: {
-      learning_rate: 0.1,
-      backend: *be,
-      momentum_params: {
-        type: constant,
-        coef: 0.0,
+  lrule: [
+    &gdm {
+      type: gradient_descent_momentum,
+      lr_params: {
+        learning_rate: 0.1,
+        backend: *be,
+        momentum_params: {
+          type: constant,
+          coef: 0.0,
+        },
       },
-    },
+      },
     &ada {
       type: adadelta,
       lr_params: {
@@ -50,7 +52,7 @@
         backend: *be,
       },
     },
-  },
+  ],
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
