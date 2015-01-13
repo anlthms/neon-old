@@ -53,16 +53,31 @@
   #           CPU - 32-bit float numpy wrapped CPU based data
   #           Flexpoint - fixed decimal point wrapped CPU based data
   #           GPU - 32-bit float custom cuda-convnet2 wrapped GPU based data
-  # datasets - list containing the input data to train/test against.  types:
-  #            MNIST - handwritten digit image dataset
-  #            CIFAR10 - 10 class object image dataset
-  #            I1K - Imagenet 1000 class image dataset
-  #            SPARSENET - small natural image dataset (Olshausen and Field)
-  #            Iris - RA Fisher's 3 class flower dataset
-  #            MOBYDICK - Content of the book Moby Dick
-  #            TFD - Toronto Face image dataset
-  #            UniformRandom - synthetic random data
-  #            ToyImages - synthetic image classification dataset
+  # dataset - The input data to train/test against.  types:
+  #           MNIST - handwritten digit image dataset
+  #           CIFAR10 - 10 class object image dataset
+  #           I1K - Imagenet 1000 class image dataset
+  #           SPARSENET - small natural image dataset (Olshausen and Field)
+  #           Iris - RA Fisher's 3 class flower dataset
+  #           MOBYDICK - Content of the book Moby Dick
+  #           TFD - Toronto Face image dataset
+  #           UniformRandom - synthetic random data
+  #           ToyImages - synthetic image classification dataset
+  # weight_init - controls initial value setup for the model weights.  types:
+  #               uniform - uniform distribution
+  #               sparse_eigenvalued - each weight has 15 nonzero inputs and
+  #                                    the maximum eigenvalue of the weight
+  #                                    matrix is scaled to 1.2
+  #               normal or gaussian - normal distribution
+  #               node_normalized - initialization is as discussed in
+  #                                 Glorot2010
+  # lrule - the learning rule used to update weight values.  types:
+  #         gradient_descent - vanilla gradient descent (supports weight decay)
+  #         gradient_descent_pretrain - gradient descent that supports a
+  #                                     separate pretrain learning rate
+  #         gradient_descent_momentum - gradient descent that supports momentum
+  #                                     based updates
+  #         adadelta - Adadelta based updates.  See Zeiler2012
   # model - the type of machine learning algorithm to employ.  types:
   #         MLP, MLPB, MLPDist - feed-forward multi-layer perceptron neural
   #                              network
@@ -86,27 +101,77 @@
     },
   },
   
-  datasets: [
-    !obj:neon.datasets.iris.Iris {
-      # Iris dataset parameters
-      # -----------------------
-      # backend - backend to use to store and operate on this dataset
-      # repo_path - on-disk repository location where this dataset resides
-      #             (specify repository root containing the Iris dir, and not
-      #             the Iris dir directly)
-      # sample_pct - if 100, full dataset will be used, otherwise we uniformly
-      #              downsample records to the specified percentage
-      # serialized_path - the full location and name to a python .pkl file that
-      #                   we will use to cache this dataset.  Speeds up
-      #                   subsequent use of this dataset.
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-      serialized_path: '/usr/local/data/Iris/iris-CPU.pkl',
-    },
-  ],
+  dataset: &ds !obj:neon.datasets.iris.Iris {
+    # Iris dataset parameters
+    # -----------------------
+    # backend - backend to use to store and operate on this dataset
+    # repo_path - on-disk repository location where this dataset resides
+    #             (specify repository root containing the Iris dir, and not
+    #             the Iris dir directly)
+    # sample_pct - if 100, full dataset will be used, otherwise we uniformly
+    #              downsample records to the specified percentage
+    # serialized_path - the full location and name to a python .pkl file that
+    #                   we will use to cache this dataset.  Speeds up
+    #                   subsequent use of this dataset.
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    serialized_path: '/usr/local/data/Iris/iris-CPU.pkl',
+  },
   
-  model: !obj:neon.models.mlp.MLP {
+  weight_init: &wt_init {
+    # uniform weight_init parameters
+    # ------------------------------
+    # type - set this to uniform to get uniform random value initialization
+    # low - minimal uniform random value range endpoint
+    # high - maximal uniform random value range endpoint
+    # bias_init - initial values for biases (if used)
+    type: uniform,
+    low: -1,
+    high: 1,
+    bias_init: 0.0,
+  },
+
+  lrule: &gdm {
+    # gradient_descent_momentum parameters
+    # ------------------------------------
+    # type - set this to graident_descent_momentum
+    # lr_params - parameters associated with this type of learning rate. types:
+    #   learning_rate - fraction of backpropagated gradient values to
+    #                   add to this layers weights during each update
+    #                   (should be <= 1.0)
+    #   backend - backend to use to store data constructed for these
+    #             layer updates
+    #   momentum_params - dictionary containing several parameters that
+    #                     can be used to adjust the learning rate over
+    #                     time based on the curvature of gradient
+    #                     directions.  These parameters are:
+    #     type - should be one of: constant, linear_monotone, nesterov
+    #     initial_coef - initial momentum coefficient value.  0 disables
+    #                    momentum, but a positive value gives portion of
+    #                    previous iteration velocity to apply initially
+    #     saturated_coef - final momentum coefficient value to apply
+    #                      once we reach the saturation epoch and
+    #                      beyond.  Only applies to linear_monotone
+    #     start_epoch - specify a number indicating at which epoch we
+    #                   begin applying momentum based updates
+    #     saturate_epoch - specify a number (>= start_epoch) at which
+    #                      we will saturate momentum based updates.
+    #                      For linear_monotone momentum, we interpolate
+    #                      between initial and saturate momentum coef
+    #                      values until we reach the saturate_epoch.
+    type: gradient_descent_momentum,
+    lr_params: {
+      learning_rate: 0.1,
+      backend: *be,
+      momentum_params: {
+        type: constant,
+        coef: 0,
+      },
+    },
+  },
+
+  model: !obj:neon.models.mlp.MLPB {
     # MLP model parameters
     # --------------------
     # backend - backend to use to store data constructed for this model
@@ -117,147 +182,79 @@
     # serialized_path - the full location and name to a python .pkl file that
     #                   we will use to cache this model.  Speeds up
     #                   subsequent use of this model for inference purposes.
-    # layers - list of one or more neural network layer objects.
+    # layers - list of neural network layer objects.  Models will typically
+    #          have a single DataLayer, followed by 1 or more hidden layers,
+    #          then a final CostLayer.
     backend: *be,
     num_epochs: 2500,
     batch_size: &bs 30,
     serialized_path: './iris-mlp-simple.pkl',
     layers: [
-      !obj:neon.models.layer.Layer {
-        # Layer parameters
-        # ----------------
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        # DataLayer parameters
+        # --------------------
+        # The data layer is associated with an input dataset.  Parameters:
         # name - string used to identify this layer in the logs.
-        # backend - backend to use to store data constructed for this layer
-        # batch_size - number of training instances in each mini-batch.  Should
-        #              be no larger than the size of the training dataset.
-        # pos - 0-based index of this layer
-        # learning_rule - How updates get applied to the weights.  There are
-        #                 various possible approaches, each with type specific
-        #                 parameters.  We currently support:
-        #                 GradientDescent - vanilla gradient descent with
-        #                                   weight decay
-        #                 GradientDescentPretrain - as above but with optional
-        #                                           separate learning rate to
-        #                                           use during pre-training
-        #                 GradientDescentMomentum - gradient descent with
-        #                                           the ability to apply
-        #                                           different types of momentum
-        #                                           (constant, nesterov, etc.)
-        #                 AdaDelta - Zeiler2012 style updates
-        # nin - number of connections input to this layer (from the layer
-        #       before). Should include bias if present
+        # dataset - input dataset to train the model off of.  See dataset
+        #           defined at the Experiment level.
+        # nout - number of connections output by this layer
+        name: d0,
+        dataset: *ds,
+        nout: 4,
+      },
+      !obj:neon.models.layer2.FCLayer {
+        # FCLayer parameters
+        # ------------------
+        # Apart from Data and Cost layers, internal layers have parameters:
+        # name - string used to identify this layer in the logs.
+        # lrule_init - How updates get applied to the weights.  See lrule
+        #              defined at the Experiment level
         # nout - number of connections output by this layer
         # activation - (non-linear) transformation function to apply to the
         #              connections in this layer.  types are:
         #              Logistic - sigmoidal squashing transform
         #              RectLin - ReLU (rectified linear unit) transform
         #              Tanh - hyperbolic tangent squashing transform
+        #              SoftMax - generalized logistic squashing transform
+        #                        normalized over k dimensions
         # weight_init - dictionary of parameters controlling how weights get
-        #               initialized prior to training.  Parameters are:
-        #               type - one of uniform, gaussian, node_normalized
-        #               low - minimum of range for uniform type random number
-        #                     init
-        #               high - maximum of range for uniform type random number
-        #                      init
-        #               loc - center for gaussian random number init
-        #               scale - standard deviation for gaussian random number
-        #                       init, or multiplier in node_normalized random
-        #                       number init (see Glorot2010).
-        #               bias_init - indicates that biases should be used and
-        #                           provides the initial value.
+        #               initialized.  See weight_init defined at the Experiment
+        #               level
         name: h0,
-        backend: *be,
-        batch_size: 30,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          # GradientDescentMomentum learning rule parameters
-          # ------------------------------------------------
-          # name - how this learning rule is identified during logging
-          # lr_params - type specfic parameters.  In this case includes:
-          #   learning_rate - fraction of backpropagated gradient values to
-          #                   add to this layers weights during each update
-          #                   (should be <= 1.0)
-          #   backend - backend to use to store data constructed for these
-          #             layer updates
-          #   momentum_params - dictionary containing several parameters that
-          #                     can be used to adjust the learning rate over
-          #                     time based on the curvature of gradient
-          #                     directions.  These parameters are:
-          #     type - should be one of: constant, linear_monotone, nesterov
-          #     initial_coef - initial momentum coefficient value.  0 disables
-          #                    momentum, but a positive value gives portion of
-          #                    previous iteration velocity to apply initially
-          #     saturated_coef - final momentum coefficient value to apply
-          #                      once we reach the saturation epoch and
-          #                      beyond.  Only applies to linear_monotone
-          #     start_epoch - specify a number indicating at which epoch we
-          #                   begin applying momentum based updates
-          #     saturate_epoch - specify a number (>= start_epoch) at which
-          #                      we will saturate momentum based updates.
-          #                      For linear_monotone momentum, we interpolate
-          #                      between initial and saturate momentum coef
-          #                      values until we reach the saturate_epoch.
-          name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.1,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant,
-              initial_coef: 0,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0,
-            },
-          },
-        },
-        nin: 4,
         nout: 2,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
-          low: -1,
-          high: 1,
-          bias_init: 0.0,
-        },
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 2, # previous nout
         nout: 3,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
-        weight_init: {
-          type: uniform,
-          low: -1,
-          high: 1,
-          bias_init: 0.0,
-        },
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        # CostLayer parameters
+        # --------------------
+        # This layer defines the cost or objective function to be optimized.
+        # Parameters:
+        # name - string used to identify this layer in the logs.
+        # ref_layer - the input data layer reference
+        # cost - the actual transform to use for the cost.  Types include:
+        #        CrossEntropy - typically used to measure the difference
+        #                       between two probability distributions.
+        #                       The default is the binomial version
+        #                       When binomial version is paired with a logistic
+        #                       activation in the previous layer,
+        #                       shortcut_deriv is True
+        #        SumSquaredDiffs - computes the sum of squared differences.
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    # cost - the objective function transform.  Current types are:
-    #        CrossEntropy - typically used to measure the difference between two
-    #                       probability distributions
-    #                       The default is the binomial version
-    #                       When binomial version is paired with a logistic
-    #                       activation in the previous layer, shortcut_deriv
-    #                       is True
-    #        SumSquaredDiffs - computes the sum of squared differences.
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
+
   logging: {
     # logging parameters:
     # -------------------

@@ -511,7 +511,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.f_t[tau], cell, self.c_t[tau])
         be.multiply(self.i_t[tau], self.g_t[tau], self.c_phip[tau])
         be.add(self.c_t[tau], self.c_phip[tau], self.c_t[tau])
-        self.c_phip[tau] = self.c_t[tau].copy()
+        self.c_phip[tau] = be.copy(self.c_t[tau])
 
         phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
@@ -561,32 +561,33 @@ class RecurrentLSTMLayer(Layer):
         # [TODO] allocate in init, call them self.dh_dw['ix']
 
         di_dh1 = be.zeros((self.nout, self.batch_size))
-        df_dh1 = di_dh1.copy()
-        do_dh1 = di_dh1.copy()
-        dg_dh1 = di_dh1.copy()
-        hherror = di_dh1.copy()
-        hcerror = di_dh1.copy()
-        cherror = di_dh1.copy()
-        ccerror = di_dh1.copy()
+        df_dh1 = be.copy(di_dh1)
+        do_dh1 = be.copy(di_dh1)
+        dg_dh1 = be.copy(di_dh1)
+        hherror = be.copy(di_dh1)
+        hcerror = be.copy(di_dh1)
+        cherror = be.copy(di_dh1)
+        ccerror = be.copy(di_dh1)
 
         # [todo] need only two temp buffers here
         dh_dwix = be.zeros((self.nout, self.nin))
-        dh_dwfx = dh_dwix.copy()
-        dh_dwox = dh_dwix.copy()
-        dh_dwcx = dh_dwix.copy()
+        dh_dwfx = be.copy(dh_dwix)
+        dh_dwox = be.copy(dh_dwix)
+        dh_dwcx = be.copy(dh_dwix)
         dh_dwih = be.zeros((self.nout, self.nout))
-        dh_dwfh = dh_dwih.copy()
-        dh_dwoh = dh_dwih.copy()
-        dh_dwch = dh_dwih.copy()
+        dh_dwfh = be.copy(dh_dwih)
+        dh_dwoh = be.copy(dh_dwih)
+        dh_dwch = be.copy(dh_dwih)
 
-        dc_di_dh1 = di_dh1.copy()
-        dc_df_dh1 = di_dh1.copy()
-        dc_dg_dh1 = di_dh1.copy()
+        dc_di_dh1 = be.copy(di_dh1)
+        dc_df_dh1 = be.copy(di_dh1)
+        dc_dg_dh1 = be.copy(di_dh1)
 
         """--------------------------
         PART 1: original dh2/dh1 terms
         --------------------------"""
         temp = be.zeros((self.nout, self.batch_size))
+        temp_sum = be.empty((self.nout, 1))
         # a. Input gate
         # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] \
         #        * self.net_i[tau]
@@ -604,8 +605,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wix_updates, dh_dwix, self.Wix_updates)
         if (tau > 0):
             be.add(self.Wih_updates, dh_dwih, self.Wih_updates)
-        be.add(self.b_i_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_i_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
 
         # b. forget gate
         # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.c_t[tau-1] \
@@ -624,14 +625,14 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wfx_updates, dh_dwfx, self.Wfx_updates)
         if (tau > 0):
             be.add(self.Wfh_updates, dh_dwfh, self.Wfh_updates)
-        be.add(self.b_f_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_f_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
 
         # c. output gate
         # temp = error_h * self.c_phi[tau] * self.net_o[tau]
         be.multiply(error_h, self.c_phi[tau], temp)
         be.multiply(self.net_o[tau], temp, temp)
-        be.bprop_fc(out=do_dh1, weights=self.woh, deltas=temp)
+        be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
         be.update_fc(out=dh_dwox,
                      inputs=inputs[tau*128:(tau+1)*128, :],
                      deltas=temp)
@@ -641,8 +642,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wox_updates, dh_dwox, self.Wox_updates)
         if (tau > 0):
             be.add(self.Woh_updates, dh_dwoh, self.Woh_updates)
-        be.add(self.b_o_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_o_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_o_updates, temp_sum, self.b_o_updates)
 
         # d. cell
         # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.i_t[tau] \
@@ -661,8 +662,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wcx_updates, dh_dwcx, self.Wcx_updates)
         if (tau > 0):
             be.add(self.Wch_updates, dh_dwch, self.Wch_updates)
-        be.add(self.b_c_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_c_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
 
         # e. collect terms
         be.add(di_dh1, df_dh1, hherror)
@@ -694,8 +695,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wix_updates, dh_dwix, self.Wix_updates)
         if (tau > 0):
             be.add(self.Wih_updates, dh_dwih, self.Wih_updates)
-        be.add(self.b_i_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_i_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
 
         # forget gate
         # temp = error_c * self.c_t[tau-1] * self.net_f[tau]
@@ -711,8 +712,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wfx_updates, dh_dwfx, self.Wfx_updates)
         if (tau > 0):
             be.add(self.Wfh_updates, dh_dwfh, self.Wfh_updates)
-        be.add(self.b_f_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_f_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
 
         # cell
         # temp = error_c * self.i_t[tau] * self.net_g[tau]
@@ -728,8 +729,8 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.Wcx_updates, dh_dwcx, self.Wcx_updates)
         if (tau > 0):
             be.add(self.Wch_updates, dh_dwch, self.Wch_updates)
-        be.add(self.b_c_updates, temp.sum(1).reshape((self.nout, 1)),
-               self.b_c_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
 
         be.add(dc_di_dh1, dc_df_dh1, cherror)
         be.add(cherror, dc_dg_dh1, cherror)

@@ -66,7 +66,7 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    result = backend.empty((1, 1))
+    result = backend.empty((1, temp[0].shape[1]))
     return backend.sum(temp[0], axes=0, out=result)
 
 

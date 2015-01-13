@@ -72,9 +72,9 @@ class RNN(Model):
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
                 if batch % 20 is 0:  # reset hidden state periodically
-                    self.backend.fill(hidden_init, 0)
+                    hidden_init.fill(0)
                     if 'c_t' in self.layers[0].__dict__:
-                        self.backend.fill(cell_init, 0)
+                        cell_init.fill(0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
                 target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                                    (self.unrolls+1)*128, :]
@@ -131,7 +131,8 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s", str(layer))
         inputs = self.dataset.get_inputs(train=True)['train']
-        targets = inputs.copy()  # use targets = inputs for sequence prediction
+        # use targets = inputs for sequence prediction
+        targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
@@ -171,13 +172,13 @@ class RNN(Model):
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_eps = self.cost.apply_function(target_out)
+            suberror_eps = self.cost.apply_function(target_out).asnumpyarray()
 
             self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_ref = self.cost.apply_function(target_out)
+            suberror_ref = self.cost.apply_function(target_out).asnumpyarray()
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * self.layers[0].nin)
             logger.info("numpart for  tau=%d of %d is %e",
@@ -328,7 +329,7 @@ class RNN(Model):
                                           self.batch_size))
             for t in list(range(0, tau))[::-1]:  # restored to 0 as in old RNN
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.layers[0].berror.copy()  # note copy here!
+                error_h = self.backend.copy(self.layers[0].berror)
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
 

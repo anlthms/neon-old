@@ -156,10 +156,10 @@ class GradientDescentMomentum(GradientDescent):
         # iterate the tuple
         for i in range(len(params)):
             self.backend.multiply(self.velocity_LSTM[i],
-                                  self.backend.wrap(momentum_coef),
+                                  momentum_coef,
                                   out=self.velocity_LSTM[i])
             self.backend.multiply(updates[i],
-                                  self.backend.wrap(self.learning_rate),
+                                  self.learning_rate,
                                   out=updates[i])
             self.backend.subtract(self.velocity_LSTM[i],
                                   updates[i],

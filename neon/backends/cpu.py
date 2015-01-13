@@ -1185,7 +1185,7 @@ class CPU(Backend):
                 # it to normalize the receptive field.
                 denom[denom._tensor == 0] = 1
                 self.divide(rf, denom, out=rf)
-                self.multiply(rdeltas[dst], rf, out=ofmlocs)
+                self.multiply(rdeltas[dst].transpose(), rf, out=ofmlocs)
                 self.add(bpropbuf[inds], ofmlocs, bprop_slice)
                 bpropbuf[inds] = bprop_slice[:]
             else:
