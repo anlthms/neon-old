@@ -385,9 +385,9 @@ class RNN(Model):
             if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
             if batch % self.reset_period is 0:
-                    self.backend.fill(hidden_init, 0)
+                    hidden_init.fill(0)
                     if 'c_t' in self.layers[0].__dict__:
-                        self.backend.fill(cell_init, 0)
+                        cell_init.fill(0)
             for tau in range(self.unrolls):
                 letters = self.backend.empty(50, dtype='int32')
                 self.backend.argmax(self.layers[1].output_list[tau],
@@ -453,10 +453,10 @@ class RNN(Model):
                                       axis=0, out=tempbuf[i, :])
                 import numpy as np
                 misclass = tempbuf.transpose().reshape((-1,))
-                tmp = misclass[6000:6018].asnumpyarray().astype(np.int8)
+                tmp = misclass[6000:6018].asnumpyarray().astype(np.int8).T
                 logging.info("the target for %s is %s", item,
                              tmp.view('c'))
-                tmp = preds[item][6000:6018].asnumpyarray().astype(np.int8)
+                tmp = preds[item][6000:6018].asnumpyarray().astype(np.int8).T
                 logging.info("prediction for %s is %s", item,
                              tmp.view('c'))
                 ds.backend.not_equal(preds[item], misclass, misclass)
