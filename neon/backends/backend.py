@@ -7,7 +7,7 @@ Houses low-level code for performing underlying data manipulation operations.
 """
 
 from neon.util.persist import YAMLable
-from neon.backends.par import VecPar, DataPar
+from neon.backends.par import NoPar, VecPar, DataPar
 
 
 class Backend(YAMLable):
@@ -1018,25 +1018,26 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def configure(self, model, vecpar=False, datapar=False):
+    # The functions below can be moved out to a utility class if it is
+    # desirable to leave this class abstract.
+
+    def configure(self, model, partype):
         # Save the batch_size value specified in the configuration file.
         self.actual_batch_size = model.batch_size
-        self.vecpar = vecpar
-        self.datapar = datapar
-        if vecpar is True:
+        if partype == 'vecpar':
             self.par = VecPar(self, model)
             self.gen_weights = self.par.gen_weights
             self.fprop_fc = self.par.fprop_fc
             self.bprop_fc = self.par.bprop_fc
             self.update_fc = self.par.update_fc
-        elif datapar is True:
+        elif partype == 'datapar':
             self.par = DataPar(self, model)
             self.update_fc = self.par.update_fc
+        else:
+            self.par = NoPar(self, model)
 
     def distribute(self, data):
-        if self.datapar is True:
-            return self.par.distribute(data)
-        return self.array(data)
+        return self.par.distribute(data)
 
 
 class Tensor(object):

@@ -8,11 +8,20 @@ if MPI_INSTALLED:
 logger = logging.getLogger(__name__)
 
 
-class VecPar:
+class NoPar(object):
     def __init__(self, backend, model):
+        self.backend = backend
+        logger.info('Non-distributed mode.')
+
+    def distribute(self, batchdata):
+        return self.backend.array(batchdata)
+
+
+class VecPar(NoPar):
+    def __init__(self, backend, model):
+        super(VecPar, self).__init__(backend, model)
         if mpi_rank == 0:
             logger.info('Vecpar mode. Number of nodes = %d.', mpi_size)
-        self.backend = backend
         self.orig_gen_weights = backend.gen_weights
         self.orig_fprop_fc = backend.fprop_fc
         self.orig_bprop_fc = backend.bprop_fc
@@ -74,11 +83,11 @@ class VecPar:
         self.orig_update_fc(out, inputs[start:end], deltas)
 
 
-class DataPar:
+class DataPar(NoPar):
     def __init__(self, backend, model):
+        super(DataPar, self).__init__(backend, model)
         if mpi_rank == 0:
             logger.info('Datapar mode. Number of nodes = %d.', mpi_size)
-        self.backend = backend
         self.orig_update_fc = backend.update_fc
         self.batch_size = backend.actual_batch_size / mpi_size
         self.start = mpi_rank * self.batch_size

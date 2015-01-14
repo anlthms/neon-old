@@ -41,9 +41,8 @@ class FitExperiment(Experiment):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
-        vecpar = 'vecpar' in self.__dict__ and self.vecpar
-        datapar = 'datapar' in self.__dict__ and self.datapar
-        self.backend.configure(self.model, vecpar=vecpar, datapar=datapar)
+        partype = self.partype if 'partype' in self.__dict__ else 'nopar'
+        self.backend.configure(self.model, partype=partype)
 
         self.model.link_and_initialize()
 
