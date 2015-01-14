@@ -23,7 +23,7 @@ elif sys.platform.startswith("darwin"):
 if CUDA_GPU:
     try:
         import cudanet
-    except (ImportError, OSError):
+    except ImportError:
         logger.warning("cudanet not found, can't set CUDA_GPU")
         CUDA_GPU = False
 

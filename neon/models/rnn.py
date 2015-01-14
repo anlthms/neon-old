@@ -464,5 +464,5 @@ class RNN(Model):
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result.asnumpyarray())
         # TODO: return values instead?
-        if make_plots:
+        if self.make_plots:
             trace()  # just used to keep figures open
