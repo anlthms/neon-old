@@ -447,7 +447,7 @@ class RNN(Model):
                 num_batches = targets[item].shape[0] / nin
                 misclass = ds.backend.zeros(num_batches * nin)
                 tempbuf = self.backend.zeros((num_batches + 1,
-                                              self.batch_size))
+                                              self.batch_size), dtype='int32')
                 for i in range(num_batches):
                     ds.backend.argmax(targets[item][i * nin:(i + 1) * nin, :],
                                       axis=0, out=tempbuf[i, :])
@@ -464,5 +464,5 @@ class RNN(Model):
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result.asnumpyarray())
         # TODO: return values instead?
-        if make_plots:
+        if self.make_plots:
             trace()  # just used to keep figures open
