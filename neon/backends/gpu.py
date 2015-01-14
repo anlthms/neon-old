@@ -13,7 +13,7 @@ import math
 import os
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import MPI_INSTALLED, mpi_rank, range
 from neon.util.error import TooSlowToImplementError
 
 if MPI_INSTALLED:
@@ -404,6 +404,7 @@ class GPU(Backend):
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
+        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -1534,7 +1535,6 @@ class GPU(Backend):
         Returns:
             GPUTensor: The initialized weights
         """
-        # FIXME: Get rid of duplication.
         weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0

@@ -214,7 +214,8 @@ class CostLayer(Layer):
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.berror, self.batch_size, out=self.berror)
+        self.backend.divide(self.berror, self.backend.actual_batch_size,
+                            out=self.berror)
 
     def get_cost(self):
         result = self.cost.apply_function(self.targets)
@@ -342,7 +343,7 @@ class WeightLayer(Layer):
         make_ebuf = self.backend.empty
         self.weights = self.backend.gen_weights(
             self.weight_shape, self.weight_init, self.weight_dtype)
-        self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
+        self.weight_updates = make_ebuf(self.weights.shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
         if self.use_biases:

@@ -223,6 +223,7 @@ class CPU(Backend):
         self.__dict__.update(kwargs)
         self.err_init()
         self.rng_init()
+        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -1488,6 +1489,7 @@ class CPU(Backend):
         copies the host_weights into dev_weights
         """
         dev_weights[:] = host_weights
+
 
     def gen_weights(self, size, weight_params, dtype=None):
         """
