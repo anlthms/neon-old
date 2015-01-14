@@ -259,54 +259,27 @@ class DataLayer(Layer):
 
     def fprop(self, inputs):
         ds = self.dataset
-        if ds.macro_batched:
-            self.output, self.targets = ds.get_mini_batch()
-        else:
-            self.output = ds.get_batch(self.inputs, self.batch_idx)
-            self.targets = ds.get_batch(self.tgts, self.batch_idx)
+        self.output, self.targets = ds.get_mini_batch(self.batch_idx)
         self.batch_idx += 1
 
     def bprop(self, error):
         pass
 
     def has_set(self, setname):
-        if self.dataset.macro_batched:
-            return True if (setname in ['train', 'validation']) else False
-        else:
-            inputs_dic = self.dataset.get_inputs(train=True, validation=True,
-                                                 test=True)
-            return True if (setname in inputs_dic) else False
+        return self.dataset.has_set(setname)
 
     def use_set(self, setname, predict=False):
         ds = self.dataset
-        if ds.macro_batched:
-            sn = 'val' if (setname == 'validation') else setname
-            endb = getattr(ds, 'end_' + sn + '_batch')
-            startb = getattr(ds, 'start_' + sn + '_batch')
-            nrecs = ds.output_batch_size * (endb - startb + 1)
-            if startb == -1:
-                nrecs = ds.max_file_index
-            setattr(ds, 'cur_' + sn + '_macro_batch', startb)
-            self.num_batches = int(np.ceil((nrecs + 0.0) / self.batch_size))
-            ln = 'training' if (setname == 'train') else setname
-            ds.init_mini_batch_producer(batch_size=self.batch_size,
-                                        batch_type=ln,
-                                        predict=predict)
-        else:
-            self.inputs = ds.get_inputs(train=True, validation=True,
-                                        test=True)[setname]
-            self.tgts = ds.get_targets(train=True, validation=True,
-                                       test=True)[setname]
-            self.num_batches = len(self.inputs)
+        self.num_batches = ds.init_mini_batch_producer(
+            batch_size=self.batch_size,
+            setname=setname,
+            predict=predict)
         self.batch_idx = 0
 
     def cleanup(self):
         ds = self.dataset
-        if ds.macro_batched:
-            # delete macro batch helper queues
-            ds.del_mini_batch_producer()
-        else:
-            pass
+        # delete helper queues if any
+        ds.del_mini_batch_producer()
 
 
 class ActivationLayer(Layer):

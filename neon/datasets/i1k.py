@@ -277,7 +277,6 @@ class I1K(Dataset):
 
     def __init__(self, **kwargs):
         self.dist_flag = False
-        self.macro_batched = False
         self.start_train_batch = -1
         self.end_train_batch = -1
         self.start_val_batch = -1
@@ -299,21 +298,19 @@ class I1K(Dataset):
                     raise AttributeError('MPI.COMM_WORLD.size not compatible')
             else:
                 raise AttributeError("dist_flag set but mpi4py not installed")
-        if self.macro_batched:
-            if self.start_train_batch != -1:
-                # number of batches to train for this yaml file (<= total
-                # available)
-                self.n_train_batches = self.end_train_batch - \
-                    self.start_train_batch + 1
-            if self.start_val_batch != -1:
-                # number of batches to validation for this yaml file (<= total
-                # available)
-                self.n_val_batches = self.end_val_batch - \
-                    self.start_val_batch + 1
+
+        if self.start_train_batch != -1:
+            # number of batches to train for this yaml file (<= total
+            # available)
+            self.n_train_batches = self.end_train_batch - \
+                self.start_train_batch + 1
+        if self.start_val_batch != -1:
+            # number of batches to validation for this yaml file (<= total
+            # available)
+            self.n_val_batches = self.end_val_batch - \
+                self.start_val_batch + 1
 
     def load(self):
-        if self.inputs['train'] is not None:
-            return
         if 'repo_path' in self.__dict__:
             # todo handle dist case
             # if self.dist_flag:
@@ -321,6 +318,10 @@ class I1K(Dataset):
 
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
+            if os.path.exists(os.path.join(load_dir, prefix_macro) + str(
+                    self.output_image_size)):
+                # delete load_dir if want to reload/reprocess dataset
+                return
             # save_dir = os.path.join(self.repo_path,
             #                         self.__class__.__name__)
             # self.save_dir = save_dir
@@ -403,39 +404,35 @@ class I1K(Dataset):
                             val_file_indices.append(i)
                             val_label_sample.append([j])
 
-                if self.macro_batched:
-                    # Write training batches
-                    self.num_train_macro_batches = self.write_batches(
+                # Write training batches
+                self.num_train_macro_batches = self.write_batches(
+                    os.path.join(save_dir, prefix_macro
+                                 + str(self.output_image_size)),
+                    'training', 0,
+                    label_sample, jpeg_file_sample)
+                with self.open_tar(ilsvrc_validation_tar,
+                                   'validation tar') as tf:
+                    validation_jpeg_files = sorted(
+                        [tf.extractfile(m) for m in tf.getmembers()],
+                        key=lambda x: x.name)
+                    val_file_sample = [validation_jpeg_files[i]
+                                       for i in val_file_indices]
+                    # shuffle the validation file indices and corresponding
+                    # labels before subsampling?
+                    tmp_zip = zip(val_file_sample, val_label_sample)
+                    shuffle(tmp_zip)
+                    val_file_sample = [e[0] for e in tmp_zip]
+                    val_file_sample = val_file_sample[
+                        0:self.val_max_file_index]
+                    val_label_sample = [e[1] for e in tmp_zip]
+                    val_label_sample = val_label_sample[
+                        0:self.val_max_file_index]
+                    self.num_val_macro_batches = self.write_batches(
                         os.path.join(save_dir, prefix_macro
                                      + str(self.output_image_size)),
-                        'training', 0,
-                        label_sample, jpeg_file_sample)
-                    with self.open_tar(ilsvrc_validation_tar,
-                                       'validation tar') as tf:
-                        validation_jpeg_files = sorted(
-                            [tf.extractfile(m) for m in tf.getmembers()],
-                            key=lambda x: x.name)
-                        val_file_sample = [validation_jpeg_files[i]
-                                           for i in val_file_indices]
-                        # shuffle the validation file indices and corresponding
-                        # labels before subsampling?
-                        tmp_zip = zip(val_file_sample, val_label_sample)
-                        shuffle(tmp_zip)
-                        val_file_sample = [e[0] for e in tmp_zip]
-                        val_file_sample = val_file_sample[
-                            0:self.val_max_file_index]
-                        val_label_sample = [e[1] for e in tmp_zip]
-                        val_label_sample = val_label_sample[
-                            0:self.val_max_file_index]
-                        self.num_val_macro_batches = self.write_batches(
-                            os.path.join(save_dir, prefix_macro
-                                         + str(self.output_image_size)),
-                            'validation', 0,
-                            val_label_sample,
-                            val_file_sample)
-                else:
-                    raise NotImplementedError("Only macro-batched input is "
-                                              "supported for ImageNet-1000")
+                        'validation', 0,
+                        val_label_sample,
+                        val_file_sample)
         else:
             raise AttributeError('repo_path not specified in config')
 
@@ -512,27 +509,17 @@ class I1K(Dataset):
                          (self.n_train_batches * self.output_batch_size))
         logger.info("done preprocessing images (computing mean image)")
 
-    def get_next_macro_batch_id(self, batch_type, macro_batch_index):
+    def get_next_macro_batch_id(self, macro_batch_index):
         next_macro_batch_id = macro_batch_index + 1
-        if batch_type == 'training':
-            if (next_macro_batch_id >= self.num_train_macro_batches
-                    and self.end_train_batch == -1):
-                next_macro_batch_id = 0
-            elif next_macro_batch_id > self.end_train_batch:
-                next_macro_batch_id = self.start_train_batch
-        elif batch_type == 'validation':
-            if (next_macro_batch_id >= self.num_val_macro_batches and
-                    self.end_val_batch == -1):
-                next_macro_batch_id = 0
-            elif next_macro_batch_id > self.end_val_batch:
-                next_macro_batch_id = self.start_val_batch
+        if next_macro_batch_id > self.endb:
+            next_macro_batch_id = self.startb
         return next_macro_batch_id
 
     def get_macro_batch(self):
         j = 0
         for i in range(self.num_iter_macro):
             self.macro_batch_onque = self.get_next_macro_batch_id(
-                self.batch_type, self.macro_batch_onque)
+                self.macro_batch_onque)
             batch_path = os.path.join(
                 self.save_dir, prefix_macro + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque))
@@ -552,18 +539,25 @@ class I1K(Dataset):
 
         self.num_iter_macro = 1
 
-    def get_next_mini_batch_id(self, batch_type, mini_batch_index):
+    def get_next_mini_batch_id(self, mini_batch_index):
         next_mini_batch_id = mini_batch_index + 1
         if next_mini_batch_id >= self.num_minibatches_in_macro:
             next_mini_batch_id = 0
         return next_mini_batch_id
 
-    def init_mini_batch_producer(self, batch_size, batch_type,
-                                 predict=False, ring_buffer_size=3):
+    def init_mini_batch_producer(self, batch_size, setname, predict=False):
+        sn = 'val' if (setname == 'validation') else setname
+        self.endb = getattr(self, 'end_' + sn + '_batch')
+        self.startb = getattr(self, 'start_' + sn + '_batch')
+        nrecs = self.output_batch_size * (self.endb - self.startb + 1)
+        if self.startb == -1 or self.endb == -1:
+            raise NotImplementedError("Must specify [start|end]"
+                                      "_[train|val]_batch")
+        num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
+
         self.batch_size = batch_size
-        self.batch_type = batch_type
+        self.batch_type = 'training' if (setname == 'train') else setname
         self.predict = predict
-        self.ring_buffer_size = ring_buffer_size
         self.nclasses = self.max_tar_file
 
         if self.output_batch_size % batch_size != 0:
@@ -571,18 +565,12 @@ class I1K(Dataset):
         else:
             self.num_minibatches_in_macro = self.output_batch_size / batch_size
         if isinstance(self.backend, GPU):
-            # if raw_targets:
-            #     self.ring_buffer = RingBuffer(
-            #         max_size=ring_buffer_size,
-            #         batch_size=batch_size,
-            #         num_targets=1,
-            #         num_input_dims=(self.cropped_image_size ** 2) * 3)
-            # else:
-            self.ring_buffer = RingBuffer(
-                max_size=ring_buffer_size,
-                batch_size=batch_size,
-                num_targets=self.nclasses,
-                num_input_dims=(self.cropped_image_size ** 2) * 3)
+            self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
+                                          batch_size=batch_size,
+                                          num_targets=self.nclasses,
+                                          num_input_dims=(
+                                              self.cropped_image_size ** 2)
+                                          * 3)
         self.file_name_queue = Queue.Queue()
         self.macro_batch_queue = Queue.Queue()
         self.mini_batch_queue = Queue.Queue()
@@ -594,12 +582,9 @@ class I1K(Dataset):
         macroq_flag = False
         miniq_flag = False
         gpuq_flag = False
-        if batch_type == 'training':
-            self.macro_batch_onque = self.end_train_batch
-            self.macro_batch_onque2 = self.end_train_batch
-        elif batch_type == 'validation':
-            self.macro_batch_onque = self.end_val_batch
-            self.macro_batch_onque2 = self.end_val_batch
+        self.macro_batch_onque = self.endb
+        # copies for get_mini_batch2()
+        self.macro_batch_onque2 = self.endb
         self.mini_batch_onque2 = self.num_minibatches_in_macro - 1
 
         self.mini_batch_onque = self.num_minibatches_in_macro - 1
@@ -611,6 +596,8 @@ class I1K(Dataset):
         if not self.preprocess_done:
             self.preprocess_images()
             self.preprocess_done = True
+
+        return num_batches
 
     def del_queue(self, qname):
         while not qname.empty():
@@ -630,15 +617,15 @@ class I1K(Dataset):
         del self.file_name_queue, self.macro_batch_queue
         del self.mini_batch_queue, self.gpu_queue
 
-    def get_mini_batch2(self):
+    def get_mini_batch2(self, batch_idx):
         # non threaded version of get_mini_batch for debugging
         self.mini_batch_onque2 = self.get_next_mini_batch_id(
-            self.batch_type, self.mini_batch_onque2)
+            self.mini_batch_onque2)
         j = 0
 
         if self.mini_batch_onque2 == 0:
             self.macro_batch_onque2 = self.get_next_macro_batch_id(
-                self.batch_type, self.macro_batch_onque2)
+                self.macro_batch_onque2)
             batch_path = os.path.join(
                 self.save_dir, prefix_macro + str(self.output_image_size),
                 '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
@@ -668,11 +655,11 @@ class I1K(Dataset):
 
         return GPUTensor(self.inputs), GPUTensor(targets)
 
-    def get_mini_batch(self):
+    def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
         for i in range(self.num_iter_mini):
             self.mini_batch_onque = self.get_next_mini_batch_id(
-                self.batch_type, self.mini_batch_onque)
+                self.mini_batch_onque)
             if self.mini_batch_onque == 0:
                 self.get_macro_batch()
                 # deque next macro batch
@@ -711,7 +698,7 @@ class I1K(Dataset):
 
         for i in range(self.num_iter_gpu):
             self.gpu_batch_onque = self.get_next_mini_batch_id(
-                self.batch_type, self.gpu_batch_onque)
+                self.gpu_batch_onque)
             gt = GPUTransfer(self.gpu_batch_onque,
                              self.mini_batch_queue, self.gpu_queue,
                              self.backend, self.ring_buffer)
@@ -780,6 +767,9 @@ class I1K(Dataset):
                     np.transpose(np.array(
                         img, dtype='float32')[:, :, 0:3],
                         axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
+
+    def has_set(self, setname):
+        return True if (setname in ['train', 'validation']) else False
 
     # code below adapted from Alex Krizhevsky's cuda-convnet2 library,
     # make-data.py

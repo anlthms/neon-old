@@ -14,12 +14,11 @@
     backend: *be,
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
-    serialized_path: '/usr/local/data/I1K/I1K_alexnet.pkl', #delete if loading files from scratch
-    macro_batched: True,
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     max_tar_file: &mtf 1000,
     output_batch_size: 3072,
+    ring_buffer_size: 3,
     num_train_macro_batches: 417, #max available train macro_batches
     num_val_macro_batches: 16, #max available val macro batches
     #number of cpu processes for image resizing and decompression

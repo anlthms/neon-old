@@ -61,28 +61,7 @@ class FitExperiment(Experiment):
                     raise AttributeError("dist_flag set but mpi4py not "
                                          "installed")
             if os.path.exists(ds.serialized_path):
-                set_batches = False
-                if hasattr(ds, 'start_train_batch'):
-                    [tmp1, tmp2, tmp3, tmp4, tmp5] = [
-                        ds.start_train_batch,
-                        ds.end_train_batch,
-                        ds.start_val_batch,
-                        ds.end_val_batch,
-                        ds.num_processes]
-                    set_batches = True
                 ds = deserialize(ds.serialized_path)
-                if set_batches:
-                    [ds.start_train_batch, ds.end_train_batch,
-                     ds.start_val_batch, ds.end_val_batch,
-                     ds.num_processes] = [tmp1, tmp2, tmp3, tmp4, tmp5]
-                    # number of batches to train for this yaml file
-                    # (<= total available)
-                    ds.n_train_batches = (ds.end_train_batch -
-                                          ds.start_train_batch + 1)
-                    # number of batches to validation for this yaml
-                    # file (<= total available)
-                    ds.n_val_batches = (ds.end_val_batch -
-                                        ds.start_val_batch + 1)
             else:
                 ds.load()
                 serialize(ds, ds.serialized_path)
@@ -104,6 +83,7 @@ class FitExperiment(Experiment):
                     else:
                         raise AttributeError("dist_flag set but mpi4py not "
                                              "installed")
+                #del self.model ###test this
                 self.model = deserialize(mpath)
             else:
                 self.model.fit(ds)
