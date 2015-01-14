@@ -40,7 +40,7 @@ def assert_tensor_near_equal(actual, desired, tolerance=1e-7):
         AssertionError: if the objects differ.
     """
     if isinstance(desired, Tensor):
-        desired = desired.raw()
+        desired = desired.asnumpyarray()
     if isinstance(actual, Tensor):
-        actual = actual.raw()
+        actual = actual.asnumpyarray()
     np.testing.assert_allclose(actual, desired, atol=tolerance, rtol=0)

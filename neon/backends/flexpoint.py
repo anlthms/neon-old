@@ -594,7 +594,7 @@ class Flexpoint(CPU):
         fp_rescale_array(out._tensor, a.dtype, out.dtype)
         return out
 
-    def mean(self, x, axis=None, dtype=np.float32, out=None, keepdims=False):
+    def mean(self, x, axis=None, dtype='float32', out=None, keepdims=False):
         if x is None:
             return float('NaN')
         res = np.mean(flex_to_float_array(x._tensor, x.dtype), axis, dtype,

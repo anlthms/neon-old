@@ -43,10 +43,10 @@ class GradientChecker(Experiment):
         # Check up to this many weights.
         nmax = 30
         if type(layer.updates) == list:
-            updates = layer.updates[0].raw().ravel()
+            updates = layer.updates[0].asnumpyarray().ravel()
         else:
-            updates = layer.updates.raw().ravel()
-        weights = layer.weights.raw().ravel()
+            updates = layer.updates.asnumpyarray().ravel()
+        weights = layer.weights.asnumpyarray().ravel()
         grads = np.zeros(weights.shape)
         inds = np.random.choice(np.arange(weights.shape[0]),
                                 min(weights.shape[0], nmax),
@@ -55,11 +55,11 @@ class GradientChecker(Experiment):
             saved = weights[ind]
             weights[ind] += self.eps
             self.model.fprop(inputs)
-            cost1 = self.model.cost.apply_function(targets)
+            cost1 = self.model.cost.apply_function(targets).asnumpyarray()
 
             weights[ind] -= 2 * self.eps
             self.model.fprop(inputs)
-            cost2 = self.model.cost.apply_function(targets)
+            cost2 = self.model.cost.apply_function(targets).asnumpyarray()
 
             grads[ind] = ((cost1 - cost2) / self.model.layers[-1].batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))
@@ -79,10 +79,10 @@ class GradientChecker(Experiment):
         # Check up to this many weights.
         nmax = 30
         if type(layer.updates) == list:
-            updates = layer.updates[0].raw().ravel()
+            updates = layer.updates[0].asnumpyarray().ravel()
         else:
-            updates = layer.updates.raw().ravel()
-        weights = layer.weights.raw().ravel()
+            updates = layer.updates.asnumpyarray().ravel()
+        weights = layer.weights.asnumpyarray().ravel()
         grads = np.zeros(weights.shape)
         inds = np.random.choice(np.arange(weights.shape[0]),
                                 min(weights.shape[0], nmax),
@@ -92,12 +92,12 @@ class GradientChecker(Experiment):
             weights[ind] += self.eps
             self.model.data_layer.reset_counter()
             self.model.fprop()
-            cost1 = self.model.cost_layer.get_cost()
+            cost1 = self.model.cost_layer.get_cost().asnumpyarray()
 
             weights[ind] -= 2 * self.eps
             self.model.data_layer.reset_counter()
             self.model.fprop()
-            cost2 = self.model.cost_layer.get_cost()
+            cost2 = self.model.cost_layer.get_cost().asnumpyarray()
 
             grads[ind] = ((cost1 - cost2) / self.model.batch_size *
                           layer.learning_rule.learning_rate / (2 * self.eps))
@@ -128,7 +128,7 @@ class GradientChecker(Experiment):
             layer = self.model.layers[ind]
             if not (hasattr(layer, 'weights') and hasattr(layer, 'updates')):
                 continue
-            self.weights.append(layer.weights.copy())
+            self.weights.append(layer.backend.copy(layer.weights))
             self.trainable_layers.append(ind)
 
         if not hasattr(layer, 'dataset'):

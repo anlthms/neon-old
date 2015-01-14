@@ -17,11 +17,17 @@ class TestCPUTensor(object):
 
     def test_empty_creation(self):
         tns = CPUTensor([])
-        assert tns.shape == (0, )
+        expected_shape = (0, )
+        while len(expected_shape) < tns._min_dims:
+            expected_shape += (1, )
+        assert tns.shape == expected_shape
 
     def test_1d_creation(self):
         tns = CPUTensor([1, 2, 3, 4])
-        assert tns.shape == (4, )
+        expected_shape = (4, )
+        while len(expected_shape) < tns._min_dims:
+            expected_shape += (1, )
+        assert tns.shape == expected_shape
 
     def test_2d_creation(self):
         tns = CPUTensor([[1, 2], [3, 4]])
@@ -45,13 +51,19 @@ class TestCPUTensor(object):
     def test_scalar_slicing(self):
         tns = CPUTensor([[1, 2], [3, 4]])
         res = tns[1, 0]
-        assert res.shape == ()  # this matches numpy behavior
+        expected_shape = (1, )
+        while len(expected_shape) < res._min_dims:
+            expected_shape += (1, )
+        assert res.shape == expected_shape
         assert_tensor_equal(res, CPUTensor(3))
 
     def test_range_slicing(self):
         tns = CPUTensor([[1, 2], [3, 4]])
         res = tns[0:2, 0]
-        assert res.shape == (2, )
+        expected_shape = (2, )
+        while len(expected_shape) < res._min_dims:
+            expected_shape += (1, )
+        assert res.shape == expected_shape
         assert_tensor_equal(res, CPUTensor([1, 3]))
 
     def test_scalar_slice_assignment(self):
@@ -69,3 +81,8 @@ class TestCPUTensor(object):
         tns = CPUTensor([[1, 2], [3, 4]])
         res = tns.transpose()
         assert_tensor_equal(res, CPUTensor([[1, 3], [2, 4]]))
+
+    def test_fill(self):
+        tns = CPUTensor([[1, 2], [3, 4]])
+        tns.fill(-9.5)
+        assert_tensor_equal(tns, CPUTensor([[-9.5, -9.5], [-9.5, -9.5]]))

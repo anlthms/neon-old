@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class VecPar:
-    def __init__(self, backend):
+    def __init__(self, backend, model):
         if mpi_rank == 0:
             logger.info('Vecpar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
@@ -40,7 +40,7 @@ class VecPar:
         self.orig_fprop_fc(out, inputs[start:end], weights)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
-        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
         MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
@@ -61,7 +61,7 @@ class VecPar:
         scount *= bs
         rcount *= bs
         displ *= bs
-        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.raw()[start:end],
+        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.asnumpyarray()[start:end],
                                            scount, MPI.FLOAT],
                                   recvbuf=[recvbuf, rcount, displ, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
@@ -81,12 +81,9 @@ class DataPar:
         self.backend = backend
         self.orig_update_fc = backend.update_fc
         self.batch_size = backend.actual_batch_size / mpi_size
-        last_rank = mpi_size - 1
-        if mpi_rank == last_rank:
-            self.start = self.batch_size * last_rank
+        self.start = mpi_rank * self.batch_size
+        if mpi_rank == (mpi_size - 1):
             self.batch_size = backend.actual_batch_size - self.start
-        else:
-            self.start = mpi_rank * self.batch_size
         self.end = self.start + self.batch_size
 
         model.batch_size = self.batch_size
@@ -94,13 +91,13 @@ class DataPar:
                     mpi_rank, backend.actual_batch_size, model.batch_size)
 
     def distribute(self, batchdata):
-        return self.backend.wrap(batchdata[:, self.start:self.end])
+        return self.backend.array(batchdata[:, self.start:self.end])
 
     def update_fc(self, out, inputs, deltas):
         self.orig_update_fc(out, inputs, deltas)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
-        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
         MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)

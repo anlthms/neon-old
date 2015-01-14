@@ -62,9 +62,7 @@ class GradientDescent(LearningRule):
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
@@ -91,9 +89,7 @@ class GradientDescentPretrain(GradientDescent):
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
@@ -126,7 +122,7 @@ class GradientDescentMomentum(GradientDescent):
             self.velocity_rec = self.backend.zeros(params.shape,
                                                    self.velocity_dtype)
 
-    def allocate_state_LSTM(self, par_in, par_rec, par_b):
+    def allocate_state_lstm(self, par_in, par_rec, par_b):
         """For recurrent layer, need an extra velocity. It's a list of 12"""
         if (self.velocity_LSTM is None):
             self.velocity_LSTM = [self.backend.zeros(par_in.shape,
@@ -142,18 +138,15 @@ class GradientDescentMomentum(GradientDescent):
     def apply_rule_rec(self, params, updates, epoch):
         """ For recurrent layer, need an extra velocity """
         momentum_coef = self.get_momentum_coef(epoch)
-        self.backend.multiply(self.velocity_rec,
-                              self.backend.wrap(momentum_coef),
+        self.backend.multiply(self.velocity_rec, momentum_coef,
                               out=self.velocity_rec)
-        self.backend.multiply(updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=updates)
+        self.backend.multiply(updates, self.learning_rate, out=updates)
         self.backend.subtract(self.velocity_rec,
                               updates,
                               out=self.velocity_rec)
         self.backend.add(params, self.velocity_rec, out=params)
 
-    def apply_rule_LSTM(self, params, updates, epoch):
+    def apply_rule_lstm(self, params, updates, epoch):
         """
         For LSTM layer, need an extra velocity.
         The only difference is that the named velocity is hard coded
@@ -163,10 +156,10 @@ class GradientDescentMomentum(GradientDescent):
         # iterate the tuple
         for i in range(len(params)):
             self.backend.multiply(self.velocity_LSTM[i],
-                                  self.backend.wrap(momentum_coef),
+                                  momentum_coef,
                                   out=self.velocity_LSTM[i])
             self.backend.multiply(updates[i],
-                                  self.backend.wrap(self.learning_rate),
+                                  self.learning_rate,
                                   out=updates[i])
             self.backend.subtract(self.velocity_LSTM[i],
                                   updates[i],
@@ -183,12 +176,8 @@ class GradientDescentMomentum(GradientDescent):
         """
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item,
-                                  self.backend.wrap(momentum_coef),
-                                  out=vs_item)
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
             self.backend.add(ps_item, vs_item, out=ps_item)
 

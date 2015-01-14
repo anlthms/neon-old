@@ -122,14 +122,14 @@ class TestCPU(object):
     def test_argmin_axis0(self):
         be = CPU()
         tsr = be.array([[-1, 0], [1, 92]])
-        out = be.empty((2, ))
+        out = be.empty((1, 2))
         be.argmin(tsr, 0, out)
-        assert_tensor_equal(out, CPUTensor([0, 0]))
+        assert_tensor_equal(out, CPUTensor([[0, 0]]))
 
     def test_argmin_axis1(self):
         be = CPU()
         tsr = be.array([[-1, 10], [11, 9]])
-        out = be.empty((2, ))
+        out = be.empty((2, 1))
         be.argmin(tsr, 1, out)
         assert_tensor_equal(out, CPUTensor([0, 1]))
 
@@ -159,7 +159,7 @@ class TestCPU(object):
         rpow = 1. / 2
         # -> sum([[1, 0], [1, 9]], axis=0)**.5 -> sqrt([2, 9])
         assert_tensor_equal(self.be.norm(tsr, order=2, axis=0),
-                            CPUTensor([2**rpow, 9**rpow]))
+                            CPUTensor([[2**rpow, 9**rpow]]))
         # -> sum([[1, 0], [1, 9]], axis=1)**.5 -> sqrt([1, 10])
         assert_tensor_equal(self.be.norm(tsr, order=2, axis=1),
                             CPUTensor([1**rpow, 10**rpow]))
@@ -168,7 +168,7 @@ class TestCPU(object):
         tsr = self.be.array([[-1, 0], [1, 3]])
         # -> sum([[1, 0], [1, 3]], axis=0)**1 -> [2, 3]
         assert_tensor_equal(self.be.norm(tsr, order=1, axis=0),
-                            CPUTensor([2, 3]))
+                            CPUTensor([[2, 3]]))
         # -> sum([[1, 0], [1, 3]], axis=1)**1 -> [1, 4]
         assert_tensor_equal(self.be.norm(tsr, order=1, axis=1),
                             CPUTensor([1, 4]))
@@ -177,7 +177,7 @@ class TestCPU(object):
         tsr = self.be.array([[-1, 0], [1, 3]])
         # -> sum(tsr != 0, axis=0) -> [2, 1]
         assert_tensor_equal(self.be.norm(tsr, order=0, axis=0),
-                            CPUTensor([2, 1]))
+                            CPUTensor([[2, 1]]))
         # -> sum(tsr != 0, axis=1) -> [1, 2]
         assert_tensor_equal(self.be.norm(tsr, order=0, axis=1),
                             CPUTensor([1, 2]))
@@ -186,7 +186,7 @@ class TestCPU(object):
         tsr = self.be.array([[-1, 0], [1, 3]])
         # -> max(abs(tsr), axis=0) -> [1, 3]
         assert_tensor_equal(self.be.norm(tsr, order=float('inf'), axis=0),
-                            CPUTensor([1, 3]))
+                            CPUTensor([[1, 3]]))
         # -> max(abs(tsr), axis=1) -> [1, 3]
         assert_tensor_equal(self.be.norm(tsr, order=float('inf'), axis=1),
                             CPUTensor([1, 3]))
@@ -195,7 +195,7 @@ class TestCPU(object):
         tsr = self.be.array([[-1, 0], [1, 3]])
         # -> min(abs(tsr), axis=0) -> [1, 0]
         assert_tensor_equal(self.be.norm(tsr, order=float('-inf'), axis=0),
-                            CPUTensor([1, 0]))
+                            CPUTensor([[1, 0]]))
         # -> min(abs(tsr), axis=1) -> [0, 1]
         assert_tensor_equal(self.be.norm(tsr, order=float('-inf'), axis=1),
                             CPUTensor([0, 1]))
@@ -205,7 +205,7 @@ class TestCPU(object):
         rpow = 1. / 5
         # -> sum([[1, 0], [1, 243]], axis=0)**rpow -> rpow([2, 243])
         assert_tensor_equal(self.be.norm(tsr, order=5, axis=0),
-                            CPUTensor([2**rpow, 243**rpow]))
+                            CPUTensor([[2**rpow, 243**rpow]]))
         # -> sum([[1, 0], [1, 243]], axis=1)**rpow -> rpow([1, 244])
         # 244**.2 == ~3.002465 hence the near_equal test
         assert_tensor_near_equal(self.be.norm(tsr, order=5, axis=1),
@@ -216,7 +216,7 @@ class TestCPU(object):
         rpow = -1. / 3
         # -> sum([[1, .125], [1, .037037]], axis=0)**rpow -> rpow([2, .162037])
         assert_tensor_equal(self.be.norm(tsr, order=-3, axis=0),
-                            CPUTensor([2**rpow, .162037037037**rpow]))
+                            CPUTensor([[2**rpow, .162037037037**rpow]]))
         # -> sum([[1, .125], [1, .037037]], axis=1)**rpow ->
         # rpow([1.125, 1.037037])
         assert_tensor_near_equal(self.be.norm(tsr, order=-3, axis=1),

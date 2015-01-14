@@ -19,7 +19,7 @@ def test_xcov_cputensor():
     n = 10
     k = 8
     (k1, k2) = (3, 5)
-    a = np.array(np.random.randn(k, n)*10, dtype=np.float32, order='C')
+    a = np.array(np.random.randn(k, n)*10, dtype='float32', order='C')
     acc = xcc(a[:k1], a[k1:])
     expected_result = 0.5 * (acc**2.).sum()
 
@@ -40,7 +40,7 @@ def test_xcov_gputensor():
     n = 10
     k = 8
     (k1, k2) = (3, 5)
-    a = np.array(np.random.randn(k, n)*10, dtype=np.float32, order='C')
+    a = np.array(np.random.randn(k, n)*10, dtype='float32', order='C')
     acc = xcc(a[:k1], a[k1:])
     expected_result = 0.5 * (acc**2.).sum()
 
@@ -61,7 +61,7 @@ def test_xcov_derivative_cputensor():
     n = 10
     k = 8
     (k1, k2) = (3, 5)
-    a = np.array(np.random.randn(k, n), dtype=np.float32, order='C')
+    a = np.array(np.random.randn(k, n), dtype='float32', order='C')
     s = np.zeros_like(a)
     acc = xcc(a[:k1], a[k1:])  # k1 x k2
     c1 = a[k1:] - a[k1:].mean(1, keepdims=True)  # k2 x n
@@ -90,7 +90,7 @@ def test_xcov_derivative_gputensor():
     n = 10
     k = 8
     (k1, k2) = (3, 5)
-    a = np.array(np.random.randn(k, n), dtype=np.float32, order='C')
+    a = np.array(np.random.randn(k, n), dtype='float32', order='C')
     s = np.zeros_like(a)
     acc = xcc(a[:k1], a[k1:])  # k1 x k2
     c1 = a[k1:] - a[k1:].mean(1, keepdims=True)  # k2 x n
