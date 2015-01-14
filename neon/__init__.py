@@ -5,7 +5,7 @@
 neon - A highly configurable machine learning library
 =====================================================
 
-Full documentation is available at: http://atlas.localdomain:5700
+Full documentation is available at: http://framework.nervanasys.com/docs/latest
 """
 
 try:
