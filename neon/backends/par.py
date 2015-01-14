@@ -31,62 +31,60 @@ class VecPar(NoPar):
         self.orig_update_fc = backend.update_fc
 
     def configure(self, layer):
-        pass
-
-    def gen_weights(self, size, weight_params, dtype=None):
-        nout, realnin = size
+        if not hasattr(layer, 'nin'):
+            return
+        nout = layer.nout
+        realnin = layer.nin
         nin = realnin / mpi_size
-        start = mpi_rank * nin
+        layer.par_start = mpi_rank * nin
         if mpi_rank == (mpi_size - 1):
             # If the weights cannot be evenly partitioned, let the last
             # MPI node handle the extra weights.
-            end = realnin
+            layer.par_end = realnin
         else:
-            end = start + nin
+            layer.par_end = layer.par_start + nin
+        layer.par_fpropbuf = np.empty((layer.nout, layer.batch_size),
+                                      dtype=np.float32)
+        layer.par_bpropbuf = np.empty((layer.nin, layer.batch_size),
+                                      dtype=np.float32)
+        rcount = np.ones(mpi_size, dtype='int32') * nin
+        scount = layer.par_end - layer.par_start
+        rcount[-1] = realnin - nin * (mpi_size - 1)
+        displ = np.arange(0, realnin - nin + 1, nin)
+        scount *= layer.batch_size
+        rcount *= layer.batch_size
+        displ *= layer.batch_size
+        layer.par_rcount = rcount
+        layer.par_scount = scount
+        layer.par_displ = displ
+
+    def gen_weights(self, size, weight_params, dtype=None, layer=None):
+        assert layer is not None
         weights = self.orig_gen_weights(size, weight_params, dtype)
-        weights = weights[:, start:end]
+        weights = weights[:, layer.par_start:layer.par_end]
         return weights
 
     def fprop_fc(self, out, inputs, weights, layer):
-        realnin = inputs.shape[0]
-        nin = realnin / mpi_size
-        start = mpi_rank * nin
-        end = start + weights.shape[1]
-        self.orig_fprop_fc(out, inputs[start:end], weights)
-        # TODO: avoid this allocation.
-        recvbuf = np.empty(out.shape, dtype=np.float32)
+        self.orig_fprop_fc(out, inputs[layer.par_start:layer.par_end], weights)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
-                              recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
-        MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
-        out[:] = self.backend.array(recvbuf)
+                              recvbuf=[layer.par_fpropbuf, MPI.FLOAT],
+                              op=MPI.SUM)
+        MPI.COMM_WORLD.Bcast(buf=[layer.par_fpropbuf, MPI.FLOAT])
+        out[:] = self.backend.array(layer.par_fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
-        realnin = out.shape[0]
-        nin = realnin / mpi_size
-        start = mpi_rank * nin
-        end = start + weights.shape[1]
-        self.orig_bprop_fc(out[start:end], weights, deltas)
-        # TODO: avoid this allocation.
-        recvbuf = np.empty(out.shape, dtype=np.float32)
-        rcount = np.ones(mpi_size) * nin
-        bs = out.shape[1]
-        scount = end - start
-        rcount[-1] = realnin - nin * (mpi_size - 1)
-        displ = np.arange(0, realnin - nin + 1, nin)
-        scount *= bs
-        rcount *= bs
-        displ *= bs
-        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.asnumpyarray()[start:end],
-                                           scount, MPI.FLOAT],
-                                  recvbuf=[recvbuf, rcount, displ, MPI.FLOAT])
-        out[:] = self.backend.array(recvbuf)
+        self.orig_bprop_fc(out[layer.par_start:layer.par_end],
+                           weights, deltas)
+        MPI.COMM_WORLD.Allgatherv(
+            sendbuf=[out.asnumpyarray()[layer.par_start:layer.par_end],
+                     layer.par_scount, MPI.FLOAT],
+            recvbuf=[layer.par_bpropbuf, layer.par_rcount,
+                     layer.par_displ, MPI.FLOAT])
+        out[:] = self.backend.array(layer.par_bpropbuf)
 
     def update_fc(self, out, inputs, deltas, layer):
-        realnin = inputs.shape[0]
-        nin = realnin / mpi_size
-        start = mpi_rank * nin
-        end = start + out.shape[1]
-        self.orig_update_fc(out, inputs[start:end], deltas)
+        self.orig_update_fc(out, inputs[layer.par_start:layer.par_end],
+                            deltas)
 
 
 class DataPar(NoPar):
@@ -108,7 +106,8 @@ class DataPar(NoPar):
     def configure(self, layer):
         if not hasattr(layer, 'nin'):
             return
-        layer.recvbuf = np.empty((layer.nout, layer.nin), dtype=np.float32)
+        layer.par_updatebuf = np.empty((layer.nout, layer.nin),
+                                       dtype=np.float32)
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
@@ -116,6 +115,7 @@ class DataPar(NoPar):
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
-                              recvbuf=[layer.recvbuf, MPI.FLOAT], op=MPI.SUM)
-        MPI.COMM_WORLD.Bcast(buf=[layer.recvbuf, MPI.FLOAT])
-        out[:] = self.backend.array(layer.recvbuf)
+                              recvbuf=[layer.par_updatebuf, MPI.FLOAT],
+                              op=MPI.SUM)
+        MPI.COMM_WORLD.Bcast(buf=[layer.par_updatebuf, MPI.FLOAT])
+        out[:] = self.backend.array(layer.par_updatebuf)

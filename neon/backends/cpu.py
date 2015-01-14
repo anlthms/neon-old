@@ -892,7 +892,7 @@ class CPU(Backend):
         np.multiply(out._tensor, y._tensor, out._tensor)
         return out
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -906,7 +906,7 @@ class CPU(Backend):
         """
         self.dot(weights, inputs, out)
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 

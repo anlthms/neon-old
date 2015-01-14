@@ -619,7 +619,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -636,7 +636,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 
@@ -650,7 +650,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 

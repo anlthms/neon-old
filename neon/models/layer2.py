@@ -343,7 +343,7 @@ class WeightLayer(Layer):
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
         self.weights = self.backend.gen_weights(
-            self.weight_shape, self.weight_init, self.weight_dtype)
+            self.weight_shape, self.weight_init, self.weight_dtype, self)
         self.weight_updates = make_ebuf(self.weights.shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init
@@ -405,7 +405,7 @@ class FCLayer(WeightLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
-                              weights=self.weights)
+                              weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
@@ -418,7 +418,7 @@ class FCLayer(WeightLayer):
 
         if self.berror is not None:
             self.backend.bprop_fc(out=self.berror, weights=self.weights,
-                                  deltas=error)
+                                  deltas=error, layer=self)
 
         upm = self.utemp if self.accumulate else self.updates
 
