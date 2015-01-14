@@ -962,9 +962,6 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
-    def fprop_fc_impl(self, out, inputs, weights):
-        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
-
     def fprop_fc(self, out, inputs, weights):
         """
         Forward propagate the inputs of a fully connected network layer to
@@ -977,10 +974,7 @@ class GPU(Backend):
                                 layer), or the outputs from the previous layer.
             weights (GPUTensor): The weight coefficient values for this layer.
         """
-        self.fprop_fc_impl(out, inputs, weights)
-
-    def bprop_fc_impl(self, out, weights, deltas):
-        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
+        cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
     def bprop_fc(self, out, weights, deltas):
         """
@@ -991,10 +985,7 @@ class GPU(Backend):
             weights (GPUTensor): The weight coefficient values for this layer.
             deltas (GPUTensor): The error values for this layer
         """
-        self.bprop_fc_impl(out, weights, deltas)
-
-    def update_fc_impl(self, out, inputs, deltas):
-        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
+        cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
     def update_fc(self, out, inputs, deltas):
         """
@@ -1006,7 +997,7 @@ class GPU(Backend):
                                 layer), or the outputs from the previous layer.
             deltas (GPUTensor): The error values for this layer
         """
-        self.update_fc_impl(out, inputs, deltas)
+        cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
                    links, nifm, padding, stride, ngroups, fpropbuf,
@@ -1420,8 +1411,22 @@ class GPU(Backend):
         """
         dev_weights[:] = GPUTensor(numpy.array(host_weights, numpy.float32))
 
-    def gen_weights_impl(self, size, weight_params, dtype=None):
-        # FIXME: Get rid of duplication.
+    def gen_weights(self, size, weight_params, dtype=None):
+        """
+        Different types of weight initializations.  Includes:
+        * uniform - uniform distribution
+        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
+        maximum eigenvalue of the weight matrix is scaled to 1.2
+        * normal or gaussian - normal distribution
+        * node_normalized - initialization is as discussed in Glorot2010
+
+        Arguments:
+            size: shape of the weight matrix to generate
+            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
+
+        Returns:
+            GPUTensor: The initialized weights
+        """
         weights = None
         if weight_params['type'] == 'uniform':
             low = 0.0
@@ -1485,24 +1490,6 @@ class GPU(Backend):
             raise AttributeError("invalid weight_params specified")
 
         return GPUTensor(numpy.array(weights, numpy.float32))
-
-    def gen_weights(self, size, weight_params, dtype=None):
-        """
-        Different types of weight initializations.  Includes:
-        * uniform - uniform distribution
-        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
-        maximum eigenvalue of the weight matrix is scaled to 1.2
-        * normal or gaussian - normal distribution
-        * node_normalized - initialization is as discussed in Glorot2010
-
-        Arguments:
-            size: shape of the weight matrix to generate
-            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
-
-        Returns:
-            GPUTensor: The initialized weights
-        """
-        return self.gen_weights_impl(size, weight_params, dtype)
 
 
 class GPUDataDist(GPU):

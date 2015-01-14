@@ -13,6 +13,10 @@ class VecPar:
         if mpi_rank == 0:
             logger.info('Vecpar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
+        self.orig_gen_weights = backend.gen_weights
+        self.orig_fprop_fc = backend.fprop_fc
+        self.orig_bprop_fc = backend.bprop_fc
+        self.orig_update_fc = backend.update_fc
 
     def gen_weights(self, size, weight_params, dtype=None):
         nout, realnin = size
@@ -24,7 +28,7 @@ class VecPar:
             end = realnin
         else:
             end = start + nin
-        weights = self.backend.gen_weights_impl(size, weight_params, dtype)
+        weights = self.orig_gen_weights(size, weight_params, dtype)
         weights = weights[:, start:end]
         return weights
 
@@ -33,7 +37,7 @@ class VecPar:
         nin = realnin / mpi_size
         start = mpi_rank * nin
         end = start + weights.shape[1]
-        self.backend.fprop_fc_impl(out, inputs[start:end], weights)
+        self.orig_fprop_fc(out, inputs[start:end], weights)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
@@ -46,8 +50,7 @@ class VecPar:
         nin = realnin / mpi_size
         start = mpi_rank * nin
         end = start + weights.shape[1]
-        self.backend.bprop_fc_impl(out[start:end], weights, deltas)
-
+        self.orig_bprop_fc(out[start:end], weights, deltas)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         rcount = np.ones(mpi_size) * nin
@@ -68,7 +71,7 @@ class VecPar:
         nin = realnin / mpi_size
         start = mpi_rank * nin
         end = start + out.shape[1]
-        self.backend.update_fc_impl(out, inputs[start:end], deltas)
+        self.orig_update_fc(out, inputs[start:end], deltas)
 
 
 class DataPar:
@@ -76,6 +79,7 @@ class DataPar:
         if mpi_rank == 0:
             logger.info('Datapar mode. Number of nodes = %d.', mpi_size)
         self.backend = backend
+        self.orig_update_fc = backend.update_fc
         self.batch_size = backend.actual_batch_size / mpi_size
         last_rank = mpi_size - 1
         if mpi_rank == last_rank:
@@ -93,7 +97,7 @@ class DataPar:
         return self.backend.wrap(batchdata[:, self.start:self.end])
 
     def update_fc(self, out, inputs, deltas):
-        self.backend.update_fc_impl(out, inputs, deltas)
+        self.orig_update_fc(out, inputs, deltas)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
         MPI.COMM_WORLD.Reduce(sendbuf=[out.raw(), MPI.FLOAT],
