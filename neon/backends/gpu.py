@@ -399,8 +399,8 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
-        # mpi_rank defaults to 0.
-        cudanet.set_device_id(mpi_rank)
+        # set cuda device to device 0 by default
+        cudanet.set_device_id(0)
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()

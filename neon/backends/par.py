@@ -36,7 +36,7 @@ class VecPar:
         self.backend.fprop_fc_impl(out, inputs[start:end], weights)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
-        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw, MPI.FLOAT],
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
         MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
@@ -58,7 +58,7 @@ class VecPar:
         scount *= bs
         rcount *= bs
         displ *= bs
-        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.raw[start:end],
+        MPI.COMM_WORLD.Allgatherv(sendbuf=[out.asnumpyarray()[start:end],
                                            scount, MPI.FLOAT],
                                   recvbuf=[recvbuf, rcount, displ, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
@@ -93,7 +93,7 @@ class DataPar:
         self.backend.update_fc_impl(out, inputs, deltas)
         # TODO: avoid this allocation.
         recvbuf = np.empty(out.shape, dtype=np.float32)
-        MPI.COMM_WORLD.Reduce(sendbuf=[out.raw, MPI.FLOAT],
+        MPI.COMM_WORLD.Reduce(sendbuf=[out.asnumpyarray(), MPI.FLOAT],
                               recvbuf=[recvbuf, MPI.FLOAT], op=MPI.SUM)
         MPI.COMM_WORLD.Bcast(buf=[recvbuf, MPI.FLOAT])
         out[:] = self.backend.array(recvbuf)
