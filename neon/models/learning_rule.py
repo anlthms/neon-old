@@ -62,9 +62,7 @@ class GradientDescent(LearningRule):
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
@@ -91,9 +89,7 @@ class GradientDescentPretrain(GradientDescent):
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(ps_item, us_item, out=ps_item)
 
 
@@ -110,33 +106,65 @@ class GradientDescentMomentum(GradientDescent):
             raise AttributeError("Missing required momentum parameters")
         self.velocity = []
         self.velocity_rec = None
+        self.velocity_LSTM = None
         self.velocity_dtype = param_dtype
 
     def allocate_state(self, params):
+        self.velocity = []
         for item in params:
             self.velocity.append(self.backend.zeros(item.shape,
                                                     self.velocity_dtype))
 
     def allocate_state_rec(self, params):
         """For recurrent layer, need an extra velocity """
-        if (self.velocity_rec is None) \
-                or (self.velocity_rec.shape != params.shape):
-                    self.velocity_rec = self.backend.zeros(params.shape,
-                                                           self.velocity_dtype)
+        if ((self.velocity_rec is None) or (self.velocity_rec.shape !=
+                                            params.shape)):
+            self.velocity_rec = self.backend.zeros(params.shape,
+                                                   self.velocity_dtype)
+
+    def allocate_state_lstm(self, par_in, par_rec, par_b):
+        """For recurrent layer, need an extra velocity. It's a list of 12"""
+        if (self.velocity_LSTM is None):
+            self.velocity_LSTM = [self.backend.zeros(par_in.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)] + \
+                                 [self.backend.zeros(par_rec.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)] + \
+                                 [self.backend.zeros(par_b.shape,
+                                                     self.velocity_dtype)
+                                  for k in range(4)]
 
     def apply_rule_rec(self, params, updates, epoch):
         """ For recurrent layer, need an extra velocity """
         momentum_coef = self.get_momentum_coef(epoch)
-        self.backend.multiply(self.velocity_rec,
-                              self.backend.wrap(momentum_coef),
+        self.backend.multiply(self.velocity_rec, momentum_coef,
                               out=self.velocity_rec)
-        self.backend.multiply(updates,
-                              self.backend.wrap(self.learning_rate),
-                              out=updates)
+        self.backend.multiply(updates, self.learning_rate, out=updates)
         self.backend.subtract(self.velocity_rec,
                               updates,
                               out=self.velocity_rec)
         self.backend.add(params, self.velocity_rec, out=params)
+
+    def apply_rule_lstm(self, params, updates, epoch):
+        """
+        For LSTM layer, need an extra velocity.
+        The only difference is that the named velocity is hard coded
+        [TODO] Just pass the name of the velocity to use! (e.g. in a dict)
+        """
+        momentum_coef = self.get_momentum_coef(epoch)
+        # iterate the tuple
+        for i in range(len(params)):
+            self.backend.multiply(self.velocity_LSTM[i],
+                                  momentum_coef,
+                                  out=self.velocity_LSTM[i])
+            self.backend.multiply(updates[i],
+                                  self.learning_rate,
+                                  out=updates[i])
+            self.backend.subtract(self.velocity_LSTM[i],
+                                  updates[i],
+                                  out=self.velocity_LSTM[i])
+            self.backend.add(params[i], self.velocity_LSTM[i], out=params[i])
 
     def apply_rule(self, params, updates, epoch):
         """
@@ -148,12 +176,8 @@ class GradientDescentMomentum(GradientDescent):
         """
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item,
-                                  self.backend.wrap(momentum_coef),
-                                  out=vs_item)
-            self.backend.multiply(us_item,
-                                  self.backend.wrap(self.learning_rate),
-                                  out=us_item)
+            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+            self.backend.multiply(us_item, self.learning_rate, out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
             self.backend.add(ps_item, vs_item, out=ps_item)
 
@@ -257,34 +281,5 @@ class AdaDelta(LearningRule):
         for ps_item, us_item, gs_item, ds_item, ls_item, ss_item in zip(
                 params, updates, self.exp_gradsq,
                 self.exp_deltsq, self.lrates, self.scratch_space):
-            # Accumulate E[Grad^2]
-            self.backend.multiply(gs_item, self.backend.wrap(self.rho),
-                                  out=gs_item)
-            self.backend.multiply(us_item, us_item, out=ss_item)
-            self.backend.multiply(ss_item,
-                                  self.backend.wrap(1.0 - self.rho),
-                                  out=ss_item)
-            self.backend.add(gs_item, ss_item, out=gs_item)
-
-            # Calculate Updates
-            self.backend.add(gs_item, self.backend.wrap(self.epsilon),
-                             out=ss_item)
-            self.backend.add(ds_item, self.backend.wrap(self.epsilon),
-                             out=ls_item)
-            self.backend.divide(ls_item, ss_item, out=ls_item)
-            self.backend.sqrt(ls_item, out=ls_item)
-            self.backend.multiply(ls_item, self.backend.wrap(-1.0),
-                                  out=ls_item)
-            self.backend.multiply(ls_item, us_item, out=ls_item)
-
-            # Accumulate E[Delt^2]
-            self.backend.multiply(ds_item, self.backend.wrap(self.rho),
-                                  out=ds_item)
-            self.backend.multiply(ls_item, ls_item, out=ss_item)
-            self.backend.multiply(ss_item,
-                                  self.backend.wrap(1.0 - self.rho),
-                                  out=ss_item)
-            self.backend.add(ds_item, ss_item, out=ds_item)
-
-            # Final update to the params
-            self.backend.add(ps_item, ls_item, out=ps_item)
+            self.backend.ada_update(ps_item, us_item, gs_item, ds_item,
+                                    ls_item, ss_item, self.rho, self.epsilon)

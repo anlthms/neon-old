@@ -23,19 +23,26 @@ class GB(MLP):
     """
     Google Brain class
     """
+    def __init__(self, **kwargs):
+        super(GB, self).__init__(**kwargs)
+        self.pretrain_cost.initialize(kwargs)
 
     def pretrain(self, ds, inputs):
+        num_batches = len(inputs)
         start_time = time.time()
         logger.debug('commencing unsupervised pretraining')
+        tcost = self.backend.empty((1, 1))
+        trcost = self.backend.empty((1, 1))
+        tspcost = self.backend.empty((1, 1))
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
             for epoch in range(self.num_pretrain_epochs):
-                tcost = 0.0
-                trcost = 0.0
-                tspcost = 0.0
-                for batch in range(inputs.nbatches):
+                tcost.fill(0.0)
+                trcost.fill(0.0)
+                tspcost.fill(0.0)
+                for batch in range(num_batches):
                     logger.debug('batch = %d', batch)
                     output = ds.get_batch(inputs, batch)
                     # Forward propagate the input all the way to
@@ -46,14 +53,14 @@ class GB(MLP):
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
                                                    epoch)
-                    trcost += rcost
-                    tspcost += spcost
-                tcost = trcost + tspcost
+                    self.backend.add(trcost, rcost, trcost)
+                    self.backend.add(tspcost, spcost, tspcost)
+                self.backend.add(trcost, tspcost, tcost)
                 logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
                             ' %0.2f', self.trainable_layers[ind], epoch,
-                            trcost / inputs.nbatches,
-                            tspcost / inputs.nbatches,
-                            tcost / inputs.nbatches)
+                            trcost.asnumpyarray() / num_batches,
+                            tspcost.asnumpyarray() / num_batches,
+                            tcost.asnumpyarray() / num_batches)
                 if self.visualize:
                     self.save_figs(layer.nifm, layer.ifmshape,
                                    [output, layer.defilter.output],
@@ -71,13 +78,16 @@ class GB(MLP):
         """
         Learn model weights on the given datasets.
         """
+        num_batches = len(inputs)
         logger.info('commencing supervised training')
-        tempbuf = self.backend.empty((targets.nrows, self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        tempbuf1 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        tempbuf2 = self.backend.empty((targets[0].shape[0], self.batch_size))
+        self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
-            for batch in range(inputs.nbatches):
+            error.fill(0.0)
+            for batch in range(num_batches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
@@ -86,13 +96,15 @@ class GB(MLP):
                     self.bprop_last(targets_batch, inputs_batch)
                 else:
                     self.bprop(targets_batch, inputs_batch)
-                error += self.cost.apply_function(targets_batch)
+                self.backend.add(error,
+                                 self.cost.apply_function(targets_batch),
+                                 error)
                 if epoch < self.num_initial_epochs:
                     self.update_last(epoch)
                 else:
                     self.update(epoch)
             logger.info('epoch: %d, training error: %0.5f',
-                        epoch, error / inputs.nbatches)
+                        epoch, error.asnumpyarray() / num_batches)
         end_time = time.time()
         logger.info('Time taken: %0.2f', end_time - start_time)
 
@@ -114,7 +126,7 @@ class GB(MLP):
             # Get the output of the last LCN layer.
             pred = self.layers[-2].output[:, node]
             auc += metrics.roc_auc_score(
-                labels[start_idx:end_idx].raw(), pred.raw())
+                labels[start_idx:end_idx].asnumpyarray(), pred.asnumpyarray())
         auc /= num_batches
         return auc
 
@@ -138,11 +150,12 @@ class GB(MLP):
                 for node in range(auc.shape[0]):
                     pred = self.layers[-2].output[:, node]
                     auc[node] += metrics.roc_auc_score(
-                        labels[start_idx:end_idx].raw(), pred.raw())
+                        labels[start_idx:end_idx].asnumpyarray(),
+                        pred.asnumpyarray())
             auc /= num_batches
             maxnode = self.backend.empty((1, 1))
             self.backend.argmax(auc, axis=None, out=maxnode)
-            maxnode = maxnode.raw()
+            maxnode = maxnode.asnumpyarray()
             maxauc = auc[maxnode]
             # Check classification accuracy of the best neuron on the test set.
             testauc = self.check_node_predictions(test_inputs, test_targets,
@@ -155,19 +168,17 @@ class GB(MLP):
     def bprop_last(self, targets, inputs):
         # Backprop on just the last layer.
         error = self.cost.apply_derivative(targets)
-        self.backend.divide(error, self.backend.wrap(targets.shape[0]),
-                            out=error)
+        self.backend.divide(error, targets.shape[0], out=error)
         self.layers[-1].bprop(error, self.layers[-2].output)
 
     def update_last(self, epoch):
         self.layers[-1].update(epoch)
 
-    def fit(self, datasets):
-        ds = datasets[0]
+    def fit(self, ds):
         inputs = ds.get_inputs(train=True)['train']
-        self.nin, self.nrecs = inputs.shape
+        self.nrecs = len(inputs) * self.batch_size
+        self.nin = inputs[0].shape[0]
         self.nlayers = len(self.layers)
-        assert 'batch_size' in self.__dict__
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]
@@ -206,9 +217,9 @@ class GB(MLP):
         outmax = lastlayer.output[range(self.batch_size),
                                   range(self.batch_size)]
         maxinds = self.backend.empty((self.batch_size, self.batch_size),
-                                     dtype="i32")
+                                     dtype='int32')
         notinds = self.backend.empty((self.batch_size, self.batch_size),
-                                     dtype="i32")
+                                     dtype='int32')
         ifmshape = (self.layers[0].ifmheight, self.layers[0].ifmwidth)
         inc = 0.1
         # Do a greedy search to find input data that maximizes the output
@@ -217,7 +228,7 @@ class GB(MLP):
             inc *= -0.9
             count = 0
             for col in range(self.nin):
-                saved = inputs.copy()
+                saved = self.backend.copy(inputs)
                 inputs[:, col] += inc
                 self.normalize(inputs)
                 self.fprop(inputs)
@@ -231,16 +242,17 @@ class GB(MLP):
             logger.info('loop %d inc %.4f count %d', loops, inc, count)
             for ind in range(self.batch_size):
                 if self.layers[0].nifm == 3:
-                    img = inputs[ind].raw().reshape((3, ifmshape[0],
-                                                     ifmshape[1]))
-                    rimg = img.copy().reshape((ifmshape[0], ifmshape[1], 3))
+                    img = inputs[ind].asnumpyarray().reshape((3, ifmshape[0],
+                                                              ifmshape[1]))
+                    rimg = self.backend.copy(img).reshape((ifmshape[0],
+                                                           ifmshape[1], 3))
                     for dim in range(3):
                         rimg[:ifmshape[0], :ifmshape[1], dim] = (
                             img[dim, :ifmshape[0], :ifmshape[1]])
                     plt.imshow(rimg, interpolation='nearest')
                 else:
                     assert self.layers[0].nifm == 1
-                    rimg = inputs[ind].raw().reshape(ifmshape)
+                    rimg = inputs[ind].asnumpyarray().reshape(ifmshape)
                     plt.imshow(rimg, interpolation='nearest', cmap='gray')
                 plt.savefig(ensure_dirs_exist(os.path.join('imgs', 'img') +
                                               str(ind)))
@@ -250,11 +262,11 @@ class GB(MLP):
         assert len(names) == len(imgs)
         height, width = fmshape
         for i in range(len(names)):
-            img = imgs[i].raw()[0]
+            img = imgs[i].asnumpyarray()[0]
             img = img.reshape((nfm, height, width))
             if nfm == 3:
                 # Plot in color.
-                rimg = img.copy().reshape((height, width, 3))
+                rimg = self.backend.copy(img).reshape((height, width, 3))
                 for dim in range(3):
                     rimg[:height, :width, dim] = img[dim, :height, :width]
                 plt.imshow(rimg, interpolation='nearest')

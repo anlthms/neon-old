@@ -24,7 +24,6 @@ else:
 
 
 class GBDist(GB):
-
     """
     MPI Distributed Google Brain class
     """
@@ -94,8 +93,6 @@ class GBDist(GB):
         inputs = datasets[0].get_inputs(train=True)['train']
         self.nrecs, self.nin = inputs.shape
         self.nlayers = len(self.layers)
-        if 'batch_size' not in self.__dict__:
-            self.batch_size = self.nrecs
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]
@@ -122,7 +119,7 @@ class GBDist(GB):
     def pretrain(self, inputs, ds):
         start_time = time.time()
         logger.info('commencing unsupervised pretraining')
-        num_batches = inputs.nbatches
+        num_batches = len(inputs)
         for ind in range(len(self.trainable_layers)):
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
@@ -181,10 +178,11 @@ class GBDist(GB):
         Learn model weights on the given datasets.
         """
         logger.info('commencing supervised training')
-        tempbuf = self.backend.zeros((targets.nrows, self.batch_size))
-        self.temp = [tempbuf, tempbuf.copy()]
+        tempbuf1 = self.backend.zeros((targets[0].shape[0], self.batch_size))
+        tempbuf2 = self.backend.zeros((targets[0].shape[0], self.batch_size))
+        self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
-        num_batches = inputs.nbatches
+        num_batches = len(inputs)
         for epoch in range(self.num_epochs):
             error = 0.0
             for batch in range(num_batches):
@@ -225,11 +223,9 @@ class GBDist(GB):
             self.error = self.cost.apply_derivative(self.backend,
                                                     self.layers[-1].output,
                                                     targets, self.temp)
-            self.backend.divide(
-                self.error, self.backend.wrap(targets.shape[1]),
-                out=self.error)
+            self.backend.divide(self.error, targets.shape[1], out=self.error)
         # MPI: broadcast the error matrix
-        self.error._tensor = MPI.COMM_WORLD.bcast(self.error.raw())
+        self.error._tensor = MPI.COMM_WORLD.bcast(self.error.asnumpyarray())
         self.layers[-1].pre_act_ = self.layers[-1].pre_act
         self.layers[-1].bprop(self.error, self.layers[-2].output)
 
@@ -243,9 +239,8 @@ class GBDist(GB):
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
-            self.backend.divide(error, self.backend.wrap(targets.shape[1]),
-                                out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.raw())
+            self.backend.divide(error, targets.shape[1], out=error)
+        error._tensor = MPI.COMM_WORLD.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         lastlayer.bprop(error, self.layers[i - 1].output)
@@ -284,10 +279,10 @@ class GBDist(GB):
                     self.layers[i].input.local_array.chunk)
 
     def predict_set(self, ds, inputs):
-        nrecs = inputs.nbatches * self.batch_size
+        num_batches = len(inputs)
+        nrecs = num_batches * self.batch_size
         if MPI.COMM_WORLD.rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
-        num_batches = inputs.nbatches
         for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)

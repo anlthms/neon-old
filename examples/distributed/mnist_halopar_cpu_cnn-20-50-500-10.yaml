@@ -9,16 +9,13 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      dist_flag: *df,
-      dist_mode: 'halopar', # halo/tower split
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-    },
-  ],
+  dataset: !obj:neon.datasets.mnist.MNIST {
+    dist_flag: *df,
+    dist_mode: 'halopar', # halo/tower split
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+  },
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
@@ -137,7 +134,9 @@
         },
         nin: 500,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
           type: uniform,
           low: -0.1,

@@ -14,27 +14,32 @@ class Cost(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['olayer']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
-
-        if not hasattr(self, 'backend'):
-            self.backend = self.olayer.backend
 
         if not hasattr(self, 'temp_dtype'):
             self.temp_dtype = None
 
+        if not hasattr(self, 'scale'):
+            self.scale = 1.0
+
+        self.outputbuf = None
+        self.temp = None
+
+    def initialize(self, kwargs):
+        self.__dict__.update(kwargs)
+        if not hasattr(self, 'backend'):
+            self.backend = self.olayer.backend
+
         if not hasattr(self, 'batch_size'):
             self.batch_size = self.olayer.batch_size
 
-        self.outputbuf = None
         if not hasattr(self, 'olayer_data'):
-            self.set_outputbuf(getattr(self.olayer, 'output'))
+            self.olayer_data = 'output'
+
+        if not hasattr(self.olayer, self.olayer_data):
+            raise ValueError("Layer %s does not have buffer %s" %
+                             (self.olayer.name, self.olayer_data))
         else:
-            if not hasattr(self.olayer, self.olayer_data):
-                raise ValueError("Layer %s does not have buffer %s" %
-                                 (self.olayer.name, self.olayer_data))
+            self.set_outputbuf(getattr(self.olayer, self.olayer_data))
 
     def set_outputbuf(self, databuf):
         """

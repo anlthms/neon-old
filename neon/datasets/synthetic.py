@@ -38,7 +38,7 @@ class UniformRandom(Dataset):
     def load_data(self, shape):
         data = np.random.uniform(low=0.0, high=1.0, size=shape)
         labels = np.random.randint(low=0, high=self.nout, size=shape[0])
-        onehot = np.zeros((len(labels), self.nout), dtype=np.float32)
+        onehot = np.zeros((len(labels), self.nout), dtype='float32')
         for col in range(self.nout):
             onehot[:, col] = (labels == col)
         return (data, onehot)
@@ -93,8 +93,8 @@ class ToyImages(Dataset):
         self.ellipse(canvas, rad, rad)
 
     def load_data(self, shape):
-        data = np.zeros(shape, dtype=np.float32)
-        labels = np.zeros(shape[0], dtype=np.float32)
+        data = np.zeros(shape, dtype='float32')
+        labels = np.zeros(shape[0], dtype='float32')
         ncircles = shape[0] / 2
 
         for row in range(0, ncircles):
@@ -112,7 +112,7 @@ class ToyImages(Dataset):
             labels[row] = 1
 
         data /= 255
-        onehot = np.zeros((len(labels), self.nout), dtype=np.float32)
+        onehot = np.zeros((len(labels), self.nout), dtype='float32')
         for col in range(self.nout):
             onehot[:, col] = (labels == col)
         return (data, onehot)

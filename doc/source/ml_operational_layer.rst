@@ -53,6 +53,7 @@ access metadata.
    neon.backends.backend.Tensor.take
    neon.backends.backend.Tensor.__getitem__
    neon.backends.backend.Tensor.__setitem__
+   neon.backends.backend.Tensor.fill
    neon.backends.backend.Tensor.transpose
    neon.backends.backend.Tensor.reshape
    neon.backends.backend.Tensor.repeat
@@ -137,3 +138,28 @@ Fully Connected Neural Network Layer
    neon.backends.backend.Backend.fprop_fc
    neon.backends.backend.Backend.bprop_fc
    neon.backends.backend.Backend.update_fc
+
+Convolutional Neural Network Layer
+----------------------------------
+.. autosummary::
+
+   neon.backends.backend.Backend.fprop_conv
+   neon.backends.backend.Backend.bprop_conv
+   neon.backends.backend.Backend.update_conv
+
+Pooling Neural Network Layer
+----------------------------
+.. autosummary::
+
+   neon.backends.backend.Backend.fprop_pool
+   neon.backends.backend.Backend.bprop_pool
+
+CrossMap Neural Network Layer
+-----------------------------
+.. autosummary::
+
+   neon.backends.backend.Backend.fprop_cmpool
+   neon.backends.backend.Backend.bprop_cmpool
+   neon.backends.backend.Backend.update_cmpool
+   neon.backends.backend.Backend.fprop_cmrnorm
+   neon.backends.backend.Backend.bprop_cmrnorm

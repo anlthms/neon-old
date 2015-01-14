@@ -25,7 +25,8 @@ def sanity_check(conf_file, result):
     dir = os.path.dirname(os.path.realpath(__file__))
     experiment = deserialize(os.path.join(dir, conf_file))
     experiment.run()
-    assert experiment.model.result == result
+    print(float(experiment.model.result.asnumpyarray()))
+    assert float(experiment.model.result.asnumpyarray()) == result
 
 if __name__ == '__main__':
     res = 0

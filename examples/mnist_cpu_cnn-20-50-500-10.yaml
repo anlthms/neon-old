@@ -8,139 +8,105 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
+  # MNIST data
+  dataset: &ds !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+  },
+
+  weight_init: &wt_init {
+    type: uniform,
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrules: [
+    &gd {
+      type: gradient_descent,
+      lr_params: {
+        learning_rate: 0.01,
+        backend: *be,
+      },
+    },
+    &gdm {
+      type: gradient_descent_momentum,
+      lr_params: {
+        learning_rate: 0.01,
+        backend: *be,
+        momentum_params: {
+          type: constant, # linear_monotone, nesterov
+          coef: 0.90,
+        },
+      },
+    },
+    &ada {
+      type: adadelta,
+      lr_params: {
+        rho: &ro 0.95,
+        epsilon: &eps 0.000001,
+        backend: *be,
+      },
     },
   ],
-
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 2,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        nout: 784,
+      },
+      !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
-          name: l1lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-          },
-        },
-        nifm: 1,
         nofm: 20,
-        ifmshape: [28, 28],
         fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        lrule_init: *gd,
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer2,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        nifm: 20,
-        ifmshape: [24, 24],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer3,
-        backend: *be,
-        batch_size: *bs,
-        pos: 2,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
-          name: l3lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-          },
-        },
-        nifm: 20,
         nofm: 50,
-        ifmshape: [12, 12],
         fshape: [5, 5],
-        stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        lrule_init: *gd,
+        weight_init: *wt_init,
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer4,
-        backend: *be,
-        batch_size: *bs,
-        pos: 3,
-        nifm: 50,
-        ifmshape: [8, 8],
+        op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
         name: layer5,
-        backend: *be,
-        batch_size: *bs,
-        pos: 4,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: l4lr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant, # linear_monotone, nesterov
-              coef: 0.90,
-            },
-          },
-        },
-        nin: 800, # nifm * ((ih - ph) / stride + 1) * ((iw - pw) / stride + 1)
         nout: 500,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 5,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: l5lr,
-          lr_params: {
-            backend: *be,
-            learning_rate: *lr,
-            momentum_params: *mm,
-          },
-        },
-        nin: 500,
         nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
 
   # logging options that are passed to logging.basicConfig

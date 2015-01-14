@@ -1,12 +1,14 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test a small 1 hidden layer Neural Net on full
-# MNIST, using Adadelta based updates.
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST.  Parameters are optimized for performance.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
+    # set which numpy issues raise exceptions, warnings, etc.
+    # see: numpy.seterr()
     seterr_handling: {
       all: 'warn',
     },
@@ -24,30 +26,28 @@
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 10,
+    num_epochs: 100,
     batch_size: &bs 100,
+    # serialized_path: './mlp-simple.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
           name: h0lr,
           lr_params: {
+            learning_rate: &lr 0.00001,
             backend: *be,
-            rho: &rh 0.95,
-            epsilon: &ep 0.00001,
           },
         },
         nin: 784,
-        nout: 100,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        nout: 512,
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
-          type: normal,
-          loc: 0.0,
-          scale: 0.01,
-          bias_init: 0.0,
+          type: uniform,
+          scale: 0.1,
         },
       },
       &lastlayer !obj:neon.models.layer.Layer {
@@ -55,21 +55,21 @@
         backend: *be,
         batch_size: *bs,
         pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.AdaDelta {
-          name: h0lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescent {
+          name: outputlr,
           lr_params: {
+            learning_rate: *lr,
             backend: *be,
-            rho: *rh,
-            epsilon: *ep,
           },
         },
-        nin: 100,
+        nin: 512,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {
+          shortcut_deriv: True,
+        },
         weight_init: {
-          type: node_normalized,
-          scale: 4.0,
-          bias_init: 0.0,
+          type: uniform,
+          scale: 0.1,
         },
       },
     ],

@@ -204,9 +204,9 @@ class LocalArray(object):
                 traceback.print_stack()
 
             comm.Sendrecv(sendbuf=self.local_image.take(
-                self.send_halos[k].halo_indices, axis=0).raw(),
+                self.send_halos[k].halo_indices, axis=0).asnumpyarray(),
                 dest=neighbor_comm_index, sendtag=0,
-                recvbuf=self.recv_halos[k].halo_data.raw(),
+                recvbuf=self.recv_halos[k].halo_data.asnumpyarray(),
                 source=neighbor_comm_index,
                 recvtag=0)
         comm.barrier()
@@ -225,10 +225,11 @@ class LocalArray(object):
             # /receiving (e.g. 2x2 filters)
             comm.Sendrecv(sendbuf=self.defiltering_chunk.take(
                 self.recv_halos[k].halo_insert_indices,
-                axis=0).raw().astype('float32'),
+                axis=0).asnumpyarray().astype('float32'),
                 dest=neighbor_comm_index,
                 sendtag=0,
-                recvbuf=self.send_halos[k].halo_data_defiltering.raw(),
+                recvbuf=self.send_halos[k].halo_data_defiltering.
+                asnumpyarray(),
                 source=neighbor_comm_index,
                 recvtag=0)
 

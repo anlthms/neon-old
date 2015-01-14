@@ -10,9 +10,9 @@ class Softmax(Activation):
     """
     Embodiment of a softmax activation function.
     """
-    def __init__(self, shortcut_deriv=False):
-        self.shortcutDeriv = shortcut_deriv
+    def __init__(self):
         self.tmp = None
+        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -47,10 +47,9 @@ class Softmax(Activation):
     def apply_both(self, backend, inputs, outputs):
         """
         Apply the softmax activation function and its derivative.
-        (If we're using shortcut, then don't bother to compute the derivative)
         """
         self.apply_function(backend, inputs, outputs)
-        if self.shortcutDeriv is False:
-            if not self.tmp or self.tmp.shape != inputs.shape:
-                self.tmp = backend.ones(inputs.shape)
-            backend.softmax_gradient(outputs, err=self.tmp, out=inputs)
+
+        if not self.tmp or self.tmp.shape != inputs.shape:
+            self.tmp = backend.ones(inputs.shape)
+        backend.softmax_gradient(outputs, err=self.tmp, out=inputs)

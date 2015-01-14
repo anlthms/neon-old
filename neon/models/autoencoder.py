@@ -27,17 +27,20 @@ class Autoencoder(MLP):
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_inputs(train=True)['train']
-        assert 'batch_size' in self.__dict__
 
+        num_batches = len(inputs)
         logger.info('commencing model fitting')
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
-            for batch in range(inputs.nbatches):
+            error.fill(0.0)
+            for batch in range(num_batches):
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
                 self.bprop(targets_batch, inputs_batch)
-                error += self.cost.apply_function(targets_batch)
+                self.backend.add(error,
+                                 self.cost.apply_function(targets_batch),
+                                 error)
                 self.update(epoch)
             logger.info('epoch: %d, total training error: %0.5f',
-                        epoch, error / inputs.nbatches)
+                        epoch, error.asnumpyarray() / num_batches)

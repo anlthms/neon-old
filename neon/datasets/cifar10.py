@@ -66,16 +66,6 @@ class CIFAR10(Dataset):
             infile.extractall(save_dir)
             infile.close()
 
-    def sample_training_data(self):
-        if self.sample_pct != 100:
-            train_idcs = np.arange(self.inputs['train'].shape[0])
-            ntrain_actual = (self.inputs['train'].shape[0] *
-                             int(self.sample_pct) / 100)
-            np.random.shuffle(train_idcs)
-            train_idcs = train_idcs[0:ntrain_actual]
-            self.inputs['train'] = self.inputs['train'][train_idcs]
-            self.targets['train'] = self.targets['train'][train_idcs]
-
     def adjust_for_dist(self):
         # computes the indices to load from input data for the dist case
 
@@ -126,7 +116,7 @@ class CIFAR10(Dataset):
             data = full_image
 
         labels = np.array(dict['labels'])
-        onehot = np.zeros((len(labels), nclasses), dtype=np.float32)
+        onehot = np.zeros((len(labels), nclasses), dtype='float32')
         for col in range(nclasses):
             onehot[:, col] = (labels == col)
         return (data, onehot)
@@ -147,9 +137,9 @@ class CIFAR10(Dataset):
                                     self.__class__.__name__)
             self.fetch_dataset(save_dir)
             self.inputs['train'] = np.zeros((ntrain_total, ncols),
-                                            dtype=np.float32)
+                                            dtype='float32')
             self.targets['train'] = np.zeros((ntrain_total, nclasses),
-                                             dtype=np.float32)
+                                             dtype='float32')
             for i in range(5):
                 filename = os.path.join(save_dir, 'cifar-10-batches-py',
                                         'data_batch_' + str(i + 1))
@@ -167,9 +157,9 @@ class CIFAR10(Dataset):
                                     'test_batch')
             data, labels = self.load_file(filename, nclasses)
             self.inputs['test'] = np.zeros((data.shape[0], ncols),
-                                           dtype=np.float32)
+                                           dtype='float32')
             self.targets['test'] = np.zeros((data.shape[0], nclasses),
-                                            dtype=np.float32)
+                                            dtype='float32')
             self.inputs['test'][:] = data
             self.targets['test'][:] = labels
             self.format()

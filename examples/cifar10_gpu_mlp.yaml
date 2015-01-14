@@ -8,71 +8,61 @@
     rng_seed: 0,
   },
 
-  datasets: [
-    !obj:neon.datasets.cifar10.CIFAR10 {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 10,
-    },
-  ],
+  dataset: &ds !obj:neon.datasets.cifar10.CIFAR10 {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 10,
+      # serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
+  },
 
-  # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  weight_inits: &wt_init {
+    type: uniform,
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    lr_params: {
+      learning_rate: 0.01,
+      backend: *be,
+      momentum_params: {
+        type: constant,
+        coef: 0.90,
+      },
+    },
+  },
+
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
     layers: [
-      !obj:neon.models.layer.Layer {
-        name: h0,
-        backend: *be,
-        batch_size: *bs,
-        pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-            momentum_params: &mm {
-              type: constant, # linear_monotone, nesterov
-              coef: 0.90,
-            },
-          },
-        },
-        nin: 3072,
-        nout: 200,
-        activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        dataset: *ds,
+        nout: 3072,
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      !obj:neon.models.layer2.FCLayer {
+        name: h0,
+        nout: 200,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+      },
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: output,
-        backend: *be,
-        batch_size: *bs,
-        pos: 1,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: outputlr,
-          lr_params: {
-            learning_rate: *lr,
-            backend: *be,
-            momentum_params: *mm,
-          },
-        },
-        nin: 200,
         nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
 
   # logging options that are passed to logging.basicConfig

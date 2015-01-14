@@ -43,17 +43,6 @@ Flexpoint™
 
    neon.backends.flexpoint.Flexpoint
 
-Unsupported
------------
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.backends.unsupported._numpy.Numpy
-   neon.backends.unsupported._cudamat.Cudamat
-   neon.backends.unsupported._cudanet.Cudanet
-
-
 Models
 ======
 
@@ -102,6 +91,7 @@ GB
    :toctree: generated/
 
    neon.models.gb.GB
+   neon.models.gb_dist.GBDist
 
 
 Transforms
@@ -160,12 +150,20 @@ Iris
    neon.datasets.iris.Iris
 
 Sparsenet
-----------
+---------
 
 .. autosummary::
    :toctree: generated/
 
    neon.datasets.sparsenet.SPARSENET
+
+ImageNet
+--------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.i1k.I1K
 
 Synthetic
 ---------
