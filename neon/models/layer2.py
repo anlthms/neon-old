@@ -51,6 +51,7 @@ class Layer(YAMLable):
         req_param(self, ['backend', 'batch_size'])
         self.output = None
         self.berror = None
+        self.backend.configure_par(self)
 
     def initialize_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
@@ -421,7 +422,8 @@ class FCLayer(WeightLayer):
 
         upm = self.utemp if self.accumulate else self.updates
 
-        self.backend.update_fc(out=upm[0], inputs=inputs, deltas=error)
+        self.backend.update_fc(out=upm[0], inputs=inputs,
+                               deltas=error, layer=self)
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[1])
 

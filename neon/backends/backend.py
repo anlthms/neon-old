@@ -1039,6 +1039,9 @@ class Backend(YAMLable):
     def distribute(self, data):
         return self.par.distribute(data)
 
+    def configure_par(self, layer):
+        self.par.configure(layer)
+
 
 class Tensor(object):
     """

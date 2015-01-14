@@ -917,7 +917,7 @@ class CPU(Backend):
         """
         self.dot(weights.transpose(), deltas, out)
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 
