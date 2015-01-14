@@ -50,11 +50,11 @@ def test_tanh_derivative_cputensor():
 def test_tanh_derivative_gputensor():
     tntest = Tanh()
     from neon.backends.gpu import GPU, GPUTensor
-    inputs = np.array([0, 1, -2], dtype=np.float32).reshape((3, 1))
+    inputs = np.array([0, 1, -2], dtype='float32').reshape((3, 1))
     be = GPU(rng_seed=0)
     outputs = GPUTensor([1 - true_tanh(0) ** 2,
                          1 - true_tanh(1) ** 2,
                          1 - true_tanh(-2) ** 2])
     temp = be.zeros(inputs.shape)
-    tntest.apply_derivative(be, GPUTensor(inputs, dtype=np.float32), temp)
+    tntest.apply_derivative(be, GPUTensor(inputs, dtype='float32'), temp)
     assert_tensor_near_equal(outputs, temp, tolerance=1e-5)

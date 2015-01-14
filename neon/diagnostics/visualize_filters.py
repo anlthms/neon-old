@@ -63,7 +63,8 @@ class Visual(object):
 
             for j in range(grd):
                 for k in range(grd):
-                    patch = imgs[i].raw()[grd*j+k].reshape((nfm, hght, wdth))
+                    patch = imgs[i].asnumpyarray()[grd*j+k].reshape((nfm, hght,
+                                                                     wdth))
                     img[:,
                         j*(win+1):j*(win+1)+win,
                         k*(win+1):k*(win+1)+win] = patch
@@ -94,7 +95,7 @@ class Visual(object):
         """
 
         plt.clf()
-        w = self.layers[0].weights.raw()  # (576, 25)
+        w = self.layers[0].weights.asnumpyarray()  # (576, 25)
         k = np.sqrt(self.layers[0].nofm).astype(np.int)  # output feature maps
         n = np.sqrt(w.shape[0]).astype(np.int) / k
         m = np.sqrt(w.shape[1]/nifm).astype(np.int)

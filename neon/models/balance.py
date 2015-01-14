@@ -9,6 +9,7 @@ Requires model to specify prev layers at each layer to build the layer graph
 
 import logging
 from neon.models.mlp import MLPB
+from neon.util.param import req_param
 
 logger = logging.getLogger(__name__)
 
@@ -16,28 +17,18 @@ logger = logging.getLogger(__name__)
 class Balance(MLPB):
 
     def __init__(self, **kwargs):
-        self.dist_mode = None
-        self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
-        self.result = 0
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
-                  "accumulate": True}
-        self.data_layer = self.layers[0]
+        self.accumulate = True
+        super(Balance, self).__init__(**kwargs)
+        req_param(self, ['classlayers', 'stylelayers'])
         self.cost_layer = self.classlayers[-1]
         self.out_layer = self.layers[-2]
         self.class_layer = self.classlayers[-2]
         self.branch_layer = self.stylelayers[-2]
         self.pathways = [self.layers, self.classlayers, self.stylelayers]
 
-        self.link_and_initialize(self.layers, kwargs)
         for lp in [self.classlayers, self.stylelayers]:
             lp[-1].set_previous_layer(lp[-2])
             lp[-1].initialize(kwargs)
-
-        assert self.layers[-1].nout <= 2 ** 15
 
     def fprop(self):
         super(Balance, self).fprop()
@@ -60,4 +51,4 @@ class Balance(MLPB):
             layer.fprop(y)
             y = layer.output
             if layer is self.branch_layer:
-                y[self.zidx:] = self.backend.wrap(self.zparam)
+                y[self.zidx:] = self.zparam

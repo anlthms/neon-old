@@ -53,6 +53,7 @@ access metadata.
    neon.backends.backend.Tensor.take
    neon.backends.backend.Tensor.__getitem__
    neon.backends.backend.Tensor.__setitem__
+   neon.backends.backend.Tensor.fill
    neon.backends.backend.Tensor.transpose
    neon.backends.backend.Tensor.reshape
    neon.backends.backend.Tensor.repeat
