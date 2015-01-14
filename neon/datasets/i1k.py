@@ -318,14 +318,12 @@ class I1K(Dataset):
 
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
-            if os.path.exists(os.path.join(load_dir, prefix_macro) + str(
-                    self.output_image_size)):
+            save_dir = self.save_dir
+            if os.path.exists(os.path.join(save_dir, prefix_macro + str(
+                    self.output_image_size))):
                 # delete load_dir if want to reload/reprocess dataset
                 return
-            # save_dir = os.path.join(self.repo_path,
-            #                         self.__class__.__name__)
-            # self.save_dir = save_dir
-            save_dir = self.save_dir
+
             # for now assuming that dataset is already there
             # ToS of imagenet prohibit distribution of URLs
 
@@ -657,6 +655,7 @@ class I1K(Dataset):
 
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
+        # batch_idx is ignored
         for i in range(self.num_iter_mini):
             self.mini_batch_onque = self.get_next_mini_batch_id(
                 self.mini_batch_onque)

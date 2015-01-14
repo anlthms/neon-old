@@ -83,7 +83,6 @@ class FitExperiment(Experiment):
                     else:
                         raise AttributeError("dist_flag set but mpi4py not "
                                              "installed")
-                #del self.model ###test this
                 self.model = deserialize(mpath)
             else:
                 self.model.fit(ds)

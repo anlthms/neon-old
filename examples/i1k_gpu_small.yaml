@@ -13,8 +13,6 @@
     backend: *be,
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
-    #serialized_path: '/usr/local/data/I1K/I1K_small_alexnet.pkl', #delete if loading files from scratch
-    #macro_batched: True,
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     max_tar_file: &mtf 1000,
@@ -88,7 +86,7 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 128,
-    #serialized_path: '/usr/local/data/I1K/I1K_small_alexnet_model.pkl',
+    serialized_path: '/usr/local/data/I1K/I1K_small_alexnet_model.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
