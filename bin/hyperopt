@@ -51,8 +51,11 @@ def main():
     for i in range(3):
         print "testing i", i
         save_path = 'tempyaml' + str(i) + '.yaml'
+        # reading lines from source file f
         with open(load_path, 'r') as f:
+            # writing lines to target file g
             with open(save_path, 'w') as g:
+                # keeping track by appending log file h
                 with open(list_path, 'a') as h:
                     for line in f:
                         if 'hyperopt' in line:
