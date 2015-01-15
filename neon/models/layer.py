@@ -9,7 +9,6 @@ backend.
 import logging
 import numpy as np
 from neon.backends.cpu import CPU
-from neon.backends.gpu import GPU
 from neon.transforms.gaussian import gaussian_filter
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray import gdist_consts as gc
@@ -1096,7 +1095,7 @@ class LocalLayer(YAMLable):
             backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # Figure out the connections with the previous layer.
-        if isinstance(backend, GPU):
+        if not isinstance(backend, CPU):
             self.rlinks = []
             if pooling is True:
                 self.links = []
@@ -1287,7 +1286,7 @@ class ConvLayer(LocalLayer):
                                            weight_init)
         self.output = backend.empty((self.nout, batch_size))
         self.weight_updates = backend.empty(self.weights.shape)
-        if isinstance(backend, GPU):
+        if not isinstance(backend, CPU):
             self.prodbuf = []
             self.bpropbuf = []
             self.updatebuf = []
