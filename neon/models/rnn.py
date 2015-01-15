@@ -314,14 +314,16 @@ class RNN(Model):
                                              / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
-        hidden_init = None
-        cell_init = None
+        hidden_init = self.backend.zeros((self.layers[1].nin,
+                                          self.batch_size))
+        cell_init = self.backend.zeros((self.layers[1].nin,
+                                        self.batch_size))
         for batch in xrange(num_batches):
             batch_inx = range(batch*self.layers[0].nin*self.unrolls,
                               (batch+1)*self.layers[0].nin*self.unrolls
                               + self.layers[0].nin)
             self.fprop(inputs[batch_inx, :],
-                       hidden_init=hidden_init, cell_init=cell_init,
+                       hidden_init, cell_init,
                        unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
             if 'c_t' in self.layers[0].__dict__:
