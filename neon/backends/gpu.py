@@ -1070,7 +1070,7 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -1084,7 +1084,7 @@ class GPU(Backend):
         """
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 
@@ -1095,7 +1095,7 @@ class GPU(Backend):
         """
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 
@@ -1519,7 +1519,7 @@ class GPU(Backend):
         """
         dev_weights[:] = GPUTensor(numpy.array(host_weights, 'float32'))
 
-    def gen_weights(self, size, weight_params, dtype=None):
+    def gen_weights(self, size, weight_params, dtype=None, layer=None):
         """
         Different types of weight initializations.  Includes:
         * uniform - uniform distribution
