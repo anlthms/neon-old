@@ -43,6 +43,7 @@
           coef: 0.0,
         },
       },
+    },
     &ada {
       type: adadelta,
       lr_params: {

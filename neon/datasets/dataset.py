@@ -214,7 +214,7 @@ class Dataset(object):
                                           test=True)[setname]
         self.cur_tgts = self.get_targets(train=True, validation=True,
                                          test=True)[setname]
-        return len(self.inputs)
+        return len(self.inputs[setname])
 
     def get_mini_batch(self, batch_idx):
         # this is the implementation for non-macro batched data
