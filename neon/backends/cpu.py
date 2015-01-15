@@ -961,7 +961,7 @@ class CPU(Backend):
                                     convolution (False, the default)
         """
         ofmsize = ofmshape[0] * ofmshape[1]
-        fsize = len(links[0])
+        fsize = links.shape[1]
         for dst in range(ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.

@@ -8,6 +8,7 @@ backend.
 
 import logging
 import numpy as np
+import math as mt
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
@@ -68,12 +69,10 @@ class Layer(YAMLable):
         self.pad = -self.pad
         self.fheight, self.fwidth = self.fshape
         self.ifmheight, self.ifmwidth = self.ifmshape
-        self.ofmheight = np.int(
-            np.ceil(
-                (self.ifmheight - self.fheight + 2. * self.pad) / stride)) + 1
-        self.ofmwidth = np.int(
-            np.ceil(
-                (self.ifmwidth - self.fwidth + 2. * self.pad) / stride)) + 1
+        self.ofmheight = int(mt.ceil(
+            (self.ifmheight - self.fheight + 1 + 2. * self.pad) / stride))
+        self.ofmwidth = int(mt.ceil(
+            (self.ifmwidth - self.fwidth + 1 + 2. * self.pad) / stride))
         self.ofmshape = (self.ofmheight, self.ofmwidth)
         self.ifmsize = self.ifmheight * self.ifmwidth
         self.ofmsize = self.ofmheight * self.ofmwidth
