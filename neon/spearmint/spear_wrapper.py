@@ -41,16 +41,13 @@ def call_convnet(params): #
     print "call_convnet: running neon"
     basepath = '/Users/urs/code/neon/'
     callstring = basepath + "bin/neon " + output_file
-    os.system(callstring)
-
+    retval = os.system(callstring)
 
     # Part 3: Read the model output
     print "call_convnet: writing outputs"
-    modelname =  sorted(os.listdir("./output/ConvNet_spearmint_" + timestring))[-1] # this is a problem:
-    model = IGPUModel.load_checkpoint("./output/ConvNet_spearmint_" + timestring + "/" + modelname)
-    print model['model_state'].keys()
-    result = model['model_state']['test_outputs'][-1][0]['logprob'][1]
-    return result/10000.
+    with open('neon_result_validation.txt', 'r') as f:
+            result = map(float, f)
+    return result[0]
 
 def write_params(input_file, output_file, log_file, params):
     """
@@ -59,9 +56,9 @@ def write_params(input_file, output_file, log_file, params):
     [TODO] right now this is a hardcoded set of parameters. Ultimately we
            want to adapt this to what the yaml is "requesting" from sm.
     """
-    mom =  params['mom']  # 0.9 hardcoded above
-    nin1, nin2 = params['numberneurons'][0], params['numberneurons'][1]
-    step = params['stepsize']
+    #mom =  params['mom']  # 0.9 hardcoded above
+    #nin1, nin2 = params['numberneurons'][0], params['numberneurons'][1]
+    #step = params['stepsize']
 
     # read all lines from source
     with open(input_file, 'r') as f:
