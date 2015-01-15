@@ -41,8 +41,9 @@ class FitExperiment(Experiment):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
-        partype = self.partype if 'partype' in self.__dict__ else 'nopar'
-        self.backend.configure(self.model, partype=partype)
+        par_scheme = (
+            self.par_scheme if 'par_scheme' in self.__dict__ else 'none')
+        self.backend.configure(self.model, par_scheme=par_scheme)
 
         self.model.link_and_initialize()
 

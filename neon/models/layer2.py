@@ -51,7 +51,6 @@ class Layer(YAMLable):
         req_param(self, ['backend', 'batch_size'])
         self.output = None
         self.berror = None
-        self.backend.configure_par(self)
 
     def initialize_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])

@@ -7,7 +7,7 @@ Houses low-level code for performing underlying data manipulation operations.
 """
 
 from neon.util.persist import YAMLable
-from neon.backends.par import NoPar, VecPar, DataPar
+from neon.backends.par import NoPar, ModelPar, DataPar
 
 
 class Backend(YAMLable):
@@ -1021,26 +1021,30 @@ class Backend(YAMLable):
     # The functions below can be moved out to a utility class if it is
     # desirable to leave this class abstract.
 
-    def configure(self, model, partype):
-        # Save the batch_size value specified in the configuration file.
+    def configure(self, model, par_scheme):
+        # Save the original batch_size value that is specified
+        # in the configuration file.
         self.actual_batch_size = model.batch_size
-        if partype == 'vecpar':
-            self.par = VecPar(self, model)
+        if par_scheme == 'model':
+            self.par = ModelPar(self, model)
             self.gen_weights = self.par.gen_weights
             self.fprop_fc = self.par.fprop_fc
             self.bprop_fc = self.par.bprop_fc
             self.update_fc = self.par.update_fc
-        elif partype == 'datapar':
+        elif par_scheme == 'data':
             self.par = DataPar(self, model)
+            self.gen_weights = self.par.gen_weights
             self.update_fc = self.par.update_fc
-        else:
+        elif par_scheme == 'hybrid':
+            raise NotImplementedError()
+        elif par_scheme == 'none':
             self.par = NoPar(self, model)
+        else:
+            raise AttributeError("Invalid parallel scheme specified",
+                                 par_scheme)
 
     def distribute(self, data):
         return self.par.distribute(data)
-
-    def configure_par(self, layer):
-        self.par.configure(layer)
 
 
 class Tensor(object):

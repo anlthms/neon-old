@@ -1490,7 +1490,7 @@ class CPU(Backend):
         """
         dev_weights[:] = host_weights
 
-    def gen_weights(self, size, weight_params, dtype=None):
+    def gen_weights(self, size, weight_params, dtype=None, layer=None):
         """
         Different types of weight initializations.  Includes:
         * uniform - uniform distribution
