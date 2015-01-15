@@ -426,11 +426,12 @@ class RecurrentLSTMLayer(Layer):
 
         # pre-allocate for d{i,f,o,c}_dh1
         self.d_dh1 = {gateid: be.zeros(net_sze) for
-                      gateid in ['i', 'f', 'o', 'g']}
+                      gateid in ['i', 'f', 'o', 'c']}
         self.dc_d_dh1 = {gateid: be.zeros(net_sze) for
-                         gateid in ['i', 'f', 'g']}
+                         gateid in ['i', 'f', 'c']}
         self.errs = {hcval: be.zeros(net_sze) for
                      hcval in ['hh', 'hc', 'ch', 'cc']}
+        self.gatetags = {'i':'i', 'f':'f', 'o':'o', 'c':'g'}
         self.gatedic = {}
         self.gatedic_u = {}
 
@@ -497,7 +498,7 @@ class RecurrentLSTMLayer(Layer):
 
     def list_sum(self, target, slist):
         """
-        Computes the product of the items in slist and puts it into target
+        Computes the sum of the items in slist and puts it into target
         """
         target.fill(0.0)
         reduce(lambda x, y: self.backend.add(x, y, x), [target] + slist)
@@ -620,6 +621,10 @@ class RecurrentLSTMLayer(Layer):
         cur_input = inputs[tau*self.nin:(tau+1)*self.nin, :]
         cur_output = self.output_list[tau - 1]
 
+        ttemp = {}
+        for ifoc in ['i', 'f', 'o', 'c']:
+            ttemp[ifoc] = np.zeros((2,1), dtype=np.float32)
+
         """--------------------------
         PART 1: original dh2/dh1 terms
         --------------------------"""
@@ -628,44 +633,28 @@ class RecurrentLSTMLayer(Layer):
                           [error_h, self.o_t[tau], self.c_phip[tau]])
 
         # a. Input gate
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] \
-        #        * self.net_i[tau]
-        self.list_product(self.delta_buf,
-                          [self.eh_ot_cphip, self.g_t[tau], self.net_i[tau]])
-
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'i', self.d_dh1['i'])
-        ttemp1i = self.dh_dwh_buf[12, 55].asnumpyarray()
-
+        # self.delta_buf = error_h * self.o_t[tau] * self.c_phip[tau] \
+        #                  * self.g_t[tau] * self.net_i[tau]
         # b. forget gate
         # self.delta_buf = error_h * self.o_t[tau] * self.c_phip[tau] \
-        #        * self.c_t[tau-1] * self.net_f[tau]
-        self.list_product(self.delta_buf,
-                          [self.eh_ot_cphip, self.c_t[tau-1], self.net_f[tau]])
-
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'f', self.d_dh1['f'])
-        ttemp1f = self.dh_dwh_buf[12, 55].asnumpyarray()
-
+        #                  * self.c_t[tau-1] * self.net_f[tau]
         # c. output gate
         # self.delta_buf = error_h * self.c_phi[tau] * self.net_o[tau]
-        self.list_product(self.delta_buf,
-                          [error_h, self.c_phi[tau], self.net_o[tau]])
-
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'o', self.d_dh1['o'])
-        ttemp1o = self.dh_dwh_buf[12, 55].asnumpyarray()
-        ttemp2o = ttemp1o
-
+        #
         # d. cell
         # self.delta_buf = error_h * self.o_t[tau] * self.c_phip[tau]
-        #        * self.i_t[tau] * self.net_g[tau]
-        self.list_product(self.delta_buf,
-                          [self.eh_ot_cphip, self.i_t[tau], self.net_g[tau]])
+        #                  * self.i_t[tau] * self.net_g[tau]
 
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'c', self.d_dh1['g'])
-        ttemp1c = self.dh_dwh_buf[12, 55].asnumpyarray()
+        deltargs = {'i': [self.eh_ot_cphip, self.g_t[tau], self.net_i[tau]],
+                    'f': [self.eh_ot_cphip, self.c_t[tau-1], self.net_f[tau]],
+                    'o': [error_h, self.c_phi[tau], self.net_o[tau]],
+                    'c': [self.eh_ot_cphip, self.i_t[tau], self.net_g[tau]]}
+
+        for ifoc in ['i', 'f', 'o', 'c']:
+            self.list_product(self.delta_buf, deltargs[ifoc])
+            self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                            ifoc, self.d_dh1[ifoc])
+            ttemp[ifoc][0] = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # e. collect terms
         self.list_sum(self.errs['hh'], self.d_dh1.values())
@@ -673,63 +662,38 @@ class RecurrentLSTMLayer(Layer):
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
         ---------------------------"""
-
-        # dc2/dh1 terms:
-        # input gate
+        # a. Input gate
         # self.delta_buf = error_c * self.g_t[tau] * self.net_i[tau]
-        be.multiply(error_c, self.g_t[tau], self.delta_buf)
-        be.multiply(self.net_i[tau], self.delta_buf, self.delta_buf)
-
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'i', self.dc_d_dh1['i'])
-        ttemp2i = self.dh_dwh_buf[12, 55].asnumpyarray()
-
-        # forget gate
+        # b. Forget gate
         # self.delta_buf = error_c * self.c_t[tau-1] * self.net_f[tau]
-        be.multiply(error_c, self.c_t[tau-1], self.delta_buf)
-        be.multiply(self.net_f[tau], self.delta_buf, self.delta_buf)
-
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'f', self.dc_d_dh1['f'])
-        ttemp2f = self.dh_dwh_buf[12, 55].asnumpyarray()
-
-        # cell
+        # c. cell
         # self.delta_buf = error_c * self.i_t[tau] * self.net_g[tau]
-        be.multiply(error_c, self.i_t[tau], self.delta_buf)
-        be.multiply(self.net_g[tau], self.delta_buf, self.delta_buf)
+        deltargs = {'i': [error_c, self.g_t[tau], self.net_i[tau]],
+                    'f': [error_c, self.c_t[tau-1], self.net_f[tau]],
+                    'c': [error_c, self.i_t[tau], self.net_g[tau]]}
 
-        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
-                        'c', self.dc_d_dh1['g'])
-        ttemp2c = self.dh_dwh_buf[12, 55].asnumpyarray()
+        for ifc in ['i', 'f', 'c']:
+            self.list_product(self.delta_buf, deltargs[ifc])
+            self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                            ifc, self.dc_d_dh1[ifc])
+            ttemp[ifc][1] = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # errs['ch'] = sum of dc_d{i,f,g}_dh1 terms
-        self.list_sum(self.errs['ch'], self.dc_d_dh1.values())
-
-        # dh2/dc1 term:
-        # errs['hc'] = error_h * self.o_t[tau] * self.c_phip[tau]
-        #              * self.f_t[tau]
-        self.list_product(self.errs['hc'], [self.eh_ot_cphip, self.f_t[tau]])
-
-        # dc2/dc1 term:
+        # errs['hc'] = error_h * self.o_t * self.c_phip * self.f_t @ tau
         # errs['cc'] = error_c * self.f_t[tau]
+        self.list_sum(self.errs['ch'], self.dc_d_dh1.values())
+        self.list_product(self.errs['hc'], [self.eh_ot_cphip, self.f_t[tau]])
         be.multiply(error_c, self.f_t[tau], self.errs['cc'])
 
         # wrap up:
         be.add(self.errs['hh'], self.errs['ch'], self.berror)
         be.add(self.errs['cc'], self.errs['hc'], self.cerror)
 
-        if numgrad is "lstm_ih":
-            logger.info("layer.LSTM.bprop: analytic dh_dwih[%d]= %e + %e = %e",
-                        tau, ttemp1i, ttemp2i, ttemp1i + ttemp2i)
-        if numgrad is "lstm_fh":
-            logger.info("layer.LSTM.bprop: analytic dh_dwfh[%d]= %e + %e = %e",
-                        tau, ttemp1f, ttemp2f, ttemp1f + ttemp2f)
-        if numgrad is "lstm_oh":
-            logger.info("layer.LSTM.bprop: analytic dh_dwoh[%d]= %e + %e = %e",
-                        tau, ttemp1o, ttemp2o, ttemp1o + ttemp2o)
-        if numgrad is "lstm_ch":
-            logger.info("layer.LSTM.bprop: analytic dh_dwch[%d]= %e + %e = %e",
-                        tau, ttemp1c, ttemp2c, ttemp1c + ttemp2c)
+        if numgrad is not None and numgrad.startswith("lstm"):
+            ifoc = numgrad[5]
+            logger.info("LSTM.bprop: analytic dh_dw%sh[%d]= %e + %e = %e",
+                        ifoc, tau, ttemp[ifoc][0], ttemp[ifoc][1],
+                        ttemp[ifoc][0] + ttemp[ifoc][1])
 
     def update(self, epoch):
         """
