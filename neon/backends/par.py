@@ -99,6 +99,7 @@ class DataPar(NoPar):
             logger.info('Data-parallel mode. Number of nodes = %d.', mpi_size)
         self.orig_gen_weights = backend.gen_weights
         self.orig_update_fc = backend.update_fc
+        self.orig_update_conv = backend.update_conv
         self.batch_size = backend.actual_batch_size / mpi_size
         self.start = mpi_rank * self.batch_size
         if mpi_rank == (mpi_size - 1):
@@ -121,8 +122,7 @@ class DataPar(NoPar):
         self.configure(layer)
         return self.orig_gen_weights(size, weight_params, dtype)
 
-    def update_fc(self, out, inputs, deltas, layer):
-        self.orig_update_fc(out, inputs, deltas)
+    def update(self, out, layer):
         # NOTE: To make this faster, compute the weight updates
         # asynchronously. There is no need to wait for completion
         # until the updates are to be applied to the weights (the
@@ -133,3 +133,15 @@ class DataPar(NoPar):
         comm.Reduce(sendbuf, recvbuf, op=MPI.SUM)
         comm.Bcast(buf=[layer.par.updatebuf, MPI.FLOAT])
         out[:] = self.backend.array(layer.par.updatebuf)
+
+    def update_fc(self, out, inputs, deltas, layer):
+        self.orig_update_fc(out, inputs, deltas)
+        self.update(out, layer)
+
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+                    ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf, local=False, layer=None):
+        self.orig_update_conv(out, inputs, weights, deltas, ofmshape, ofmlocs,
+                              ifmshape, links, nifm, padding, stride, ngroups,
+                              fwidth, updatebuf, local)
+        self.update(out, layer)

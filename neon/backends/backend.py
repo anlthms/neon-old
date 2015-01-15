@@ -737,7 +737,7 @@ class Backend(YAMLable):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False):
+                    updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1035,6 +1035,7 @@ class Backend(YAMLable):
             self.par = DataPar(self, model)
             self.gen_weights = self.par.gen_weights
             self.update_fc = self.par.update_fc
+            self.update_conv = self.par.update_conv
         elif par_scheme == 'hybrid':
             raise NotImplementedError()
         elif par_scheme == 'none':

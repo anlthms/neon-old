@@ -1021,7 +1021,7 @@ class CPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False):
+                    updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 

@@ -542,7 +542,7 @@ class ConvLayer(WeightLayer):
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fwidth, updatebuf=self.updatebuf,
-                                 local=self.local_conv)
+                                 local=self.local_conv, layer=self)
 
         if self.accumulate:
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
