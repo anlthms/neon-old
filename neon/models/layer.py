@@ -695,7 +695,7 @@ class RecurrentLSTMLayer(Layer):
 
         if numgrad is not None and numgrad.startswith("lstm"):
             ifoc_hx = numgrad[5:7]
-            logger.info("LSTM.bprop: analytic dh_dw%sh[%d]= %e + %e = %e",
+            logger.info("LSTM.bprop: analytic dh_dw%s[%d]= %e + %e = %e",
                         ifoc_hx, tau, numtemp[ifoc_hx][0], numtemp[ifoc_hx][1],
                         numtemp[ifoc_hx][0] + numtemp[ifoc_hx][1])
 

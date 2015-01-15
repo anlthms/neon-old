@@ -58,16 +58,20 @@ class RNN(Model):
         errorlist = []
         error = self.backend.empty((1, 1))
         suberror = self.backend.empty(num_batches)
+        hidden_init = self.backend.zeros((self.layers[1].nin,
+                                          self.batch_size))
+        cell_init = self.backend.zeros((self.layers[1].nin,
+                                        self.batch_size))
         for epoch in range(self.num_epochs):
             error.fill(0)
             suberror.fill(0)
-            hidden_init = None
-            cell_init = None
+            hidden_init.fill(0)
+            cell_init.fill(0)
             for batch in xrange(num_batches):
                 batch_inx = xrange(batch*nin*self.unrolls,
                                    (batch+1)*nin*self.unrolls+nin)
                 self.fprop(inputs[batch_inx, :],
-                           hidden_init=hidden_init, cell_init=cell_init,
+                           hidden_init, cell_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
@@ -130,6 +134,10 @@ class RNN(Model):
                            (batch+1)*nin*self.unrolls+nin)
         target_out = targets[batch_inx, :][(self.unrolls-0)*nin:
                                            (self.unrolls+1)*nin, :]
+        hidden_init = self.backend.zeros((self.layers[1].nin,
+                                          self.batch_size))
+        cell_init = self.backend.zeros((self.layers[1].nin,
+                                        self.batch_size))
 
         if numgrad is "output":
             num_target = self.layers[1].weights
@@ -156,14 +164,18 @@ class RNN(Model):
         numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
-            self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
-                           debug=(True if batch == -1 else False),
+            # reset state
+            hidden_init.fill(0)
+            cell_init.fill(0)
+            # fprop with eps
+            self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init,
+                           cell_init, debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_eps = self.cost.apply_function(target_out).asnumpyarray()
-
-            self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
-                           debug=(True if batch == -1 else False),
+            # fprop without eps
+            self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init,
+                           cell_init, debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_ref = self.cost.apply_function(target_out).asnumpyarray()
@@ -174,8 +186,8 @@ class RNN(Model):
             numerical += num_part
 
         # bprop for comparison
-        self.bprop(targets[batch_inx, :],
-                   inputs[batch_inx, :], numgrad=numgrad)
+        self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
+                    numgrad=numgrad)
 
         analytical = an_target[num_i, num_j].asnumpyarray()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
@@ -184,8 +196,8 @@ class RNN(Model):
         logger.info("RNN grad_checker: analytical %s %e", numgrad, analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
 
-    def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
-                  cell_init=None, debug=False, unrolls=None,
+    def fprop_eps(self, inputs, eps_tau, eps, hidden_init,
+                  cell_init, debug=False, unrolls=None,
                   num_target=None, num_i=0, num_j=0):
         """
         have a pre_act and output for every unrolling step. The layer needs
@@ -193,12 +205,6 @@ class RNN(Model):
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
@@ -225,20 +231,14 @@ class RNN(Model):
                                                        num_j].asnumpyarray() -
                                             eps)
 
-    def fprop(self, inputs, hidden_init=None,
-              cell_init=None, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init,
+              cell_init, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
@@ -255,8 +255,7 @@ class RNN(Model):
                 c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
 
-    def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
-              debug=False, numgrad=None):
+    def bprop(self, targets, inputs, debug=False, numgrad=None):
         """
         Refactor:
         This bprop has an OUTER FOR LOOP over t-BPTT unrollings
@@ -267,12 +266,6 @@ class RNN(Model):
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if numgrad is None:
             min_unroll = 1
         else:
