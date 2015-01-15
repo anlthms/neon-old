@@ -34,9 +34,20 @@ class GPUTensor(Tensor):
                              to a 2-d row matrix).  Python built-in types like
                              lists and tuples are also supported.
         dtype (None, optional): Underlying data type of the elements.
-                                Not needed/used for this backend.
+                                Ignored for this backend as all values are
+                                stored in cudanet as float32's.
+
+    Notes:
+        This implementation currently has the following limitations:
+        * only 2D shaped Tensors are supported (set in _min_dims)
+        * All element values are stored as float32 (input may be converted if
+          input of a differing type is passed)
+        * Only contiguous rectangular slicing is supported.  Sliced assignment
+          can only be done along a singular subsetted dimension (i.e. only row
+          slice *or* column slice based assignment).
     """
     _tensor = None
+    _min_dims = 2
 
     def __init__(self, obj, dtype=None, copy_to_device=True):
         if type(obj) == cudanet.CUDAMatrix:
@@ -49,23 +60,31 @@ class GPUTensor(Tensor):
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
                 # (though the elements can be tuples/lists to create arbitrary
                 # n dimensions)
-                while obj.ndim < 2:
+                while obj.ndim < self._min_dims:
                     obj = obj.reshape(obj.shape + (1, ))
-                if obj.ndim != 2:
-                    raise ValueError("CUDAMatrix only supports 2-D"
+                if obj.ndim != self._min_dims:
+                    raise ValueError("CUDAMatrix only supports %d-D"
                                      "matrices.  You specifed %d-D" %
-                                     obj.ndim)
+                                     (self._min_dims, obj.ndim))
                 logger.debug('Copying to GPU')
-                if dtype not in (numpy.float32, numpy.int32,
-                                 'float32') or dtype is None:
-                    logger.debug('Dtype %s is unsupported in GPU '
-                                 'backend, defaulting float32', dtype)
-                    obj = numpy.array(obj, dtype=numpy.float32)
-                self._tensor = cudanet.CUDAMatrix(obj, copy_to_device)
+                if dtype not in (numpy.float32, numpy.int32, 'float32',
+                                 'int32') or dtype is None:
+                    logger.debug('dtype %s is unsupported in GPU '
+                                 'backend, defaulting to float32', dtype)
+                    obj = numpy.array(obj, dtype='float32')
+                elif obj.dtype != dtype:
+                    logger.debug('object dtype %s mismatch.  '
+                                 'Converting to %s', obj.dtype, dtype)
+                    obj = numpy.array(obj, dtype=dtype)
+                self._tensor = cudanet.CUDAMatrix(obj)
                 self.shape = self._tensor.shape
             else:
                 self._tensor = obj
         self.dtype = dtype
+
+    @property
+    def raw(self):
+        return self._tensor
 
     def __str__(self):
         """
@@ -131,26 +150,47 @@ class GPUTensor(Tensor):
             pass
         else:
             # arbitrary long list, too expensive to support?
-            raise TooSlowToImplementError("column idx too complex")
+            raise TooSlowToImplementError("slice indexing too complex")
         return res
+
+    def asnumpyarray(self):
+        """
+        Convert the GPUTensor to an in host memory `numpy.ndarray`.  A copy of
+        the data may be made depending on where the GPUTensor normally resides.
+
+        Returns:
+            numpy.ndarray view or copy of the GPUTensor data.
+        """
+        self._tensor.copy_to_host()
+        return self._tensor.numpy_array
 
     def __getitem__(self, key):
         """
-        Extract a subset of elements from this tensor as specified by key.
+        Extract a subset view of the items via slice style indexing
+        along each dimension. e.g. A[5:10, :].  Each slice consists of
+        start_idx:stop_idx:step_size triplets.  If step_size isn't specified it
+        defaults to 1.  If start_idx isn't specified it defaults to 0.  If
+        stop_idx isn't specified it defaults to the total number of elements
+        along that dimension.  As such a slice value of ':' allows one to
+        select all elements along that dimension.
 
         Arguments:
-            key (tuple, int): the indices to extract/slice along.
+            key (int, slice, tuple): indices of each dimension's slice.
 
         Returns:
-            GPUTensor: view or new sliced copy
+            GPUTensor: view of self corresponding to the subset items.
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
+
+        See Also:
+            take
         """
         res = self
         if isinstance(key, tuple):
-            if len(key) > 2:
-                raise IndexError("CUDAMatrix only supports 2-D matrices")
+            if len(key) > self._min_dims:
+                raise IndexError("CUDAMatrix only supports %d-D matrices",
+                                 self._min_dims)
             else:
                 for idx in range(len(key) - 1, -1, -1):
                     res = res._slice_dim(key[idx], idx)
@@ -160,32 +200,43 @@ class GPUTensor(Tensor):
 
     def __setitem__(self, key, value):
         """
-        Assign values to a subset of elements from this tensor.
+        Assign the specified value to a subset of elements found via slice
+        style indexing along each dimension. e.g. A[5:10, :] = 4.5.
+        Each slice consists of start_idx:stop_idx:step_size triplets.  If
+        step_size isn't specified it defaults to 1.  If start_idx isn't
+        specified it defaults to 0.  If stop_idx isn't specified it defaults
+        to the total number of elements along that dimension.  As such a slice
+        value of ':' allows one to select all elements along that dimension.
 
         Arguments:
-            key (tuple, int): The indices to which we assign the values
-            value (GPUTensor, int, float): The values to assign at each
-                                               key position.  Must be scalar
-                                               or if a GPUTensor, must
-                                               have the right shape.
-
-        Returns:
-            GPUTensor: update view of this tensor
+            key (int, slice, tuple): indices of each dimension's slice.
+            value (numeric array, GPUTensor): values to be assigned to the
+                                              extracted element subset.  If an
+                                              array it should be the same shape
+                                              as what key indexes (or be
+                                              broadcastable as such).
 
         Raises:
             IndexError: if invalid number of dimensions specified in key.
-            NotImplementedError: if invalid value type passed.
+            ValueError: if invalid value type passed.
             TooSlowToImplementError: if arbitrarily indexed key passed.
+
+        Notes:
+            Currently, this implementation only supports assignment in which
+            only a single dimension is subset.  That is, for a 4x4 matrix A,
+            assignment to A[1:3, :] and A[:, 1:3] are ok, but A[1:3, 1:3] is
+            not.  Attempts to perform such assignment will raise a
+            TooSlowToImplementError.
         """
         if isinstance(value, GPUTensor):
             value = value._tensor
         elif not isinstance(value, (int, float)):
-            raise NotImplementedError("can only assign GPUTensor's or "
-                                      "numeric scalars")
+            raise ValueError("can only assign GPUTensor's or numeric scalars")
         if isinstance(key, tuple):
-            if len(key) > 2:
-                raise IndexError("CUDAMatrix only supports 2-D matrices")
-            elif len(key) == 2:
+            if len(key) > self._min_dims:
+                raise IndexError("CUDAMatrix only supports %d-D matrices",
+                                 self._min_dims)
+            elif len(key) == self._min_dims:
                 if isinstance(key[0], slice):
                     start, stop, stride = key[0].indices(self.shape[0])
                     if start == 0 and stop == self.shape[0]:
@@ -241,28 +292,13 @@ class GPUTensor(Tensor):
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
-
-    def asnumpyarray(self):
-        self._tensor.copy_to_host()
-        return self._tensor.numpy_array
-
-    def __float__(self):
-        raise NotImplementedError()
-
+   
     def set_host_mat(self, newarray):
         """
         Changes the host pointer for this tensor to point to a new numpy array
         and its associated data. newarray must be a numpy array
         """
         self._tensor.set_host_mat(newarray)
-
-    def copy(self):
-        return GPUTensor(self._tensor.copy())
-
-    def raw(self, dohostcopy=True):
-        if dohostcopy:
-            self._tensor.copy_to_host()
-        return self._tensor.numpy_array
 
     def copy_to_device(self):
         self._tensor.copy_to_device()
@@ -301,21 +337,18 @@ class GPUTensor(Tensor):
             raise TooSlowToImplementError("CUDAMatrix can't do arbitrary"
                                           " indexing efficiently")
 
-    def sum(self, axis=None, out=None):
+    def fill(self, value):
         """
-        Sum elements of a GPUTensor. If axis is None, all elements are
-        summed and a numpy scalar returned. If axis is 1 or 2, sum along that
-        axis and return a GPUTensor.
-        """
-        if axis is None:
-            result = self._tensor.sum(axis=0).sum(axis=1)
-            logger.debug('Copying to host')
-            result.copy_to_host()
-            return result.numpy_array[0][0]
+        Assign specified value to each element of this CPUTensor.
 
-        result = self._tensor.sum(axis=axis, target=out._tensor)
-        logger.debug('major change in functionality of sum')
-        return GPUTensor(result)
+        Arguments:
+            value (numeric): The value to be assigned to each element.
+
+        Return:
+            CPUTensor: updated view of the data.
+        """
+        self._tensor.assign(value)
+        return self
 
     def sumsq(self, axis=None):
         """
@@ -332,24 +365,6 @@ class GPUTensor(Tensor):
             result = self._tensor.sumsq(axis=axis)
             logger.debug('major change in functionality of sum')
             return GPUTensor(result)
-
-    def mean(self, axis=None):
-        result = self._tensor.mean(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
-
-    def min(self, axis=None):
-        result = self._tensor.min(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
-
-    def max(self, axis=None):
-        result = self._tensor.max(axis)
-        logger.debug('Copying to host')
-        result.copy_to_host()
-        return result.numpy_array[0][0]
 
     def log(self):
         target = cudanet.empty(self.shape)
@@ -386,8 +401,8 @@ class GPU(Backend):
     """
     # we need to cast epsilon to float to ensure it works with some of the type
     # checking in cudanet functions like less_than() and so forth
-    epsilon = float(numpy.finfo(numpy.float32).eps)
-    default_dtype = numpy.float32
+    default_dtype = 'float32'
+    epsilon = float(numpy.finfo(default_dtype).eps)
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
@@ -396,6 +411,11 @@ class GPU(Backend):
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
+
+    def default_dtype_if_missing(self, in_dtype):
+        if in_dtype is None:
+            in_dtype = self.default_dtype
+        return in_dtype
 
     def __del__(self):
         pass
@@ -412,13 +432,14 @@ class GPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
             GPUTensor: newly created data structure reference
         """
-        return GPUTensor(cudanet.empty(shape))
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(cudanet.empty(shape), dtype)
 
     def array(self, obj, dtype=None):
         """
@@ -431,18 +452,19 @@ class GPU(Backend):
                                  that python built-in types like scalar
                                  integers and lists are supported.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
             GPUTensor: newly created data structure reference
         """
-        ndarray = numpy.array(obj, dtype=numpy.float32)
+        dtype = self.default_dtype_if_missing(dtype)
+        ndarray = numpy.array(obj, dtype=dtype)
         if ndarray.ndim == 1:
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
-        return GPUTensor(ndarray)
+        return self.tensor_cls(ndarray, dtype)
 
-    def zeros(self, shape, dtype=numpy.float32):
+    def zeros(self, shape, dtype=None):
         """
         Instantiate a new instance of the GPUTensor class setting each element
         value to 0.
@@ -450,18 +472,18 @@ class GPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
             GPUTensor: newly created data structure reference
         """
-        if dtype is None:
-            dtype = numpy.float32
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.zeros(shape, dtype=dtype)))
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(cudanet.CUDAMatrix(numpy.zeros(shape,
+                                                              dtype=dtype)),
+                               dtype)
 
-    def ones(self, shape, dtype=numpy.float32):
+    def ones(self, shape, dtype=None):
         """
         Instantiate a new instance of the GPUTensor class setting each element
         value to 1.
@@ -469,29 +491,16 @@ class GPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value (np.float32
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
             GPUTensor: newly created data structure reference
         """
-        if dtype is None:
-            dtype = numpy.float32
-        return GPUTensor(cudanet.CUDAMatrix(
-            numpy.ones(shape, dtype=dtype)))
-
-    def wrap(self, obj):
-        """
-        Convert obj to a GPUTensor (if it is not already).  Useful for
-        transforming scalars like ints and floats.
-
-        Arguments:
-            obj (int, float, GPUTensor): The object to convert.
-
-        Returns:
-            GPUTensor: Potentially converted object.
-        """
-        return GPUTensor(obj)
+        dtype = self.default_dtype_if_missing(dtype)
+        return self.tensor_cls(cudanet.CUDAMatrix(numpy.ones(shape,
+                                                             dtype=dtype)),
+                               dtype)
 
     def _unwrap(self, obj):
         """
@@ -499,22 +508,33 @@ class GPU(Backend):
         a GPUTensor), otherwise returns the existing structure.
 
         Arguments:
-            obj (int, float, GPUTensor): The object to extract raw data from
+            obj (numeric, GPUTensor): The object to extract raw data from
 
         Returns:
-            int, float, cudanet.CUDAMatrix: raw data from object.
-
-        See Also:
-            `wrap`
+            numeric, cudanet.CUDAMatrix: raw data from object.
         """
         if isinstance(obj, self.tensor_cls):
             return obj._tensor
         else:
             return obj
 
+    def copy(self, tsr):
+        """
+        Construct and return a deep copy of the GPUTensor passed.
+
+        Arguments:
+            tsr (GPUTensor): the object to copy
+
+        Returns:
+            GPUTensor: new array object with the same values as tsr.
+        """
+        assert type(tsr) == self.tensor_cls
+        return self.tensor_cls(tsr._tensor.copy())
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
-            out = GPUTensor(cudanet.empty((a.shape[0], a.shape[1])))
+            out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),
+                                  self.default_dtype_if_missing(None))
         cudanet.clip_range(a._tensor, a_min, a_max, out._tensor)
         return out
 
@@ -533,41 +553,38 @@ class GPU(Backend):
 
     def uniform(self, low=0.0, high=1.0, size=1):
         seq = numpy.random.uniform(low, high, size)
-        return GPUTensor(numpy.array(seq, dtype=numpy.float32))
+        dtype = self.default_dtype_if_missing(None)
+        return self.tensor_cls(numpy.array(seq, dtype), dtype)
 
-    def fill_uniform_thresh(self, a, keepthresh=0.5, dtype=None):
+    def fill_uniform_thresh(self, tsr, keepthresh=0.5, dtype=None):
         """
         Uniform random number sample generation.
 
         Arguments:
-            a (dtype): GPUTensor to fill with zeros or ones based on whether
-                       sample from uniform distribution is > keepthresh
-            keepthresh (float, optional): Minimal sample value that can be
-                                          returned. Defaults to 0.5
+            tsr (GPUTensor): Fill this with zeros or ones based on
+                             sample values from uniform distribution.  Ones
+                             are used where sample is > keepthresh, else zero.
+            keepthresh (numeric, optional): Minimal sample value that can be
+                                            returned to set element to one.
+                                            Defaults to 0.5
         Returns:
-            Tensor: Of specified size filled with these random numbers.
+            GPUTensor: Of specified size filled with these random numbers.
         """
         # This slow implementation is kept here in commented form should you
         # need to ensure consistency with CPU generated random numbers:
-        # a.raw(dohostcopy=False)[:] = numpy.array((numpy.random.uniform(
-        #     size=a._tensor.shape) < keepthresh) / keepthresh,
-        #     dtype=numpy.float32)
-        # a.copy_to_device()
+        # tsr._tensor.numpy_array[:] = numpy.array((numpy.random.uniform(
+        #     size=tsr._tensor.shape) < keepthresh) / keepthresh,
+        #     dtype=self.default_dtype_if_missing(None))
+        # tsr.copy_to_device()
 
         # This implementation is faster but breaks consistency with CPU
         # backend based random numbers:
-        a._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+        tsr._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
     def normal(self, loc=0.0, scale=1.0, size=1):
         seq = numpy.random.normal(loc, scale, size)
-        return GPUTensor(numpy.array(seq, dtype=numpy.float32))
-
-    def copy(self, a):
-        assert type(a) == GPUTensor
-        return a.copy()
-
-    def dot(self, a, b, out):
-        cudanet.dot(a._tensor, b._tensor, out._tensor)
+        dtype = self.default_dtype_if_missing(None)
+        return self.tensor_cls(numpy.array(seq, dtype), dtype)
 
     def add(self, left, right, out):
         """
@@ -588,7 +605,7 @@ class GPU(Backend):
         elif isinstance(right, self.tensor_cls):
             right._tensor.add(left, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.add(right, out._tensor)
         return out
 
@@ -612,7 +629,7 @@ class GPU(Backend):
             right._tensor.subtract(left, out._tensor)
             out._tensor.mult(-1.0, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.subtract(right, out._tensor)
         return out
 
@@ -635,7 +652,7 @@ class GPU(Backend):
         elif isinstance(right, self.tensor_cls):
             right._tensor.mult(left, out._tensor)
         else:
-            left = self.wrap(left)
+            left = self.tensor_cls(left)
             left._tensor.mult(right, out._tensor)
         return out
 
@@ -653,11 +670,9 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-        if isinstance(left, self.tensor_cls):
-            left._tensor.divide(self._unwrap(right), out._tensor)
-        else:
-            left = self.wrap(left)
-            left._tensor.divide(self._unwrap(right), out._tensor)
+        if not isinstance(left, self.tensor_cls):
+            left = self.tensor_cls(left)
+        left._tensor.divide(self._unwrap(right), out._tensor)
         return out
 
     def power(self, tsr, power, out):
@@ -681,6 +696,38 @@ class GPU(Backend):
 
     def reciprocal(self, a, out):
         a._tensor.reciprocal(out._tensor)
+        return out
+
+    def dot(self, left, right, out, alpha=1, beta=0):
+        """
+        Perform sum product between the last axis of left and the second last
+        axis of right, storing the result in out.  Note that this dot product
+        is equivalent to the inner product if operands are vectors, and matrix
+        multiplication if both operands are matrices.  We support BLAS Level 3
+        general matrix multiplication (GEMM) functionality by including
+        additional scalars alpha and beta.  The general form of the multiply
+        is: out <- alpha * left . right + beta * out, but will be
+        short-circuited to: out <- alpha * left . right if beta has value 0
+        (the default).  All GPUTensor's should have commensurate shape or be
+        broadcastable as such.
+
+        Arguments:
+            left (GPUTensor): left-hand side operand.
+            right (GPUTensor): right-hand side operand.
+            out (GPUTensor): where the result will be stored.  Note that this
+                             object should differ from left and right.
+            alpha (numeric, optional): scalar to multiply the resultant sum
+                                       product by.  Defaults to 1.
+            beta (numeric, optional): scalar to pre-multiply out values by
+                                      prior to adding to sum product.  Defaults
+                                      to 0, which implies no such addition of
+                                      prior out values.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        cudanet.dot(left._tensor, right._tensor, out._tensor, beta, alpha)
+        return out
 
     def equal(self, left, right, out):
         """
@@ -689,14 +736,20 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.equals(right._tensor, out._tensor)
+        if isinstance(left, self.tensor_cls):
+            left._tensor.equals(self._unwrap(right), out._tensor)
+        elif isinstance(right, self.tensor_cls):
+            right._tensor.equals(left, out._tensor)
+        else:
+            left = self.tensor_cls(left)
+            left._tensor.equals(right, out._tensor)
         return out
 
     def not_equal(self, left, right, out):
@@ -706,8 +759,8 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
@@ -724,14 +777,16 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.greater_than(right._tensor, out._tensor)
+        if not isinstance(left, self.tensor_cls):
+            left = self.tensor_cls(left)
+        left._tensor.greater_than(self._unwrap(right), out._tensor)
         return out
 
     def greater_equal(self, left, right, out):
@@ -741,15 +796,15 @@ class GPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
         # we calculate >= as not <
-        left._tensor.less_than(right._tensor, out._tensor)
+        self.less(left, right, out)
         out._tensor.equals(0, out._tensor)
         return out
 
@@ -760,14 +815,16 @@ class GPU(Backend):
         same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
-        left._tensor.less_than(right._tensor, out._tensor)
+        if not isinstance(left, self.tensor_cls):
+            left = self.tensor_cls(left)
+        left._tensor.less_than(self._unwrap(right), out._tensor)
         return out
 
     def less_equal(self, left, right, out):
@@ -777,15 +834,15 @@ class GPU(Backend):
         be the same shape (or broadcastable as such).
 
         Arguments:
-            left (GPUTensor): left-hand side operand.
-            right (GPUTensor): right-hand side operand.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
             out (GPUTensor): where the result will be stored.
 
         Returns:
             GPUTensor: reference to out
         """
         # we calculate <= as not >
-        left._tensor.greater_than(right._tensor, out._tensor)
+        self.greater(left, right, out)
         out._tensor.equals(0, out._tensor)
         return out
 
@@ -808,29 +865,35 @@ class GPU(Backend):
 
         Returns:
             GPUTensor: p-norm of tsr along the specified axis.
+
+        Raises:
+            IndexError if invalid axis specified
+            AttributeError if invalid order specified
+
+        See Also:
+            `numpy.linalg.norm`
         """
-        if not isinstance(axis, int):
-            raise AttributeError("invalid axis value: %s", axis)
+        if not isinstance(axis, int) or axis < 0 or axis >= len(tsr.shape):
+            raise IndexError("invalid axis value: %s", axis)
+        if not isinstance(order, (int, float)):
+            raise AttributeError("invalid order value: %s", order)
+        if out is None:
+            out_shape = list(tsr.shape)
+            out_shape[axis] = 1
+            out = self.empty(out_shape)
         if order == float('Inf'):
-            res = self.max(self.fabs(tsr), axis)
+            self.max(self.fabs(tsr), axis, out)
         elif order == float('-Inf'):
-            res = self.min(self.fabs(tsr), axis)
+            self.min(self.fabs(tsr), axis, out)
         elif order == 0:
             tmp = self.zeros(tsr.shape)
             self.not_equal(tsr, tmp, tmp)
-            res = tmp.sum(axis, out)
+            self.sum(tmp, axis, out)
         else:
             tmp = self.empty(tsr.shape)
             self.power(self.fabs(tsr), order, tmp)
-            res = tmp.sum(axis, out)
-            self.power(res, (1.0 / order), res)
-        if out is None:
-            out = res
-        else:
-            out._tensor = res._tensor
-            out.shape = res.shape
-            # TODO: decide how we want to handle differing dtypes
-            out.dtype = res.dtype
+            self.sum(tmp, axis, out)
+            self.power(out, (1.0 / order), out)
         return out
 
     def xcov(self, a, b, out):
@@ -852,54 +915,98 @@ class GPU(Backend):
         cudanet.tanh(x._tensor, out._tensor)
 
     def rectlin(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
         self.multiply(x, out, out=out)
 
     def rectlin_derivative(self, x, out):
-        self.greater(x, self.wrap(0), out=out)
+        self.greater(x, 0, out=out)
 
-    def fill(self, x, val):
-        x[:] = val
+    def sum(self, tsr, axes, out):
+        """
+        Calculates the summation of the elements along the specified axes.
 
-    def sum(self, x, axis=None, out=None):
-        if x is None:
-            return float('NaN')
-        return x.sum(axis=axis, out=out)
+        Arguments:
+            tsr (Tensor): the Tensor on which to perform the sum
+            axes (int, list, optional): the dimension(s) along which to sum.
+                                        If set to None, we will sum over all
+                                        dimensions.
+            out (Tensor): where the result will be stored.
 
-    def mean(self, x):
-        if x is None:
-            return float('NaN')
-        return x.mean()
-
-    def min(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.min(axis=0).min(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-        if out is None:
-            res = x._tensor.min(axis)
+        Returns:
+            Tensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for sum.  "
+                        "You specified: %s", str(axes))
         else:
-            res = x._tensor.min(axis, out)
-        return GPUTensor(res)
+            tsr._tensor.sum(axis=axes, target=out._tensor)
+        return out
 
-    def max(self, x, axis=None, out=None, keepdims=False):
-        if x is None:
-            return float('NaN')
-        if axis is None and not keepdims:
-            assert out is None
-            res = x._tensor.max(axis=0).max(axis=1)
-            logger.debug('Copying to host')
-            res.copy_to_host()
-            return res.numpy_array[0][0]
-        if out is None:
-            res = x._tensor.max(axis)
+    def mean(self, tsr, axes, out):
+        """
+        Calculates the arithmetic mean of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the average
+            axes (int, list, optional): the dimension(s) along which to
+                                        average.  If set to None, we will
+                                        average over all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for mean.  "
+                        "You specified: %s", str(axes))
         else:
-            res = x._tensor.max(axis, out)
-        return GPUTensor(res)
+            tsr._tensor.mean(axis=axes, target=out._tensor)
+        return out
+
+    def min(self, tsr, axes, out):
+        """
+        Calculates the minimal element value along the specified axes.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to compute the minimum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the minimum.  If set to None, we will
+                                        compute the overall minimal value
+                                        across all dimensions.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for min.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.min(axis=axes, target=out._tensor)
+        return out
+
+    def max(self, tsr, axes, out):
+        """
+        Calculates the maximal element value along the specified axes.
+
+        Arguments:
+            tsr (GPUTensor): the GPUTensor on which to compute the maximum
+            axes (int, list, optional): the dimension(s) along which to find
+                                        the maximum.  If set to None, we will
+                                        compute the overall maximal value
+                                        across all dimensions.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for max.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.max(axis=axes, target=out._tensor)
+        return out
 
     def argmin(self, tsr, axis, out):
         """
@@ -1416,7 +1523,7 @@ class GPU(Backend):
         """
         sets the GPUTensor dev_weights to the values in host_weights
         """
-        dev_weights[:] = GPUTensor(numpy.array(host_weights, numpy.float32))
+        dev_weights[:] = GPUTensor(numpy.array(host_weights, 'float32'))
 
     def gen_weights(self, size, weight_params, dtype=None):
         """
@@ -1477,7 +1584,7 @@ class GPU(Backend):
             weights = numpy.zeros(size).flatten()
             nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
             weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
-            weights = weights.reshape(size).copy()
+            weights = self.copy(weights.reshape(size))
             if size[0] == size[1]:
                 temp = numpy.linalg.eig(weights)
                 max_eig = numpy.max(numpy.absolute(temp[0]))
@@ -1497,7 +1604,7 @@ class GPU(Backend):
         else:
             raise AttributeError("invalid weight_params specified")
 
-        return GPUTensor(numpy.array(weights, numpy.float32))
+        return self.tensor_cls(numpy.array(weights, 'float32'))
 
 
 class GPUDataDist(GPU):
@@ -1527,10 +1634,10 @@ class GPUDataDist(GPU):
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
-                                                  root=0)
-        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
-
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
+                                                           op=MPI.SUM, root=0)
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
+            out._tensor.numpy_array)
         out.copy_to_device()
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
@@ -1541,8 +1648,9 @@ class GPUDataDist(GPU):
                                              links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
 
-        out.raw(False)[:] = MPI.COMM_WORLD.reduce(out.raw(), op=MPI.SUM,
-                                                  root=0)
-        out.raw(False)[:] = MPI.COMM_WORLD.bcast(out.raw(False))
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
+                                                           op=MPI.SUM, root=0)
+        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
+            out._tensor.numpy_array)
 
         out.copy_to_device()

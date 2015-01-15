@@ -21,13 +21,12 @@ def cross_entropy(backend, outputs, targets, temp):
 
     Arguments:
         backend (Backend): The backend class to use for computation.
-        outputs (array_like): predicted output values to be compared.
-        targets (array_like): known outcome values to be compared against.
-        temp (array_like): temporary buffers.
+        outputs (Tensor): predicted output values to be compared.
+        targets (Tensor): known outcome values to be compared against.
+        temp (list): temporary buffers.
 
     Returns:
-        array_like: Calculated cross entropy values for each element.  Will
-                    have the same shape and type as outputs.
+        Tensor: Calculated cross entropy values for each element.
     """
     # Compute (t-1)*log(1-y).
     backend.add(targets, -1.0, out=temp[0])
@@ -43,7 +42,9 @@ def cross_entropy(backend, outputs, targets, temp):
 
     # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
-    return backend.sum(temp[0])
+
+    result = backend.empty((1, 1))
+    return backend.sum(temp[0], axes=None, out=result)
 
 
 def cross_entropy_multi(backend, outputs, targets, temp):
@@ -52,21 +53,21 @@ def cross_entropy_multi(backend, outputs, targets, temp):
 
     Arguments:
         backend (Backend): The backend class to use for computation.
-        outputs (array_like): predicted output values to be compared.
-        targets (array_like): known outcome values to be compared against.
-        temp (array_like): temporary buffers.
+        outputs (Tensor): predicted output values to be compared.
+        targets (Tensor): known outcome values to be compared against.
+        temp (Tensor): temporary buffers.
 
     Returns:
-        array_like: Calculated cross entropy values for each element.  Will
-                    have the same shape and type as outputs.
+        Tensor: Calculated cross entropy values for each element.
     """
 
     # Compute (t*log(y)).
     backend.clip(outputs, backend.epsilon, 1, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
-    backend.multiply(temp[1], -1.0, out=temp[1])
-    return backend.sum(temp[1])
+    backend.multiply(temp[1], -1.0, out=temp[0])
+    result = backend.empty((1, temp[0].shape[1]))
+    return backend.sum(temp[0], axes=0, out=result)
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
@@ -80,13 +81,12 @@ def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
 
     Arguments:
         backend (Backend): The backend class to use for computation.
-        outputs (array_like): predicted output values to be compared.
-        targets (array_like): known outcome values to be compared against.
-        temp (array_like): temporary buffers.
+        outputs (Tenor): predicted output values to be compared.
+        targets (Tensor): known outcome values to be compared against.
+        temp (Tensor): temporary buffers.
 
     Returns:
-        array_like: Calculated cross entropy values for each element.  Will
-                    have the same shape and backend as outputs.
+        Tensor: Calculated cross entropy values for each element.
     """
     backend.subtract(outputs, targets, out=temp[0])
     backend.subtract(1.0, outputs, out=temp[1])
@@ -103,13 +103,12 @@ def cross_entropy_multi_derivative(backend, outputs, targets, temp, scale=1.0):
 
     Arguments:
         backend (Backend): The backend class to use for computation.
-        outputs (array_like): predicted output values to be compared.
-        targets (array_like): known outcome values to be compared against.
-        temp (array_like): temporary buffers.
+        outputs (Tensor): predicted output values to be compared.
+        targets (Tensor): known outcome values to be compared against.
+        temp (Tensor): temporary buffers.
 
     Returns:
-        array_like: Calculated cross entropy values for each element.  Will
-                    have the same shape and backend as outputs.
+        Tensor: Calculated cross entropy values for each element.
     """
     backend.divide(targets, outputs, out=temp[0])
     backend.multiply(temp[0], -scale, out=temp[0])
@@ -172,6 +171,7 @@ class CrossEntropy(Cost):
         self.outputbuf = databuf
 
     def get_berrbuf(self):
+        # used by layer2 only.
         return self.temp[0]
 
     def apply_logloss(self, targets, eps=1e-15):
@@ -183,7 +183,7 @@ class CrossEntropy(Cost):
             return self.ce_function(self.backend, self.outputbuf, targets,
                                     self.temp)
         self.backend.clip(self.outputbuf, eps, 1.0 - eps, out=self.temp[0])
-        self.backend.sum(self.temp[0], axis=0, out=self.temp[2])
+        self.backend.sum(self.temp[0], axes=0, out=self.temp[2])
         # XXX: work around lack of broadcasting in gpu backend.
         for row in range(self.outputbuf.shape[0]):
             self.temp[1][row] = self.temp[2]
@@ -196,8 +196,9 @@ class CrossEntropy(Cost):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
-        return self.ce_function(self.backend, self.outputbuf,
-                                targets, self.temp) * self.scale
+        result = self.ce_function(self.backend, self.outputbuf, targets,
+                                  self.temp)
+        return self.backend.multiply(result, self.scale, out=result)
 
     def apply_derivative(self, targets):
         """

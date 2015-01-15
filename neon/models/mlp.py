@@ -65,16 +65,17 @@ class MLP(Model):
         assert 'batch_size' in self.__dict__
         logger.info('commencing model fitting')
         # force preprocess even if done earlier by setting to False
+        error = self.backend.empty((1, 1))
         for epoch in range(self.num_epochs):
-            error = 0.0
+            error.fill(0)
             for batch in range(num_batches):
                 if ds.macro_batched:
                     # load mini-batch for macro_batched dataset
                     inputs, targets = ds.get_mini_batch()
                     self.fprop(inputs)
                     self.bprop(targets, inputs)
-                    error += self.get_error(targets,
-                                            inputs) / self.batch_size
+                    self.backend.add(error, self.get_error(targets, inputs) /
+                                     self.batch_size, error)
                     rem = (batch + 1) % ds.num_minibatches_in_macro
                     if rem == 0:
                         quot = (batch + 1) / ds.num_minibatches_in_macro - 1
@@ -86,18 +87,21 @@ class MLP(Model):
                     targets_batch = ds.get_batch(targets, batch)
                     self.fprop(inputs_batch)
                     self.bprop(targets_batch, inputs_batch)
-                    error += self.get_error(
-                        targets_batch, inputs_batch) / self.batch_size
+                    batch_err = self.get_error(targets_batch, inputs_batch)
+                    self.backend.divide(batch_err, self.batch_size, batch_err)
+                    self.backend.add(error, batch_err, error)
                 self.update(epoch)
             if self.dist_mode == 'datapar':
-                error = MPI.COMM_WORLD.reduce(error, op=MPI.SUM)
+                error[0, 0] = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
+                                                    op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 epoch,
-                                error / num_batches / MPI.COMM_WORLD.size)
+                                error.asnumpyarray() / num_batches /
+                                MPI.COMM_WORLD.size)
             else:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
-                            error / num_batches)
+                            error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
         if ds.macro_batched:
@@ -152,7 +156,7 @@ class MLP(Model):
         batch_size = self.batch_size
         if self.dist_mode == 'datapar':
             batch_size *= MPI.COMM_WORLD.size
-        self.backend.divide(error, self.backend.wrap(batch_size), out=error)
+        self.backend.divide(error, batch_size, out=error)
 
         while i > 0:
             self.layers[i].bprop(error, self.layers[i - 1].output)
@@ -169,10 +173,11 @@ class MLP(Model):
         num_batches = len(preds)
         temp = self.backend.empty(preds[0].shape)
         sums = self.backend.empty((1, self.batch_size))
-        result = 0.
+        batch_sum = self.backend.empty((1, 1))
+        result = self.backend.zeros((1, 1))
         for batch in range(num_batches):
             self.backend.clip(preds[batch], eps, 1.0 - eps, out=preds[batch])
-            sums = self.backend.sum(preds[batch], axis=0, out=sums)
+            sums = self.backend.sum(preds[batch], axes=0, out=sums)
             # XXX: work around lack of broadcasting in gpu backend.
             for row in range(preds[batch].shape[0]):
                 temp[row] = sums
@@ -180,8 +185,11 @@ class MLP(Model):
             self.backend.divide(preds[batch], temp, temp)
             self.backend.log(temp, out=temp)
             self.backend.multiply(targets[batch], temp, temp)
-            result += self.backend.sum(temp)
-        return -result / (self.batch_size * num_batches)
+            self.backend.sum(temp, axes=None, out=batch_sum)
+            self.backend.add(result, batch_sum, result)
+        self.backend.multiply(result, -1, result)
+        return self.backend.divide(result, self.batch_size * num_batches,
+                                   result)
 
     def misclass_rate(self, preds, targets):
         # Simple misclassification error.
@@ -189,13 +197,16 @@ class MLP(Model):
         labels = self.backend.empty((1, self.batch_size))
         predlabels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        misclass_sum = 0
+        batch_sum = self.backend.empty((1, 1))
+        misclass_sum = self.backend.zeros((1, 1))
         for batch in range(num_batches):
             self.backend.argmax(targets[batch], axis=0, out=labels)
             self.backend.argmax(preds[batch], axis=0, out=predlabels)
             self.backend.not_equal(predlabels, labels, misclass)
-            misclass_sum += self.backend.sum(misclass)
-        return misclass_sum / (num_batches * self.batch_size)
+            self.backend.sum(misclass, axes=None, out=batch_sum)
+            self.backend.add(misclass_sum, batch_sum, misclass_sum)
+        return self.backend.divide(misclass_sum,
+                                   num_batches * self.batch_size, misclass_sum)
 
     # TODO: move out to separate config params and module.
     def error_metrics(self, datasets, predictions, train=True, test=True,
@@ -218,13 +229,17 @@ class MLP(Model):
             self.result = self.misclass_rate(preds[item], targets[item])
             logloss = self.logloss(preds[item], targets[item])
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                         item, 100 * self.result, logloss)
+                         item, 100 * self.result.asnumpyarray(),
+                         logloss.asnumpyarray())
         # TODO: return values instead?
 
     def predict_and_error(self, dataset):
         for layer in self.layers:
             layer.set_train_mode(False)
 
+        preds = dataset.backend.empty((1, self.batch_size))
+        batch_err = dataset.backend.empty((1, 1))
+        tot_err = dataset.backend.empty((1, 1))
         for batch_type in ['training', 'validation']:
             dataset.init_mini_batch_producer(batch_size=self.batch_size,
                                              batch_type=batch_type,
@@ -238,18 +253,18 @@ class MLP(Model):
             num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
             preds = dataset.backend.empty((1, self.batch_size))
             labels = self.backend.empty((1, self.batch_size))
-            err = 0.
+            tot_err.fill(0)
             for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch()
                 self.fprop(inputs)
                 dataset.backend.argmax(self.get_classifier_output(),
                                        axis=0,
                                        out=preds)
-                dataset.backend.argmax(targets, axis=0, out=labels)
-                dataset.backend.not_equal(labels, preds, preds)
-                err += dataset.backend.sum(preds)
+                dataset.backend.not_equal(targets, preds, preds)
+                dataset.backend.sum(preds, axes=None, out=batch_err)
+                dataset.backend.add(tot_err, batch_err, tot_err)
             logging.info("%s set misclass rate: %0.5f%%" % (
-                batch_type, 100 * err / nrecs))
+                batch_type, 100 * tot_err.asnumpyarray() / nrecs))
             dataset.del_mini_batch_producer()
 
     def get_classifier_output(self):
@@ -267,8 +282,10 @@ class MLPB(MLP):
         self.__dict__.update(kwargs)
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)
+        opt_param(self, ['accumulate'], False)
         self.result = 0
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size}
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate}
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
@@ -305,23 +322,26 @@ class MLPB(MLP):
         """
         Learn model weights on the given datasets.
         """
+        error = self.backend.empty((1, 1))
+        mb_id = self.backend.empty((1, 1))
         self.print_layers()
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
-            error, mb_id = 0.0, 1
+            error.fill(0.0)
+            mb_id.fill(1)
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
                 self.update(epoch)
-                error += self.cost_layer.get_cost()
+                self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print:
                     logger.info('%d.%d logloss=%0.5f', epoch,
                                 mb_id / self.step_print - 1, error / mb_id)
-                mb_id += 1
+                self.backend.sum(mb_id, 1, mb_id)
             logger.info('epoch: %d, total training error: %0.5f', epoch,
-                        error / self.data_layer.num_batches)
+                        error.asnumpyarray() / self.data_layer.num_batches)
             self.print_layers(debug=True)
         self.data_layer.cleanup()
 
@@ -329,12 +349,16 @@ class MLPB(MLP):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
+        logloss_sum = self.backend.empty((1, 1))
+        misclass_sum = self.backend.empty((1, 1))
+        batch_sum = self.backend.empty((1, 1))
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
-            misclass_sum, logloss_sum = 0.0, 0.0
+            misclass_sum.fill(0.0)
+            logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
                 self.fprop()
@@ -343,8 +367,14 @@ class MLPB(MLP):
                 self.backend.argmax(targets, axis=0, out=labels)
                 self.backend.argmax(probs, axis=0, out=predlabels)
                 self.backend.not_equal(predlabels, labels, misclass)
-                misclass_sum += self.backend.sum(misclass)
-                logloss_sum += self.cost_layer.cost.apply_logloss(targets)
+                self.backend.sum(misclass, axes=None, out=batch_sum)
+                self.backend.add(misclass_sum, batch_sum, misclass_sum)
+                self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
+                                 axes=None, out=batch_sum)
+                self.backend.add(logloss_sum, batch_sum, logloss_sum)
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
-                setname, 100 * misclass_sum / nrecs, logloss_sum / nrecs))
+                setname, 100 * misclass_sum.asnumpyarray() / nrecs,
+                logloss_sum.asnumpyarray() / nrecs))
             self.data_layer.cleanup()
+
+        

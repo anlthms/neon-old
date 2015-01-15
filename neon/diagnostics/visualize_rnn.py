@@ -38,6 +38,45 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
+    def plot_lstm(self, W_ix, W_fx, W_ox, W_cx, W_ih, W_fh, W_oh, W_ch,
+                  scale=1, fig=4):
+
+        """
+        Visizualize the three weight matrices after every epoch. Serves to
+        check that weights are structured, not exploding, and get upated
+        """
+        plt.figure(fig)
+        plt.clf()
+        plt.subplot(2, 4, 1)
+        plt.imshow(W_ix.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('input.T')
+        plt.subplot(2, 4, 2)
+        plt.imshow(W_fx.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('forget.T')
+        plt.subplot(2, 4, 3)
+        plt.imshow(W_ox.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('output.T')
+        plt.subplot(2, 4, 4)
+        plt.imshow(W_cx.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('cell.T')
+
+        plt.subplot(2, 4, 5)
+        plt.imshow(W_ih.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('input.T')
+        plt.subplot(2, 4, 6)
+        plt.imshow(W_fh.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('forget.T')
+        plt.subplot(2, 4, 7)
+        plt.imshow(W_oh.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('output.T')
+        plt.subplot(2, 4, 8)
+        plt.imshow(W_ch.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.title('cell.T')
+
+        # plt.colorbar()
+        plt.draw()
+        plt.show()
+
     def plot_error(self, suberror_list, error_list):
         plt.figure(1)
         plt.clf()
@@ -58,25 +97,29 @@ class VisualizeRNN(object):
 
         plt.figure(3)
         plt.clf()
-        for i in range(4):
-            plt.subplot(4, 5, 5*i+1)
-            plt.imshow(pre1[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+        for i in range(len(pre1)):  # loop over unrolling
+            plt.subplot(len(pre1), 5, 5 * i + 1)
+            plt.imshow(pre1[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('pre1 or g\'1')
-            plt.subplot(4, 5, 5*i+2)
-            plt.imshow(out1[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.subplot(len(pre1), 5, 5 * i + 2)
+            plt.imshow(out1[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('out1')
-            plt.subplot(4, 5, 5*i+3)
-            plt.imshow(pre2[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.subplot(len(pre1), 5, 5 * i + 3)
+            plt.imshow(pre2[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('pre2 or g\'2')
-            plt.subplot(4, 5, 5*i+4)
-            plt.imshow(out2[i].raw(), vmin=-1, vmax=1, interpolation='nearest')
+            plt.subplot(len(pre1), 5, 5 * i + 4)
+            plt.imshow(out2[i].asnumpyarray(), vmin=-1, vmax=1,
+                       interpolation='nearest')
             if i == 0:
                 plt.title('out2')
-            plt.subplot(4, 5, 5*i+5)
-            plt.imshow(targets[i*128:(i+1)*128, :].raw(),
+            plt.subplot(len(pre1), 5, 5 * i + 5)
+            plt.imshow(targets[i*128:(i+1)*128, :].asnumpyarray(),
                        vmin=-1, vmax=1, interpolation='nearest')
             if i == 0:
                 plt.title('target')
@@ -88,6 +131,6 @@ class VisualizeRNN(object):
         Moved this here so it's legal to use numpy.
         """
         print("Prediction inputs")
-        print(np.argmax(inputs, 0).raw().astype(np.int8).view('c'))
+        print(np.argmax(inputs, 0).asnumpyarray().astype(np.int8).view('c'))
         print("Prediction outputs")
-        print(np.argmax(outputs, 0).raw().astype(np.int8).view('c'))
+        print(np.argmax(outputs, 0).asnumpyarray().astype(np.int8).view('c'))

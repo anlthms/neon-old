@@ -96,11 +96,7 @@ if __name__ == '__main__':
     repeat = 3
     test_backends = [('neon.backends.cpu', 'CPU'), ]
     if CUDA_GPU:
-        # TODO: once cudanet init/shutdown resolved replace:
-        test_backends.insert(1, ('neon.backends.unsupported._cudamat',
-                                 'Cudamat'))
-        # with:
-        # test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
+        test_backends.insert(1, ('neon.backends.gpu', 'GPU'))
     # contiguous slice testing
     for a_dims, slices, axes in [((5, 5), slice(0, 2), 0),
                                  ((5, 5), slice(0, 2), 1),

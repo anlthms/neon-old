@@ -78,7 +78,7 @@ class Layer(YAMLable):
         self.use_biases = 'bias_init' in weight_init
         if self.use_biases:
             self.biases = self.backend.empty((nout, 1), weight_dtype)
-            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.biases.fill(weight_init['bias_init'])
             self.bias_updates = self.backend.empty(self.biases.shape,
                                                    updates_dtype)
             self.params = [self.weights, self.biases]
@@ -96,6 +96,7 @@ class Layer(YAMLable):
             self.berror_dtype = berror_dtype
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("Layer {lyr_nm}: {nin} inputs, {nout} nodes, {act_nm} act_fn, "
                 "utilizing {be_nm} backend\n\t"
                 "y: mean={y_avg:g}, min={y_min:g}, abs_min={y_absmin:g}, "
@@ -110,20 +111,35 @@ class Layer(YAMLable):
                 (lyr_nm=self.name, nin=self.nin, nout=self.nout,
                  act_nm=self.activation.__class__.__name__,
                  be_nm=self.backend.__class__.__name__,
-                 y_avg=self.backend.mean(self.output),
-                 y_min=self.backend.min(self.output),
-                 y_absmin=self.backend.min(self.backend.fabs(self.output)),
-                 y_max=self.backend.max(self.output),
+                 y_avg=float(self.backend.mean(self.output, axes=None,
+                                               out=temp).asnumpyarray()),
+                 y_min=float(self.backend.min(self.output, axes=None,
+                                              out=temp).asnumpyarray()),
+                 y_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.output), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 y_max=float(self.backend.max(self.output, axes=None,
+                                              out=temp).asnumpyarray()),
                  y_dtype=self.output.dtype,
-                 z_avg=self.backend.mean(self.pre_act),
-                 z_min=self.backend.min(self.pre_act),
-                 z_absmin=self.backend.min(self.backend.fabs(self.pre_act)),
-                 z_max=self.backend.max(self.pre_act),
+                 z_avg=float(self.backend.mean(self.pre_act, axes=None,
+                                               out=temp).asnumpyarray()),
+                 z_min=float(self.backend.min(self.pre_act, axes=None,
+                                              out=temp).asnumpyarray()),
+                 z_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.pre_act), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 z_max=float(self.backend.max(self.pre_act, axes=None,
+                                              out=temp).asnumpyarray()),
                  z_dtype=self.pre_act.dtype,
-                 w_avg=self.backend.mean(self.weights),
-                 w_min=self.backend.min(self.weights),
-                 w_absmin=self.backend.min(self.backend.fabs(self.weights)),
-                 w_max=self.backend.max(self.weights),
+                 w_avg=float(self.backend.mean(self.weights, axes=None,
+                                               out=temp).asnumpyarray()),
+                 w_min=float(self.backend.min(self.weights, axes=None,
+                                              out=temp).asnumpyarray()),
+                 w_absmin=float(self.backend.min(self.backend.fabs(
+                                                 self.weights), axes=None,
+                                                 out=temp).asnumpyarray()),
+                 w_max=float(self.backend.max(self.weights, axes=None,
+                                              out=temp).asnumpyarray()),
                  w_dtype=self.weights.dtype))
 
     def fprop(self, inputs):
@@ -145,7 +161,7 @@ class Layer(YAMLable):
         self.backend.update_fc(out=self.weight_updates, inputs=inputs,
                                deltas=error)
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=self.bias_updates)
+            self.backend.sum(error, axes=1, out=self.bias_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -203,17 +219,18 @@ class LayerDist(Layer):
                               weights=self.weights)
         # accumulate the pre_act values before applying non-linearity
         self.pre_act._tensor = MPI.COMM_WORLD.reduce(
-            self.pre_act.raw(), op=MPI.SUM, root=0)
+            self.pre_act.asnumpyarray(), op=MPI.SUM, root=0)
         # apply non-linearity on the output node
         if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
-        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.raw())
+        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.asnumpyarray())
         # broadcast back the pre_act values for bprop.
         # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
-        self.pre_act._tensor = MPI.COMM_WORLD.bcast(self.pre_act.raw())
+        self.pre_act._tensor = MPI.COMM_WORLD.bcast(
+            self.pre_act.asnumpyarray())
 
     def bprop(self, error, inputs):
         """
@@ -225,10 +242,10 @@ class LayerDist(Layer):
             self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
             MPI.COMM_WORLD.Allgather(
-                error.raw(), self.delta_gather._tensor)
-            # todo: only supported in numpy backend for now
+                error.asnumpyarray(), self.delta_gather._tensor)
             self.delta_._tensor = np.vstack(
-                np.split(self.delta_gather.raw(), MPI.COMM_WORLD.size, axis=0))
+                np.split(self.delta_gather.asnumpyarray(), MPI.COMM_WORLD.size,
+                         axis=0))
 
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.berror,
@@ -266,7 +283,7 @@ class LayerMultiPass(Layer):
                                              activation=activation,
                                              prev_names=prev_names)
         for uparam in self.updates:
-            uparam[:] = self.backend.wrap(0.0)
+            uparam[:] = 0.0
 
         self.utemp = map(lambda x:
                          self.backend.empty(x.shape, self.updates_dtype),
@@ -275,7 +292,7 @@ class LayerMultiPass(Layer):
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         for uparam in self.updates:
-            uparam[:] = self.backend.wrap(0.0)
+            uparam[:] = 0.0
 
     def bprop(self, error, inputs, useshortcut=False):
         # If we are back propagating error from more than one cost through the
@@ -296,7 +313,7 @@ class LayerMultiPass(Layer):
                          out=self.weight_updates)
 
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=self.utemp[1])
+            self.backend.sum(error, axes=1, out=self.utemp[1])
             self.backend.add(self.utemp[1], self.bias_updates,
                              out=self.bias_updates)
 
@@ -314,7 +331,8 @@ class RecurrentOutputLayer(Layer):
                  output_dtype=None, berror_dtype=None):
         super(RecurrentOutputLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
-                                                   learning_rule, activation)
+                                                   learning_rule,
+                                                   activation=activation)
         self.pre_act_list = [self.backend.zeros((nout, batch_size),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
@@ -322,10 +340,10 @@ class RecurrentOutputLayer(Layer):
                                                output_dtype)
                             for k in range(unrolls)]
         self.temp_out = self.backend.zeros((nout, nin))
-        self.deltas_o = [self.backend.zeros((nout, batch_size))
-                         for k in range(unrolls + 1)]
+        # self.deltas_o = [self.backend.zeros((nout, batch_size))
+        #                  for k in range(unrolls + 1)]
         if pos > 0:
-            self.berror = backend.zeros((batch_size, nin))
+            self.berror = backend.zeros((self.nin, self.batch_size))
 
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau],
@@ -334,13 +352,23 @@ class RecurrentOutputLayer(Layer):
             self.activation.apply_both(self.backend,
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
+        else:
+            raise AttributeError("Urs is not cool with your missing "
+                                 "activation function")
 
-    def bprop(self, error, inputs, tau):
-        self.backend.multiply(error, self.pre_act_list[tau - 1],
-                              out=self.deltas_o[tau])
-        self.backend.update_fc(self.temp_out, inputs, self.deltas_o[tau])
+    def bprop(self, error, inputs, tau, numgrad=False):
+        self.backend.multiply(error, self.pre_act_list[tau - 1], error)
+        self.backend.bprop_fc(self.berror,
+                              self.weights,
+                              error)
+        self.backend.update_fc(out=self.temp_out,
+                               inputs=inputs,
+                               deltas=error)
+        if numgrad is "output":
+            logger.info("RecurrentOutputLayer.bprop inc out %f",
+                        self.temp_out[12, 56])
         self.backend.add(self.weight_updates, self.temp_out,
-                         out=self.weight_updates)
+                         self.weight_updates)
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -350,108 +378,412 @@ class RecurrentLSTMLayer(Layer):
 
     """
     Hidden layer with LSTM gates.
+    This is a plug in replacement for RecurrentHiddenLayer()
     """
 
     def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
-                 activation, weight_init, weight_init_rec, learning_rule,
+                 activation, gate_activation, weight_init, weight_init_rec,
+                 learning_rule,
                  weight_dtype=None, delta_dtype=None, updates_dtype=None,
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+        """
+        In this section, create buffers for the 8 weight matrices:
+        two kind of inputs (x_t and h_t-1) feeding into 4 gates (input, output,
+        forget, cell). In addition to weights, create buffers for preactivation
+        values and for the intermediate values computed in the LSTM cell.
+
+        """
         # super calls into Layer.__init__() for weight init.
-        super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
-                                                   pos, nin, nout, weight_init,
-                                                   learning_rule, activation)
-        sbe = self.backend
+        super(RecurrentLSTMLayer, self).__init__(name, backend, batch_size,
+                                                 pos, nin, nout, weight_init,
+                                                 learning_rule,
+                                                 activation=activation)
 
-        wshape = (self.nout, self.nout)
-        bshape = (self.batch_size, self.nout)
-        # create weight matrices
-        for a in ['i', 'f', 'o', 'c']:
-            for b in ['h', 'x']:
-                setattr(self, 'W' + b + a,
-                        sbe.gen_weights(wshape, weight_init_rec, weight_dtype))
+        # things that are not initalized by the super class
+        self.gate_activation = gate_activation  # same for activation in super
+        be = backend
+        net_sze = (self.nout, batch_size)  # tuple with activation size.
 
-        # initialize buffers for intermediate values
-        for ival in ['i', 'f', 'o', 'g', 'c', 'h']:
-            setattr(self, ival+'_t',
-                    [sbe.zeros(bshape) for k in range(unrolls)])
-
-        # preactivation -- do we really need to store this across unrolls?
+        # create weight matrices -- TODO: weight_init in yaml
         for a in ['i', 'f', 'o', 'g']:
-            for b in ['h', 'x']:
-                setattr(self, 'net_' + a + b,
-                        [sbe.zeros(bshape) for k in range(unrolls)])
+            setattr(self, a + '_t',
+                    [be.zeros(net_sze) for k in range(unrolls)])
+            setattr(self, 'net_' + a,
+                    [be.zeros(net_sze) for k in range(unrolls)])
 
-        # misc
-        self.deltas = [sbe.zeros(bshape)
-                       for k in range(unrolls + 1)]
-        self.updates_rec = sbe.zeros(wshape)
-        self.temp_rec = sbe.zeros(wshape)
-        self.temp_in = sbe.zeros((self.nout, self.nin))
-        self.learning_rule.allocate_state_rec(self.updates_rec)
+        for a in ['i', 'f', 'o', 'c']:
+            setattr(self, 'W' + a + 'x',
+                    be.gen_weights((nout, nin), weight_init_rec, weight_dtype))
+            setattr(self, 'W' + a + 'h', be.gen_weights((nout, nout),
+                                                        weight_init_rec,
+                                                        weight_dtype))
+            setattr(self, 'b_' + a, be.zeros((nout, 1)))
+            setattr(self, 'W' + a + 'x_updates', be.zeros((nout, nin)))
+            setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
+            setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
 
-        self.berror = sbe.zeros(bshape)
+        # If this isn't initialized correctly, get NaNs pretty quickly.
+        be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
+        # +5 following clockwork RNN paper "to encourage long term memory"
+        be.add(be.zeros((nout, 1)), -1, self.b_f)  # sigmoid(-1) closes gate.
+        be.add(be.zeros((nout, 1)), 1, self.b_o)   # sigmoid(1) open
+        self.b_c = be.zeros((nout, 1))  # no need to be messed with
 
-    def fprop(self, y, inputs, tau):
+        # and for higher up entities in the LSTM cell.
+        self.c_t = [be.zeros(net_sze) for k in range(unrolls)]
+        self.c_phi = [be.zeros(net_sze) for k in range(unrolls)]
+        self.c_phip = [be.zeros(net_sze) for k in range(unrolls)]
+        self.output_list = [be.zeros(net_sze) for k in range(unrolls)]
+
+        # pre-allocate preactivation buffers
+        self.temp_x = [be.zeros(net_sze) for k in range(unrolls)]
+        self.temp_h = [be.zeros(net_sze) for k in range(unrolls)]
+
+        self.learning_rule.allocate_state_lstm(self.Wix_updates,
+                                               self.Wih_updates,
+                                               self.b_i_updates)
+
+        self.berror = be.zeros((nout, batch_size))  # hidden bprop error
+        self.cerror = be.zeros((nout, batch_size))  # cell bprop error
+
+        self.temp_t = 0
+
+    def fprop(self, y, inputs, tau, cell):
         """
-        In numpy pseudocode, the forward pass is:
-            de_dW = dot((y-t) / (y * (1-y)), dy_dW)     # d/dW CE(y,t)
-            dy_dW = dot(sig_prime(dot(Wyh, h)), dh_dW)  # d/dW sigm(Wyh*h)
-            dh_dW = o .* dp_dW + tanh(c) .* do_dW       # d/dW o .* tanh(c)
-            do_dWxo = sigmoid_prime(dot(Wxo, x) +
-                                    dot(Who, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
-            dp_dW = dot(tanh_prime(c), dc_dW)           # d/dW phi(c)
-            dc_dW = c_.*df_dW + i.*dg_dW + g .* di_dW   # d/dW (f.*c_ + i.*g)
-            df_dWxf = sigmoid_prime(dot(Wxf, x) +
-                                    dot(Whf, h) + b) x  # d/dW s(Wfx*x+Wfh*h+b)
-            dg_dWxc = sigmoid_prime(dot(Wxc, x) +
-                                    dot(Whc, h) + b) x  # d/dW s(Wcx*x+Wch*h+b)
-            di_dWxi = sigmoid_prime(dot(Wxi, x) +
-                                    dot(Whi, h) + b) x  # d/dW s(Wix*x+Wih*h+b)
-        Start by computing the sigmoids and go up from there.
-        This is for the d/dWx, but d/dWh follows the same schema.
+        Forward pass for the google-style LSTM cell with forget gates, no
+        peepholes.
+
+        Inputs:
+            y:      input from prev. time step (eg. one batch of (64, 50) size)
+            inputs: input from data (eg. one batch of (128, 50) size)
+            (tau):  unrolling step for BPTT
+            cell:   state of memory cell from prev. time step (shape as y)
+
+        Outputs:
+            self.c_t:         cell activity
+            self.output_list: hidden activity
+
+        In math notiation, forward pass:
+            i_t = s(Wix*x + Wih*h +b_i)
+            f_t = s(Wpx*x + Wfh*h +b_f)
+            o_t = s(Wox*x + Woh*h +b_o)
+            g_t = s(Wcx*x + Wch*h +b_c)
+            c_t = f_t .* c_t-1 + i_t .* g_t
+            h_t = o_t .* phi(c_t)
+            ------ output layer -----
+            y_t = s(W_yh * h_t)
+            e_t = xEnt(y, t)
+
+        The values are computed and stored for all unrolls so they can be
+        used in bprop. [TODO] check for redundant buffers
         """
-        batch_size = self.batch_size
-        unrolls = self.unrolls
+        be = self.backend  # shorthand
+        phi = self.activation  # tanh
+        sig = self.gate_activation  # logistic
 
-        self.net_ix = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ih = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_fh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_ox = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_oh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gx = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
-        self.net_gh = [self.backend.zeros((batch_size, self.nout))
-                       for k in range(unrolls)]
+        # input gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wix)
+        be.fprop_fc(self.temp_h[tau], y, self.Wih)
+        be.add(self.temp_x[tau], self.temp_h[tau], self.net_i[tau])
+        be.add(self.net_i[tau], self.b_i, self.net_i[tau])
+        sig.apply_both(be, self.net_i[tau], self.i_t[tau])
 
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.f_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.o_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.g_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.c_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.h_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
-        self.i_t = [self.backend.zeros((batch_size, self.nout))
-                    for k in range(unrolls)]
+        # forget gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wfx)
+        be.fprop_fc(self.temp_h[tau], y, self.Wfh)
+        be.add(self.temp_x[tau], self.temp_h[tau], self.net_f[tau])
+        be.add(self.net_f[tau], self.b_f, self.net_f[tau])
+        sig.apply_both(be, self.net_f[tau], self.f_t[tau])
 
-        # old code from RNN
+        # output gate
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wox)
+        be.fprop_fc(self.temp_h[tau], y, self.Woh)
+        be.add(self.temp_x[tau], self.temp_h[tau], self.net_o[tau])
+        be.add(self.net_o[tau], self.b_o, self.net_o[tau])
+        sig.apply_both(be, self.net_o[tau], self.o_t[tau])
 
-    def bprop(self, error, inputs, tau, batch_inx):
-        pass
+        # classic RNN cell
+        be.fprop_fc(self.temp_x[tau], inputs, self.Wcx)
+        be.fprop_fc(self.temp_h[tau], y, self.Wch)
+        be.add(self.temp_x[tau], self.temp_h[tau], self.net_g[tau])
+        be.add(self.net_g[tau], self.b_c, self.net_g[tau])
+        phi.apply_both(be, self.net_g[tau], self.g_t[tau])
+
+        # combine the parts and compute output.
+        be.multiply(self.f_t[tau], cell, self.c_t[tau])
+        be.multiply(self.i_t[tau], self.g_t[tau], self.c_phip[tau])
+        be.add(self.c_t[tau], self.c_phip[tau], self.c_t[tau])
+        self.c_phip[tau] = be.copy(self.c_t[tau])
+
+        phi.apply_both(be, self.c_phip[tau], self.c_phi[tau])
+        be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
+
+    def bprop(self, error_h, error_c, inputs, tau_tot, tau, numgrad=False):
+        """
+        For LSTM, inject h-error and c-error, get 8 w's and h, c out. It's
+        more complicated than bprop thorugh a standard layer mostly because
+        we have two outputs that we inject errors into, each leading to an
+        error on the two inputs (4 errors total), and each of the weight
+        updates has a contribution from the error to the cell and the hidden.
+
+
+        Inputs:
+            error_h2: error injected into hidden
+            error_c2: error injected directly into cell
+
+        Outputs:
+            error_h1: from h2 and c2: dh2/dh1 + dc2/dh1
+                                      existing  new
+            error_c1: from h2 and c2: dh2/dc1 + dc2/dc1
+                                      new       new
+
+        [TODO] Two new terms to compute!
+
+        Basic derivation
+            In math, backward pass:
+                de_dJ = d/dJ CE(y,t)
+                dy_dJ = d/dJ sigm(wyh*h)
+                ------ hidden layer -----
+                dh_dJ = d/dJ o .* tanh(c)
+                dp_dJ = d/dJ phi(c)
+                dc_dJ = d/dJ (f.*c_ + i.*g)
+                di_dJ = d/dJ s(wix*x+wih*h+b)
+                df_dJ = d/dJ s(wfx*x+wfh*h+b)
+                do_dJ = d/dJ s(wcx*x+wch*h+b)
+                dg_dJ = d/dJ s(wcx*x+wch*h+b)
+
+        Over multiple time-steps, berror feeds back in as error.
+        [TODO] Currently using a bunch of if statements to catch propagating
+        into outputs[-1], which should not wrap but be 0.
+        """
+        be = self.backend
+
+        # 1. allocate buffers -  these are for a single pass through the cell,
+        # the wix_updates etc. accumulate over the loop.
+        # [TODO] allocate in init, call them self.dh_dw['ix']
+
+        di_dh1 = be.zeros((self.nout, self.batch_size))
+        df_dh1 = be.copy(di_dh1)
+        do_dh1 = be.copy(di_dh1)
+        dg_dh1 = be.copy(di_dh1)
+        hherror = be.copy(di_dh1)
+        hcerror = be.copy(di_dh1)
+        cherror = be.copy(di_dh1)
+        ccerror = be.copy(di_dh1)
+
+        # [todo] need only two temp buffers here
+        dh_dwix = be.zeros((self.nout, self.nin))
+        dh_dwfx = be.copy(dh_dwix)
+        dh_dwox = be.copy(dh_dwix)
+        dh_dwcx = be.copy(dh_dwix)
+        dh_dwih = be.zeros((self.nout, self.nout))
+        dh_dwfh = be.copy(dh_dwih)
+        dh_dwoh = be.copy(dh_dwih)
+        dh_dwch = be.copy(dh_dwih)
+
+        dc_di_dh1 = be.copy(di_dh1)
+        dc_df_dh1 = be.copy(di_dh1)
+        dc_dg_dh1 = be.copy(di_dh1)
+
+        """--------------------------
+        PART 1: original dh2/dh1 terms
+        --------------------------"""
+        temp = be.zeros((self.nout, self.batch_size))
+        temp_sum = be.empty((self.nout, 1))
+        # a. Input gate
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] \
+        #        * self.net_i[tau]
+        be.multiply(error_h, self.o_t[tau], temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.g_t[tau], temp, temp)
+        be.multiply(self.net_i[tau], temp, temp)
+        be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
+        be.update_fc(out=dh_dwix,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwih,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wix_updates, dh_dwix, self.Wix_updates)
+        if (tau > 0):
+            be.add(self.Wih_updates, dh_dwih, self.Wih_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
+
+        # b. forget gate
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.c_t[tau-1] \
+        #        * self.net_f[tau]
+        be.multiply(error_h, self.o_t[tau], temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.c_t[tau-1], temp, temp)
+        be.multiply(self.net_f[tau], temp, temp)
+        be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
+        be.update_fc(out=dh_dwfx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwfh,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wfx_updates, dh_dwfx, self.Wfx_updates)
+        if (tau > 0):
+            be.add(self.Wfh_updates, dh_dwfh, self.Wfh_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
+
+        # c. output gate
+        # temp = error_h * self.c_phi[tau] * self.net_o[tau]
+        be.multiply(error_h, self.c_phi[tau], temp)
+        be.multiply(self.net_o[tau], temp, temp)
+        be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
+        be.update_fc(out=dh_dwox,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwoh,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wox_updates, dh_dwox, self.Wox_updates)
+        if (tau > 0):
+            be.add(self.Woh_updates, dh_dwoh, self.Woh_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_o_updates, temp_sum, self.b_o_updates)
+
+        # d. cell
+        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.i_t[tau] \
+        #        * self.net_g[tau]
+        be.multiply(error_h, self.o_t[tau], temp)
+        be.multiply(self.c_phip[tau], temp, temp)
+        be.multiply(self.i_t[tau], temp, temp)
+        be.multiply(self.net_g[tau], temp, temp)
+        be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
+        be.update_fc(out=dh_dwcx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwch,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wcx_updates, dh_dwcx, self.Wcx_updates)
+        if (tau > 0):
+            be.add(self.Wch_updates, dh_dwch, self.Wch_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
+
+        # e. collect terms
+        be.add(di_dh1, df_dh1, hherror)
+        be.add(do_dh1, hherror, hherror)
+        be.add(dg_dh1, hherror, hherror)
+
+        # used for num grad checks
+        ttemp1i = dh_dwih[12, 55].asnumpyarray()
+        ttemp1f = dh_dwfh[12, 55].asnumpyarray()
+        ttemp1o = dh_dwoh[12, 55].asnumpyarray()
+        ttemp1c = dh_dwch[12, 55].asnumpyarray()
+
+        """ --------------------------
+        PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
+        ---------------------------"""
+
+        # dc2/dh1 terms:
+        # input gate
+        # temp = error_c * self.g_t[tau] * self.net_i[tau]
+        be.multiply(error_c, self.g_t[tau], temp)
+        be.multiply(self.net_i[tau], temp, temp)
+        be.bprop_fc(out=dc_di_dh1, weights=self.Wih, deltas=temp)
+        be.update_fc(out=dh_dwix,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwih,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wix_updates, dh_dwix, self.Wix_updates)
+        if (tau > 0):
+            be.add(self.Wih_updates, dh_dwih, self.Wih_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
+
+        # forget gate
+        # temp = error_c * self.c_t[tau-1] * self.net_f[tau]
+        be.multiply(error_c, self.c_t[tau-1], temp)
+        be.multiply(self.net_f[tau], temp, temp)
+        be.bprop_fc(out=dc_df_dh1, weights=self.Wfh, deltas=temp)
+        be.update_fc(out=dh_dwfx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwfh,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wfx_updates, dh_dwfx, self.Wfx_updates)
+        if (tau > 0):
+            be.add(self.Wfh_updates, dh_dwfh, self.Wfh_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
+
+        # cell
+        # temp = error_c * self.i_t[tau] * self.net_g[tau]
+        be.multiply(error_c, self.i_t[tau], temp)
+        be.multiply(self.net_g[tau], temp, temp)
+        be.bprop_fc(out=dc_dg_dh1, weights=self.Wch, deltas=temp)
+        be.update_fc(out=dh_dwcx,
+                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     deltas=temp)
+        be.update_fc(out=dh_dwch,
+                     inputs=self.output_list[tau - 1],
+                     deltas=temp)
+        be.add(self.Wcx_updates, dh_dwcx, self.Wcx_updates)
+        if (tau > 0):
+            be.add(self.Wch_updates, dh_dwch, self.Wch_updates)
+        be.sum(temp, 1, temp_sum)
+        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
+
+        be.add(dc_di_dh1, dc_df_dh1, cherror)
+        be.add(cherror, dc_dg_dh1, cherror)
+
+        # dh2/dc1 term:
+        # hcerror = error_h * self.o_t[tau] * self.c_phip[tau] * self.f_t[tau]
+        be.multiply(error_h, self.o_t[tau], hcerror)
+        be.multiply(self.c_phip[tau], hcerror, hcerror)
+        be.multiply(self.f_t[tau], hcerror, hcerror)
+
+        # dc2/dc1 term:
+        # ccerror = error_c * self.f_t[tau]
+        be.multiply(error_c, self.f_t[tau], ccerror)
+
+        # wrap up:
+        be.add(hherror, cherror, self.berror)
+        be.add(ccerror, hcerror, self.cerror)
+
+        if numgrad is "lstm_ih":
+            ttemp2i = dh_dwih[12, 55].asnumpyarray()
+            logger.info("layer.LSTM.bprop: analytic dh_dwih[%d]= %e + %e = %e",
+                        tau, ttemp1i, ttemp2i, ttemp1i + ttemp2i)
+        if numgrad is "lstm_fh":
+            ttemp2f = dh_dwfh[12, 55].asnumpyarray()
+            logger.info("layer.LSTM.bprop: analytic dh_dwfh[%d]= %e + %e = %e",
+                        tau, ttemp1f, ttemp2f, ttemp1f + ttemp2f)
+        if numgrad is "lstm_oh":
+            ttemp2o = dh_dwoh[12, 55].asnumpyarray()
+            logger.info("layer.LSTM.bprop: analytic dh_dwoh[%d]= %e + %e = %e",
+                        tau, ttemp1o, ttemp2o, ttemp1o + ttemp2o)
+        if numgrad is "lstm_ch":
+            ttemp2c = dh_dwch[12, 55].asnumpyarray()
+            logger.info("layer.LSTM.bprop: analytic dh_dwch[%d]= %e + %e = %e",
+                        tau, ttemp1c, ttemp2c, ttemp1c + ttemp2c)
 
     def update(self, epoch):
-        pass
+        """
+        Need to think of something new here, can't have a new rule for each
+        of the matrices. Why does apply_rule not take different weights?
+        """
+        self.learning_rule.apply_rule_lstm(
+            (self.Wix, self.Wfx, self.Wox, self.Wcx,
+             self.Wih, self.Wfh, self.Woh, self.Wch,
+             self.b_i, self.b_f, self.b_o, self.b_c),
+            (self.Wix_updates, self.Wfx_updates,
+             self.Wox_updates, self.Wcx_updates,
+             self.Wih_updates, self.Wfh_updates,
+             self.Woh_updates, self.Wch_updates,
+             self.b_i_updates, self.b_f_updates,
+             self.b_o_updates, self.b_c_updates),
+            epoch)
 
 
 class RecurrentHiddenLayer(Layer):
@@ -466,10 +798,10 @@ class RecurrentHiddenLayer(Layer):
                  activation, weight_init, weight_init_rec, learning_rule,
                  weight_dtype=None, delta_dtype=None, updates_dtype=None,
                  pre_act_dtype=None, output_dtype=None, berror_dtype=None):
-        # super calls into Layer.__init__() for weight init.
         super(RecurrentHiddenLayer, self).__init__(name, backend, batch_size,
                                                    pos, nin, nout, weight_init,
-                                                   learning_rule, activation)
+                                                   learning_rule,
+                                                   activation=activation)
         self.weights_rec = self.backend.gen_weights((nout, nout),
                                                     weight_init_rec,
                                                     weight_dtype)
@@ -479,8 +811,6 @@ class RecurrentHiddenLayer(Layer):
         self.output_list = [self.backend.zeros((nout, batch_size),
                                                output_dtype)
                             for k in range(unrolls)]
-        self.deltas = [self.backend.zeros((nout, batch_size))
-                       for k in range(unrolls + 1)]
         self.updates_rec = self.backend.zeros((nout, nout))
         self.temp_rec = self.backend.zeros((nout, nout))
         self.temp_in = self.backend.zeros((nout, nin))
@@ -488,7 +818,7 @@ class RecurrentHiddenLayer(Layer):
 
         self.berror = backend.zeros((nout, batch_size))
 
-    def fprop(self, y, inputs, tau):
+    def fprop(self, y, inputs, tau, cell=None):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
         z2 = self.backend.zeros(self.pre_act_list[tau].shape)
         self.backend.fprop_fc(z1, y, self.weights_rec)
@@ -498,24 +828,46 @@ class RecurrentHiddenLayer(Layer):
             self.activation.apply_both(self.backend,
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
+        else:
+            raise AttributeError("Urs is not cool with your missing "
+                                 "activation function")
 
-    def bprop(self, error, inputs, tau):
-        sbe = self.backend
-        sbe.multiply(error, self.pre_act_list[tau - 1], out=self.deltas[1])
-        sbe.update_fc(self.temp_in, inputs[(tau-1)*128:tau*128, :],
-                      self.deltas[1])
-        sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
-        for layer in list(range(0, tau - 1))[::-1]:
-            sbe.bprop_fc(self.berror, self.weights_rec,
-                         self.deltas[tau - layer - 1])
-            sbe.multiply(self.berror, self.pre_act_list[layer],
-                         self.deltas[tau - layer])
-            sbe.update_fc(self.temp_rec, self.output_list[layer],
-                          self.deltas[tau - layer - 1])
-            sbe.add(self.updates_rec, self.temp_rec, self.updates_rec)
-            sbe.update_fc(self.temp_in, inputs[layer*128:(layer+1)*128, :],
-                          self.deltas[tau - layer])
-            sbe.add(self.weight_updates, self.temp_in, self.weight_updates)
+    def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
+        """
+        This function has been refactored:
+        [done] remove duplicate code
+        [done] remove the loop altogether.
+        [todo] If the if statement can't be supported, revert to duplicated
+               code
+        Not sure why tau is passed but not used. Not that this is called for
+        decrementing t.
+        """
+        self.backend.multiply(error, self.pre_act_list[t], out=error)
+        if (t > 0):  # can move down or just compute (but it's not used)
+            # compute error (apply prev. delta)
+            self.backend.bprop_fc(out=self.berror,  # output for next iteration
+                                  weights=self.weights_rec,
+                                  deltas=error)
+
+        # input weight update (apply curr. delta)
+        self.backend.update_fc(out=self.temp_in,
+                               inputs=inputs[t*128:(t+1)*128, :],
+                               deltas=error)
+        self.backend.add(self.weight_updates, self.temp_in,
+                         self.weight_updates)
+
+        if (t > 0):
+            # recurrent weight update (apply prev. delta)
+            self.backend.update_fc(out=self.temp_rec,
+                                   inputs=self.output_list[t - 1],  # avoid t=0
+                                   deltas=error)
+            self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
+        if numgrad is "input":
+            logger.info("RecurrentHiddenLayer.bprop inc in %f",
+                        self.temp_in[12, 110])
+        if numgrad is "rec":
+            logger.info("RecurrentHiddenLayer.bprop inc rec %f",
+                        self.temp_rec[12, 63])
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
@@ -569,7 +921,7 @@ class BranchLayer(YAMLable):
             sublayer.bprop(error[s_idx:e_idx], inputs)
 
         if self.pos > 0:
-            self.berror[:] = self.backend.wrap(0.0)
+            self.berror[:] = 0.0
             for sublayer in self.sublayers:
                 self.backend.add(self.berror, sublayer.berror, out=self.berror)
 
@@ -615,8 +967,7 @@ class DropOutLayer(YAMLable):
                                   out=self.keepmask)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
-            self.backend.multiply(inputs, self.backend.wrap(self.keep),
-                                  out=self.output)
+            self.backend.multiply(inputs, self.keep, out=self.output)
 
     def bprop(self, error, inputs):
         if self.pos > 0:
@@ -739,10 +1090,10 @@ class LocalLayer(YAMLable):
 
         self.fsize = nifm * self.fheight * self.fwidth
         ofmstarts = backend.array(range(0, (self.ofmsize * nofm),
-                                        self.ofmsize)).raw()
-        self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='i32')
+                                        self.ofmsize))
+        self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='int32')
         for dst in range(self.ofmsize):
-            self.ofmlocs[dst] = backend.wrap(ofmstarts + dst)
+            backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # Figure out the connections with the previous layer.
         if isinstance(backend, GPU):
@@ -766,7 +1117,7 @@ class LocalLayer(YAMLable):
 
             # This variable tracks the top left corner of the receptive field.
             src = 0
-            for dst in xrange(self.ofmsize):
+            for dst in range(self.ofmsize):
                 # Collect the column indices for the
                 # entire receptive field.
                 colinds = []
@@ -775,7 +1126,7 @@ class LocalLayer(YAMLable):
                     colinds += range(start, start + self.fwidth)
                 fminds = colinds[:]
                 if pooling is False:
-                    for ifm in xrange(1, nifm):
+                    for ifm in range(1, nifm):
                         colinds += [x + ifm * self.ifmsize for x in fminds]
 
                 expr1 = (src % self.ifmwidth + self.fwidth + stride)
@@ -788,7 +1139,7 @@ class LocalLayer(YAMLable):
                     src += stride * self.ifmwidth - src % self.ifmwidth
                     assert src % self.ifmwidth == 0
                 self.links[dst, :] = backend.array(colinds, dtype='i32')
-            self.rlinks = self.links.raw()
+            self.rlinks = self.links.asnumpyarray()
 
     def normalize_weights(self, weights):
         norms = self.backend.norm(weights, order=2, axis=1)
@@ -866,7 +1217,7 @@ class LocalLayerDist(LocalLayer):
                                              self.ofmsize))
 
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
-                                          dtype='i32')
+                                          dtype='int32')
         for dst in range(self.ofmsize):
             self.backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
@@ -876,7 +1227,7 @@ class LocalLayerDist(LocalLayer):
         # Figure out the connections with the previous layer.
         if self.pooling is True:
             self.links = self.backend.empty(
-                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='i32')
+                (self.ofmsize, self.fshape[0] * self.fshape[1]), dtype='int32')
             self.outputbuf = self.backend.empty((self.ofmsize,
                                                  self.batch_size * self.nifm))
             if self.pos > 0:
@@ -884,7 +1235,7 @@ class LocalLayerDist(LocalLayer):
                     (self.ifmsize, self.batch_size * self.nifm))
         else:
             self.links = self.backend.empty(
-                (self.ofmsize, self.fsize), dtype='i32')
+                (self.ofmsize, self.fsize), dtype='int32')
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in range(self.ofmsize):
@@ -909,7 +1260,7 @@ class LocalLayerDist(LocalLayer):
                 src += self.stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
             self.links[dst] = self.backend.array(colinds)
-        self.rlinks = self.links.raw()
+        self.rlinks = self.links.asnumpyarray()
 
         self.nout = self.nifm * self.ofmsize
         self.output = self.backend.empty((self.nout, self.batch_size))
@@ -965,14 +1316,18 @@ class ConvLayer(LocalLayer):
         self.learning_rule.allocate_state(self.updates)
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("ConvLayer %s: %d ifms, %d filters, "
                 "utilizing %s backend\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nifm, self.nofm,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
+                 float(self.backend.mean(self.weights, axes=None,
+                                         out=temp).asnumpyarray()),
+                 float(self.backend.min(self.weights, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.weights, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
@@ -1070,8 +1425,9 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
         self.updates._tensor = MPI.COMM_WORLD.reduce(
-            self.updates.raw(), op=MPI.SUM, root=0)
-        self.updates._tensor = MPI.COMM_WORLD.bcast(self.updates.raw())
+            self.updates.asnumpyarray(), op=MPI.SUM, root=0)
+        self.updates._tensor = MPI.COMM_WORLD.bcast(
+            self.updates.asnumpyarray())
         self.backend.update_conv(out=self.updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
@@ -1119,14 +1475,18 @@ class LocalFilteringLayer(LocalLayer):
             self.tied_weights = tied_weights
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("LocalFilteringLayer %s: %d ifms, "
                 "utilizing %s backend\n\t"
                 "weights: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nifm,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.weights),
-                 self.backend.min(self.weights),
-                 self.backend.max(self.weights)))
+                 float(self.backend.mean(self.weights, axes=None,
+                                         out=temp).asnumpyarray()),
+                 float(self.backend.min(self.weights, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.weights, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def pretrain_mode(self, pooling):
         self.learning_rule.set_pretrain_mode(True)
@@ -1165,7 +1525,9 @@ class LocalFilteringLayer(LocalLayer):
         self.bprop(berror, inputs)
         self.update(epoch)
         rcost = cost.apply_function(inputs)
-        spcost = self.sparsity * self.pooling.output.sum()
+        spcost = self.backend.empty((1, 1))
+        self.backend.sum(self.pooling.output, axes=None, out=spcost)
+        self.backend.multiply(spcost, self.sparsity, spcost)
         return rcost, spcost
 
     def fprop(self, inputs):
@@ -1184,7 +1546,7 @@ class LocalFilteringLayer(LocalLayer):
 
     def bprop(self, error, inputs):
         if self.pos > 0:
-            self.backend.clear(self.berror)
+            self.berror.fill(0)
             for dst in range(self.ofmsize):
                 # Use the same filter that was used for forward propagation
                 # of this receptive field.
@@ -1365,7 +1727,7 @@ class LocalDeFilteringLayer(object):
             # Share the weights with the previous layer.
             self.weights = prev.weights
         else:
-            self.weights = prev.weights.copy()
+            self.weights = prev.backend.copy(prev.weights)
         self.updates = prev.backend.empty(self.weights.shape)
         self.prodbuf = prev.backend.empty((prev.fsize, prev.batch_size))
         self.bpropbuf = prev.backend.empty((prev.nofm, prev.batch_size))
@@ -1379,7 +1741,7 @@ class LocalDeFilteringLayer(object):
         self.prev = prev
 
     def fprop(self, inputs):
-        self.backend.clear(self.output)
+        self.output.fill(0)
         for dst in range(self.prev.ofmsize):
             rflinks = self.rlinks[dst]
             # size guide:
@@ -1429,18 +1791,25 @@ class MaxPoolingLayer(LocalLayer):
         assert fshape[0] * fshape[1] <= 2 ** 15
 
     def __str__(self):
+        temp = self.backend.empty((1, 1))
         return ("MaxPoolingLayer %s: %d nin, %d nout, "
                 "utilizing %s backend\n\t"
                 "maxinds: mean=%.05f, min=%.05f, max=%.05f\n\t"
                 "output: mean=%.05f, min=%.05f, max=%.05f\n\t" %
                 (self.name, self.nin, self.nout,
                  self.backend.__class__.__name__,
-                 self.backend.mean(self.maxinds),
-                 self.backend.min(self.maxinds),
-                 self.backend.max(self.maxinds),
-                 self.backend.mean(self.output),
-                 self.backend.min(self.output),
-                 self.backend.max(self.output)))
+                 float(self.backend.mean(self.maxinds, axes=None,
+                                         out=temp).asnumpyarray()),
+                 float(self.backend.min(self.maxinds, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.maxinds, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.mean(self.output, axes=None,
+                                         out=temp).asnumpyarray()),
+                 float(self.backend.min(self.output, axes=None,
+                                        out=temp).asnumpyarray()),
+                 float(self.backend.max(self.output, axes=None,
+                                        out=temp).asnumpyarray())))
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op="max",
@@ -1746,7 +2115,7 @@ class LCNLayer(YAMLable):
                                                      self.filters.shape[1]))
             self.sqtemp = backend.empty(self.output.shape)
             for fm in range(nifm):
-                self.bprop_filters[fm] = self.filters.copy()
+                self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
                 fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
@@ -1798,12 +2167,13 @@ class LCNLayer(YAMLable):
 
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
+        assert self.subout[self.meanfm.asnumpyarray() == 0.0].asnumpyarray(
+            ).sum() == 0.0
+        self.meanfm[self.meanfm.asnumpyarray() == 0.0] = 1.0
         self.backend.divide(self.rsubout, self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs):
-        self.backend.clear(self.exinputs)
+        self.exinputs.fill(0)
         self.fprop_sub_normalize(inputs)
         self.fprop_div_normalize()
 
@@ -1814,13 +2184,14 @@ class LCNLayer(YAMLable):
         self.berror = self.berror.reshape((self.nin, self.batch_size))
 
     def bprop_sub_normalize(self, error, inputs):
-        self.backend.clear(self.exerror)
+        self.exerror.fill(0)
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 rflinks = self.conv.rlinks[dst]
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
+                loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
+                       self.conv.ofmsize * fm)
                 filt = self.bprop_filters[fm]
-                self.backend.multiply(error[loc], filt.transpose(),
+                self.backend.multiply(error[loc].transpose(), filt.transpose(),
                                       out=self.prodbuf)
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, self.prodbuf,
@@ -1828,11 +2199,12 @@ class LCNLayer(YAMLable):
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
-        self.backend.clear(self.exerror)
+        self.exerror.fill(0)
         self.backend.cube(self.output, out=self.diverror)
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
-        self.subout[self.subout.raw() == 0] = 1.0
+        assert self.diverror[self.subout.asnumpyarray() == 0].asnumpyarray(
+            ).sum() == 0.0
+        self.subout[self.subout.asnumpyarray() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
@@ -1840,11 +2212,13 @@ class LCNLayer(YAMLable):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
-                divout = self.output.take(loc, axis=0)
-                subout = self.subout.take(loc, axis=0)
-                assert divout[subout.raw() == 0].sum() == 0
-                subout[subout.raw() == 0.0] = 1.0
+                loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
+                       self.conv.ofmsize * fm)
+                divout = self.output.take(loc, axis=0).transpose()
+                subout = self.subout.take(loc, axis=0).transpose()
+                assert divout[subout.asnumpyarray() == 0].asnumpyarray(
+                    ).sum() == 0
+                subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 
                 rflinks = self.conv.rlinks[dst]
@@ -1855,15 +2229,15 @@ class LCNLayer(YAMLable):
                 frame = rrexinputs.take(rflinks, axis=0)
                 self.backend.multiply(frame, self.filters.transpose(),
                                       out=frame)
-                self.backend.multiply(frame, self.diverror[loc], out=frame)
+                self.backend.multiply(frame, self.diverror[loc].transpose(),
+                                      out=frame)
                 rframe = frame.reshape((self.nifm, self.fheight, self.fwidth,
                                         self.batch_size))
                 # this is working on the g2/y2 term
                 rframe_slice = rframe[fm:(fm + 1), self.fheight / 2,
                                       self.fwidth / 2]
                 self.backend.subtract(rframe_slice, divout, rframe_slice)
-                self.backend.multiply(error[loc],
-                                      frame, out=frame)
+                self.backend.multiply(error[loc].transpose(), frame, out=frame)
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, frame, exerror_slice)
         self.reshape_error()
@@ -2011,7 +2385,7 @@ class LCNLayerDist(LCNLayer):
                                                      self.filters.shape[1]))
             self.sqtemp = self.backend.empty(self.output.shape)
             for fm in range(self.nifm):
-                self.bprop_filters[fm] = self.filters.copy()
+                self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (self.nifm, self.fheight, self.fwidth))
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
@@ -2050,14 +2424,14 @@ class LCNLayerDist(LCNLayer):
                            self.start_row, self.start_col)
         self.conv.fprop(self.exinputs)
         self.backend.sqrt(self.meanfm, out=self.meanfm)
-        assert self.subout[self.meanfm.raw() == 0.0].sum() == 0.0
-        self.meanfm[self.meanfm.raw() == 0.0] = 1.0
+        assert self.subout[self.meanfm.asnumpyarray() == 0.0].sum() == 0.0
+        self.meanfm[self.meanfm.asnumpyarray() == 0.0] = 1.0
         self.backend.divide(
             self.input.get_local_acts().reshape(
                 self.routput.shape), self.rmeanfm, out=self.routput)
 
     def fprop(self, inputs_):
-        self.backend.clear(self.exinputs)
+        self.exinputs.fill(0)
         inputs = self.input.get_fprop_view(inputs_)
         self.fprop_sub_normalize(inputs)
         # distributed version
@@ -2065,15 +2439,15 @@ class LCNLayerDist(LCNLayer):
         self.fprop_div_normalize()
 
     def bprop_div_normalize(self, error, inputs):
-        self.backend.clear(self.exerror)
+        self.exerror.fill(0)
         self.backend.cube(self.output, out=self.diverror)
 
         self.subout = self.input.get_local_acts()
         self.subtemp2[:] = self.input.local_array.chunk
 
         self.subtemp[:] = self.subout
-        assert self.diverror[self.subout.raw() == 0].sum() == 0.0
-        self.subout[self.subout.raw() == 0] = 1.0
+        assert self.diverror[self.subout.asnumpyarray() == 0].sum() == 0.0
+        self.subout[self.subout.asnumpyarray() == 0] = 1.0
         self.backend.square(self.subout, out=self.sqtemp)
         # this is for the non-padded, non-halo matrix only
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
@@ -2081,11 +2455,12 @@ class LCNLayerDist(LCNLayer):
         for fm in range(self.nifm):
             for dst in range(self.conv.ofmsize):
                 # self.conv.ofmlocs is over 1 fm only
-                loc = self.conv.ofmlocs[dst].raw() + self.conv.ofmsize * fm
+                loc = (self.conv.ofmlocs[dst].asnumpyarray() +
+                       self.conv.ofmsize * fm)
                 divout = self.output.take(loc, axis=0)
                 subout = self.subout.take(loc, axis=0)
-                assert divout[subout.raw() == 0].sum() == 0
-                subout[subout.raw() == 0.0] = 1.0
+                assert divout[subout.asnumpyarray() == 0].sum() == 0
+                subout[subout.asnumpyarray() == 0.0] = 1.0
                 self.backend.divide(divout, subout, out=divout)
 
                 rflinks = self.conv.rlinks[dst]
@@ -2151,7 +2526,7 @@ class CrossMapPoolingLayer(YAMLable):
 
         self.weights = backend.gen_weights((nifm, nofm),
                                            weight_init)
-        assert (self.weights.raw() < 0).sum() == 0
+        assert (self.weights.asnumpyarray() < 0).sum() == 0
         self.updates = backend.empty(self.weights.shape)
         self.output = backend.empty((self.nout, batch_size))
         self.updatebuf = backend.empty((1, 1))

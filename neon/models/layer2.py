@@ -133,10 +133,10 @@ class Layer(YAMLable):
             self.berrorbuf = make_ebuf((ifmsize, buf_size))
 
         ofmstarts = self.backend.array(range(0, (ofmsize * nofm),
-                                             ofmsize)).raw()
+                                             ofmsize)).asnumpyarray()
         self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='i32')
         for dst in range(ofmsize):
-            self.ofmlocs[dst] = self.backend.wrap(ofmstarts + dst)
+            self.ofmlocs[dst] = ofmstarts + dst
         if self.pooling is True:
             self.links = make_ebuf((ofmsize, fpsize), dtype='i32')
             self.outputbuf = make_ebuf((ofmsize, buf_size))
@@ -165,7 +165,7 @@ class Layer(YAMLable):
                 src += stride * ifmshape[1] - src % ifmshape[1]
                 assert src % ifmshape[1] == 0
             self.links[dst] = self.backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.raw()
+        self.rlinks = self.links.asnumpyarray()
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
@@ -214,11 +214,11 @@ class CostLayer(Layer):
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.berror, self.backend.wrap(self.batch_size),
-                            out=self.berror)
+        self.backend.divide(self.berror, self.batch_size, out=self.berror)
 
     def get_cost(self):
-        return self.cost.apply_function(self.targets) / self.batch_size
+        result = self.cost.apply_function(self.targets)
+        return self.backend.divide(result, self.batch_size, result)
 
 
 class DataLayer(Layer):
@@ -332,7 +332,7 @@ class WeightLayer(Layer):
         opt_param(self, ['brule_init'], None)
         if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.backend.fill(self.biases, self.weight_init['bias_init'])
+            self.biases.fill(self.weight_init['bias_init'])
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
@@ -364,7 +364,7 @@ class WeightLayer(Layer):
 
         if self.accumulate:
             for upm in self.updates:
-                self.backend.fill(upm, 0.0)
+                upm.fill(0.0)
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
@@ -423,7 +423,7 @@ class FCLayer(WeightLayer):
 
         self.backend.update_fc(out=upm[0], inputs=inputs, deltas=error)
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=upm[1])
+            self.backend.sum(error, axes=1, out=upm[1])
 
         if self.accumulate:
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
@@ -547,7 +547,7 @@ class ConvLayer(WeightLayer):
                                  local=self.local_conv)
 
         if self.use_biases is True:
-            self.backend.sum(error, axis=1, out=upm[1])
+            self.backend.sum(error, axes=1, out=upm[1])
         if self.accumulate:
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
             if self.use_biases is True:
@@ -580,12 +580,10 @@ class DropOutLayer(Layer):
     def fprop(self, inputs):
         if (self.train_mode):
             self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, self.backend.wrap(self.keep),
-                                  out=self.keepmask)
+            self.backend.multiply(self.keepmask, self.keep, out=self.keepmask)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
-            self.backend.multiply(inputs, self.backend.wrap(self.keep),
-                                  out=self.output)
+            self.backend.multiply(inputs, self.keep, out=self.output)
 
     def bprop(self, error):
         if self.berror is not None:
@@ -655,7 +653,7 @@ class BranchLayer(CompositeLayer):
             s_l.bprop(error[si:ei])
 
         if self.berror is not None:
-            self.berror[:] = self.backend.wrap(0.0)
+            self.berror.fill(0.0)
             for subl in self.sublayers:
                 self.backend.add(self.berror, subl.berror, out=self.berror)
 
