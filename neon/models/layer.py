@@ -373,6 +373,7 @@ class RecurrentOutputLayer(Layer):
         for upm in self.updates:
             upm.fill(0.0)
 
+
 class RecurrentLSTMLayer(Layer):
 
     """
@@ -598,7 +599,7 @@ class RecurrentLSTMLayer(Layer):
                 self.g_t[tau], self.net_i[tau]])
         be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -620,7 +621,7 @@ class RecurrentLSTMLayer(Layer):
 
         be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -638,7 +639,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.net_o[tau], temp, temp)
         be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -661,7 +662,7 @@ class RecurrentLSTMLayer(Layer):
 
         be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -678,7 +679,6 @@ class RecurrentLSTMLayer(Layer):
         be.add(do_dh1, hherror, hherror)
         be.add(dg_dh1, hherror, hherror)
 
-
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
         ---------------------------"""
@@ -690,7 +690,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.net_i[tau], temp, temp)
         be.bprop_fc(out=dc_di_dh1, weights=self.Wih, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -708,7 +708,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.net_f[tau], temp, temp)
         be.bprop_fc(out=dc_df_dh1, weights=self.Wfh, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -726,7 +726,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.net_g[tau], temp, temp)
         be.bprop_fc(out=dc_dg_dh1, weights=self.Wch, deltas=temp)
         be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*128:(tau+1)*128, :],
+                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
                      deltas=temp)
         be.update_fc(out=self.dh_dwh_buf,
                      inputs=self.output_list[tau - 1],
@@ -845,7 +845,7 @@ class RecurrentHiddenLayer(Layer):
 
         # input weight update (apply curr. delta)
         self.backend.update_fc(out=self.temp_in,
-                               inputs=inputs[t*128:(t+1)*128, :],
+                               inputs=inputs[t*self.nin:(t+1)*self.nin, :],
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_in,
                          self.weight_updates)

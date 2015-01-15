@@ -46,8 +46,9 @@ class RNN(Model):
         # use targets = inputs for sequence prediction
         targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]
+        nin = self.layers[0].nin
         viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / 128
+        num_batches = int(math.floor((nrecs + 0.0) / nin
                                                    / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
@@ -63,8 +64,8 @@ class RNN(Model):
             hidden_init = None
             cell_init = None
             for batch in xrange(num_batches):
-                batch_inx = xrange(batch*128*self.unrolls,
-                                   (batch+1)*128*self.unrolls+128)
+                batch_inx = xrange(batch*nin*self.unrolls,
+                                   (batch+1)*nin*self.unrolls+nin)
                 self.fprop(inputs[batch_inx, :],
                            hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
@@ -79,11 +80,10 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                target_out = targets[batch_inx, :][(self.unrolls-0)*128:
-                                                   (self.unrolls+1)*128, :]
+                target_out = targets[batch_inx, :][(self.unrolls-0)*nin:
+                                                   (self.unrolls+1)*nin, :]
                 suberror = self.cost.apply_function(target_out)
-                self.backend.divide(suberror, float(self.batch_size *
-                                                    self.layers[0].nin),
+                self.backend.divide(suberror, float(self.batch_size*nin),
                                     suberror)
                 suberrorlist.append(float(suberror.asnumpyarray()))
                 self.backend.divide(suberror, num_batches, suberror)
@@ -143,16 +143,17 @@ class RNN(Model):
         for layer in self.layers:
             logger.info("%s", str(layer))
         inputs = self.dataset.get_inputs(train=True)['train']
+        nin = self.layers[0].nin
         # use targets = inputs for sequence prediction
         targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]  # was shape[1], moved to new dataset format
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         batch = 0
-        batch_inx = xrange(batch*128*self.unrolls,
-                           (batch+1)*128*self.unrolls+128)
-        target_out = targets[batch_inx, :][(self.unrolls-0)*128:
-                                           (self.unrolls+1)*128, :]
+        batch_inx = xrange(batch*self.layers[0].nin*self.unrolls,
+                           (batch+1)*nin*self.unrolls+nin)
+        target_out = targets[batch_inx, :][(self.unrolls-0)*nin:
+                                           (self.unrolls+1)*nin, :]
 
         if numgrad is "output":
             num_target = self.layers[1].weights
@@ -203,7 +204,7 @@ class RNN(Model):
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_ref = self.cost.apply_function(target_out).asnumpyarray()
             num_part = (suberror_eps - suberror_ref) / eps / \
-                float(self.batch_size * self.layers[0].nin)
+                float(self.batch_size * nin)
             logger.info("numpart for  tau=%d of %d is %e",
                         tau, self.unrolls, num_part)
             numerical += num_part
@@ -329,6 +330,10 @@ class RNN(Model):
             self.layers[0].Wfh_updates.fill(0)
             self.layers[0].Woh_updates.fill(0)
             self.layers[0].Wch_updates.fill(0)
+            self.layers[0].b_i_updates.fill(0)
+            self.layers[0].b_f_updates.fill(0)
+            self.layers[0].b_o_updates.fill(0)
+            self.layers[0].b_c_updates.fill(0)
 
         # this loop is a property of t-BPTT through different depth.
         # inside this loop, go through the input-hidden-output stack.
@@ -369,15 +374,16 @@ class RNN(Model):
         to return_buffer of 100000 records. This will be preds['train']
         """
         nrecs = inputs.shape[0]
-        num_batches = int(math.floor((nrecs) / 128
+        num_batches = int(math.floor((nrecs) / self.layers[0].nin
                                              / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
         hidden_init = None
         cell_init = None
         for batch in xrange(num_batches):
-            batch_inx = range(batch*128*self.unrolls,
-                              (batch+1)*128*self.unrolls+128)
+            batch_inx = range(batch*self.layers[0].nin*self.unrolls,
+                              (batch+1)*self.layers[0].nin*self.unrolls
+                              + self.layers[0].nin)
             self.fprop(inputs[batch_inx, :],
                        hidden_init=hidden_init, cell_init=cell_init,
                        unrolls=self.unrolls)

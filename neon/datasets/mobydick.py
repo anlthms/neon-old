@@ -57,7 +57,8 @@ class MOBYDICK(Dataset):
         with open(fname, 'r') as f:
             text = f.read()
             numbers = numpy.fromstring(text, dtype='int8')
-            onehots = numpy.zeros((128, numbers.shape[0]))
+            assert(self.data_dim == 128), "one-hot encoded ASCII required"
+            onehots = numpy.zeros((self.data_dim, numbers.shape[0]))
             for i in range(numbers.shape[0]):
                 onehots[numbers[i], i] = 1
 
