@@ -38,8 +38,7 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
-    def plot_lstm(self, W_ix, W_fx, W_ox, W_cx, W_ih, W_fh, W_oh, W_ch,
-                  scale=1, fig=4):
+    def plot_lstm_wts(self, lstm_layer, scale=1, fig=4):
 
         """
         Visizualize the three weight matrices after every epoch. Serves to
@@ -47,33 +46,40 @@ class VisualizeRNN(object):
         """
         plt.figure(fig)
         plt.clf()
-        plt.subplot(2, 4, 1)
-        plt.imshow(W_ix.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('input.T')
-        plt.subplot(2, 4, 2)
-        plt.imshow(W_fx.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('forget.T')
-        plt.subplot(2, 4, 3)
-        plt.imshow(W_ox.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('output.T')
-        plt.subplot(2, 4, 4)
-        plt.imshow(W_cx.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('cell.T')
+        pltidx = 1
+        for lbl, wts in zip(lstm_layer.param_names, lstm_layer.params[:4]):
+            plt.subplot(2, 4, pltidx)
+            plt.imshow(wts.asnumpyarray().T, vmin=-scale, vmax=scale,
+                       interpolation='nearest')
+            plt.title(lbl + ' Wx.T')
+            pltidx += 1
 
-        plt.subplot(2, 4, 5)
-        plt.imshow(W_ih.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('input.T')
-        plt.subplot(2, 4, 6)
-        plt.imshow(W_fh.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('forget.T')
-        plt.subplot(2, 4, 7)
-        plt.imshow(W_oh.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('output.T')
-        plt.subplot(2, 4, 8)
-        plt.imshow(W_ch.T, vmin=-scale, vmax=scale, interpolation='nearest')
-        plt.title('cell.T')
+        for lbl, wts, bs in zip(lstm_layer.param_names,
+                                lstm_layer.params[4:8],
+                                lstm_layer.params[8:12]):
+            plt.subplot(2, 4, pltidx)
+            plt.imshow(np.hstack((wts.asnumpyarray(),
+                                  bs.asnumpyarray(),
+                                  bs.asnumpyarray())).T,
+                       vmin=-scale, vmax=scale, interpolation='nearest')
+            plt.title(lbl + ' Wh.T')
+            pltidx += 1
 
-        # plt.colorbar()
+        plt.draw()
+        plt.show()
+
+    def plot_lstm_acts(self, lstm_layer, scale=1, fig=4):
+        acts_lbl = ['i_t', 'f_t', 'o_t', 'g_t', 'net_i', 'c_t', 'c_t', 'c_phi']
+        acts_stp = [0, 0, 0, 1, 0, 0, 1, 1]
+        plt.figure(fig)
+        plt.clf()
+        for idx, lbl in enumerate(acts_lbl):
+            act_tsr = getattr(lstm_layer, lbl)[acts_stp[idx]]
+            plt.subplot(2, 4, idx+1)
+            plt.imshow(act_tsr.asnumpyarray().T,
+                       vmin=-scale, vmax=scale, interpolation='nearest')
+            plt.title(lbl + '[' + str(acts_stp[idx]) + '].T')
+
         plt.draw()
         plt.show()
 

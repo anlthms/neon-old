@@ -93,33 +93,9 @@ class RNN(Model):
                 viz.plot_weights(self.layers[0].weights.asnumpyarray(),
                                  self.layers[0].Wih.asnumpyarray(),
                                  self.layers[1].weights.asnumpyarray())
-                import numpy as np
-                viz.plot_lstm(self.layers[0].Wix.asnumpyarray(),
-                              self.layers[0].Wfx.asnumpyarray(),
-                              self.layers[0].Wox.asnumpyarray(),
-                              self.layers[0].Wcx.asnumpyarray(),
-                              np.hstack((self.layers[0].Wih.asnumpyarray(),
-                                        self.layers[0].b_i.asnumpyarray(),
-                                        self.layers[0].b_i.asnumpyarray())),
-                              np.hstack((self.layers[0].Wfh.asnumpyarray(),
-                                        self.layers[0].b_f.asnumpyarray(),
-                                        self.layers[0].b_f.asnumpyarray())),
-                              np.hstack((self.layers[0].Woh.asnumpyarray(),
-                                        self.layers[0].b_o.asnumpyarray(),
-                                        self.layers[0].b_o.asnumpyarray())),
-                              np.hstack((self.layers[0].Wch.asnumpyarray(),
-                                        self.layers[0].b_c.asnumpyarray(),
-                                        self.layers[0].b_c.asnumpyarray())),
-                              scale=1.1, fig=4)
-                viz.plot_lstm(self.layers[0].i_t[0].asnumpyarray(),
-                              self.layers[0].f_t[0].asnumpyarray(),
-                              self.layers[0].o_t[0].asnumpyarray(),
-                              self.layers[0].g_t[1].asnumpyarray(),
-                              self.layers[0].net_i[0].asnumpyarray(),
-                              self.layers[0].c_t[0].asnumpyarray(),
-                              self.layers[0].c_t[1].asnumpyarray(),
-                              self.layers[0].c_phi[1].asnumpyarray(),
-                              scale=21, fig=5)
+                viz.plot_lstm_wts(self.layers[0], scale=1.1, fig=4)
+                viz.plot_lstm_acts(self.layers[0], scale=21, fig=5)
+
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].net_i,
                                      self.layers[0].i_t,

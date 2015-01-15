@@ -431,11 +431,10 @@ class RecurrentLSTMLayer(Layer):
                          gateid in ['i', 'f', 'c']}
         self.errs = {hcval: be.zeros(net_sze) for
                      hcval in ['hh', 'hc', 'ch', 'cc']}
-        self.gatetags = {'i':'i', 'f':'f', 'o':'o', 'c':'g'}
         self.gatedic = {}
         self.gatedic_u = {}
 
-        for idx, a in enumerate(['i', 'f', 'o', 'c']):
+        for a in ['i', 'f', 'o', 'c']:
             gateid = 'g' if a is 'c' else a
             self.gatedic[a] = [getattr(self, 'W' + a + 'x'),
                                getattr(self, 'W' + a + 'h'),
@@ -473,6 +472,7 @@ class RecurrentLSTMLayer(Layer):
         # error_h * self.o_t[tau] * self.c_phip[tau]
         self.eh_ot_cphip = be.zeros(net_sze)
 
+        self.param_names = ['input', 'forget', 'output', 'cell']
         self.params = [self.Wix, self.Wfx, self.Wox, self.Wcx, self.Wih,
                        self.Wfh, self.Woh, self.Wch, self.b_i, self.b_f,
                        self.b_o, self.b_c]
@@ -518,13 +518,14 @@ class RecurrentLSTMLayer(Layer):
         be.add(bu, self.bsum_buf, bu)
 
     def cell_fprop(self, xx, yy, tau, gate, actfunc):
+        be = self.backend
         [wx, wh, b, netl, tl] = self.gatedic[gate]
 
-        self.backend.fprop_fc(self.temp_x[tau], xx, wx)
-        self.backend.fprop_fc(self.temp_h[tau], yy, wh)
-        self.backend.add(self.temp_x[tau], self.temp_h[tau], netl[tau])
-        self.backend.add(netl[tau], b, netl[tau])
-        actfunc.apply_both(self.backend, netl[tau], tl[tau])
+        be.fprop_fc(self.temp_x[tau], xx, wx)
+        be.fprop_fc(self.temp_h[tau], yy, wh)
+        be.add(self.temp_x[tau], self.temp_h[tau], netl[tau])
+        be.add(netl[tau], b, netl[tau])
+        actfunc.apply_both(be, netl[tau], tl[tau])
 
     def fprop(self, y, inputs, tau, cell):
         """
