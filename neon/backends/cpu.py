@@ -1580,9 +1580,8 @@ class CPUDist(CPU):
     def bcast(self, buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
 
+
 # once CPUDist is implemented inherit from CPUDist
-
-
 class CPUDataDist(CPU):
 
     """

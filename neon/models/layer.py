@@ -891,8 +891,8 @@ class BranchLayer(YAMLable):
         self.nout = 0
         self.sublayers = sublayers
         self.nsublayers = len(self.sublayers)
-        self.startidx = [0]*len(self.sublayers)
-        self.endidx = [0]*len(self.sublayers)
+        self.startidx = [0] * len(self.sublayers)
+        self.endidx = [0] * len(self.sublayers)
         self.prev_names = prev_names
         self.batch_size = batch_size
 
@@ -900,8 +900,8 @@ class BranchLayer(YAMLable):
             self.nout += self.sublayers[i].nout
             self.endidx[i] = self.nout
             if i > 0:
-                self.startidx[i] = (self.startidx[i-1] +
-                                    self.sublayers[i-1].nout)
+                self.startidx[i] = (self.startidx[i - 1] +
+                                    self.sublayers[i - 1].nout)
 
         self.output = backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
@@ -1095,40 +1095,50 @@ class LocalLayer(YAMLable):
             backend.add(ofmstarts, dst, self.ofmlocs[dst])
 
         # Figure out the connections with the previous layer.
-        if pooling is True:
-            self.links = backend.empty(
-                (self.ofmsize, fshape[0] * fshape[1]), dtype='int32')
-            self.outputbuf = backend.empty((self.ofmsize, batch_size * nifm))
-            if pos > 0:
-                self.berrorbuf = backend.empty((self.ifmsize,
-                                                batch_size * nifm))
-        else:
-            self.links = backend.empty(
-                (self.ofmsize, self.fsize), dtype='int32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in range(self.ofmsize):
-            # Collect the column indices for the
-            # entire receptive field.
-            colinds = []
-            for row in range(self.fheight):
-                start = src + row * self.ifmwidth
-                colinds += range(start, start + self.fwidth)
-            fminds = colinds[:]
-            if pooling is False:
-                for ifm in range(1, nifm):
-                    colinds += [x + ifm * self.ifmsize for x in fminds]
-
-            if (src % self.ifmwidth + self.fwidth + stride) <= self.ifmwidth:
-                # Slide the filter to the right by the stride value.
-                src += stride
+        if not isinstance(backend, CPU):
+            self.rlinks = []
+            if pooling is True:
+                self.links = []
+                self.outputbuf = []
+                if pos > 0:
+                    self.berrorbuf = []
             else:
-                # We hit the right edge of the input image.
-                # Shift the filter down by one stride.
-                src += stride * self.ifmwidth - src % self.ifmwidth
-                assert src % self.ifmwidth == 0
-            self.links[dst] = backend.array(colinds, dtype='int32')
-        self.rlinks = self.links.asnumpyarray()
+                self.links = []
+        else:
+            if pooling is True:
+                self.links = backend.empty(
+                    (self.ofmsize, fshape[0] * fshape[1]), dtype='i32')
+                self.outputbuf = backend.empty(
+                    (self.ofmsize, batch_size * nifm))
+            else:
+                self.links = backend.empty(
+                    (self.ofmsize, self.fsize), dtype='i32')
+
+            # This variable tracks the top left corner of the receptive field.
+            src = 0
+            for dst in range(self.ofmsize):
+                # Collect the column indices for the
+                # entire receptive field.
+                colinds = []
+                for row in xrange(self.fheight):
+                    start = src + row * self.ifmwidth
+                    colinds += range(start, start + self.fwidth)
+                fminds = colinds[:]
+                if pooling is False:
+                    for ifm in range(1, nifm):
+                        colinds += [x + ifm * self.ifmsize for x in fminds]
+
+                expr1 = (src % self.ifmwidth + self.fwidth + stride)
+                if expr1 <= self.ifmwidth:
+                    # Slide the filter to the right by the stride value.
+                    src += stride
+                else:
+                    # We hit the right edge of the input image.
+                    # Shift the filter down by one stride.
+                    src += stride * self.ifmwidth - src % self.ifmwidth
+                    assert src % self.ifmwidth == 0
+                self.links[dst, :] = backend.array(colinds, dtype='i32')
+            self.rlinks = self.links.asnumpyarray()
 
     def normalize_weights(self, weights):
         norms = self.backend.norm(weights, order=2, axis=1)
@@ -1148,6 +1158,7 @@ class LocalLayerDist(LocalLayer):
     """
     Base class for locally connected layers.
     """
+
     def __init__(self, name, backend, batch_size, pos, learning_rule, nifm,
                  nofm, ifmshape, fshape, stride, pooling=False,
                  activation=None, pad=0, prev_names=[]):
@@ -1274,15 +1285,34 @@ class ConvLayer(LocalLayer):
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)
         self.output = backend.empty((self.nout, batch_size))
-        self.updates = backend.empty(self.weights.shape)
-        self.prodbuf = backend.empty((nofm, batch_size))
-        self.bpropbuf = backend.empty((self.fsize, batch_size))
-        self.updatebuf = backend.empty(self.weights.shape)
-        self.learning_rule.allocate_state([self.updates])
+        self.weight_updates = backend.empty(self.weights.shape)
+        if not isinstance(backend, CPU):
+            self.prodbuf = []
+            self.bpropbuf = []
+            self.updatebuf = []
+        else:
+            self.prodbuf = backend.empty((nofm, batch_size))
+            self.bpropbuf = backend.empty((self.fsize, batch_size))
+            self.updatebuf = backend.empty(self.weights.shape)
+
         if activation is not None:
             self.pre_act = backend.empty((self.nout, batch_size))
         else:
             self.pre_act = self.output
+
+        # start bias related
+        self.use_biases = 'bias_init' in weight_init
+        if self.use_biases:
+            self.biases = self.backend.empty((self.nout, 1))
+            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.bias_updates = self.backend.empty(self.biases.shape)
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+        # end bias related
+        self.learning_rule.allocate_state(self.updates)
 
     def __str__(self):
         temp = self.backend.empty((1, 1))
@@ -1305,6 +1335,8 @@ class ConvLayer(LocalLayer):
                                 links=self.rlinks, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf)
+        if self.use_biases is True:
+            self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -1319,16 +1351,18 @@ class ConvLayer(LocalLayer):
                                     padding=self.pad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf)
-        self.backend.update_conv(out=self.updates, inputs=inputs,
+        self.backend.update_conv(out=self.weight_updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fwidth, updatebuf=self.updatebuf)
+        if self.use_biases is True:
+            self.backend.sum(error, axis=1, out=self.bias_updates)
 
     def update(self, epoch):
-        self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
+        self.learning_rule.apply_rule(self.params, self.updates, epoch)
 
 
 class ConvLayerDist(LocalLayerDist, ConvLayer):
@@ -2563,7 +2597,7 @@ class CrossMapResponseNormLayer(YAMLable):
         if self.pos > 0:
             self.berror = self.backend.empty((self.nin, self.batch_size))
             self.tempbuf = self.backend.empty((ifmshape[0], ifmshape[1],
-                                              batch_size))
+                                               batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
