@@ -7,11 +7,13 @@ i.e. how the learning should proceed.
 """
 
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class LearningRule(object):
+
     """
     Base object for applying learning rule on the parameters to be updated
 
@@ -21,6 +23,7 @@ class LearningRule(object):
                                                  data parameters like weights.
         batch_size (int): Number of examples presented at this iteration
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         self.name = name
         self.backend = lr_params['backend']
@@ -44,10 +47,12 @@ class LearningRule(object):
 
 
 class GradientDescent(LearningRule):
+
     """
     Vanilla gradient descent based update rule that can optionally support use
     of weight decay.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescent, self).__init__(name, lr_params)
         if 'learning_rate' in lr_params:
@@ -67,10 +72,12 @@ class GradientDescent(LearningRule):
 
 
 class GradientDescentPretrain(GradientDescent):
+
     """
     Gradient descent based variant that also supports a separate learning
     rate during pre-training.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescentPretrain, self).__init__(name, lr_params)
         if 'pretrain_learning_rate' in lr_params:
@@ -94,10 +101,12 @@ class GradientDescentPretrain(GradientDescent):
 
 
 class GradientDescentMomentum(GradientDescent):
+
     """
     Gradient descent learning rate variant that supports different types of
     momentum based updates
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(GradientDescentMomentum, self).__init__(name, lr_params)
         if 'momentum_params' in lr_params:
@@ -108,6 +117,11 @@ class GradientDescentMomentum(GradientDescent):
         self.velocity_rec = None
         self.velocity_LSTM = None
         self.velocity_dtype = param_dtype
+        if 'schedule' in lr_params:
+            self.schedule_flag = True
+            self.schedule = lr_params['schedule']
+        else:
+            self.schedule_flag = False
 
     def allocate_state(self, params):
         self.velocity = []
@@ -174,12 +188,26 @@ class GradientDescentMomentum(GradientDescent):
         3. velo = velo - upda  combine old and new part
         4. update the actual weights.
         """
+        learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-            self.backend.multiply(us_item, self.learning_rate, out=us_item)
+            self.backend.multiply(us_item, learning_rate, out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
             self.backend.add(ps_item, vs_item, out=ps_item)
+
+    def get_learning_rate(self, epoch):
+        if self.schedule_flag:
+            if self.schedule['type'] == 'step':
+                div_factor = np.floor(
+                    (epoch + 1) / self.schedule['step_epochs'])
+                return self.learning_rate * (
+                    self.schedule['ratio'] ** div_factor)
+            else:
+                raise NotImplementedError("learning rate schedule type not "
+                                          "supported")
+        else:
+            return self.learning_rate
 
     def get_momentum_coef(self, epoch):
         """
@@ -239,12 +267,37 @@ class GradientDescentMomentum(GradientDescent):
         return coef
 
 
-# TODO:  Use the built-in ada-delta update funcs in the backends to make this
-# cleaner/faster
+class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
+
+    def apply_rule(self, params, updates, epoch):
+        """
+        Steps for momentum:
+        1. velo = mu * velo    scale down old velocity
+        2. upda = eps * upda   scale down new updates
+        3. velo = velo - upda  combine old and new part
+        4. update the actual weights.
+        """
+        learning_rate = self.get_learning_rate(epoch)
+        momentum_coef = self.get_momentum_coef(epoch)
+        for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+            self.backend.multiply(us_item, learning_rate, out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            # reuse us_item for weight decay term
+            # note: usually want to only apply for weights, not biases
+            self.backend.multiply(ps_item, self.weight_decay, out=us_item)
+            self.backend.multiply(us_item, learning_rate, out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+
+            self.backend.add(ps_item, vs_item, out=ps_item)
+
+
 class AdaDelta(LearningRule):
+
     """
     Adadelta based learning rule updates.  See Zeiler2012 for instance.
     """
+
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
         super(AdaDelta, self).__init__(name, lr_params)
         if 'rho' in lr_params:

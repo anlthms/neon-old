@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class Dataset(object):
+
     """
     Base dataset class. Defines interface operations.
     """
@@ -201,3 +202,27 @@ class Dataset(object):
 
     def get_batch(self, data, batch):
         return data[batch]
+
+    def has_set(self, setname):
+        inputs_dic = self.get_inputs(train=True, validation=True,
+                                     test=True)
+        return True if (setname in inputs_dic) else False
+
+    def init_mini_batch_producer(self, batch_size, setname, predict):
+        # this is the implementation for non-macro batched data
+        # macro-batched datasets will overwrite this (e.g. ImageNet)
+        self.cur_inputs = self.get_inputs(train=True, validation=True,
+                                          test=True)[setname]
+        self.cur_tgts = self.get_targets(train=True, validation=True,
+                                         test=True)[setname]
+        return len(self.inputs[setname])
+
+    def get_mini_batch(self, batch_idx):
+        # this is the implementation for non-macro batched data
+        # macro-batched datasets will overwrite this (e.g. ImageNet)
+        return self.get_batch(self.cur_inputs, batch_idx), self.get_batch(
+            self.cur_tgts, batch_idx)
+
+    def del_mini_batch_producer(self):
+        # Implement for macro batched data
+        pass

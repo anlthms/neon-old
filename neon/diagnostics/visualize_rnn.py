@@ -38,7 +38,7 @@ class VisualizeRNN(object):
         plt.draw()
         plt.show()
 
-    def plot_lstm(self, W_ix, W_fx, W_ox, W_cx, W_ih, W_fh, W_oh, W_ch,
+    def plot_lstm(self, w_ix, w_fx, w_ox, w_cx, w_ih, w_fh, w_oh, w_ch,
                   scale=1, fig=4):
 
         """
@@ -48,29 +48,29 @@ class VisualizeRNN(object):
         plt.figure(fig)
         plt.clf()
         plt.subplot(2, 4, 1)
-        plt.imshow(W_ix.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_ix.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('input.T')
         plt.subplot(2, 4, 2)
-        plt.imshow(W_fx.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_fx.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('forget.T')
         plt.subplot(2, 4, 3)
-        plt.imshow(W_ox.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_ox.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('output.T')
         plt.subplot(2, 4, 4)
-        plt.imshow(W_cx.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_cx.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('cell.T')
 
         plt.subplot(2, 4, 5)
-        plt.imshow(W_ih.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_ih.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('input.T')
         plt.subplot(2, 4, 6)
-        plt.imshow(W_fh.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_fh.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('forget.T')
         plt.subplot(2, 4, 7)
-        plt.imshow(W_oh.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_oh.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('output.T')
         plt.subplot(2, 4, 8)
-        plt.imshow(W_ch.T, vmin=-scale, vmax=scale, interpolation='nearest')
+        plt.imshow(w_ch.T, vmin=-scale, vmax=scale, interpolation='nearest')
         plt.title('cell.T')
 
         # plt.colorbar()

@@ -33,7 +33,7 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        self.grad_checker(numgrad="lstm_ch")
+        # self.grad_checker(numgrad="rec")
         # pick one: "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
 
@@ -466,3 +466,7 @@ class RNN(Model):
         # TODO: return values instead?
         if self.make_plots:
             trace()  # just used to keep figures open
+
+    def predict_and_error(self):
+        predictions = self.predict()
+        self.error_metrics(self.dataset, predictions)
