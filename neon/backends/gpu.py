@@ -1577,7 +1577,7 @@ class GPU(Backend):
             weights = numpy.zeros(size).flatten()
             nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
             weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
-            weights = self.copy(weights.reshape(size))
+            weights = numpy.copy(weights.reshape(size))
             if size[0] == size[1]:
                 temp = numpy.linalg.eig(weights)
                 max_eig = numpy.max(numpy.absolute(temp[0]))

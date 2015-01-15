@@ -47,9 +47,9 @@ class RNN(Model):
         targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]
         nin = self.layers[0].nin
-        viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / nin
-                                                   / self.unrolls)) - 1
+        if self.make_plots:
+            viz = VisualizeRNN()
+        num_batches = int(math.floor((nrecs + 0.0) / nin / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -57,20 +57,25 @@ class RNN(Model):
         suberrorlist = []
         errorlist = []
         error = self.backend.empty((1, 1))
-        suberror = self.backend.empty(num_batches)
+        suberror = self.backend.empty((1, 1))
+        print nin, self.unrolls
         for epoch in range(self.num_epochs):
             error.fill(0)
             suberror.fill(0)
             hidden_init = None
             cell_init = None
             for batch in xrange(num_batches):
-                batch_inx = xrange(batch*nin*self.unrolls,
-                                   (batch+1)*nin*self.unrolls+nin)
-                self.fprop(inputs[batch_inx, :],
+                startidx = batch*nin*self.unrolls
+                endidx = (batch+1)*nin*(self.unrolls+1)
+                cur_input = inputs[startidx:endidx]
+                cur_tgt = targets[startidx:endidx]
+                cur_tgt_out = cur_tgt[self.unrolls*nin:(self.unrolls+1)*nin]
+                self.fprop(cur_input,
                            hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
-                self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
+                self.bprop(cur_tgt, cur_input,
                            debug=(True if batch == -1 else False))
+
                 self.update(epoch)
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
@@ -80,9 +85,8 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                target_out = targets[batch_inx, :][(self.unrolls-0)*nin:
-                                                   (self.unrolls+1)*nin, :]
-                suberror = self.cost.apply_function(target_out)
+
+                suberror = self.cost.apply_function(cur_tgt_out)
                 self.backend.divide(suberror, float(self.batch_size*nin),
                                     suberror)
                 suberrorlist.append(float(suberror.asnumpyarray()))
@@ -101,7 +105,7 @@ class RNN(Model):
                                      self.layers[0].i_t,
                                      self.layers[1].pre_act_list,
                                      self.layers[1].output_list,
-                                     targets[batch_inx, :])
+                                     cur_tgt)
             logger.info('epoch: %d, total training error per element: %0.5f',
                         epoch, error.asnumpyarray())
             for layer in self.layers:
@@ -126,10 +130,11 @@ class RNN(Model):
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         batch = 0
-        batch_inx = xrange(batch*self.layers[0].nin*self.unrolls,
-                           (batch+1)*nin*self.unrolls+nin)
-        target_out = targets[batch_inx, :][(self.unrolls-0)*nin:
-                                           (self.unrolls+1)*nin, :]
+        startidx = batch*nin*self.unrolls
+        endidx = (batch+1)*nin*(self.unrolls+1)
+        cur_input = inputs[startidx:endidx]
+        cur_tgt = targets[startidx:endidx]
+        cur_tgt_out = cur_tgt[self.unrolls*nin:(self.unrolls+1)*nin]
 
         if numgrad is "output":
             num_target = self.layers[1].weights
@@ -168,17 +173,17 @@ class RNN(Model):
         numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
-            self.fprop_eps(inputs[batch_inx, :], tau, eps, hidden_init=None,
+            self.fprop_eps(cur_input, tau, eps, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_eps = self.cost.apply_function(target_out).asnumpyarray()
+            suberror_eps = self.cost.apply_function(cur_tgt_out).asnumpyarray()
 
-            self.fprop_eps(inputs[batch_inx, :], tau, 0, hidden_init=None,
+            self.fprop_eps(cur_input, tau, 0, hidden_init=None,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-            suberror_ref = self.cost.apply_function(target_out).asnumpyarray()
+            suberror_ref = self.cost.apply_function(cur_tgt_out).asnumpyarray()
             num_part = (suberror_eps - suberror_ref) / eps / \
                 float(self.batch_size * nin)
             logger.info("numpart for  tau=%d of %d is %e",
@@ -186,8 +191,7 @@ class RNN(Model):
             numerical += num_part
 
         # bprop for comparison
-        self.bprop(targets[batch_inx, :],
-                   inputs[batch_inx, :], numgrad=numgrad)
+        self.bprop(cur_tgt, cur_input, numgrad=numgrad)
 
         analytical = an_target[num_i, num_j].asnumpyarray()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
@@ -329,17 +333,18 @@ class RNN(Model):
         to return_buffer of 100000 records. This will be preds['train']
         """
         nrecs = inputs.shape[0]
-        num_batches = int(math.floor((nrecs) / self.layers[0].nin
-                                             / self.unrolls)) - 1
+        nin = self.layers[0].nin
+        num_batches = int(math.floor((nrecs) / nin / self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
         hidden_init = None
         cell_init = None
+        letters = self.backend.empty((1,50), dtype='int32')
         for batch in xrange(num_batches):
-            batch_inx = range(batch*self.layers[0].nin*self.unrolls,
-                              (batch+1)*self.layers[0].nin*self.unrolls
-                              + self.layers[0].nin)
-            self.fprop(inputs[batch_inx, :],
+            startidx = batch*nin*self.unrolls
+            endidx = (batch+1)*nin*(self.unrolls+1)
+            cur_input = inputs[startidx:endidx]
+            self.fprop(cur_input,
                        hidden_init=hidden_init, cell_init=cell_init,
                        unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
@@ -350,7 +355,6 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
             for tau in range(self.unrolls):
-                letters = self.backend.empty(50, dtype='int32')
                 self.backend.argmax(self.layers[1].output_list[tau],
                                     axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
@@ -359,7 +363,7 @@ class RNN(Model):
         return_buffer = self.backend.zeros(((num_batches+1)*self.unrolls,
                                             self.batch_size))
         return_buffer[0:num_batches*self.unrolls, :] = outputs
-        return_buffer = return_buffer.transpose().reshape((-1,))
+
         return return_buffer
 
     def predict(self, train=True, test=True, validation=False):
@@ -390,6 +394,7 @@ class RNN(Model):
         Iterate over predictions from predict() and compare to the targets.
         Targets come from dataset. [Why in a separate function?]
         """
+        be = self.backend
         items = []
         if train:
             items.append('train')
@@ -400,28 +405,25 @@ class RNN(Model):
 
         nin = self.layers[0].nin
         targets = ds.get_inputs(train=True, test=True, validation=False)
-        targets['train'] = targets['train'][nin::, :]
-        targets['test'] = targets['test'][nin::, :]
-        self.result = ds.backend.empty((1, 1))
+        targets['train'] = targets['train'][nin:]
+        targets['test'] = targets['test'][nin:]
+        self.result = be.empty((1, 1))
         for item in items:
             if item in targets and item in preds:
                 num_batches = targets[item].shape[0] / nin
-                misclass = ds.backend.zeros(num_batches * nin)
-                tempbuf = self.backend.zeros((num_batches + 1,
-                                              self.batch_size), dtype='int32')
+                # misclass = be.zeros(num_batches * nin)
+                misclass = be.zeros((num_batches + 1, self.batch_size),
+                                   dtype='int32')
                 for i in range(num_batches):
-                    ds.backend.argmax(targets[item][i * nin:(i + 1) * nin, :],
-                                      axis=0, out=tempbuf[i, :])
+                    be.argmax(targets[item][i * nin:(i + 1) * nin],
+                                      axis=0, out=misclass[i])
                 import numpy as np
-                misclass = tempbuf.transpose().reshape((-1,))
-                tmp = misclass[6000:6018].asnumpyarray().astype(np.int8).T
-                logging.info("the target for %s is %s", item,
-                             tmp.view('c'))
-                tmp = preds[item][6000:6018].asnumpyarray().astype(np.int8).T
-                logging.info("prediction for %s is %s", item,
-                             tmp.view('c'))
-                ds.backend.not_equal(preds[item], misclass, misclass)
-                ds.backend.mean(misclass, axes=None, out=self.result)
+                tmp = misclass[:18, 30].asnumpyarray().astype(np.int8).T
+                logging.info("the target for %s is %s", item, tmp.view('c'))
+                tmp = preds[item][:18, 30].asnumpyarray().astype(np.int8).T
+                logging.info("prediction for %s is %s", item, tmp.view('c'))
+                be.not_equal(preds[item], misclass, misclass)
+                be.mean(misclass, axes=None, out=self.result)
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result.asnumpyarray())
         # TODO: return values instead?
