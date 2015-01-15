@@ -33,9 +33,9 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        # self.grad_checker(numgrad="rec")
-        # pick one: "output":"input":"rec"
-        #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
+        self.grad_checker(numgrad="lstm_fh")
+        # pick one: for standard rnn, "output" "input" "rec"
+        # for LSTM, "output" "lstm_ix" "lstm_ih" "lstm_fh" "...
 
         """
         Learn model weights on the given dataset.
@@ -143,28 +143,16 @@ class RNN(Model):
             num_target = self.layers[0].weights_rec
             an_target = self.layers[0].updates_rec
             num_i, num_j = 12, 63
-        elif numgrad is "lstm_x":
-            num_target = self.layers[0].Wfx
-            an_target = self.layers[0].Wfx_updates
-            num_i, num_j = 12, 110
-        elif numgrad is "lstm_ih":
-            num_target = self.layers[0].Wih
-            an_target = self.layers[0].Wih_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_fh":
-            num_target = self.layers[0].Wfh
-            an_target = self.layers[0].Wfh_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_oh":
-            num_target = self.layers[0].Woh
-            an_target = self.layers[0].Woh_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_ch":
-            num_target = self.layers[0].Wch
-            an_target = self.layers[0].Wch_updates
-            num_i, num_j = 12, 55
+        elif numgrad.startswith("lstm"):
+            gate = numgrad[-2:]
+            num_target = getattr(self.layers[0], 'W'+gate)
+            an_target = getattr(self.layers[0], 'W'+gate+'_updates')
+            if "x" in numgrad:
+                num_i, num_j = 12, 110
+            if "h" in numgrad:
+                num_i, num_j = 12, 55
 
-        eps = 1e-2  # better to use float64 in cpu.py for this
+        eps = 1e-6  # better to use float64 in cpu.py for this
         numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
@@ -192,8 +180,8 @@ class RNN(Model):
         analytical = an_target[num_i, num_j].asnumpyarray()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
         logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
-        logger.info("RNN grad_checker: numerical %e", numerical)
-        logger.info("RNN grad_checker: analytical %e", analytical)
+        logger.info("RNN grad_checker: numerical %s %e", numgrad, numerical)
+        logger.info("RNN grad_checker: analytical %s %e", numgrad, analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,

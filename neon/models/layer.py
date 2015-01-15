@@ -622,9 +622,10 @@ class RecurrentLSTMLayer(Layer):
         cur_input = inputs[tau*self.nin:(tau+1)*self.nin, :]
         cur_output = self.output_list[tau - 1]
 
-        ttemp = {}
+        numtemp = {}
         for ifoc in ['i', 'f', 'o', 'c']:
-            ttemp[ifoc] = np.zeros((2,1), dtype=np.float32)
+            for hx in ['h', 'x']:
+                numtemp[ifoc+hx] = np.zeros((2, 1), dtype=np.float32)
 
         """--------------------------
         PART 1: original dh2/dh1 terms
@@ -655,7 +656,8 @@ class RecurrentLSTMLayer(Layer):
             self.list_product(self.delta_buf, deltargs[ifoc])
             self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
                             ifoc, self.d_dh1[ifoc])
-            ttemp[ifoc][0] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifoc+'h'][0] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifoc+'x'][0] = self.dh_dwx_buf[12, 110].asnumpyarray()
 
         # e. collect terms
         self.list_sum(self.errs['hh'], self.d_dh1.values())
@@ -677,7 +679,8 @@ class RecurrentLSTMLayer(Layer):
             self.list_product(self.delta_buf, deltargs[ifc])
             self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
                             ifc, self.dc_d_dh1[ifc])
-            ttemp[ifc][1] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifc+'h'][1] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifc+'x'][1] = self.dh_dwx_buf[12, 110].asnumpyarray()
 
         # errs['ch'] = sum of dc_d{i,f,g}_dh1 terms
         # errs['hc'] = error_h * self.o_t * self.c_phip * self.f_t @ tau
@@ -691,10 +694,10 @@ class RecurrentLSTMLayer(Layer):
         be.add(self.errs['cc'], self.errs['hc'], self.cerror)
 
         if numgrad is not None and numgrad.startswith("lstm"):
-            ifoc = numgrad[5]
+            ifoc_hx = numgrad[5:7]
             logger.info("LSTM.bprop: analytic dh_dw%sh[%d]= %e + %e = %e",
-                        ifoc, tau, ttemp[ifoc][0], ttemp[ifoc][1],
-                        ttemp[ifoc][0] + ttemp[ifoc][1])
+                        ifoc_hx, tau, numtemp[ifoc_hx][0], numtemp[ifoc_hx][1],
+                        numtemp[ifoc_hx][0] + numtemp[ifoc_hx][1])
 
     def update(self, epoch):
         """
@@ -787,11 +790,11 @@ class RecurrentHiddenLayer(Layer):
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
         if numgrad is "input":
-            logger.info("RecurrentHiddenLayer.bprop inc in %f",
-                        self.temp_in[12, 110])
+            logger.info("RecurrentHiddenLayer.bprop inc in %e",
+                        self.temp_in[12, 110].asnumpyarray())
         if numgrad is "rec":
-            logger.info("RecurrentHiddenLayer.bprop inc rec %f",
-                        self.temp_rec[12, 63])
+            logger.info("RecurrentHiddenLayer.bprop inc rec %e",
+                        self.temp_rec[12, 63].asnumpyarray())
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
