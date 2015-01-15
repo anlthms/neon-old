@@ -314,27 +314,6 @@ class RNN(Model):
         else:
             min_unroll = self.unrolls
 
-        # [TODO] Move these to layer.update
-        if 'weight_updates' in self.layers[0].__dict__:
-            self.layers[0].weight_updates.fill(0)
-        if 'updates_rec' in self.layers[0].__dict__:
-            self.layers[0].updates_rec.fill(0)
-        self.layers[1].weight_updates.fill(0)
-        if 'Wix_updates' in self.layers[0].__dict__:
-            # reset these things back to zero
-            self.layers[0].Wix_updates.fill(0)
-            self.layers[0].Wfx_updates.fill(0)
-            self.layers[0].Wox_updates.fill(0)
-            self.layers[0].Wcx_updates.fill(0)
-            self.layers[0].Wih_updates.fill(0)
-            self.layers[0].Wfh_updates.fill(0)
-            self.layers[0].Woh_updates.fill(0)
-            self.layers[0].Wch_updates.fill(0)
-            self.layers[0].b_i_updates.fill(0)
-            self.layers[0].b_f_updates.fill(0)
-            self.layers[0].b_o_updates.fill(0)
-            self.layers[0].b_c_updates.fill(0)
-
         # this loop is a property of t-BPTT through different depth.
         # inside this loop, go through the input-hidden-output stack.
         for tau in range(min_unroll, self.unrolls+1):

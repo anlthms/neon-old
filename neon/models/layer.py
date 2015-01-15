@@ -343,6 +343,8 @@ class RecurrentOutputLayer(Layer):
         #                  for k in range(unrolls + 1)]
         if pos > 0:
             self.berror = backend.zeros((self.nin, self.batch_size))
+        for upm in self.updates:
+            upm.fill(0.0)
 
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau], inputs, self.weights)
@@ -422,15 +424,26 @@ class RecurrentLSTMLayer(Layer):
             setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
             setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
 
-        # Not sure why this can't be included in previous loop, but it breaks
+        # pre-allocate for d{i,f,o,c}_dh1
+        self.d_dh1 = {gateid: be.zeros(net_sze) for
+                      gateid in ['i', 'f', 'o', 'g']}
+        self.dc_d_dh1 = {gateid: be.zeros(net_sze) for
+                         gateid in ['i', 'f', 'g']}
+        self.errs = {hcval: be.zeros(net_sze) for
+                     hcval in ['hh', 'hc', 'ch', 'cc']}
         self.gatedic = {}
-        for a in ['i', 'f', 'o', 'c']:
+        self.gatedic_u = {}
+
+        for idx, a in enumerate(['i', 'f', 'o', 'c']):
             gateid = 'g' if a is 'c' else a
             self.gatedic[a] = [getattr(self, 'W' + a + 'x'),
                                getattr(self, 'W' + a + 'h'),
                                getattr(self, 'b_' + a),
                                getattr(self, 'net_' + gateid),
                                getattr(self, gateid + '_t')]
+            self.gatedic_u[a] = [getattr(self, 'W' + a + 'x_updates'),
+                                 getattr(self, 'W' + a + 'h_updates'),
+                                 getattr(self, 'b_' + a + '_updates')]
 
         # If this isn't initialized correctly, get NaNs pretty quickly.
         be.add(self.b_i, 1, self.b_i)  # sigmoid(1) opens the gate
@@ -452,6 +465,13 @@ class RecurrentLSTMLayer(Layer):
         self.dh_dwx_buf = be.zeros((nout, nin))
         self.dh_dwh_buf = be.zeros((nout, nout))
 
+        self.delta_buf = be.zeros(net_sze)
+        self.bsum_buf = be.zeros((nout, 1))
+
+        # This quantity seems to be computed repeatedly
+        # error_h * self.o_t[tau] * self.c_phip[tau]
+        self.eh_ot_cphip = be.zeros(net_sze)
+
         self.params = [self.Wix, self.Wfx, self.Wox, self.Wcx, self.Wih,
                        self.Wfh, self.Woh, self.Wch, self.b_i, self.b_f,
                        self.b_o, self.b_c]
@@ -461,14 +481,43 @@ class RecurrentLSTMLayer(Layer):
                         self.b_f_updates, self.b_o_updates, self.b_c_updates]
 
         self.learning_rule.allocate_state(self.updates)
-
+        for upm in self.updates:
+            upm.fill(0.0)
         self.berror = be.zeros((nout, batch_size))  # hidden bprop error
         self.cerror = be.zeros((nout, batch_size))  # cell bprop error
 
         self.temp_t = 0
 
-    def cell_fprop(self, xx, yy, tau, gateid, actfunc):
-        [wx, wh, b, netl, tl] = self.gatedic[gateid]
+    def list_product(self, target, plist):
+        """
+        Computes the product of the items in list and puts it into target
+        """
+        target.fill(1.0)
+        reduce(lambda x, y: self.backend.multiply(x, y, x), [target] + plist)
+
+    def list_sum(self, target, slist):
+        """
+        Computes the product of the items in slist and puts it into target
+        """
+        target.fill(0.0)
+        reduce(lambda x, y: self.backend.add(x, y, x), [target] + slist)
+
+    def cell_bprop(self, delta_buf, xx, yy, tau, gate, dh1_out):
+        be = self.backend
+        [wx, wh, b] = self.gatedic[gate][:3]
+        [wxu, whu, bu] = self.gatedic_u[gate]
+
+        be.bprop_fc(out=dh1_out, weights=wh, deltas=delta_buf)
+        be.update_fc(out=self.dh_dwx_buf, inputs=xx, deltas=delta_buf)
+        be.update_fc(out=self.dh_dwh_buf, inputs=yy, deltas=delta_buf)
+        be.add(wxu, self.dh_dwx_buf, wxu)
+        if (tau > 0):
+            be.add(whu, self.dh_dwh_buf, whu)
+        be.sum(delta_buf, 1, self.bsum_buf)
+        be.add(bu, self.bsum_buf, bu)
+
+    def cell_fprop(self, xx, yy, tau, gate, actfunc):
+        [wx, wh, b, netl, tl] = self.gatedic[gate]
 
         self.backend.fprop_fc(self.temp_x[tau], xx, wx)
         self.backend.fprop_fc(self.temp_h[tau], yy, wh)
@@ -523,7 +572,8 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(self.f_t[tau], cell, self.c_t[tau])
         be.multiply(self.i_t[tau], self.g_t[tau], self.c_phip[tau])
         be.add(self.c_t[tau], self.c_phip[tau], self.c_t[tau])
-        self.c_phip[tau] = be.copy(self.c_t[tau])
+        # Hack to avoid creating a new copy for c_phip, just want assign vals
+        be.add(self.c_t[tau], 0.0, self.c_phip[tau])
 
         self.activation.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
@@ -567,117 +617,58 @@ class RecurrentLSTMLayer(Layer):
         into outputs[-1], which should not wrap but be 0.
         """
         be = self.backend
-
-        # 1. allocate buffers -  these are for a single pass through the cell,
-        # the wix_updates etc. accumulate over the loop.
-        # [TODO] allocate in init, call them self.dh_dw['ix']
-
-        di_dh1 = be.zeros((self.nout, self.batch_size))
-        df_dh1 = be.copy(di_dh1)
-        do_dh1 = be.copy(di_dh1)
-        dg_dh1 = be.copy(di_dh1)
-        hherror = be.copy(di_dh1)
-        hcerror = be.copy(di_dh1)
-        cherror = be.copy(di_dh1)
-        ccerror = be.copy(di_dh1)
-
-        dc_di_dh1 = be.copy(di_dh1)
-        dc_df_dh1 = be.copy(di_dh1)
-        dc_dg_dh1 = be.copy(di_dh1)
+        cur_input = inputs[tau*self.nin:(tau+1)*self.nin, :]
+        cur_output = self.output_list[tau - 1]
 
         """--------------------------
         PART 1: original dh2/dh1 terms
         --------------------------"""
-        temp = be.zeros((self.nout, self.batch_size))
-        temp_sum = be.empty((self.nout, 1))
+        # Precalculate error_h * self.o_t[tau] * self.c_phip[tau]
+        self.list_product(self.eh_ot_cphip,
+                          [error_h, self.o_t[tau], self.c_phip[tau]])
+
         # a. Input gate
         # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.g_t[tau] \
         #        * self.net_i[tau]
-        temp.fill(1.0)
-        reduce(lambda x, y: be.multiply(x, y, out=x),
-               [temp, error_h, self.o_t[tau], self.c_phip[tau],
-                self.g_t[tau], self.net_i[tau]])
-        be.bprop_fc(out=di_dh1, weights=self.Wih, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wix_updates, self.dh_dwx_buf, self.Wix_updates)
-        if (tau > 0):
-            be.add(self.Wih_updates, self.dh_dwh_buf, self.Wih_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
+        self.list_product(self.delta_buf,
+                          [self.eh_ot_cphip, self.g_t[tau], self.net_i[tau]])
+
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'i', self.d_dh1['i'])
         ttemp1i = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # b. forget gate
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.c_t[tau-1] \
-        #        * self.net_f[tau]
-        temp.fill(1.0)
-        reduce(lambda x, y: be.multiply(x, y, out=x),
-               [temp, error_h, self.o_t[tau], self.c_phip[tau],
-                self.c_t[tau-1], self.net_f[tau]])
+        # self.delta_buf = error_h * self.o_t[tau] * self.c_phip[tau] \
+        #        * self.c_t[tau-1] * self.net_f[tau]
+        self.list_product(self.delta_buf,
+                          [self.eh_ot_cphip, self.c_t[tau-1], self.net_f[tau]])
 
-        be.bprop_fc(out=df_dh1, weights=self.Wfh, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wfx_updates, self.dh_dwx_buf, self.Wfx_updates)
-        if (tau > 0):
-            be.add(self.Wfh_updates, self.dh_dwh_buf, self.Wfh_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'f', self.d_dh1['f'])
         ttemp1f = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # c. output gate
-        # temp = error_h * self.c_phi[tau] * self.net_o[tau]
-        be.multiply(error_h, self.c_phi[tau], temp)
-        be.multiply(self.net_o[tau], temp, temp)
-        be.bprop_fc(out=do_dh1, weights=self.Woh, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wox_updates, self.dh_dwx_buf, self.Wox_updates)
-        if (tau > 0):
-            be.add(self.Woh_updates, self.dh_dwh_buf, self.Woh_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_o_updates, temp_sum, self.b_o_updates)
+        # self.delta_buf = error_h * self.c_phi[tau] * self.net_o[tau]
+        self.list_product(self.delta_buf,
+                          [error_h, self.c_phi[tau], self.net_o[tau]])
+
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'o', self.d_dh1['o'])
         ttemp1o = self.dh_dwh_buf[12, 55].asnumpyarray()
-        ttemp2o = self.dh_dwh_buf[12, 55].asnumpyarray()
+        ttemp2o = ttemp1o
 
         # d. cell
-        # temp = error_h * self.o_t[tau] * self.c_phip[tau] * self.i_t[tau] \
-        #        * self.net_g[tau]
-        temp.fill(1.0)
-        reduce(lambda x, y: be.multiply(x, y, out=x),
-               [temp, error_h, self.o_t[tau], self.c_phip[tau],
-                self.i_t[tau], self.net_g[tau]])
+        # self.delta_buf = error_h * self.o_t[tau] * self.c_phip[tau]
+        #        * self.i_t[tau] * self.net_g[tau]
+        self.list_product(self.delta_buf,
+                          [self.eh_ot_cphip, self.i_t[tau], self.net_g[tau]])
 
-        be.bprop_fc(out=dg_dh1, weights=self.Wch, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wcx_updates, self.dh_dwx_buf, self.Wcx_updates)
-        if (tau > 0):
-            be.add(self.Wch_updates, self.dh_dwh_buf, self.Wch_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'c', self.d_dh1['g'])
         ttemp1c = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # e. collect terms
-        be.add(di_dh1, df_dh1, hherror)
-        be.add(do_dh1, hherror, hherror)
-        be.add(dg_dh1, hherror, hherror)
+        self.list_sum(self.errs['hh'], self.d_dh1.values())
 
         """ --------------------------
         PART 2: New dc2/dc1 dc2/dh1 and dh2/dc1 terms
@@ -685,75 +676,47 @@ class RecurrentLSTMLayer(Layer):
 
         # dc2/dh1 terms:
         # input gate
-        # temp = error_c * self.g_t[tau] * self.net_i[tau]
-        be.multiply(error_c, self.g_t[tau], temp)
-        be.multiply(self.net_i[tau], temp, temp)
-        be.bprop_fc(out=dc_di_dh1, weights=self.Wih, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wix_updates, self.dh_dwx_buf, self.Wix_updates)
-        if (tau > 0):
-            be.add(self.Wih_updates, self.dh_dwh_buf, self.Wih_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_i_updates, temp_sum, self.b_i_updates)
+        # self.delta_buf = error_c * self.g_t[tau] * self.net_i[tau]
+        be.multiply(error_c, self.g_t[tau], self.delta_buf)
+        be.multiply(self.net_i[tau], self.delta_buf, self.delta_buf)
+
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'i', self.dc_d_dh1['i'])
         ttemp2i = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # forget gate
-        # temp = error_c * self.c_t[tau-1] * self.net_f[tau]
-        be.multiply(error_c, self.c_t[tau-1], temp)
-        be.multiply(self.net_f[tau], temp, temp)
-        be.bprop_fc(out=dc_df_dh1, weights=self.Wfh, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wfx_updates, self.dh_dwx_buf, self.Wfx_updates)
-        if (tau > 0):
-            be.add(self.Wfh_updates, self.dh_dwh_buf, self.Wfh_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_f_updates, temp_sum, self.b_f_updates)
+        # self.delta_buf = error_c * self.c_t[tau-1] * self.net_f[tau]
+        be.multiply(error_c, self.c_t[tau-1], self.delta_buf)
+        be.multiply(self.net_f[tau], self.delta_buf, self.delta_buf)
+
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'f', self.dc_d_dh1['f'])
         ttemp2f = self.dh_dwh_buf[12, 55].asnumpyarray()
 
         # cell
-        # temp = error_c * self.i_t[tau] * self.net_g[tau]
-        be.multiply(error_c, self.i_t[tau], temp)
-        be.multiply(self.net_g[tau], temp, temp)
-        be.bprop_fc(out=dc_dg_dh1, weights=self.Wch, deltas=temp)
-        be.update_fc(out=self.dh_dwx_buf,
-                     inputs=inputs[tau*self.nin:(tau+1)*self.nin, :],
-                     deltas=temp)
-        be.update_fc(out=self.dh_dwh_buf,
-                     inputs=self.output_list[tau - 1],
-                     deltas=temp)
-        be.add(self.Wcx_updates, self.dh_dwx_buf, self.Wcx_updates)
-        if (tau > 0):
-            be.add(self.Wch_updates, self.dh_dwh_buf, self.Wch_updates)
-        be.sum(temp, 1, temp_sum)
-        be.add(self.b_c_updates, temp_sum, self.b_c_updates)
+        # self.delta_buf = error_c * self.i_t[tau] * self.net_g[tau]
+        be.multiply(error_c, self.i_t[tau], self.delta_buf)
+        be.multiply(self.net_g[tau], self.delta_buf, self.delta_buf)
+
+        self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
+                        'c', self.dc_d_dh1['g'])
         ttemp2c = self.dh_dwh_buf[12, 55].asnumpyarray()
 
-        be.add(dc_di_dh1, dc_df_dh1, cherror)
-        be.add(cherror, dc_dg_dh1, cherror)
+        # errs['ch'] = sum of dc_d{i,f,g}_dh1 terms
+        self.list_sum(self.errs['ch'], self.dc_d_dh1.values())
 
         # dh2/dc1 term:
-        # hcerror = error_h * self.o_t[tau] * self.c_phip[tau] * self.f_t[tau]
-        be.multiply(error_h, self.o_t[tau], hcerror)
-        be.multiply(self.c_phip[tau], hcerror, hcerror)
-        be.multiply(self.f_t[tau], hcerror, hcerror)
+        # errs['hc'] = error_h * self.o_t[tau] * self.c_phip[tau]
+        #              * self.f_t[tau]
+        self.list_product(self.errs['hc'], [self.eh_ot_cphip, self.f_t[tau]])
 
         # dc2/dc1 term:
-        # ccerror = error_c * self.f_t[tau]
-        be.multiply(error_c, self.f_t[tau], ccerror)
+        # errs['cc'] = error_c * self.f_t[tau]
+        be.multiply(error_c, self.f_t[tau], self.errs['cc'])
 
         # wrap up:
-        be.add(hherror, cherror, self.berror)
-        be.add(ccerror, hcerror, self.cerror)
+        be.add(self.errs['hh'], self.errs['ch'], self.berror)
+        be.add(self.errs['cc'], self.errs['hc'], self.cerror)
 
         if numgrad is "lstm_ih":
             logger.info("layer.LSTM.bprop: analytic dh_dwih[%d]= %e + %e = %e",
@@ -811,6 +774,8 @@ class RecurrentHiddenLayer(Layer):
         self.learning_rule.allocate_state(self.updates)
 
         self.berror = backend.zeros((nout, batch_size))
+        for upm in self.updates:
+            upm.fill(0.0)
 
     def fprop(self, y, inputs, tau, cell=None):
         z1 = self.backend.zeros(self.pre_act_list[tau].shape)
