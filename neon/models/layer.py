@@ -862,11 +862,11 @@ class RecurrentHiddenLayer(Layer):
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
         if numgrad is "input":
-            logger.info("RecurrentHiddenLayer.bprop inc in %f",
-                        self.temp_in[12, 110])
+            logger.info("RecurrentHiddenLayer.bprop inc in %e",
+                        self.temp_in[12, 110].asnumpyarray())
         if numgrad is "rec":
-            logger.info("RecurrentHiddenLayer.bprop inc rec %f",
-                        self.temp_rec[12, 63])
+            logger.info("RecurrentHiddenLayer.bprop inc rec %e",
+                        self.temp_rec[12, 63].asnumpyarray())
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)

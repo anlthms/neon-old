@@ -40,7 +40,7 @@
     shortcut_deriv: False,
     layers: [
       # recurrent layer, can be RecurrentHiddenLayer or RecurrentLSTMLayer
-      !obj:neon.models.layer.RecurrentHiddenLayer { #
+      !obj:neon.models.layer.RecurrentLSTMLayer { #
         name: recurrent,
         backend: *be,
         batch_size: *bs,
@@ -63,7 +63,7 @@
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
-        #gate_activation: !obj:neon.transforms.logistic.Logistic {},
+        gate_activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: *wt_init,
         weight_init_rec: *wt_init,
 
