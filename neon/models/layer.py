@@ -511,8 +511,9 @@ class RecurrentLSTMLayer(Layer):
         be.bprop_fc(out=dh1_out, weights=wh, deltas=delta_buf)
         be.update_fc(out=self.dh_dwx_buf, inputs=xx, deltas=delta_buf)
         be.update_fc(out=self.dh_dwh_buf, inputs=yy, deltas=delta_buf)
-        be.add(wxu, self.dh_dwx_buf, wxu)
         if (tau > 0):
+            # was h only, but Urs changed this to skip the last x as well
+            be.add(wxu, self.dh_dwx_buf, wxu)
             be.add(whu, self.dh_dwh_buf, whu)
         be.sum(delta_buf, 1, self.bsum_buf)
         be.add(bu, self.bsum_buf, bu)

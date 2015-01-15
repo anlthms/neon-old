@@ -33,7 +33,7 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        self.grad_checker(numgrad="lstm_fh")
+        self.grad_checker(numgrad="lstm_fx")
         # pick one: for standard rnn, "output" "input" "rec"
         # for LSTM, "output" "lstm_ix" "lstm_ih" "lstm_fh" "...
 
