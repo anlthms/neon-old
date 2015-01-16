@@ -33,9 +33,9 @@ class RNN(Model):
 
     def fit(self, dataset):
         self.dataset = dataset
-        # self.grad_checker(numgrad="rec")
-        # pick one: "output":"input":"rec"
-        #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
+        # self.grad_checker(numgrad="lstm_fx")
+        # pick one: for standard rnn, "output" "input" "rec"
+        # for LSTM, "output" "lstm_ix" "lstm_ih" "lstm_fh" "...
 
         """
         Learn model weights on the given dataset.
@@ -58,25 +58,26 @@ class RNN(Model):
         errorlist = []
         error = self.backend.empty((1, 1))
         suberror = self.backend.empty((1, 1))
-        print nin, self.unrolls
+        hidden_init = self.backend.zeros((self.layers[1].nin,
+                                          self.batch_size))
+        cell_init = self.backend.zeros((self.layers[1].nin,
+                                        self.batch_size))
         for epoch in range(self.num_epochs):
             error.fill(0)
             suberror.fill(0)
-            hidden_init = None
-            cell_init = None
+            hidden_init.fill(0)
+            cell_init.fill(0)
             for batch in xrange(num_batches):
+                dbgb = True if batch == -1 else False
                 startidx = batch*nin*self.unrolls
                 endidx = (batch+1)*nin*(self.unrolls+1)
                 cur_input = inputs[startidx:endidx]
                 cur_tgt = targets[startidx:endidx]
                 cur_tgt_out = cur_tgt[self.unrolls*nin:(self.unrolls+1)*nin]
-                self.fprop(cur_input,
-                           hidden_init=hidden_init, cell_init=cell_init,
-                           debug=(True if batch == -1 else False))
-                self.bprop(cur_tgt, cur_input,
-                           debug=(True if batch == -1 else False))
-
+                self.fprop(cur_input, hidden_init, cell_init, debug=dbgb)
+                self.bprop(cur_tgt, cur_input, debug=dbgb)
                 self.update(epoch)
+
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
@@ -130,11 +131,15 @@ class RNN(Model):
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         batch = 0
+
         startidx = batch*nin*self.unrolls
         endidx = (batch+1)*nin*(self.unrolls+1)
         cur_input = inputs[startidx:endidx]
         cur_tgt = targets[startidx:endidx]
         cur_tgt_out = cur_tgt[self.unrolls*nin:(self.unrolls+1)*nin]
+
+        hidden_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
+        cell_init = self.backend.zeros((self.layers[1].nin, self.batch_size))
 
         if numgrad is "output":
             num_target = self.layers[1].weights
@@ -148,38 +153,30 @@ class RNN(Model):
             num_target = self.layers[0].weights_rec
             an_target = self.layers[0].updates_rec
             num_i, num_j = 12, 63
-        elif numgrad is "lstm_x":
-            num_target = self.layers[0].Wfx
-            an_target = self.layers[0].Wfx_updates
-            num_i, num_j = 12, 110
-        elif numgrad is "lstm_ih":
-            num_target = self.layers[0].Wih
-            an_target = self.layers[0].Wih_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_fh":
-            num_target = self.layers[0].Wfh
-            an_target = self.layers[0].Wfh_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_oh":
-            num_target = self.layers[0].Woh
-            an_target = self.layers[0].Woh_updates
-            num_i, num_j = 12, 55
-        elif numgrad is "lstm_ch":
-            num_target = self.layers[0].Wch
-            an_target = self.layers[0].Wch_updates
-            num_i, num_j = 12, 55
+        elif numgrad.startswith("lstm"):
+            gate = numgrad[-2:]
+            num_target = getattr(self.layers[0], 'W'+gate)
+            an_target = getattr(self.layers[0], 'W'+gate+'_updates')
+            if "x" in numgrad:
+                num_i, num_j = 12, 110
+            if "h" in numgrad:
+                num_i, num_j = 12, 55
 
-        eps = 1e-2  # better to use float64 in cpu.py for this
+        eps = 1e-6  # better to use float64 in cpu.py for this
         numerical = 0  # initialize buffer
         # extra loop to inject epsilon in different unrolling stages
         for tau in range(0, self.unrolls):
-            self.fprop_eps(cur_input, tau, eps, hidden_init=None,
+            # reset state
+            hidden_init.fill(0)
+            cell_init.fill(0)
+            # fprop with eps
+            self.fprop_eps(cur_input, tau, eps, hidden_init, cell_init,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_eps = self.cost.apply_function(cur_tgt_out).asnumpyarray()
 
-            self.fprop_eps(cur_input, tau, 0, hidden_init=None,
+            self.fprop_eps(cur_input, tau, 0, hidden_init, cell_init,
                            debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
@@ -196,12 +193,12 @@ class RNN(Model):
         analytical = an_target[num_i, num_j].asnumpyarray()
         logger.info("RNN grad_checker: suberror_eps %f", suberror_eps)
         logger.info("RNN grad_checker: suberror_ref %f", suberror_ref)
-        logger.info("RNN grad_checker: numerical %e", numerical)
-        logger.info("RNN grad_checker: analytical %e", analytical)
+        logger.info("RNN grad_checker: numerical %s %e", numgrad, numerical)
+        logger.info("RNN grad_checker: analytical %s %e", numgrad, analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
 
-    def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None,
-                  cell_init=None, debug=False, unrolls=None,
+    def fprop_eps(self, inputs, eps_tau, eps, hidden_init,
+                  cell_init, debug=False, unrolls=None,
                   num_target=None, num_i=0, num_j=0):
         """
         have a pre_act and output for every unrolling step. The layer needs
@@ -209,12 +206,6 @@ class RNN(Model):
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
@@ -241,20 +232,14 @@ class RNN(Model):
                                                        num_j].asnumpyarray() -
                                             eps)
 
-    def fprop(self, inputs, hidden_init=None,
-              cell_init=None, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init,
+              cell_init, debug=False, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if unrolls is None:
             unrolls = self.unrolls
         if debug:
@@ -271,8 +256,7 @@ class RNN(Model):
                 c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
 
-    def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
-              debug=False, numgrad=None):
+    def bprop(self, targets, inputs, debug=False, numgrad=None):
         """
         Refactor:
         This bprop has an OUTER FOR LOOP over t-BPTT unrollings
@@ -283,12 +267,6 @@ class RNN(Model):
         """
         nin = self.layers[0].nin
 
-        if hidden_init is None:
-            hidden_init = self.backend.zeros((self.layers[1].nin,
-                                              self.batch_size))
-        if cell_init is None:
-            cell_init = self.backend.zeros((self.layers[1].nin,
-                                            self.batch_size))
         if numgrad is None:
             min_unroll = 1
         else:
@@ -332,21 +310,20 @@ class RNN(Model):
         outputs are computed as a 2000 x 50 matrix that is then flattened
         to return_buffer of 100000 records. This will be preds['train']
         """
+        be = self.backend
         nrecs = inputs.shape[0]
         nin = self.layers[0].nin
         num_batches = int(math.floor((nrecs) / nin / self.unrolls)) - 1
-        outputs = self.backend.zeros((num_batches*(self.unrolls),
-                                      self.batch_size))
-        hidden_init = None
-        cell_init = None
-        letters = self.backend.empty((1,50), dtype='int32')
+        outputs = be.zeros((num_batches*(self.unrolls), self.batch_size))
+        hidden_init = be.zeros((self.layers[1].nin, self.batch_size))
+        cell_init = be.zeros((self.layers[1].nin, self.batch_size))
+        letters = be.empty((1,50), dtype='int32')
+
         for batch in xrange(num_batches):
             startidx = batch*nin*self.unrolls
             endidx = (batch+1)*nin*(self.unrolls+1)
             cur_input = inputs[startidx:endidx]
-            self.fprop(cur_input,
-                       hidden_init=hidden_init, cell_init=cell_init,
-                       unrolls=self.unrolls)
+            self.fprop(cur_input, hidden_init, cell_init, unrolls=self.unrolls)
             hidden_init = self.layers[0].output_list[-1]
             if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
@@ -355,15 +332,13 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
             for tau in range(self.unrolls):
-                self.backend.argmax(self.layers[1].output_list[tau],
-                                    axis=0, out=letters)
+                be.argmax(self.layers[1].output_list[tau], axis=0, out=letters)
                 idx = (self.unrolls)*batch + tau
                 outputs[idx, :] = letters
 
-        return_buffer = self.backend.zeros(((num_batches+1)*self.unrolls,
-                                            self.batch_size))
+        return_buffer = be.zeros(((num_batches+1)*self.unrolls,
+                                 self.batch_size))
         return_buffer[0:num_batches*self.unrolls, :] = outputs
-
         return return_buffer
 
     def predict(self, train=True, test=True, validation=False):

@@ -49,7 +49,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: &lrp {
-            learning_rate: 0.1,
+            learning_rate: 0.2,
             backend: *be,
             momentum_params: {
               type: linear_monotone, # constant, nesterov dont work
