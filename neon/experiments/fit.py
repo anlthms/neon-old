@@ -45,69 +45,29 @@ class FitExperiment(Experiment):
         """
         Actually carry out each of the experiment steps.
         """
-        # load and/or deserialize any unloaded datasets
-        ds = self.dataset
-        ds.set_batch_size(self.model.batch_size)
-        if not hasattr(ds, 'backend'):
-            ds.backend = self.backend
-        if hasattr(ds, 'serialized_path'):
+        # load the dataset, save it to disk if specified
+        self.dataset.set_batch_size(self.model.batch_size)
+        if not hasattr(self.dataset, 'backend'):
+            self.dataset.backend = self.backend
+        self.dataset.load()
+        if hasattr(self.dataset, 'serialized_path'):
+            serialize(self.dataset, self.dataset.serialized_path)
+
+        # fit the model to the data, save it if specified
+        if not hasattr(self.model, 'backend'):
+            self.model.backend = self.backend
+        if not hasattr(self.model, 'fit_complete'):
+            self.model.fit(self.dataset)
+            self.model.fit_complete = True
+        if hasattr(self.model, 'serialized_path'):
             if self.dist_flag:
                 if MPI_INSTALLED:
                     from mpi4py import MPI
-                    ds.serialized_path = ds.serialized_path.format(
-                        rank=str(MPI.COMM_WORLD.rank),
-                        size=str(MPI.COMM_WORLD.size))
+                    # serialize the model only at the root node
+                    if MPI.COMM_WORLD.rank == 0:
+                        serialize(self.model, self.model.serialized_path)
                 else:
                     raise AttributeError("dist_flag set but mpi4py not "
                                          "installed")
-            if os.path.exists(ds.serialized_path):
-                set_batches = False
-                if hasattr(ds, 'start_train_batch'):
-                    [tmp1, tmp2, tmp3, tmp4] = [
-                        ds.start_train_batch,
-                        ds.end_train_batch,
-                        ds.start_val_batch,
-                        ds.end_val_batch]
-                    set_batches = True
-                ds = deserialize(ds.serialized_path)
-                if set_batches:
-                    [ds.start_train_batch, ds.end_train_batch,
-                     ds.start_val_batch, ds.end_val_batch] = [
-                        tmp1, tmp2, tmp3, tmp4]
             else:
-                ds.load()
-                serialize(ds, ds.serialized_path)
-        else:
-            ds.load()
-
-        # load or fit the model to the data
-        if not hasattr(self.model, 'backend'):
-            self.model.backend = self.backend
-        if hasattr(self.model, 'serialized_path'):
-            mpath = self.model.serialized_path
-            if os.path.exists(mpath):
-                if self.dist_flag:
-                    if MPI_INSTALLED:
-                        # deserialize the model at the root node only
-                        # can change behavior depending on future use cases
-                        if MPI.COMM_WORLD.rank == 0:
-                            self.model = deserialize(mpath)
-                    else:
-                        raise AttributeError("dist_flag set but mpi4py not "
-                                             "installed")
-                self.model = deserialize(mpath)
-            else:
-                self.model.fit(ds)
-                if self.dist_flag:
-                    if MPI_INSTALLED:
-                        from mpi4py import MPI
-                        # serialize the model only at the root node
-                        if MPI.COMM_WORLD.rank == 0:
-                            serialize(self.model, mpath)
-                    else:
-                        raise AttributeError("dist_flag set but mpi4py not "
-                                             "installed")
-                else:
-                    serialize(self.model, mpath)
-        else:
-            self.model.fit(ds)
+                serialize(self.model, self.model.serialized_path)

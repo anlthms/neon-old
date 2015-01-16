@@ -41,10 +41,38 @@ def ensure_dirs_exist(path):
     return path
 
 
-def obj_multi_constructor(loader, tag_suffix, node):
+def extract_child_node_vals(node, keys):
+    """
+    Helper to iterate through the immediate children of the yaml node object
+    passed, looking for the key values specified.
+
+    Arguments:
+        node (yaml.nodes.Node): the parent node upon which to being the search
+        keys (list): set of strings indicating the child keys we want to
+                     extract corresponding values for.
+
+    Returns:
+        dict: with one item for each key.  value is value found in search for
+              that key, or None if not found.
+    """
+    res = dict()
+    for child in node.value:
+        tag, val = [x.value for x in child]
+        for key in keys:
+            if tag == key:
+                res[key] = val
+    for key in keys:
+        if key not in res:
+            res[key] = None
+    return res
+
+def obj_multi_constructor(loader, tag_suffix, node,
+                          deserialize_param='serialized_path',
+                          dist_param='dist_flag'):
     """
     Utility function used to actually import and generate a new class instance
-    from its name and parameters.
+    from its name and parameters, potentially deserializing an already
+    serialized representation.
 
     Arguments:
         loader (yaml.loader.SafeLoader): carries out actual loading
@@ -54,8 +82,14 @@ def obj_multi_constructor(loader, tag_suffix, node):
         node (yaml.MappingNode): tag/value set specifying the parameters
                                  required for constructing new objects of this
                                  type
+        deserialize_param (str): Tag name of the parameter that can be
+                                 inspected to deserialize an already existing
+                                 instance, instead of constructing a new
+                                 object.  Defaults to 'serialized_path'.
+        dist_param (str): Tag name of the parameter that can be inspected to
+                          indicate the object in question is distributed.
+                          Defaults to 'dist_flag'.
     """
-
     # extract class name and import neccessary module
     parts = tag_suffix.split('.')
     module = '.'.join(parts[:-1])
@@ -63,15 +97,52 @@ def obj_multi_constructor(loader, tag_suffix, node):
     for comp in parts[1:]:
         cls = getattr(cls, comp)
 
-    # get they key/value pairs from node and instantiate the object
-    try:
-        res = cls(**loader.construct_mapping(node, deep=True))
-    except TypeError as e:
-        logger.warning("Unable to construct '%s' instance.  Error: %s",
-                       cls.__name__, e.message)
-        res = None
+    # peek at the immediate parameters of this object to see if we should
+    # deserialize instead of construct a new object, MPI also requires some
+    # special handling
+    res = None
+    child_vals = extract_child_node_vals(node, [deserialize_param, dist_param])
+    child_vals[dist_param] = (child_vals[dist_param] == 'True')
+    if child_vals[deserialize_param] is not None:
+        # deserialization attempt should be made
+        dpath = child_vals[deserialize_param]
+        if child_vals[dist_param] and 'datasets' in cls.__module__:
+            # Attempting to deserialize a distributed dataset, need to adjust
+            # the path.
+            if MPI_INSTALLED:
+                from mpi4py import MPI
+                dpath = dpath.format(rank=str(MPI.COMM_WORLD.rank),
+                                     size=str(MPI.COMM_WORLD.size))
+                if os.path.exists(dpath):
+                    # TODO: updates to start/end_train/val_batch?
+                    res = deserialize(dpath)
+            else:
+                raise AttributeError("%s set but mpi4py not installed" %
+                                     dist_param)
+        elif 'models' in cls.__module__ and 'Dist' in cls.__name__:
+            # Attempting to deserialize a distributed model, only do so on the
+            # root node
+            if MPI_INSTALLED:
+                from mpi4py import MPI
+                if os.path.exists(dpath) and MPI.COMM_WORLD.rank == 0:
+                    res = deserialize(dpath)
+                else:
+                    # TODO: determine what we want do about non-root models
+                    pass
+            else:
+                raise AttributeError("dist model but mpi4py not installed")
+        elif os.path.exists(dpath):
+            # All other types of deserializable objects
+            res = deserialize(dpath)
+    if res is None:
+        # need to create a new object
+        try:
+            res = cls(**loader.construct_mapping(node, deep=True))
+        except TypeError as e:
+            logger.warning("Unable to construct '%s' instance.  Error: %s",
+                           cls.__name__, e.message)
+            res = None
     return res
-
 
 def initialize_yaml():
     global yaml_initialized
