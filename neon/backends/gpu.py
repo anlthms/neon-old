@@ -49,14 +49,14 @@ class GPUTensor(Tensor):
     _tensor = None
     _min_dims = 2
 
-    def __init__(self, obj, dtype=None):
+    def __init__(self, obj, dtype=None, copy_to_device=True):
         if type(obj) == cudanet.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape
         else:
             if type(obj) == list:
                 obj = numpy.array(obj)
-            if type(obj) == numpy.ndarray:
+            if isinstance(obj, numpy.ndarray):
                 # CUDAMatrix only supports ndarrays with exactly 2 dimensions
                 # (though the elements can be tuples/lists to create arbitrary
                 # n dimensions)
@@ -292,6 +292,13 @@ class GPUTensor(Tensor):
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
+
+    def set_host_mat(self, newarray):
+        """
+        Changes the host pointer for this tensor to point to a new numpy array
+        and its associated data. newarray must be a numpy array
+        """
+        self._tensor.set_host_mat(newarray)
 
     def copy_to_device(self):
         self._tensor.copy_to_device()
@@ -1558,7 +1565,7 @@ class GPU(Backend):
                         str(size), loc, scale)
             weights = numpy.random.normal(loc, scale, size)
         elif (weight_params['type'] == 'autoscale'):
-            low = 1.0/math.sqrt(size[0])
+            low = 1.0 / math.sqrt(size[0])
             if 'relu' in weight_params:
                 low = low * math.sqrt(2)
             weights = numpy.random.uniform(-low, low, size)
@@ -1572,7 +1579,7 @@ class GPU(Backend):
                 eigenvalue = weight_params['eigenvalue']
             logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
                         (str(size), sparseness, eigenvalue))
-            elements = size[0]*size[1]
+            elements = size[0] * size[1]
             nonzeros = size[0] * sparseness
             weights = numpy.zeros(size).flatten()
             nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]

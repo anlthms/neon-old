@@ -807,7 +807,7 @@ class CPU(Backend):
         """
         try:
             tsr._tensor.argmin(axis, out._tensor)
-        except ValueError:
+        except (ValueError, TypeError):
             # numpy does not have the option to keepdims in the argmin result
             # so we may be dealing with mismatched shapes that we need to
             # restore in a costlier way.
@@ -833,7 +833,7 @@ class CPU(Backend):
         """
         try:
             tsr._tensor.argmax(axis, out._tensor)
-        except ValueError:
+        except (ValueError, TypeError):
             # numpy does not have the option to keepdims in the argmax result
             # so we may be dealing with mismatched shapes that we need to
             # restore in a costlier way.
@@ -1580,9 +1580,8 @@ class CPUDist(CPU):
     def bcast(self, buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
 
+
 # once CPUDist is implemented inherit from CPUDist
-
-
 class CPUDataDist(CPU):
 
     """
