@@ -1304,8 +1304,7 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (D, H, W, N) = (
-            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rmeandiff = meandiffs._tensor.reshape((nifm, H, W, N))
         routputs = out._tensor.reshape((nifm, H, W, N))
@@ -1371,8 +1370,7 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (D, H, W, N) = (
-            ifmshape[-3], ifmshape[-2], ifmshape[-1], fouts.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], fouts.shape[1])
         self.multiply(fouts, -2 * alpha * beta, out=fouts)
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
