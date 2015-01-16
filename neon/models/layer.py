@@ -1069,6 +1069,7 @@ class LocalLayer(YAMLable):
         self.ifmshape = ifmshape
         self.fshape = fshape
         self.fheight, self.fwidth = fshape
+        self.fpsize = self.fheight * self.fwidth
         self.stride = stride
         self.learning_rule = learning_rule
         self.prev_names = prev_names
@@ -1170,6 +1171,7 @@ class LocalLayerDist(LocalLayer):
         self.ifmshape = ifmshape
         self.fshape = fshape
         self.fheight, self.fwidth = fshape
+        self.fpsize = self.fheight * self.fwidth
         self.batch_size = batch_size
         self.pos = pos
         self.learning_rule = learning_rule
@@ -1331,6 +1333,7 @@ class ConvLayer(LocalLayer):
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
                                 weights=self.weights, ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
                                 links=self.rlinks, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
@@ -1346,6 +1349,7 @@ class ConvLayer(LocalLayer):
         if self.pos > 0:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
                                     padding=self.pad, stride=self.stride,
@@ -1353,7 +1357,9 @@ class ConvLayer(LocalLayer):
                                     bpropbuf=self.bpropbuf)
         self.backend.update_conv(out=self.weight_updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ofmshape=self.ofmshape,
+                                 ofmsize=self.ofmsize,
+                                 ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
@@ -1432,7 +1438,9 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
             self.updates.asnumpyarray())
         self.backend.update_conv(out=self.updates, inputs=inputs,
                                  weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ofmshape=self.ofmshape,
+                                 ofmsize=self.ofmsize,
+                                 ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=0, stride=self.stride,
                                  ngroups=1, fwidth=self.fwidth,
@@ -1815,7 +1823,9 @@ class MaxPoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op="max",
-                                ofmshape=self.ofmshape, ofmlocs=self.maxinds,
+                                ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
+                                ofmlocs=self.maxinds,
                                 fshape=self.fshape, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm, padding=0,
                                 stride=self.stride, fpropbuf=self.outputbuf)
@@ -1825,7 +1835,9 @@ class MaxPoolingLayer(LocalLayer):
             self.backend.bprop_pool(out=self.deltas, fouts=self.output,
                                     inputs=inputs, deltas=error, op="max",
                                     ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.maxinds, fshape=self.fshape,
+                                    fpsize=self.fpsize,
                                     ifmshape=self.ifmshape, links=self.links,
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
@@ -1887,7 +1899,9 @@ class L2PoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op="l2",
-                                ofmshape=self.ofmshape, ofmlocs=None,
+                                ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
+                                ofmlocs=None,
                                 fshape=self.fshape, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm, padding=0,
                                 stride=self.stride, fpropbuf=self.outputbuf)
@@ -1897,7 +1911,9 @@ class L2PoolingLayer(LocalLayer):
             self.backend.bprop_pool(out=self.deltas, fouts=self.output,
                                     inputs=inputs, deltas=error, op="l2",
                                     ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.prodbuf, fshape=self.fshape,
+                                    fpsize=self.fpsize,
                                     ifmshape=self.ifmshape, links=self.links,
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
@@ -1963,7 +1979,9 @@ class AveragePoolingLayer(LocalLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op="avg",
-                                ofmshape=self.ofmshape, ofmlocs=None,
+                                ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
+                                ofmlocs=None,
                                 fshape=self.fshape, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm, padding=0,
                                 stride=self.stride, fpropbuf=self.outputbuf)
@@ -1972,8 +1990,12 @@ class AveragePoolingLayer(LocalLayer):
         if self.pos > 0:
             self.backend.bprop_pool(out=self.deltas, fouts=self.output,
                                     inputs=inputs, deltas=error, op="avg",
-                                    ofmshape=self.ofmshape, ofmlocs=None,
-                                    fshape=self.fshape, ifmshape=self.ifmshape,
+                                    ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
+                                    ofmlocs=None,
+                                    fshape=self.fshape,
+                                    fpsize=self.fpsize,
+                                    ifmshape=self.ifmshape,
                                     links=self.links, nifm=self.nifm,
                                     padding=0, stride=self.stride,
                                     bpropbuf=self.deltasbuf)
@@ -2540,7 +2562,8 @@ class CrossMapPoolingLayer(YAMLable):
 
     def fprop(self, inputs):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,
-                                  weights=self.weights, ifmshape=self.ifmshape)
+                                  weights=self.weights, ifmshape=self.ifmshape,
+                                  ifmsize=self.ifmsize)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -2549,9 +2572,11 @@ class CrossMapPoolingLayer(YAMLable):
             self.backend.multiply(error, self.pre_act, out=error)
         if self.pos > 0:
             self.backend.bprop_cmpool(out=self.deltas, weights=self.weights,
-                                      deltas=error, ifmshape=self.ifmshape)
+                                      deltas=error, ifmshape=self.ifmshape,
+                                      ifmsize=self.ifmsize)
         self.backend.update_cmpool(out=self.updates, inputs=inputs,
                                    deltas=error, ifmshape=self.ifmshape,
+                                   ifmsize=self.ifmsize,
                                    updatebuf=self.updatebuf)
 
     def update(self, epoch):
