@@ -1379,7 +1379,7 @@ class CPU(Backend):
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
         rfouts = fouts._tensor.reshape((nifm, H, W, N))
-        rberror = out._tensor.reshape((nifm, H, W, N))
+        rdeltas = out._tensor.reshape((nifm, H, W, N))
 
         offset = ksize/2 - ksize + 1
         for y in xrange(H):
@@ -1392,7 +1392,7 @@ class CPU(Backend):
                 ww = len(xidx)
                 patch = rfouts.take(xidx, axis=1).take(
                     yidx, axis=2).reshape((nifm, hh, ww, N))
-                np.sum(patch, axis=(1, 2), out=rberror[:, x, y, :])
+                np.sum(patch, axis=(1, 2), out=rdeltas[:, x, y, :])
 
         self.multiply(out, meandiffs, out=out)
         self.power(denoms, -beta, out=fouts)

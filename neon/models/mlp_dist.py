@@ -165,14 +165,14 @@ class MLPDist(MLP):
                                      take(self.layers[i].out_indices, axis=0))
             else:
                 self.layers[i].bprop(error, self.layers[i - 1].output)
-            error = self.layers[i].berror
+            error = self.layers[i].deltas
             i -= 1
             # extract self.layers[i].pre_act terms
             self.layers[i].pre_act_ = self.layers[i].pre_act.take(
                 self.layers[i + 1].out_indices, axis=0)
 
         # first FC layer
-        self.layers[i].bprop(self.layers[i + 1].berror, inputs)
+        self.layers[i].bprop(self.layers[i + 1].deltas, inputs)
 
     def update(self, epoch):
         for layer in self.layers:

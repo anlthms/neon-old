@@ -25,7 +25,7 @@ class Layer(YAMLable):
         self.__dict__.update(kwargs)
         req_param(self, ['name'])
 
-        opt_param(self, ['pre_act_dtype', 'output_dtype', 'berror_dtype'])
+        opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype'])
         opt_param(self, ['weight_dtype', 'updates_dtype'])
         opt_param(self, ['prev_layer', 'activation'])
 
@@ -52,13 +52,13 @@ class Layer(YAMLable):
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
         self.output = None
-        self.berror = None
+        self.deltas = None
 
     def initialize_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
 
         opt_param(self, ['ofmlocs', 'links'])
-        opt_param(self, ['berrorbuf', 'outputbuf'])
+        opt_param(self, ['deltasbuf', 'outputbuf'])
 
         opt_param(self, ['nofm'], self.nifm)
         opt_param(self, ['pooling'], False)
@@ -120,9 +120,9 @@ class Layer(YAMLable):
         else:
             self.pre_act = self.output
 
-        self.berror = None
+        self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
+            self.deltas = make_zbuf(self.berr_shape, self.deltas_dtype)
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
@@ -153,7 +153,7 @@ class Layer(YAMLable):
     def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
         buf_size = self.batch_size * nifm
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berrorbuf = self.backend.empty((self.ifmsize, buf_size))
+            self.deltasbuf = self.backend.empty((self.ifmsize, buf_size))
 
         assert self.ofmsize is not 0
         ofmstarts = np.arange(0, (self.ofmsize * nofm), self.ofmsize)
@@ -198,7 +198,7 @@ class CostLayer(Layer):
         self.targets = None
         self.cost.olayer = self.prev_layer
         self.cost.initialize(kwargs)
-        self.berror = self.cost.get_berrbuf()
+        self.deltas = self.cost.get_berrbuf()
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
@@ -211,14 +211,14 @@ class CostLayer(Layer):
         pass
 
     def bprop(self, error):
-        # Since self.berror already pointing to destination of act gradient
+        # Since self.deltas already pointing to destination of act gradient
         # we just have to scale by mini-batch size
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.berror, self.batch_size, out=self.berror)
+        self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
     def get_cost(self):
         result = self.cost.apply_function(self.targets)
@@ -315,8 +315,8 @@ class ActivationLayer(Layer):
     def bprop(self, error):
         if self.skip_act is False:
             self.backend.multiply(error, self.pre_act, out=error)
-        if self.berror is not None:
-            self.berror[:] = error
+        if self.deltas is not None:
+            self.deltas[:] = error
 
 
 class WeightLayer(Layer):
@@ -419,8 +419,8 @@ class FCLayer(WeightLayer):
         if self.activation is not None and self.skip_act is False:
             self.backend.multiply(error, self.pre_act, out=error)
 
-        if self.berror is not None:
-            self.backend.bprop_fc(out=self.berror, weights=self.weights,
+        if self.deltas is not None:
+            self.backend.bprop_fc(out=self.deltas, weights=self.weights,
                                   deltas=error)
 
         upm = self.utemp if self.accumulate else self.updates
@@ -465,8 +465,8 @@ class PoolingLayer(Layer):
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        if self.berror is not None:
-            self.backend.bprop_pool(out=self.berror, fouts=self.output,
+        if self.deltas is not None:
+            self.backend.bprop_pool(out=self.deltas, fouts=self.output,
                                     inputs=inputs, deltas=error, op=self.op,
                                     ofmshape=self.ofmshape,
                                     ofmsize=self.ofmsize,
@@ -475,7 +475,7 @@ class PoolingLayer(Layer):
                                     ifmshape=self.ifmshape, links=self.links,
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
-                                    bpropbuf=self.berrorbuf)
+                                    bpropbuf=self.deltasbuf)
 
 
 class ConvLayer(WeightLayer):
@@ -527,8 +527,8 @@ class ConvLayer(WeightLayer):
         inputs = self.prev_layer.output
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
-        if self.berror is not None:
-            self.backend.bprop_conv(out=self.berror, weights=self.weights,
+        if self.deltas is not None:
+            self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
@@ -592,8 +592,8 @@ class DropOutLayer(Layer):
             self.backend.multiply(inputs, self.keep, out=self.output)
 
     def bprop(self, error):
-        if self.berror is not None:
-            self.backend.multiply(error, self.keepmask, out=self.berror)
+        if self.deltas is not None:
+            self.backend.multiply(error, self.keepmask, out=self.deltas)
 
     def set_train_mode(self, mode):
         self.train_mode = mode
@@ -628,7 +628,7 @@ class BranchLayer(CompositeLayer):
     another
     during fprop, it concatenates the component outputs and passes it on
     during bprop, it splits the backward errors into the components and
-        accumulates into a common berror
+        accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):
@@ -658,10 +658,10 @@ class BranchLayer(CompositeLayer):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
             s_l.bprop(error[si:ei])
 
-        if self.berror is not None:
-            self.berror.fill(0.0)
+        if self.deltas is not None:
+            self.deltas.fill(0.0)
             for subl in self.sublayers:
-                self.backend.add(self.berror, subl.berror, out=self.berror)
+                self.backend.add(self.deltas, subl.deltas, out=self.deltas)
 
 
 class ListLayer(Layer):
@@ -671,7 +671,7 @@ class ListLayer(Layer):
     another
     during fprop, it simply fprops along the chain
     during bprop, it splits the backward errors into the components and
-        accumulates into a common berror
+        accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):
@@ -683,7 +683,7 @@ class ListLayer(Layer):
     def initialize(self, kwargs):
         super(ListLayer, self).initialize(kwargs)
         self.output = self.sublayers[-1].output
-        self.berror = self.sublayers[0].berror
+        self.deltas = self.sublayers[0].deltas
         self.nout = self.sublayers[-1].nout
         if self.sublayers[-1].is_local is True:
             self.nofm = self.sublayers[-1].nofm
@@ -731,7 +731,7 @@ class CrossMapResponseNormLayer(Layer):
         self.ofmshape, self.nofm = self.ifmshape, self.nifm
         self.allocate_output_bufs()
         self.tempbuf = None
-        if self.berror is not None and isinstance(self.backend, CPU):
+        if self.deltas is not None and isinstance(self.backend, CPU):
             self.tempbuf = self.backend.empty(
                 (self.ifmshape[-2], self.ifmshape[-1], self.batch_size))
 
@@ -743,8 +743,8 @@ class CrossMapResponseNormLayer(Layer):
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        if self.berror is not None:
-            self.backend.bprop_cmrnorm(out=self.berror, fouts=self.output,
+        if self.deltas is not None:
+            self.backend.bprop_cmrnorm(out=self.deltas, fouts=self.output,
                                        inputs=inputs, deltas=error,
                                        ifmshape=self.ifmshape, nifm=self.nifm,
                                        ksize=self.ksize, alpha=self.alpha,
@@ -778,8 +778,8 @@ class LocalContrastNormLayer(CrossMapResponseNormLayer):
                                    alpha=self.alpha, beta=self.beta)
 
     def bprop(self, error):
-        if self.berror is not None:
-            self.backend.bprop_lcnnorm(out=self.berror, fouts=self.output,
+        if self.deltas is not None:
+            self.backend.bprop_lcnnorm(out=self.deltas, fouts=self.output,
                                        deltas=error, meandiffs=self.meandiffs,
                                        denoms=self.denoms,
                                        ifmshape=self.ifmshape, nifm=self.nifm,
@@ -823,8 +823,8 @@ class CrossMapPoolingLayer(WeightLayer):
         inputs = self.prev_layer.output
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act, out=error)
-        if self.berror is not None:
-            self.backend.bprop_cmpool(out=self.berror, weights=self.weights,
+        if self.deltas is not None:
+            self.backend.bprop_cmpool(out=self.deltas, weights=self.weights,
                                       deltas=error, ifmshape=self.ifmshape,
                                       ifmsize=self.ifmsize)
         self.backend.update_cmpool(out=self.updates[0], inputs=inputs,
