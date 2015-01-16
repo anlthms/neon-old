@@ -1381,6 +1381,9 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
                                             ifmshape, fshape, stride,
                                             activation=activation, pad=pad,
                                             prev_names=prev_names)
+        self.use_biases = 'bias_init' in weight_init
+        if self.use_biases:
+            raise NotImplementedError('TODO')
         self.nout = self.ofmsize * nofm
         self.weights = backend.gen_weights((self.fsize, nofm),
                                            weight_init)

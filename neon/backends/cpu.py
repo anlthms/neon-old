@@ -1375,7 +1375,7 @@ class CPU(Backend):
         """
         (D, H, W, N) = (
             ifmshape[-3], ifmshape[-2], ifmshape[-1], fouts.shape[1])
-        self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
+        self.multiply(fouts, -2 * alpha * beta, out=fouts)
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
         rfouts = fouts._tensor.reshape((nifm, H, W, N))
