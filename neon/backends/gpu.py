@@ -292,7 +292,7 @@ class GPUTensor(Tensor):
 
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
-   
+
     def set_host_mat(self, newarray):
         """
         Changes the host pointer for this tensor to point to a new numpy array
