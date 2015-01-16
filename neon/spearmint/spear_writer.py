@@ -4,8 +4,6 @@ generating the PB file for Spearmint: Go through the hyper-yaml, extract lines
 that specify a !hyperopt range, dump an entry into the protobuf
 """
 
-import os, sys, time
-from ipdb import set_trace as trace
 
 def write_pb(input_file, pb_file):
     """
@@ -20,54 +18,56 @@ def write_pb(input_file, pb_file):
             fout.write('language: PYTHON \nname: "' + scipt_name + '"\n\n')
             for inline in fin:
                 if 'hyperopt' in inline:
-                    ho = parse_line(inline)
-                    outline = write_line(ho)
+                    ho_dict = parse_line(inline)
+                    outline = write_line(ho_dict)
                     fout.write(outline)
                 if 'WriteErrorToFile' in inline:
                     we_are_good = True
     return we_are_good
 
+
 def parse_line(line):
     """
-    generate a dictionary ho with fields:
+    generate a dictionary ho_dict with fields:
     name
     type
     start
     end
     """
     dic = [k.strip("{},") for k in line.split()]
-    ho = dict()
-    ho['name'] = dic[2]
-    ho['type'] = dic[3]
-    if (ho['type'] == 'FLOAT'):
-        ho['end'] = float(dic[4])
-        ho['start'] = float(dic[5])
-    elif (ho['type'] == 'INT'):
-        ho['end'] = int(dic[4])
-        ho['start'] = int(dic[5])
-    elif (ho['type'] == 'STRING'):
-        ho['end'] = dic[4]
-        ho['start'] = dic[5]
+    ho_dict = dict()
+    ho_dict['name'] = dic[2]
+    ho_dict['type'] = dic[3]
+    if (ho_dict['type'] == 'FLOAT'):
+        ho_dict['end'] = float(dic[4])
+        ho_dict['start'] = float(dic[5])
+    elif (ho_dict['type'] == 'INT'):
+        ho_dict['end'] = int(dic[4])
+        ho_dict['start'] = int(dic[5])
+    elif (ho_dict['type'] == 'STRING'):
+        ho_dict['end'] = dic[4]
+        ho_dict['start'] = dic[5]
     else:
-        print "got ho['type']", ho['type']
+        print "got ho_dict['type']", ho_dict['type']
         raise AttributeError("Supported types are FLOAT, INT, STRING")
 
-    return ho
+    return ho_dict
 
-def write_line(ho):
+
+def write_line(ho_dict):
     """
     stuff
     """
     outline = """variable {
-    name: \""""+ho['name']+"""\"
-    type: """+ho['type']+"""
+    name: \""""+ho_dict['name']+"""\"
+    type: """+ho_dict['type']+"""
     size: 1
-    min:  """+str(ho['start'])+"""
-    max:  """+str(ho['end'])+"""
+    min:  """+str(ho_dict['start'])+"""
+    max:  """+str(ho_dict['end'])+"""
     }\n\n"""
     return outline
 
-if __name__=='__main__':
+if __name__ == '__main__':
     """
     specify hyperyaml to read from and protobuf to write to
     """

@@ -9,7 +9,6 @@ is evaluated on the predictions made.
 import logging
 
 from neon.experiments.fit import FitExperiment
-from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +41,6 @@ class WriteErrorToFile(FitExperiment):
             prediction = self.model.predict_and_error(self.dataset)
         else:
             raise AttributeError("Cannot perform WriteErrorToFile experiment "
-                                  "on a dataset with no validation set")
+                                 "on a dataset with no validation set")
         with open('neon_result_validation.txt', 'w') as f:
-            f.write(str(prediction['validation'][0,0]))
+            f.write(str(prediction['validation'][0, 0]))

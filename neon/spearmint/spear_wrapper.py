@@ -8,8 +8,9 @@ into this file's main() function with the current set of parameters. It does:
 - get the outputs
 """
 
-import os, sys, time
-from ipdb import set_trace as trace
+import os
+import time
+
 
 def main(job_id, params):
     print 'main: job #:', str(job_id)
@@ -18,7 +19,8 @@ def main(job_id, params):
 
     return call_convnet(params)
 
-def call_convnet(params): #
+
+def call_convnet(params):
     """
     runs the system call to neon and reads the result to give back to sm
     """
@@ -38,7 +40,7 @@ def call_convnet(params): #
     # Run a model
     print "call_convnet: running neon"
     print "cwd:", os.getcwd()
-    callstring =  "../../bin/neon " + yaml_file
+    callstring = "../../bin/neon " + yaml_file
     os.system(callstring)
 
     # Read the model output
@@ -46,6 +48,7 @@ def call_convnet(params): #
     with open('neon_result_validation.txt', 'r') as f:
             result = map(float, f)
     return result[0]
+
 
 def write_params(input_file, output_file, params):
     """
@@ -59,6 +62,7 @@ def write_params(input_file, output_file, params):
                     line = parse_line(line, params)
                     print "line:", line
                 fout.write(line)
+
 
 def parse_line(line, params):
     """
