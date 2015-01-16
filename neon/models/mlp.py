@@ -252,9 +252,7 @@ class MLP(Model):
             for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch(batch)
                 self.fprop(inputs)
-                be.argmax(self.get_classifier_output(),
-                                       axis=0,
-                                       out=preds)
+                be.argmax(self.get_classifier_output(), axis=0, out=preds)
                 be.argmax(targets, axis=0, out=labels)
                 be.not_equal(labels, preds, preds)
                 be.sum(preds, axes=None, out=batch_err)
