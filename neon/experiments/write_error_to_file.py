@@ -43,4 +43,4 @@ class WriteErrorToFile(FitExperiment):
             raise AttributeError("Cannot perform WriteErrorToFile experiment "
                                  "on a dataset with no validation set")
         with open('neon_result_validation.txt', 'w') as f:
-            f.write(str(prediction['validation'][0, 0]))
+            f.write(str(prediction['validation']))

@@ -38,7 +38,7 @@ def main():
                   'rmdir neon/spearmint/yamels &&'
                   'rmdir neon/spearmint/jobs &&'
                   'rmdir neon/spearmint/output &&'
-                  'rm neon/spearmint/neon_results_validation.txt &&'
+                  'rm neon/spearmint/neon_result_validation.txt &&'
                   'rm neon/spearmint/spear_config.pb &&'
                   'rm neon/spearmint/hyperyaml.yaml')
         print("Running cleanup")
