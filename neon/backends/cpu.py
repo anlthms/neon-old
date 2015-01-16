@@ -1215,8 +1215,7 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (D, H, W, N) = (
-            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rout = out._tensor.reshape((nifm, H, W, N))
         for i in range(nifm):
@@ -1251,8 +1250,7 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (D, H, W, N) = (
-            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs.reshape((nifm, H, W, N))
         rout = out.reshape((nifm, H, W, N))
         rfouts = fouts.reshape((nifm, H, W, N))
