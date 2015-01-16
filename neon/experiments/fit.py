@@ -8,7 +8,6 @@ Experiment in which a model is trained (parameters learned)
 import logging
 
 from neon.experiments.experiment import Experiment
-from neon.util.compat import MPI_INSTALLED
 from neon.util.persist import serialize
 
 logger = logging.getLogger(__name__)
@@ -59,14 +58,4 @@ class FitExperiment(Experiment):
             self.model.fit(self.dataset)
             self.model.fit_complete = True
         if hasattr(self.model, 'serialized_path'):
-            if self.dist_flag:
-                if MPI_INSTALLED:
-                    from mpi4py import MPI
-                    # serialize the model only at the root node
-                    if MPI.COMM_WORLD.rank == 0:
-                        serialize(self.model, self.model.serialized_path)
-                else:
-                    raise AttributeError("dist_flag set but mpi4py not "
-                                         "installed")
-            else:
-                serialize(self.model, self.model.serialized_path)
+            serialize(self.model, self.model.serialized_path)

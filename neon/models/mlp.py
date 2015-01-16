@@ -81,7 +81,7 @@ class MLP(Model):
                         quot = (batch + 1) / ds.num_minibatches_in_macro - 1
                         logger.info("%d.%d logloss= %0.5f",
                                     epoch, quot,
-                                    error / (batch + 1.))
+                                    error.asnumpyarray() / (batch + 1.))
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
@@ -92,8 +92,8 @@ class MLP(Model):
                     self.backend.add(error, batch_err, error)
                 self.update(epoch)
             if self.dist_mode == 'datapar':
-                error[0, 0] = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
-                                                    op=MPI.SUM)
+                error[0] = float(MPI.COMM_WORLD.reduce(error.asnumpyarray(),
+                                                       op=MPI.SUM)[0, 0])
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 epoch,

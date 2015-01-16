@@ -102,36 +102,25 @@ def obj_multi_constructor(loader, tag_suffix, node,
     # deserialize instead of construct a new object, MPI also requires some
     # special handling
     res = None
+    dpath = None
     child_vals = extract_child_node_vals(node, [deserialize_param, dist_param])
     child_vals[dist_param] = (child_vals[dist_param] == 'True')
     if child_vals[deserialize_param] is not None:
         # deserialization attempt should be made
         dpath = child_vals[deserialize_param]
-        if child_vals[dist_param] and 'datasets' in cls.__module__:
-            # Attempting to deserialize a distributed dataset, need to adjust
-            # the path.
+        if ((child_vals[dist_param] and 'datasets' in cls.__module__) or
+                ('models' in cls.__module__ and 'Dist' in cls.__name__)):
+            # Attempting to deserialize a distributed dataset or model, need to
+            # adjust the path from what is specified in the YAML.
             if MPI_INSTALLED:
                 from mpi4py import MPI
                 dpath = dpath.format(rank=str(MPI.COMM_WORLD.rank),
                                      size=str(MPI.COMM_WORLD.size))
                 if os.path.exists(dpath):
-                    # TODO: updates to start/end_train/val_batch?
                     res = deserialize(dpath)
+                    res.__dict__[deserialize_param] = dpath
             else:
-                raise AttributeError("%s set but mpi4py not installed" %
-                                     dist_param)
-        elif 'models' in cls.__module__ and 'Dist' in cls.__name__:
-            # Attempting to deserialize a distributed model, only do so on the
-            # root node
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                if os.path.exists(dpath) and MPI.COMM_WORLD.rank == 0:
-                    res = deserialize(dpath)
-                else:
-                    # TODO: determine what we want do about non-root models
-                    pass
-            else:
-                raise AttributeError("dist model but mpi4py not installed")
+                raise AttributeError("dist obj but mpi4py not installed")
         elif os.path.exists(dpath):
             # All other types of deserializable objects
             res = deserialize(dpath)
@@ -139,6 +128,8 @@ def obj_multi_constructor(loader, tag_suffix, node,
         # need to create a new object
         try:
             res = cls(**loader.construct_mapping(node, deep=True))
+            if child_vals[deserialize_param] is not None and dpath is not None:
+                res.__dict__[deserialize_param] = dpath
         except TypeError as e:
             logger.warning("Unable to construct '%s' instance.  Error: %s",
                            cls.__name__, e.message)
@@ -179,7 +170,7 @@ def deserialize(load_path):
     if not isinstance(load_path, file):
         load_path = file(load_path)
     fname = load_path.name
-    logger.info("deserializing object from:  %s", fname)
+    logger.warn("deserializing object from:  %s", fname)
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
         if not yaml_initialized:
             initialize_yaml()
@@ -211,7 +202,7 @@ def serialize(obj, save_path):
     See Also:
         deserialize
     """
-    logger.info("serializing %s to: %s", str(obj), save_path)
+    logger.warn("serializing %s to: %s", str(obj), save_path)
     ensure_dirs_exist(save_path)
     pickle.dump(obj, open(save_path, 'wb'), -1)
 
