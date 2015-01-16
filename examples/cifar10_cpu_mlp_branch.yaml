@@ -42,7 +42,6 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         nout: 3072,
       },
       !obj:neon.models.layer2.FCLayer {

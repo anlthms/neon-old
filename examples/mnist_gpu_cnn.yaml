@@ -51,7 +51,6 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         nout: 784,
       },
       !obj:neon.models.layer2.ConvLayer {
