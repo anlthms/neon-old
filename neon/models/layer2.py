@@ -226,16 +226,25 @@ class DataLayer(Layer):
     def __init__(self, **kwargs):
         self.is_data = True
         super(DataLayer, self).__init__(**kwargs)
-        req_param(self, ['dataset'])
+        # req_param(self, ['dataset'])
 
     def initialize(self, kwargs):
         super(DataLayer, self).initialize(kwargs)
-        self.batch_idx = 0
+        self.reset_counter()
         if self.is_local is True:
             req_param(self, ['nofm', 'ofmshape'])
             self.nout = self.nofm * self.ofmshape[0] * self.ofmshape[1]
         else:
             req_param(self, ['nout'])
+
+    def init_dataset(self, dataset):
+        """
+        Must be called prior to consuming data.
+        Allows us to switch to a new dataset (useful for changing sets after
+        training).  No checking is done for input size, so should match the
+        dimensions of datasets between changes
+        """
+        self.dataset = dataset
 
     def __str__(self):
         if self.is_local:
@@ -258,8 +267,7 @@ class DataLayer(Layer):
         self.batch_idx = 0
 
     def fprop(self, inputs):
-        ds = self.dataset
-        self.output, self.targets = ds.get_mini_batch(self.batch_idx)
+        self.output, self.targets = self.dataset.get_mini_batch(self.batch_idx)
         self.batch_idx += 1
 
     def bprop(self, error):
@@ -269,17 +277,15 @@ class DataLayer(Layer):
         return self.dataset.has_set(setname)
 
     def use_set(self, setname, predict=False):
-        ds = self.dataset
-        self.num_batches = ds.init_mini_batch_producer(
+        self.num_batches = self.dataset.init_mini_batch_producer(
             batch_size=self.batch_size,
             setname=setname,
             predict=predict)
-        self.batch_idx = 0
+        self.reset_counter()
 
     def cleanup(self):
-        ds = self.dataset
         # delete helper queues if any
-        ds.del_mini_batch_producer()
+        self.dataset.del_mini_batch_producer()
 
 
 class ActivationLayer(Layer):

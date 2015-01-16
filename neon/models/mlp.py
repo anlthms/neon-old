@@ -233,32 +233,32 @@ class MLP(Model):
                          logloss.asnumpyarray())
         # TODO: return values instead?
 
-    def predict_and_error(self):
+    def predict_and_error(self, dataset):
         for layer in self.layers:
             layer.set_train_mode(False)
-        dataset = self.dataset
-        preds = dataset.backend.empty((1, self.batch_size))
-        labels = self.backend.empty((1, self.batch_size))
-        batch_err = dataset.backend.empty((1, 1))
-        tot_err = dataset.backend.empty((1, 1))
+        be = self.backend
+        preds = be.empty((1, self.batch_size))
+        labels = be.empty((1, self.batch_size))
+        batch_err = be.empty((1, 1))
+        tot_err = be.empty((1, 1))
         for setname in ['train', 'test', 'validation']:
             if dataset.has_set(setname) is False:
                 continue
             num_batches = dataset.init_mini_batch_producer(
                 batch_size=self.batch_size, setname=setname, predict=True)
             nrecs = self.batch_size * num_batches
-            preds = dataset.backend.empty((1, self.batch_size))
+            preds = be.empty((1, self.batch_size))
             tot_err.fill(0)
             for batch in range(num_batches):
                 inputs, targets = dataset.get_mini_batch(batch)
                 self.fprop(inputs)
-                dataset.backend.argmax(self.get_classifier_output(),
+                be.argmax(self.get_classifier_output(),
                                        axis=0,
                                        out=preds)
-                self.backend.argmax(targets, axis=0, out=labels)
-                dataset.backend.not_equal(labels, preds, preds)
-                dataset.backend.sum(preds, axes=None, out=batch_err)
-                dataset.backend.add(tot_err, batch_err, tot_err)
+                be.argmax(targets, axis=0, out=labels)
+                be.not_equal(labels, preds, preds)
+                be.sum(preds, axes=None, out=batch_err)
+                be.add(tot_err, batch_err, tot_err)
             logging.info("%s set misclass rate: %0.5f%%" % (
                 setname, 100 * tot_err.asnumpyarray() / nrecs))
             self.result = tot_err.asnumpyarray()[0][0] / nrecs
@@ -322,6 +322,7 @@ class MLPB(MLP):
         error = self.backend.empty((1, 1))
         mb_id = self.backend.empty((1, 1))
         self.print_layers()
+        self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
@@ -342,7 +343,9 @@ class MLPB(MLP):
             self.print_layers(debug=True)
         self.data_layer.cleanup()
 
-    def predict_and_error(self):
+    def predict_and_error(self, dataset=None):
+        if dataset is not None:
+            self.data_layer.init_dataset(dataset)
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
