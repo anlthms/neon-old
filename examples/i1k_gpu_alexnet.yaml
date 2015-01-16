@@ -86,7 +86,8 @@
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 90,
-    batch_size: &bs 256, #128,
+    batch_size: &bs 256,
+    step_print: 24,
     serialized_path: '/usr/local/data/I1K/I1K_alexnet_model.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {

@@ -10,6 +10,7 @@ import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
+import numpy as np
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -318,24 +319,24 @@ class MLPB(MLP):
         Learn model weights on the given datasets.
         """
         error = self.backend.empty((1, 1))
-        mb_id = self.backend.empty((1, 1))
         self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         for epoch in range(self.num_epochs):
             error.fill(0.0)
-            mb_id.fill(1)
+            mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
                 self.update(epoch)
                 self.backend.add(error, self.cost_layer.get_cost(), error)
-                if self.step_print > 0 and mb_id % self.step_print:
+                if self.step_print > 0 and mb_id % self.step_print == 0:
                     logger.info('%d.%d logloss=%0.5f', epoch,
-                                mb_id / self.step_print - 1, error / mb_id)
-                self.backend.sum(mb_id, 1, mb_id)
+                                mb_id / self.step_print - 1,
+                                np.int(error.asnumpyarray()) / mb_id)
+                mb_id += 1
             logger.info('epoch: %d, total training error: %0.5f', epoch,
                         error.asnumpyarray() / self.data_layer.num_batches)
             self.print_layers(debug=True)

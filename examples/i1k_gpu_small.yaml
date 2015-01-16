@@ -86,6 +86,7 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 128,
+    step_print: 24,
     serialized_path: '/usr/local/data/I1K/I1K_small_alexnet_model.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
