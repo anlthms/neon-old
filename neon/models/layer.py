@@ -423,8 +423,9 @@ class RecurrentLSTMLayer(Layer):
 
         # If this isn't initialized correctly, get NaNs pretty quickly.
         be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
-        be.add(be.zeros((nout, 1)), -1, self.b_f)  # sigmoid(-1) closes gate
-        be.add(be.zeros((nout, 1)), 1, self.b_o)   # open
+        # +5 following clockwork RNN paper "to encourage long term memory"
+        be.add(be.zeros((nout, 1)), -1, self.b_f)  # sigmoid(-1) closes gate.
+        be.add(be.zeros((nout, 1)), 1, self.b_o)   # sigmoid(1) open
         self.b_c = be.zeros((nout, 1))  # no need to be messed with
 
         # and for higher up entities in the LSTM cell.
@@ -861,11 +862,11 @@ class RecurrentHiddenLayer(Layer):
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
         if numgrad is "input":
-            logger.info("RecurrentHiddenLayer.bprop inc in %f",
-                        self.temp_in[12, 110])
+            logger.info("RecurrentHiddenLayer.bprop inc in %e",
+                        self.temp_in[12, 110].asnumpyarray())
         if numgrad is "rec":
-            logger.info("RecurrentHiddenLayer.bprop inc rec %f",
-                        self.temp_rec[12, 63])
+            logger.info("RecurrentHiddenLayer.bprop inc rec %e",
+                        self.temp_rec[12, 63].asnumpyarray())
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)

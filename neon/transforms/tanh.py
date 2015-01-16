@@ -28,6 +28,7 @@ class Tanh(Activation):
             array_like: Transformed copy of the inputs.  Will be in the same
                         format as the input inputs.
         """
+        backend.clip(inputs, -10, 10, out=inputs)
         backend.tanh(inputs, outputs)
 
     def apply_derivative(self, backend, inputs, outputs):
@@ -42,11 +43,13 @@ class Tanh(Activation):
             array_like: Transformed copy of the inputs.  Will be in the same
                         format as the input inputs.
         """
+        backend.clip(inputs, -10, 10, out=inputs)
         backend.tanh(inputs, outputs)
         backend.multiply(outputs, outputs, outputs)
         backend.subtract(1.0, outputs, outputs)
 
     def apply_both(self, backend, inputs, outputs):
+        backend.clip(inputs, -10, 10, out=inputs)
         backend.tanh(inputs, outputs)
         backend.multiply(outputs, outputs, inputs)
         backend.subtract(1.0, inputs, inputs)
