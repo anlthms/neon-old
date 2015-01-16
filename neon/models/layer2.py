@@ -72,6 +72,7 @@ class Layer(YAMLable):
         assert len(self.ifmshape) == len(self.fshape)
         ofmshape = []
         for dim in range(len(self.ifmshape)):
+            assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
             ofmshape.extend([int(mt.ceil(num / self.stride))])
         self.ofmshape = tuple(ofmshape)
@@ -126,23 +127,27 @@ class Layer(YAMLable):
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
         links = []
-        ofmdepth, ofmheight, ofmwidth = ofmshape
-        ifmdepth, ifmheight, ifmwidth = ifmshape
-        fdepth, fheight, fwidth = fshape
-        for row in range(ofmheight):
-            for col in range(ofmwidth):
-                # This variable tracks the top left corner of
-                # the receptive field.
-                src = (row * ifmwidth + col) * stride
-                indlist = []
-                for frow in range(fheight):
-                    start = src + frow * ifmwidth
-                    indlist.extend(range(start, start + fwidth))
-                fminds = np.array(indlist)
-                if self.pooling is False:
-                    for ifm in range(1, nifm):
-                        indlist.extend(list(fminds + ifm * ifmsize))
-                links.append(indlist)
+        framesize = ifmshape[-2] * ifmshape[-1]
+        for frm in range(ofmshape[-3]):
+            for row in range(ofmshape[-2]):
+                for col in range(ofmshape[-1]):
+                    # This variable tracks the top left corner of
+                    # the receptive field.
+                    src = frm * framesize + row * ifmshape[-1] + col
+                    src *= stride
+                    indlist = []
+                    for frow in range(fshape[-2]):
+                        start = src + frow * ifmshape[-1]
+                        indlist.extend(range(start, start + fshape[-1]))
+                    fminds = np.array(indlist)
+                    for ffrm in range(1, fshape[-3]):
+                        indlist.extend(list(fminds + ffrm * framesize))
+                    if fshape[-3] > 1:
+                        fminds = np.array(indlist)
+                    if self.pooling is False:
+                        for ifm in range(1, nifm):
+                            indlist.extend(list(fminds + ifm * ifmsize))
+                    links.append(indlist)
         self.links = np.array(links, dtype='int32')
 
     def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
@@ -150,6 +155,7 @@ class Layer(YAMLable):
         if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berrorbuf = self.backend.empty((self.ifmsize, buf_size))
 
+        assert self.ofmsize is not 0
         ofmstarts = np.arange(0, (self.ofmsize * nofm), self.ofmsize)
         self.ofmlocs = np.empty((self.ofmsize, nofm), dtype='int32')
         for dst in range(self.ofmsize):
