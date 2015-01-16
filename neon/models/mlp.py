@@ -233,37 +233,35 @@ class MLP(Model):
                          logloss.asnumpyarray())
         # TODO: return values instead?
 
-    def predict_and_error(self, dataset):
+    def predict_and_error(self):
         for layer in self.layers:
             layer.set_train_mode(False)
-
+        dataset = self.dataset
         preds = dataset.backend.empty((1, self.batch_size))
+        labels = self.backend.empty((1, self.batch_size))
         batch_err = dataset.backend.empty((1, 1))
         tot_err = dataset.backend.empty((1, 1))
-        for batch_type in ['training', 'validation']:
-            dataset.init_mini_batch_producer(batch_size=self.batch_size,
-                                             batch_type=batch_type,
-                                             predict=True)
-            if batch_type == 'training':
-                nrecs = dataset.output_batch_size * \
-                    (dataset.end_train_batch - dataset.start_train_batch + 1)
-            elif batch_type == 'validation':
-                nrecs = dataset.output_batch_size * \
-                    (dataset.end_val_batch - dataset.start_val_batch + 1)
-            num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
+        for setname in ['train', 'test', 'validation']:
+            if dataset.has_set(setname) is False:
+                continue
+            num_batches = dataset.init_mini_batch_producer(
+                batch_size=self.batch_size, setname=setname, predict=True)
+            nrecs = self.batch_size * num_batches
             preds = dataset.backend.empty((1, self.batch_size))
             tot_err.fill(0)
             for batch in range(num_batches):
-                inputs, targets = dataset.get_mini_batch()
+                inputs, targets = dataset.get_mini_batch(batch)
                 self.fprop(inputs)
                 dataset.backend.argmax(self.get_classifier_output(),
                                        axis=0,
                                        out=preds)
-                dataset.backend.not_equal(targets, preds, preds)
+                self.backend.argmax(targets, axis=0, out=labels)
+                dataset.backend.not_equal(labels, preds, preds)
                 dataset.backend.sum(preds, axes=None, out=batch_err)
                 dataset.backend.add(tot_err, batch_err, tot_err)
             logging.info("%s set misclass rate: %0.5f%%" % (
-                batch_type, 100 * tot_err.asnumpyarray() / nrecs))
+                setname, 100 * tot_err.asnumpyarray() / nrecs))
+            self.result = tot_err.asnumpyarray()[0][0] / nrecs
             dataset.del_mini_batch_producer()
 
     def get_classifier_output(self):
@@ -374,4 +372,5 @@ class MLPB(MLP):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs,
                 logloss_sum.asnumpyarray() / nrecs))
+            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
