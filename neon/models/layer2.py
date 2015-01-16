@@ -117,22 +117,7 @@ class Layer(YAMLable):
         if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
 
-    def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
-        make_ebuf = self.backend.empty
-        ofmsize = ofmshape[0] * ofmshape[1]
-        ifmsize = ifmshape[0] * ifmshape[1]
-        buf_size = self.batch_size * nifm
-
-        if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.berrorbuf = make_ebuf((ifmsize, buf_size))
-
-        ofmstarts = np.arange(0, (ofmsize * nofm), ofmsize)
-        self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='int32')
-        for dst in range(ofmsize):
-            self.ofmlocs[dst] = ofmstarts + dst
-        if self.pooling is True:
-            self.outputbuf = make_ebuf((ofmsize, buf_size))
-
+    def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
         links = []
         for row in range(ofmshape[0]):
@@ -149,8 +134,27 @@ class Layer(YAMLable):
                     for ifm in range(1, nifm):
                         indlist.extend(list(fminds + ifm * ifmsize))
                 links.append(indlist)
+        self.links = np.array(links, dtype='int32')
 
-        self.links = self.backend.array(np.array(links), dtype='int32')
+    def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
+        buf_size = self.batch_size * nifm
+        if (self.prev_layer is not None and not self.prev_layer.is_data):
+            self.berrorbuf = self.backend.empty((self.ifmsize, buf_size))
+
+        ofmstarts = np.arange(0, (self.ofmsize * nofm), self.ofmsize)
+        self.ofmlocs = np.empty((self.ofmsize, nofm), dtype='int32')
+        for dst in range(self.ofmsize):
+            self.ofmlocs[dst] = ofmstarts + dst
+        self.make_links(nifm, self.ifmsize, ifmshape, ofmshape, fshape, stride)
+
+        if self.pooling is True:
+            self.outputbuf = self.backend.empty((self.ofmsize, buf_size))
+            if self.op == 'max':
+                self.tempbuf = np.empty(
+                    (self.ofmsize, self.batch_size * nifm), dtype='int32')
+            elif self.op == 'l2':
+                self.tempbuf = self.backend.empty(
+                    (self.fpsize, self.batch_size * nifm))
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
@@ -431,16 +435,9 @@ class PoolingLayer(Layer):
     def initialize(self, kwargs):
         super(PoolingLayer, self).initialize(kwargs)
         self.pooling = True
-        self.initialize_local()
         self.tempbuf = None
-        if self.op == 'max':
-            self.tempbuf = self.backend.empty(
-                (self.ofmsize, self.batch_size * self.nifm), dtype='i16')
-        elif self.op == 'l2':
-            self.tempbuf = self.backend.empty((self.fshape[0] * self.fshape[1],
-                                               self.batch_size * self.nifm))
+        self.initialize_local()
         self.allocate_output_bufs()
-        assert self.fshape[0] * self.fshape[1] <= 2 ** 15
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,
