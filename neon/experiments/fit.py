@@ -6,11 +6,10 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
-import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.compat import MPI_INSTALLED
-from neon.util.persist import serialize, deserialize
+from neon.util.persist import serialize
 
 logger = logging.getLogger(__name__)
 

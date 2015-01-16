@@ -9,7 +9,7 @@ import logging
 import os
 import yaml
 
-from neon.util.compat import PY3
+from neon.util.compat import PY3, MPI_INSTALLED
 
 if PY3:
     import pickle
@@ -65,6 +65,7 @@ def extract_child_node_vals(node, keys):
         if key not in res:
             res[key] = None
     return res
+
 
 def obj_multi_constructor(loader, tag_suffix, node,
                           deserialize_param='serialized_path',
@@ -143,6 +144,7 @@ def obj_multi_constructor(loader, tag_suffix, node,
                            cls.__name__, e.message)
             res = None
     return res
+
 
 def initialize_yaml():
     global yaml_initialized
