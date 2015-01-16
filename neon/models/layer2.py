@@ -9,6 +9,7 @@ backend.
 import logging
 import numpy as np
 import math as mt
+from operator import mul
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
@@ -37,7 +38,7 @@ class Layer(YAMLable):
             if self.is_local:
                 self.ifmshape = pl.ofmshape
                 self.nifm = pl.nofm
-            self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
+            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
         else:
             if self.is_local:
                 if not hasattr(self, 'ifmshape'):
@@ -64,32 +65,37 @@ class Layer(YAMLable):
         opt_param(self, ['stride'], 1)
         opt_param(self, ['pad'], 0)
 
-        self.fheight, self.fwidth = self.fshape
-        self.ifmheight, self.ifmwidth = self.ifmshape
-        self.ofmheight = int(mt.ceil(
-            (self.ifmheight - self.fheight + 1 + 2. * self.pad) / self.stride))
-        self.ofmwidth = int(mt.ceil(
-            (self.ifmwidth - self.fwidth + 1 + 2. * self.pad) / self.stride))
+        if len(self.ifmshape) == 2:
+            self.ifmshape = (1, self.ifmshape[-2], self.ifmshape[-1])
+        if len(self.fshape) == 2:
+            self.fshape = (1, self.fshape[-2], self.fshape[-1])
+        assert len(self.ifmshape) == len(self.fshape)
+        ofmshape = []
+        for dim in range(len(self.ifmshape)):
+            num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
+            ofmshape.extend([int(mt.ceil(num / self.stride))])
+        self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
-        self.ofmshape = (self.ofmheight, self.ofmwidth)
-        self.ifmsize = self.ifmheight * self.ifmwidth
-        self.ofmsize = self.ofmheight * self.ofmwidth
-        self.fsize = self.fheight * self.fwidth * self.nifm
-        self.fpsize = self.fheight * self.fwidth
+        self.ifmsize = reduce(mul, self.ifmshape)
+        self.ofmsize = reduce(mul, self.ofmshape)
+        self.fpsize = reduce(mul, self.fshape)
+        self.fsize = self.nifm * self.fpsize
         self.nout = self.nofm * self.ofmsize
-        logger.debug('name=%s, ifmshape[0]=%d, ifmshape[1]=%d, nifm=%d, '
-                     'ofmshape[0]=%d, ofmshape[1]=%d', self.name,
-                     self.ifmshape[0], self.ifmshape[1], self.nifm,
-                     self.ofmshape[0], self.ofmshape[1])
+        logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
+                     self.name, self.nifm, self.ifmshape, self.ofmshape)
         if isinstance(self.backend, CPU):
             self.make_aux_buffers(self.nifm, self.ifmshape, self.nofm,
                                   self.ofmshape, self.fshape, self.stride)
 
     def __str__(self):
         if self.is_local:
-            ionumstr = "({} x {}) x {} inputs, ({} x {}) x {} nodes".format(
-                       self.ifmshape[0], self.ifmshape[1], self.nifm,
-                       self.ofmshape[0], self.ofmshape[1], self.nofm)
+            format_str = (
+                '{} x ({} x {} x {}) inputs, {} x ({} x {} x {}) nodes')
+            ionumstr = format_str.format(
+                self.nifm,
+                self.ifmshape[-3], self.ifmshape[-2], self.ifmshape[-1],
+                self.nofm,
+                self.ofmshape[-3], self.ofmshape[-2], self.ofmshape[-1])
         else:
             ionumstr = "{nin} inputs, {nout} nodes".format(
                        nin=self.nin, nout=self.nout)
@@ -120,15 +126,18 @@ class Layer(YAMLable):
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
         links = []
-        for row in range(ofmshape[0]):
-            for col in range(ofmshape[1]):
+        ofmdepth, ofmheight, ofmwidth = ofmshape
+        ifmdepth, ifmheight, ifmwidth = ifmshape
+        self.fdepth, self.fheight, self.fwidth = fshape
+        for row in range(ofmheight):
+            for col in range(ofmwidth):
                 # This variable tracks the top left corner of
                 # the receptive field.
-                src = (row * ifmshape[1] + col) * stride
+                src = (row * ifmwidth + col) * stride
                 indlist = []
-                for frow in range(fshape[0]):
-                    start = src + frow * ifmshape[1]
-                    indlist.extend(range(start, start + fshape[1]))
+                for frow in range(self.fheight):
+                    start = src + frow * ifmwidth
+                    indlist.extend(range(start, start + self.fwidth))
                 fminds = np.array(indlist)
                 if self.pooling is False:
                     for ifm in range(1, nifm):
@@ -222,14 +231,14 @@ class DataLayer(Layer):
         self.batch_idx = 0
         if self.is_local is True:
             req_param(self, ['nofm', 'ofmshape'])
-            self.nout = self.nofm * self.ofmshape[0] * self.ofmshape[1]
+            self.nout = self.nofm * reduce(mul, self.ofmshape)
         else:
             req_param(self, ['nout'])
 
     def __str__(self):
         if self.is_local:
-            ionumstr = "({} x {}) x {} nodes".format(
-                       self.ofmshape[0], self.ofmshape[1], self.nofm)
+            ionumstr = "{} x ({} x {}) nodes".format(
+                       self.nofm, self.ofmshape[-2], self.ofmshape[-1])
         else:
             ionumstr = "{nout} nodes".format(nout=self.nout)
 
@@ -282,7 +291,7 @@ class ActivationLayer(Layer):
             self.is_local = True
             self.ifmshape = pl.ofmshape
             self.nifm = pl.nofm
-            self.nin = pl.nofm * pl.ofmshape[0] * pl.ofmshape[1]
+            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
         else:
             self.nin = pl.nout
         self.prev_layer = pl
@@ -441,7 +450,9 @@ class PoolingLayer(Layer):
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,
-                                ofmshape=self.ofmshape, ofmlocs=self.tempbuf,
+                                ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
+                                ofmlocs=self.tempbuf,
                                 fshape=self.fshape, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm, padding=0,
                                 stride=self.stride, fpropbuf=self.outputbuf)
@@ -452,7 +463,9 @@ class PoolingLayer(Layer):
             self.backend.bprop_pool(out=self.berror, fouts=self.output,
                                     inputs=inputs, deltas=error, op=self.op,
                                     ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.tempbuf, fshape=self.fshape,
+                                    fpsize=self.fpsize,
                                     ifmshape=self.ifmshape, links=self.links,
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
@@ -493,6 +506,7 @@ class ConvLayer(WeightLayer):
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
                                 weights=self.weights, ofmshape=self.ofmshape,
+                                ofmsize=self.ofmsize,
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
@@ -510,6 +524,7 @@ class ConvLayer(WeightLayer):
         if self.berror is not None:
             self.backend.bprop_conv(out=self.berror, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
                                     padding=self.pad, stride=self.stride,
@@ -521,7 +536,9 @@ class ConvLayer(WeightLayer):
 
         self.backend.update_conv(out=upm[0], inputs=inputs,
                                  weights=self.weights, deltas=error,
-                                 ofmshape=self.ofmshape, ofmlocs=self.ofmlocs,
+                                 ofmshape=self.ofmshape,
+                                 ofmsize=self.ofmsize,
+                                 ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
@@ -709,7 +726,7 @@ class CrossMapResponseNormLayer(Layer):
         self.tempbuf = None
         if self.berror is not None and isinstance(self.backend, CPU):
             self.tempbuf = self.backend.empty(
-                (self.ifmshape[0], self.ifmshape[1], self.batch_size))
+                (self.ifmshape[-2], self.ifmshape[-1], self.batch_size))
 
     def fprop(self, inputs):
         self.backend.fprop_cmrnorm(out=self.output, inputs=inputs,
@@ -743,7 +760,7 @@ class LocalContrastNormLayer(CrossMapResponseNormLayer):
         self.alpha = self.alpha * 1.0 / self.ksize
         if self.stride != 1:
             raise NotImplementedError('stride != 1, in LocalContrastNormLayer')
-        if self.ifmshape[0] != self.ifmshape[1]:
+        if self.ifmshape[-2] != self.ifmshape[-1]:
             raise NotImplementedError('non-square inputs not supported')
 
     def fprop(self, inputs):
@@ -790,7 +807,8 @@ class CrossMapPoolingLayer(WeightLayer):
 
     def fprop(self, inputs):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,
-                                  weights=self.weights, ifmshape=self.ifmshape)
+                                  weights=self.weights, ifmshape=self.ifmshape,
+                                  ifmsize=self.ifmsize)
         if self.activation is not None:
             self.activation.apply_both(self.backend, self.pre_act, self.output)
 
@@ -803,4 +821,5 @@ class CrossMapPoolingLayer(WeightLayer):
                                       deltas=error, ifmshape=self.ifmshape)
         self.backend.update_cmpool(out=self.updates[0], inputs=inputs,
                                    deltas=error, ifmshape=self.ifmshape,
+                                   ifmsize=self.ifmsize,
                                    updatebuf=self.updatebuf)

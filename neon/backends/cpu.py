@@ -928,8 +928,8 @@ class CPU(Backend):
         """
         self.dot(deltas, inputs.transpose(), out)
 
-    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf,
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
                    local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
@@ -960,7 +960,6 @@ class CPU(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
         """
-        ofmsize = ofmshape[0] * ofmshape[1]
         fsize = links.shape[1]
         for dst in range(ofmsize):
             # Compute the weighted average of the receptive field
@@ -976,8 +975,8 @@ class CPU(Backend):
 
             out[ofmlocs[dst]] = fpropbuf
 
-    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf,
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
                    local=False):
         """
         Backward propagate the error through a convolutional network layer.
@@ -1007,7 +1006,7 @@ class CPU(Backend):
         """
         fsize = links.shape[1]
         out.fill(0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             rflinks = links[dst]
             if local is False:
                 self.dot(weights,
@@ -1018,9 +1017,9 @@ class CPU(Backend):
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1052,7 +1051,7 @@ class CPU(Backend):
         """
         fsize = links.shape[1]
         out.fill(0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
@@ -1068,8 +1067,8 @@ class CPU(Backend):
                 self.dot(inputs.take(rflinks, axis=0), eslice,
                          out=out[(fsize*dst):(fsize*(dst+1))])
 
-    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
-                   links, nifm, padding, stride, fpropbuf):
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
+                   ifmshape, links, nifm, padding, stride, fpropbuf):
         """
         Forward propagate the inputs of a Pooling network layer to
         produce output pre-activations (ready for transformation by an
@@ -1099,7 +1098,7 @@ class CPU(Backend):
                                   pooled outputs for a single receptive field.
         """
         rinputs = self.hstack_maps(inputs, nifm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
@@ -1118,8 +1117,9 @@ class CPU(Backend):
                 raise AttributeError("unexpected pooling op type: %s", op)
         out[:] = self.vstack_maps(fpropbuf, nifm)
 
-    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
-                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
+                   ofmlocs, fshape, fpsize, ifmshape, links, nifm, padding,
+                   stride, bpropbuf):
         """
         Backward propagate the error through a pooling network layer.
 
@@ -1153,7 +1153,7 @@ class CPU(Backend):
         op = op.lower()
         bpropbuf.fill(0.0)
         if op == "avg" or op == "mean":
-            self.divide(deltas, fshape[0] * fshape[1], deltas)
+            self.divide(deltas, fpsize, deltas)
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
         elif op == "max":
             col_inds = list(range(bpropbuf.shape[1]))
@@ -1163,7 +1163,7 @@ class CPU(Backend):
             rfouts = self.hstack_maps(fouts, nifm)
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
         rdeltas = self.hstack_maps(deltas, nifm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             if op == "max":
                 rflinks = links[dst]
                 inds = rflinks.take(ofmlocs[dst], axis=0)
@@ -1215,7 +1215,8 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (D, H, W, N) = (
+            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rout = out._tensor.reshape((nifm, H, W, N))
         for i in range(nifm):
@@ -1250,7 +1251,8 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (D, H, W, N) = (
+            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs.reshape((nifm, H, W, N))
         rout = out.reshape((nifm, H, W, N))
         rfouts = fouts.reshape((nifm, H, W, N))
@@ -1304,7 +1306,8 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (D, H, W, N) = (
+            ifmshape[-3], ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rmeandiff = meandiffs._tensor.reshape((nifm, H, W, N))
         routputs = out._tensor.reshape((nifm, H, W, N))
@@ -1370,7 +1373,8 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
+        (D, H, W, N) = (
+            ifmshape[-3], ifmshape[-2], ifmshape[-1], fouts.shape[1])
         self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
@@ -1395,7 +1399,7 @@ class CPU(Backend):
         self.multiply(deltas, fouts, out=fouts)
         self.add(out, fouts, out=out)
 
-    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape, ifmsize):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
         produce output pre-activations (ready for transformation by an
@@ -1409,13 +1413,12 @@ class CPU(Backend):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
         """
-        fmsize = ifmshape[0] * ifmshape[1]
-        tmp = self.empty([fmsize, out.shape[1]])
+        tmp = self.empty([ifmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
-            ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofm = out[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             ofm.fill(0.0)
             for ifmind in range(weights.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 self.multiply(ifm, weights[ifmind, ofmind], tmp)
                 self.add(ofm, tmp, ofm)
 
@@ -1432,7 +1435,7 @@ class CPU(Backend):
         """
         self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
 
-    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+    def update_cmpool(self, out, inputs, deltas, ifmshape, ifmsize, updatebuf):
         """
         Compute the updated gradient for a CrossMap pooling layer.
 
@@ -1448,11 +1451,10 @@ class CPU(Backend):
                                    field
         """
         out.fill(0.0)
-        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(out.shape[1]):
-            ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofmd = deltas[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             for ifmind in range(out.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
