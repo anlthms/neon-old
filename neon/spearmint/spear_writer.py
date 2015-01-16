@@ -12,6 +12,7 @@ def write_pb(input_file, pb_file):
     go thorugh the hyperyaml line by line, read out values and write to pb
     """
     scipt_name = 'spear_wrapper'  # script spearmint should call
+    we_are_good = False
     # read all lines from source
     with open(input_file, 'r') as fin:
         # append to pb file
@@ -22,6 +23,9 @@ def write_pb(input_file, pb_file):
                     ho = parse_line(inline)
                     outline = write_line(ho)
                     fout.write(outline)
+                if 'WriteErrorToFile' in inline:
+                    we_are_good = True
+    return we_are_good
 
 def parse_line(line):
     """
@@ -45,6 +49,7 @@ def parse_line(line):
         ho['end'] = dic[4]
         ho['start'] = dic[5]
     else:
+        print "got ho['type']", ho['type']
         raise AttributeError("Supported types are FLOAT, INT, STRING")
 
     return ho
@@ -68,8 +73,11 @@ if __name__=='__main__':
     """
 
     # point of entry
-    input_file = '/Users/urs/code/neon/examples/hyper_iris_cpu_mlp-4-2-3.yaml'
+    input_file = 'neon/spearmint/hyperyaml.yaml'
     pb_file = 'neon/spearmint/spear_config.pb'
 
-    write_pb(input_file, pb_file)
-    print "Done writing hyper ranges from ", input_file, "to", pb_file
+    success = write_pb(input_file, pb_file)
+    if success:
+        print "Done writing hyper ranges from ", input_file, "to", pb_file
+    else:
+        raise AttributeError("Wrong experiment type, does not return result")

@@ -24,22 +24,21 @@ def call_convnet(params): #
     """
 
     timestring = str(int(time.time()))
-    basepath = '/Users/urs/code/neon/'
-    hyperyaml = 'hyper_iris_cpu_mlp-4-2-3.yaml'
 
     # Generate the yaml ifle
     print "call_convnet: parsing yaml"
-    input_file = basepath + '/examples/' + hyperyaml
-    output_file = 'yamels/temp'+timestring+'.yaml'
+    hyper_file = 'hyperyaml.yaml'
+    yaml_file = 'yamels/temp'+timestring+'.yaml'
     try:
         os.mkdir('yamels')
     except OSError:
         "Directory exists"
-    write_params(input_file, output_file, params)
+    write_params(hyper_file, yaml_file, params)
 
     # Run a model
     print "call_convnet: running neon"
-    callstring = basepath + "bin/neon " + output_file
+    print "cwd:", os.getcwd()
+    callstring =  "../../bin/neon " + yaml_file
     os.system(callstring)
 
     # Read the model output

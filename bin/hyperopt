@@ -18,7 +18,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='run spearmint hyperoptimize')
     parser.add_argument('cmd', type=str,  action='store', default='def',
                         help='init, run or reset ')
-    parser.add_argument('-p', '--port', type=int, action='store', default=5000)
+    parser.add_argument('-p', '--port', type=int, action='store', default=5000,
+                        help='port number for visualization server')
+    parser.add_argument('-n', '--threads', type=int, action='store', default=1,
+                        help='number of simultaneous experiments')
+    parser.add_argument('-y', '--yaml', type=str, action='store',
+                        default='examples/hyper_iris_cpu_mlp-4-2-3.yaml',
+                        help='hyperyaml to generate protobuf from')
     return parser.parse_args()
 
 def main():
@@ -28,16 +34,25 @@ def main():
     argz = parse_args()
     if (argz.cmd == 'reset'):
         os.system('../spearmint/spearmint/bin/cleanup neon/spearmint  &&'
-                  "rm neon/spearmint/yamels/*.yaml")
+                  'rm neon/spearmint/yamels/*.yaml &&'
+                  'rmdir neon/spearmint/yamels &&'
+                  'rmdir neon/spearmint/jobs &&'
+                  'rmdir neon/spearmint/output &&'
+                  'rm neon/spearmint/neon_results_validation.txt &&'
+                  'rm neon/spearmint/spear_config.pb &&'
+                  'rm neon/spearmint/hyperyaml.yaml')
         print("Running cleanup")
     if (argz.cmd == 'run'):
         os.system('cd neon/spearmint && pwd && '
-                  + '../../../spearmint/spearmint/bin/spearmint '
-                  + 'spear_config.pb '
-                  + '--driver=local --method=GPEIperSecChooser '
-                  + '--method-args=noiseless=0 --polling-time=20 '
-                  + '--max-concurrent=2 -w --port=' + str(argz.port) )
+                  '../../../spearmint/spearmint/bin/spearmint '
+                  'spear_config.pb '
+                  '--driver=local --method=GPEIperSecChooser '
+                  '--method-args=noiseless=0 --polling-time=20 '
+                  '--max-concurrent=' + str(argz.threads) +
+                  ' -w --port=' + str(argz.port) )
     if (argz.cmd == 'init'):
+        input_file = argz.yaml
+        os.system('cp ' + input_file + ' neon/spearmint/hyperyaml.yaml')
         os.system('python neon/spearmint/spear_writer.py')
 
 if __name__ == '__main__':
