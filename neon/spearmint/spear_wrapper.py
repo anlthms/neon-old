@@ -83,16 +83,10 @@ def parse_line(line, params):
     dic = [k.strip("{},") for k in line.split()]
     print "parseline: split into", dic
     # check sanity
-    if (dic[2] != 'numberneurons') and (dic[2] != 'stepsize')and (dic[2] != 'epochs'):
+    if (dic[2] != 'numberneurons') and (dic[2] != 'stepsize') and (dic[2] != 'epochs'):
         # want number_neurons and learning_rates, nothing else is supported.
         raise NameError('UrsIsNotCoolWithThisError')
 
-    # ho = dict()
-    # ho['chooser'] = dic[1].split(':')[1]
-    # ho['type'] = dic[2]
-    # ho['end'] = float(dic[3])
-    # ho['start'] = float(dic[4])
-    # print "parseline: ho", ho
 
     out = params[dic[2]][0] # need to figure out which one to pick here!
 
