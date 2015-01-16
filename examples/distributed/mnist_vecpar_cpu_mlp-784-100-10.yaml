@@ -71,9 +71,7 @@
         },
         nin: 100,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
+        activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: {
           type: node_normalized,
           scale: 4.0,
