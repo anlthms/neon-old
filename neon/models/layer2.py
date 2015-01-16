@@ -102,11 +102,10 @@ class Layer(YAMLable):
                        nin=self.nin, nout=self.nout)
 
         return ("Layer {lyr_tp} {lyr_nm}: {ionum}, {act_nm} act_fn, "
-                "utilizing {be_nm} backend\n\t".format
+                "\n\t".format
                 (lyr_tp=self.__class__.__name__,
                  lyr_nm=self.name, ionum=ionumstr,
-                 act_nm=self.activation.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
+                 act_nm=self.activation.__class__.__name__))
 
     def allocate_output_bufs(self):
         make_zbuf = self.backend.zeros
