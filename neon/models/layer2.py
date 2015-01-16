@@ -128,16 +128,16 @@ class Layer(YAMLable):
         links = []
         ofmdepth, ofmheight, ofmwidth = ofmshape
         ifmdepth, ifmheight, ifmwidth = ifmshape
-        self.fdepth, self.fheight, self.fwidth = fshape
+        fdepth, fheight, fwidth = fshape
         for row in range(ofmheight):
             for col in range(ofmwidth):
                 # This variable tracks the top left corner of
                 # the receptive field.
                 src = (row * ifmwidth + col) * stride
                 indlist = []
-                for frow in range(self.fheight):
+                for frow in range(fheight):
                     start = src + frow * ifmwidth
-                    indlist.extend(range(start, start + self.fwidth))
+                    indlist.extend(range(start, start + fwidth))
                 fminds = np.array(indlist)
                 if self.pooling is False:
                     for ifm in range(1, nifm):
@@ -542,7 +542,8 @@ class ConvLayer(WeightLayer):
                                  ifmshape=self.ifmshape, links=self.links,
                                  nifm=self.nifm, padding=self.pad,
                                  stride=self.stride, ngroups=1,
-                                 fwidth=self.fwidth, updatebuf=self.updatebuf,
+                                 fwidth=self.fshape[-1],
+                                 updatebuf=self.updatebuf,
                                  local=self.local_conv)
 
         if self.use_biases is True:
@@ -818,7 +819,8 @@ class CrossMapPoolingLayer(WeightLayer):
             self.backend.multiply(error, self.pre_act, out=error)
         if self.berror is not None:
             self.backend.bprop_cmpool(out=self.berror, weights=self.weights,
-                                      deltas=error, ifmshape=self.ifmshape)
+                                      deltas=error, ifmshape=self.ifmshape,
+                                      ifmsize=self.ifmsize)
         self.backend.update_cmpool(out=self.updates[0], inputs=inputs,
                                    deltas=error, ifmshape=self.ifmshape,
                                    ifmsize=self.ifmsize,

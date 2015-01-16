@@ -1422,7 +1422,7 @@ class CPU(Backend):
                 self.multiply(ifm, weights[ifmind, ofmind], tmp)
                 self.add(ofm, tmp, ofm)
 
-    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+    def bprop_cmpool(self, out, weights, deltas, ifmshape, ifmsize):
         """
         Backward propagate the error through a CrossMap pooling layer.
 
@@ -1433,7 +1433,7 @@ class CPU(Backend):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
         """
-        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape, ifmsize)
 
     def update_cmpool(self, out, inputs, deltas, ifmshape, ifmsize, updatebuf):
         """
