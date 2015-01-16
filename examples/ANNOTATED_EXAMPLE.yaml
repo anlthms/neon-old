@@ -193,13 +193,12 @@
       &datalayer !obj:neon.models.layer2.DataLayer {
         # DataLayer parameters
         # --------------------
-        # The data layer is associated with an input dataset.  Parameters:
+        # The data layer feeds data from the input dataset defined in the
+        # experiment.
+        # Parameters:
         # name - string used to identify this layer in the logs.
-        # dataset - input dataset to train the model off of.  See dataset
-        #           defined at the Experiment level.
         # nout - number of connections output by this layer
         name: d0,
-        dataset: *ds,
         nout: 4,
       },
       !obj:neon.models.layer2.FCLayer {
