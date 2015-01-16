@@ -16,29 +16,30 @@ def parse_args():
     Sets up and handles command line argument parsing.
     """
     parser = argparse.ArgumentParser(description='run spearmint hyperoptimize')
-    parser.add_argument('what', type=argparse.FileType('r'),
+    parser.add_argument('cmd', type=str,  action='store', default='def',
                         help='init, run or reset ')
-    parser.add_argument('-p', '--port', action='port',
-                        port=50000)
+    parser.add_argument('-p', '--port', type=int, action='store', default=5000)
+    return parser.parse_args()
 
 def main():
     """
     Point of code entry.
     """
-    args = parse_args()
-    trace()
-    port = args[1]  # port = 50000
-    if (args[0] == 'reset'):
-        os.system('../../../spearmint/spearmint/bin/cleanup .')
-    if (args[0] == 'run'):
-        os.system('../../spearmint/spearmint/bin/spearmint '
+    argz = parse_args()
+    if (argz.cmd == 'reset'):
+        os.system('../spearmint/spearmint/bin/cleanup neon/spearmint  &&'
+                  "rm neon/spearmint/yamels/*.yaml")
+        print("Running cleanup")
+    if (argz.cmd == 'run'):
+        os.system('cd neon/spearmint && pwd && '
+                  + '../../../spearmint/spearmint/bin/spearmint '
                   + 'spear_config.pb '
                   + '--driver=local --method=GPEIperSecChooser '
                   + '--method-args=noiseless=0 --polling-time=20 '
-                  + '--max-concurrent=2 -w --port=' + str(port) + ')'
-    if (args[0] == 'init'):
-        os.system('python spear_writer.py')
+                  + '--max-concurrent=2 -w --port=' + str(argz.port) )
+    if (argz.cmd == 'init'):
+        os.system('python neon/spearmint/spear_writer.py')
 
 if __name__ == '__main__':
-    experiment, result = main()
+    result = main()
     sys.exit(result)

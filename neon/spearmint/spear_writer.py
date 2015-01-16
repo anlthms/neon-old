@@ -1,5 +1,7 @@
+
 """
-generating the PB file for Spearmint: Go through the hyper-yaml,
+generating the PB file for Spearmint: Go through the hyper-yaml, extract lines
+that specify a !hyperopt range, dump an entry into the protobuf
 """
 
 import os, sys, time
@@ -9,7 +11,7 @@ def write_pb(input_file, pb_file):
     """
     go thorugh the hyperyaml line by line, read out values and write to pb
     """
-    scipt_name = 'spear_wrapper'  # python script spearmint should call
+    scipt_name = 'spear_wrapper'  # script spearmint should call
     # read all lines from source
     with open(input_file, 'r') as fin:
         # append to pb file
@@ -43,7 +45,7 @@ def parse_line(line):
         ho['end'] = dic[4]
         ho['start'] = dic[5]
     else:
-        raise AttributeError("You just got served")
+        raise AttributeError("Supported types are FLOAT, INT, STRING")
 
     return ho
 
@@ -67,7 +69,7 @@ if __name__=='__main__':
 
     # point of entry
     input_file = '/Users/urs/code/neon/examples/hyper_iris_cpu_mlp-4-2-3.yaml'
-    pb_file = 'spear_config.pb'
+    pb_file = 'neon/spearmint/spear_config.pb'
 
     write_pb(input_file, pb_file)
     print "Done writing hyper ranges from ", input_file, "to", pb_file
