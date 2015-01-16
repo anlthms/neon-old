@@ -245,17 +245,8 @@ class MLP(Model):
             if dataset.has_set(setname) is False:
                 continue
             num_batches = dataset.init_mini_batch_producer(
-                                             batch_size=self.batch_size,
-                                             setname=setname,
-                                             predict=True)
+                batch_size=self.batch_size, setname=setname, predict=True)
             nrecs = self.batch_size * num_batches
-            # if setname == 'train':
-            #     nrecs = dataset.output_batch_size * \
-            #         (dataset.end_train_batch - dataset.start_train_batch + 1)
-            # elif setname == 'validation':
-            #     nrecs = dataset.output_batch_size * \
-            #         (dataset.end_val_batch - dataset.start_val_batch + 1)
-            # num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
             preds = dataset.backend.empty((1, self.batch_size))
             tot_err.fill(0)
             for batch in range(num_batches):
@@ -381,5 +372,5 @@ class MLPB(MLP):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs,
                 logloss_sum.asnumpyarray() / nrecs))
-            self.result = misclass_sum.asnumpyarray()[0,0] / nrecs
+            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()

@@ -162,7 +162,7 @@ class DecompressImages(threading.Thread):
         self.jpeg_decoder(start_idx, end_idx, 0)
 
         targets = self.targets_macro[:, start_idx:end_idx].copy()
-        #[proc.join() for proc in procs]
+        # [proc.join() for proc in procs]
 
         logger.debug('mini-batch decompress end %d', self.mb_id)
 
