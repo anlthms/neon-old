@@ -3,7 +3,40 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Shell script to control spearmint runs
+Usage for spearmint in neon:
+
+Requirements:
+Spearmint is expected to be installed in the same directory as neon, i.e.
+neon/../spearmint should exist.
+Spearmint in turn depends on google protobufs and on the flask web server
+
+Usage:
+The hyperopt executable manages the creation and running of a spearmint
+experiment.
+To set up a new experiment, create a hyper-yaml from you yaml by replacing
+parameters like
+      learning_rate: 0.1,
+with ranges like
+      learning_rate: !hyperopt stepsize FLOAT 0.1 1 ,
+where !hyperopt signals a parameter that should be tuned, followed by a unique
+name for that parameter ("stepsize" in this example). The type of variable can
+be INT or FLOAT (Spearmint also supports ENUM but I have not implementat that).
+The last two parameters are the beginning and end of the range.
+
+To create a spearmint experiment, run
+      bin/hyperopt init -y examples/hyper_mnist_cpu_mlp-784-100-10.yaml
+which will take the hyper-yaml and create a protobuf spear_config.pb from it.
+
+To run the experiment,
+      bin/hyperopt run -p 50000
+will start generating yaml files by combining the skeleton from the hyper-yaml
+and values picked by Spearmint using the protobuf. The results of a run are
+stored in neon_result_validation.txt by the custom experiment type
+WriteErrorToFile. The result from this file is then passed back to spearmint to
+pick the next set of parameters.
+Results are displayed by a webserver on the specified port, e.g.
+localhost:50000.
+
 """
 
 import argparse
