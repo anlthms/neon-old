@@ -56,7 +56,7 @@ class Layer(YAMLable):
     def initialize_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
 
-        opt_param(self, ['ofmlocs', 'links', 'rlinks'])
+        opt_param(self, ['ofmlocs', 'links'])
         opt_param(self, ['berrorbuf', 'outputbuf'])
 
         opt_param(self, ['nofm'], self.nifm)
@@ -118,51 +118,39 @@ class Layer(YAMLable):
             self.berror = make_zbuf(self.berr_shape, self.berror_dtype)
 
     def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
-
         make_ebuf = self.backend.empty
         ofmsize = ofmshape[0] * ofmshape[1]
         ifmsize = ifmshape[0] * ifmshape[1]
-        fsize = fshape[0] * fshape[1] * nifm
-        fpsize = fshape[0] * fshape[1]
         buf_size = self.batch_size * nifm
 
         if (self.prev_layer is not None and not self.prev_layer.is_data):
             self.berrorbuf = make_ebuf((ifmsize, buf_size))
 
-        ofmstarts = self.backend.array(range(0, (ofmsize * nofm),
-                                             ofmsize)).asnumpyarray()
-        self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='i32')
+        ofmstarts = np.arange(0, (ofmsize * nofm), ofmsize)
+        self.ofmlocs = make_ebuf((ofmsize, nofm), dtype='int32')
         for dst in range(ofmsize):
             self.ofmlocs[dst] = ofmstarts + dst
         if self.pooling is True:
-            self.links = make_ebuf((ofmsize, fpsize), dtype='i32')
             self.outputbuf = make_ebuf((ofmsize, buf_size))
-        else:
-            self.links = make_ebuf((ofmsize, fsize), dtype='i32')
-        # This variable tracks the top left corner of the receptive field.
-        src = 0
-        for dst in range(ofmsize):
-            # Collect the column indices for the
-            # entire receptive field.
-            colinds = []
-            for row in range(fshape[0]):
-                start = src + row * ifmshape[1]
-                colinds += range(start, start + fshape[1])
-            fminds = colinds[:]
-            if self.pooling is False:
-                for ifm in range(1, nifm):
-                    colinds += [x + ifm * ifmsize for x in fminds]
 
-            if (src % ifmshape[1] + fshape[1] + stride) <= ifmshape[1]:
-                # Slide the filter to the right by the stride value.
-                src += stride
-            else:
-                # We hit the right edge of the input image.
-                # Shift the filter down by one stride.
-                src += stride * ifmshape[1] - src % ifmshape[1]
-                assert src % ifmshape[1] == 0
-            self.links[dst] = self.backend.array(colinds, dtype='i32')
-        self.rlinks = self.links.asnumpyarray()
+        # Figure out local connections to the previous layer.
+        links = []
+        for row in range(ofmshape[0]):
+            for col in range(ofmshape[1]):
+                # This variable tracks the top left corner of
+                # the receptive field.
+                src = (row * ifmshape[1] + col) * stride
+                indlist = []
+                for frow in range(fshape[0]):
+                    start = src + frow * ifmshape[1]
+                    indlist.extend(range(start, start + fshape[1]))
+                fminds = np.array(indlist)
+                if self.pooling is False:
+                    for ifm in range(1, nifm):
+                        indlist.extend(list(fminds + ifm * ifmsize))
+                links.append(indlist)
+
+        self.links = self.backend.array(np.array(links), dtype='int32')
 
     def fprop(self, inputs):
         raise NotImplementedError('This class should not be instantiated.')
@@ -509,7 +497,7 @@ class ConvLayer(WeightLayer):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
                                 weights=self.weights, ofmshape=self.ofmshape,
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
-                                links=self.rlinks, nifm=self.nifm,
+                                links=self.links, nifm=self.nifm,
                                 padding=self.pad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf,
                                 local=self.local_conv)
