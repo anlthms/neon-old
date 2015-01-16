@@ -61,19 +61,19 @@ def write_params(input_file, output_file, log_file, params):
     #step = params['stepsize']
 
     # read all lines from source
-    with open(input_file, 'r') as f:
+    with open(input_file, 'r') as fin:
         # write all lines to target
-        with open(output_file, 'w') as g:
+        with open(output_file, 'w') as fout:
             # append to log file
-            with open(log_file, 'a') as h:
-                for line in f:
+            with open(log_file, 'a') as flog:
+                for line in fin:
                     if 'hyperopt' in line:
                         print "write_params: trying to set a trace"
                         line = parse_line(line, params)
                         print "line:", line
-                        h.write(": " + line)
+                        flog.write(": " + line)
                     # write all lines, but parse ones with hyperopt.
-                    g.write(line)
+                    fout.write(line)
 
 def parse_line(line, params):
     """
