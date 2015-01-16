@@ -3,6 +3,201 @@
 ## (unreleased)
 
 
+## v0.6.0 (2015-01-14)
+
+### Modifications
+
+* v0.6.0 release bump. [Scott Leishman]
+
+* Style fixes. [Scott Leishman]
+
+* Merge branch 'rnn' into 'master' [Alex Park]
+
+    Rnn  The main thing here is the clip in neon/transforms/tanh.py
+    everything else is sugar.  See merge request !88
+
+* Small changes to better use parent class initialization in Balance Model. [Alex Park]
+
+* Merge branch 'mop_updates' into 'master' [Alex Park]
+
+    MOP API conformance updates  Large number of changes to backend code
+    to bring into conformance with MOP API and ensure consistency between
+    current CPU and GPU implementations.  Includes: * remove wrap usage *
+    make raw a read-only attribute * allow numeric scalar input parameters
+    for binary comparison and manipulation ops * replace clear with fill
+    and publish * add GEMM functionality to dot * standardize dtype usage
+    * ensure CPUTensor's have min 2 dimensions, vectors default to Nx1
+    column vectors * ensure all reduction ops return Tensor's in all
+    implementations * update unit tests, various documentation updates *
+    update all of above to work with new layer structure  See merge
+    request !87
+
+* Patch get_berrbuf bug introduced in previous commit. [Scott Leishman]
+
+* Merge branch 'rnn' into 'master' [Alex Park]
+
+    Rnn  LSTM layer has been fleshed out and fully integrated into the RNN
+    code. It passes gradient checks but crashes with an overflow error
+    after a while so it's not quite ready. Creating a merge request mainly
+    to resolve questions about how the cost function shortcut.  See merge
+    request !86
+
+* Merge branch 'ndsb' into 'master' [Alex Park]
+
+    Ndsb  See merge request !84
+
+* Merge branch 'systems' into 'master' [Scott Leishman]
+
+    Systems: Adding yaml config for IRIS/NRV backend  The IRIS CPU/config
+    file keeps changing. Putting the NRV backend config file here may help
+    developers to modify the NRV backend yaml file when they modify the
+    CPU version.  See merge request !83
+
+* Merge branch 'LayerRewrite' into 'master' [Scott Leishman]
+
+    Layer rewrite  Creates a new set of layers that do not allocate upon
+    creation.  Better hierarchy for layers overall.  - Simplified model
+    code  - Added data layers and cost layers.  - Added crossmap pooling
+    for gpu backend via 1x1 convolution  - Added Krizhevsky style local
+    contrast normalization as backend function  - Added local option for
+    convolution, (for local filtering with unshared weights).  cpu version
+    still seems to have bug in bprop -- working to resolve.  - yaml files
+    are simplified by virtue of not having to define learning rules in-
+    line, inferring input feature map size, and eliminating need to
+    position variable by just being aware of whether previous layer is a
+    data layer or not  - Folded accumulation into weight layers rather
+    than having separate multipass versions.  See merge request !82
+
+* Added non-commercial license details. [Scott Leishman]
+
+* Merge branch 'ndsb' into 'master' [Alex Park]
+
+    Ndsb  See merge request !80
+
+* Merge branch 'mop_updates' into 'master' [Anil Thomas]
+
+    Remove symbolic arithmetic operators  * Replace all symbolic
+    arithmetic operator backend calls (+, -, *, /, **) with our named
+    equivalents.  See slight performance improvement in CNN networks, no
+    real change in other networks.  Updated all existing model and layer
+    code to reflect this. * Update published documentation location and
+    references.  See merge request !81
+
+* Undoing the bad commit. [Alex Park]
+
+* something like mlp1 reference yaml. [Alex Park]
+
+* Merge branch 'perf2' into 'master' [Scott Leishman]
+
+    Perf2  Load the dataset as a list of minibatches.  See merge request
+    !79
+
+* Merge branch 'balance' [Alex Park]
+
+* style fix. [Scott Leishman]
+
+* Merge branch 'balance' into 'master' [Alex Park]
+
+    Balance  See merge request !78
+
+* Merge branch 'balance' into 'master' [Scott Leishman]
+
+    Balance  * Addition of autoscale weight initialization and
+    orthogonalized random weights initialization a la Andrew Saxe in
+    http://arxiv.org/abs/1312.6120 * Addition of unpooling function for
+    GPU backend * Addition of a generate output experiment for visualizing
+    balance network output * Addition of MultiPass layer for being able to
+    accumulate parameter update gradients * Addition of layer name
+    linkages from yaml file to create layer graph * Addition of scaling
+    parameter to cost functions * Refactoring of ada_delta into cpu and
+    gpu backends * Fix for xcovariance cost function * Fix for avg pool
+    and l2 pool functions in GPU backend * Fix assignment of scalar to
+    GPUTensor slices * Fix for softmax and logistic shortcut derivative
+    when receiving back propagated error from non cross entropy cost
+    function  See merge request !77
+
+* Merge branch 'mop_updates' into 'master' [Anil Thomas]
+
+    Higher Level Function Consistency  * Published fully connected,
+    convolutional, pooling, and crossmap response norm
+    forward/backward/update functions to our MOP layer * re-paramaterized
+    each of the above to enforce consistency, added docstrings for all. *
+    re-factored pooling code to reduce code duplication.  Now requires op
+    parameter specifying the type of pooling to carry out.  See merge
+    request !76
+
+* Merge branch 'rnn' into 'master' [Scott Leishman]
+
+    Rnn  This is a minor merge request that should not be ** included into
+    the version log.  Not quite sure if this is ready to go into master,
+    it incorporates both perf2 and mop_updates that may not even be in
+    master yet. I just want to get it out because it will be unproductive
+    for others to make the pre-refactor RNN code work with any new
+    changes. The diff against the current master looks heinously
+    complicated, but this should be much simpler once perf and mop are in.
+    It would be good if this could be tested on the GPU, which was the
+    main purpose of refactoring. I still don't have cudnet running.  See
+    merge request !75
+
+* Merge branch 'perf2' into 'master' [Alex Park]
+
+    Perf2  See merge request !74
+
+* Merge branch 'perf2' into 'master' [Alex Park]
+
+    Perf2  LayerWithNoBias will no longer exist after this merge. Going
+    forward, use the &quot;Layer&quot; class instead. Omit the bias_init parameter
+    in the yaml file to indicate that biases should not be used. Likewise,
+    use LayerDist instead of LayerWithNoBiasDist.  The backend API
+    &quot;append_bias()&quot; also goes away. The biases are kept in a separate
+    vector and learned separately.  See merge request !73
+
+* Merge branch 'systems' into 'master' [Urs Koster]
+
+    Systems  It is useful for me to see which backend function calls are
+    being called and what the nesting of the calls is. So I added a
+    trace.py to neon.util which will help trace the function calls. After
+    chatting with Urs yesterday I created a new neon branch called systems
+    and checked in the trace facility to the systems branch (see commit
+    eabf7c067 ). Possible to integrate this to the neon/master branch?
+    Since tracing is optional (defined from command line with a -t option
+    like with the -p or -d options), this has no runtime penalty on the
+    core neon functionality.  Here is how you use trace:  bin/neon --trace
+    &quot;(mlp.*\.py)|(cpu.py)|(layer.py)&quot; abc.trace
+    examples/iris_cpu_mlp-4-2-3.yaml  - The first argument to --trace is a
+    regex file filter. Tracing is only done on filenames which match this
+    regex. This is useful, for example, to see how and where layer.py
+    calls cpu.py. - The second argument is the name of the file to log to.
+    stdout is not affected.  I would like to have my development setup
+    always pass a --trace argument so that I can quickly look back into
+    the call order if needed.  Happy to accommodate code reviews, of
+    course.  Thanks, Aravind  See merge request !72
+
+* Merge branch 'mop_updates' into 'master' [Anil Thomas]
+
+    lazy log evaluation, efficient range in python 2 and 3  Ensure all
+    logging parameters are lazily evaluated (only computed if that level
+    of logging is enabled). Create a python 2 and 3 compliant range
+    iterator and use that in place of built-in xrange/range. Clarify and
+    update some items in the annotated example, make it easy to run all
+    example networks consecutively.  See merge request !71
+
+* Merge branch 'gpu_slice_fix' into 'master' [Anil Thomas]
+
+    gpu 1D slice fix  Fix to support 1D slice notation during assignment
+    in the GPU backend.  Inputs of the form `x[key] = value` are
+    interpreted and treated the same as `x[key, :] = value`  See merge
+    request !70
+
+* Merge branch 'perf2' into 'master' [Alex Park]
+
+    Perf2  This is faster at the expense of memory. The speed increase is
+    only noticeable if the network is mostly LRN layers.  See merge
+    request !69
+
+* v0.5.0 updated Changelog. [Scott Leishman]
+
+
 ## v0.5.0 (2014-12-04)
 
 ### Modifications

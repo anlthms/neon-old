@@ -1371,7 +1371,7 @@ class CPU(Backend):
             beta (int): scalar power to raise the normalization denominator by
         """
         (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
-        self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
+        self.multiply(fouts, -2 * alpha * beta, out=fouts)
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
         rfouts = fouts._tensor.reshape((nifm, H, W, N))
@@ -1580,9 +1580,8 @@ class CPUDist(CPU):
     def bcast(self, buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
 
+
 # once CPUDist is implemented inherit from CPUDist
-
-
 class CPUDataDist(CPU):
 
     """
