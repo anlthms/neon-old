@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+"""
+Shell script to control spearmint runs
+"""
+
+import argparse
+import os, sys
+from ipdb import set_trace as trace
+
+
+def parse_args():
+    """
+    Sets up and handles command line argument parsing.
+    """
+    parser = argparse.ArgumentParser(description='run spearmint hyperoptimize')
+    parser.add_argument('what', type=argparse.FileType('r'),
+                        help='init, run or reset ')
+    parser.add_argument('-p', '--port', action='port',
+                        port=50000)
+
+def main():
+    """
+    Point of code entry.
+    """
+    args = parse_args()
+    trace()
+    port = args[1]  # port = 50000
+    if (args[0] == 'reset'):
+        os.system('../../../spearmint/spearmint/bin/cleanup .')
+    if (args[0] == 'run'):
+        os.system('../../spearmint/spearmint/bin/spearmint '
+                  + 'spear_config.pb '
+                  + '--driver=local --method=GPEIperSecChooser '
+                  + '--method-args=noiseless=0 --polling-time=20 '
+                  + '--max-concurrent=2 -w --port=' + str(port) + ')'
+    if (args[0] == 'init'):
+        os.system('python spear_writer.py')
+
+if __name__ == '__main__':
+    experiment, result = main()
+    sys.exit(result)
