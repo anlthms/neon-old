@@ -49,7 +49,7 @@ class RNN(Model):
         nin = self.layers[0].nin
         if self.make_plots:
             viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / nin / self.unrolls)) - 1
+        num_batches = nrecs / nin / self.unrolls - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -68,14 +68,13 @@ class RNN(Model):
             hidden_init.fill(0)
             cell_init.fill(0)
             for batch in xrange(num_batches):
-                dbgb = True if batch == -1 else False
                 startidx = batch*nin*self.unrolls
                 endidx = (batch+1)*nin*(self.unrolls+1)
                 cur_input = inputs[startidx:endidx]
                 cur_tgt = targets[startidx:endidx]
                 cur_tgt_out = cur_tgt[self.unrolls*nin:(self.unrolls+1)*nin]
-                self.fprop(cur_input, hidden_init, cell_init, debug=dbgb)
-                self.bprop(cur_tgt, cur_input, debug=dbgb)
+                self.fprop(cur_input, hidden_init, cell_init)
+                self.bprop(cur_tgt, cur_input)
                 self.update(epoch)
 
                 hidden_init = self.layers[0].output_list[-1]
@@ -171,13 +170,11 @@ class RNN(Model):
             cell_init.fill(0)
             # fprop with eps
             self.fprop_eps(cur_input, tau, eps, hidden_init, cell_init,
-                           debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_eps = self.cost.apply_function(cur_tgt_out).asnumpyarray()
 
             self.fprop_eps(cur_input, tau, 0, hidden_init, cell_init,
-                           debug=(True if batch == -1 else False),
                            num_target=num_target, num_i=num_i, num_j=num_j)
             self.cost.set_outputbuf(self.layers[-1].output_list[-1])
             suberror_ref = self.cost.apply_function(cur_tgt_out).asnumpyarray()
@@ -198,7 +195,7 @@ class RNN(Model):
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
 
     def fprop_eps(self, inputs, eps_tau, eps, hidden_init,
-                  cell_init, debug=False, unrolls=None,
+                  cell_init, unrolls=None,
                   num_target=None, num_i=0, num_j=0):
         """
         have a pre_act and output for every unrolling step. The layer needs
@@ -208,9 +205,6 @@ class RNN(Model):
 
         if unrolls is None:
             unrolls = self.unrolls
-        if debug:
-            logger.info("fprop input\n%s",
-                        str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
         y = hidden_init
         c = cell_init
 
@@ -233,7 +227,7 @@ class RNN(Model):
                                             eps)
 
     def fprop(self, inputs, hidden_init,
-              cell_init, debug=False, unrolls=None):
+              cell_init, unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -242,9 +236,6 @@ class RNN(Model):
 
         if unrolls is None:
             unrolls = self.unrolls
-        if debug:
-            logger.info("fprop input\n%s",
-                        str(inputs.reshape((6, nin, 50)).argmax(1)[:, 0:10]))
         y = hidden_init
         c = cell_init
         # fprop does a single full unroll
@@ -256,7 +247,7 @@ class RNN(Model):
                 c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
 
-    def bprop(self, targets, inputs, debug=False, numgrad=None):
+    def bprop(self, targets, inputs, numgrad=None):
         """
         Refactor:
         This bprop has an OUTER FOR LOOP over t-BPTT unrollings
@@ -307,8 +298,8 @@ class RNN(Model):
         flattened at the end (each batch has a non-contigous access pattern
         with respect to the full dataset.)
 
-        outputs are computed as a 2000 x 50 matrix that is then flattened
-        to return_buffer of 100000 records. This will be preds['train']
+        outputs are computed as a 2000 x self.batch_size matrix that is then
+        flattened to return_buffer of 100000 records. Used for preds['train']
         """
         be = self.backend
         nrecs = inputs.shape[0]
@@ -317,7 +308,7 @@ class RNN(Model):
         outputs = be.zeros((num_batches*(self.unrolls), self.batch_size))
         hidden_init = be.zeros((self.layers[1].nin, self.batch_size))
         cell_init = be.zeros((self.layers[1].nin, self.batch_size))
-        letters = be.empty((1,50), dtype='int32')
+        letters = be.empty((1, self.batch_size), dtype='int32')
 
         for batch in xrange(num_batches):
             startidx = batch*nin*self.unrolls
@@ -387,17 +378,17 @@ class RNN(Model):
             if item in targets and item in preds:
                 num_batches = targets[item].shape[0] / nin
                 # misclass = be.zeros(num_batches * nin)
-                misclass = be.zeros((num_batches + 1, self.batch_size),
-                                   dtype='int32')
+                misclass = be.zeros((num_batches, self.batch_size),
+                                    dtype='int32')
                 for i in range(num_batches):
                     be.argmax(targets[item][i * nin:(i + 1) * nin],
-                                      axis=0, out=misclass[i])
+                              axis=0, out=misclass[i])
                 import numpy as np
                 tmp = misclass[:18, 30].asnumpyarray().astype(np.int8).T
                 logging.info("the target for %s is %s", item, tmp.view('c'))
                 tmp = preds[item][:18, 30].asnumpyarray().astype(np.int8).T
                 logging.info("prediction for %s is %s", item, tmp.view('c'))
-                be.not_equal(preds[item], misclass, misclass)
+                be.not_equal(preds[item][:num_batches], misclass, misclass)
                 be.mean(misclass, axes=None, out=self.result)
                 logging.info("%s set misclass rate: %0.5f%%", item,
                              100 * self.result.asnumpyarray())
