@@ -19,7 +19,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+    serialized_path: '/usr/local/data/MNIST_{size}/mnist_vecpar_-Cpu_{rank}.pkl',
   },
 
   # simple MLP model specification
@@ -28,7 +28,7 @@
     num_epochs: 30,
     batch_size: &bs 100,
     learning_rate: &lr 0.1,
-    # serialized_path: './mlp-numpysml-simple_{size}-Cpu_{rank}.pkl',
+    serialized_path: './mlp-vecpar-simple_{size}-Cpu_{rank}.pkl',
     layers: [
       !obj:neon.models.layer.LayerDist {
         name: h0,
