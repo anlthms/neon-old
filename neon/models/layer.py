@@ -1653,6 +1653,7 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                                     fshape, stride,
                                                     prev_names=prev_names)
         self.nout = self.ofmsize * nofm
+        self.output = backend.empty((self.nout, batch_size))
         self.weight_init = weight_init
         self.weights = self.backend.gen_weights((self.nout, self.fsize),
                                                 self.weight_init,
