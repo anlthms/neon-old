@@ -235,7 +235,7 @@ class CPU(Backend):
         individual element values.
 
         Arguments:
-            shape (list of ints): The size of each dimension of the Tensor.
+            shape (int, list): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
                                      use default_dtype value ('float32'
                                      unless overridden).

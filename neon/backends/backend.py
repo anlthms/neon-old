@@ -20,7 +20,7 @@ class Backend(YAMLable):
         See the list of `implemented backends </backends.html>`_
     """
 
-    def empty(self, dtype=None):
+    def empty(self, shape, dtype=None):
         """
         Instantiate a new instance of this backend's Tensor class, without
         initializing element values.  This is slightly faster than
@@ -30,6 +30,7 @@ class Backend(YAMLable):
         random.
 
         Arguments:
+            shape (int, list): length of each dimension of the Tensor.
             dtype (data-type, optional): If present, specifies the underlying
                                          type to employ for each element.
         Returns:
