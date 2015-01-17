@@ -33,8 +33,8 @@
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNN {
     backend: *be,
-    num_epochs: 1,
-    batch_size: &bs 60,
+    num_epochs: 10,
+    batch_size: &bs 100,
     reset_period: 50,
     unrolls: *ur,
     make_plots: False,
@@ -49,7 +49,7 @@
         learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
           name: h1lr,
           lr_params: &lrp {
-            learning_rate: 6.4,
+            learning_rate: 6.4, # higher training error but better prediction?!
             backend: *be,
             momentum_params: {
               type: linear_monotone, # constant, nesterov dont work

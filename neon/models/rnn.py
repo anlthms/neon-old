@@ -97,8 +97,8 @@ class RNN(Model):
                 viz.plot_weights(self.layers[0].weights.asnumpyarray(),
                                  self.layers[0].Wih.asnumpyarray(),
                                  self.layers[1].weights.asnumpyarray())
-                viz.plot_lstm_wts(self.layers[0], scale=1.1, fig=4)
-                viz.plot_lstm_acts(self.layers[0], scale=21, fig=5)
+                viz.plot_lstm_wts(self.layers[0], scale=2.1, fig=4)
+                viz.plot_lstm_acts(self.layers[0], scale=2.1, fig=5)
 
                 viz.plot_error(suberrorlist, errorlist)
                 viz.plot_activations(self.layers[0].net_i,
@@ -376,7 +376,7 @@ class RNN(Model):
         self.result = be.empty((1, 1))
         for item in items:
             if item in targets and item in preds:
-                num_batches = targets[item].shape[0] / nin
+                num_batches = targets[item].shape[0] / nin / 5 * 5
                 # misclass = be.zeros(num_batches * nin)
                 misclass = be.zeros((num_batches, self.batch_size),
                                     dtype='int32')
