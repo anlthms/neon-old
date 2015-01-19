@@ -17,7 +17,7 @@
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
-    },
+  },
 
   weight_inits: [
     &wt_init {
@@ -68,7 +68,6 @@
       &lastlayer !obj:neon.models.layer2.FCLayer {
         name: h0,
         backend: *be,
-        batch_size: *bs,
         pos: 0,
         nin: 784,
         nout: 10,
