@@ -244,36 +244,36 @@ class GBDist(GB):
         lastlayer.bprop(error, self.layers[i - 1].output)
 
         # following code is difficult to refactor:
-        # 1) LCN berror has no halos for top layer, but does for middle layers
-        # 2) L2PoolingLayerDist handles input (but not berror) halos in its
+        # 1) LCN deltas has no halos for top layer, but does for middle layers
+        # 2) L2PoolingLayerDist handles input (but not deltas) halos in its
         #    bprop
-        # 3) LocalFilteringLayer needs halo handling for input and berror
+        # 3) LocalFilteringLayer needs halo handling for input and deltas
 
         # note: that input into LCN is ignored (self.layers[i -
         # 1].output)
         i -= 1
-        self.layers[i].bprop(self.layers[i + 1].berror,
+        self.layers[i].bprop(self.layers[i + 1].deltas,
                              self.layers[i - 1].output)
         while i > 0:
             i -= 1
-            # aggregate the berror terms at halo locations
+            # aggregate the deltas terms at halo locations
             if isinstance(self.layers[i], LCNLayerDist):
                 # note: LCN will handle halos internally because it
                 # uses padding in addition to halos
                 self.layers[i].bprop(
                     self.layers[
                         i + 1].input.local_array.get_bprop_view(
-                        self.layers[i + 1].berror),
+                        self.layers[i + 1].deltas),
                     self.layers[i - 1].output)
             elif isinstance(self.layers[i], L2PoolingLayerDist):
-                # LCN layer gives a bprop view for berror already
-                self.layers[i].bprop(self.layers[i + 1].berror,
+                # LCN layer gives a bprop view for deltas already
+                self.layers[i].bprop(self.layers[i + 1].deltas,
                                      self.layers[i - 1].output)
             elif isinstance(self.layers[i], LocalFilteringLayerDist):
                 self.layers[i].bprop(
                     self.layers[
                         i + 1].input.local_array.get_bprop_view(
-                        self.layers[i + 1].berror),
+                        self.layers[i + 1].deltas),
                     self.layers[i].input.local_array.chunk)
 
     def predict_set(self, ds, inputs):

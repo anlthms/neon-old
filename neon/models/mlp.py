@@ -153,7 +153,7 @@ class MLP(Model):
 
         while i > 0:
             self.layers[i].bprop(error, self.layers[i - 1].output)
-            error = self.layers[i].berror
+            error = self.layers[i].deltas
             i -= 1
 
         self.layers[i].bprop(error, inputs)
@@ -295,7 +295,7 @@ class MLPB(MLP):
     def bprop(self):
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
-            error = None if nl is None else nl.berror
+            error = None if nl is None else nl.deltas
             ll.bprop(error)
 
     def print_layers(self, debug=False):

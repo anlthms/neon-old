@@ -1089,10 +1089,6 @@ class GPU(Backend):
         res = cudanet.sqrt(x._tensor, out._tensor)
         return GPUTensor(res)
 
-    def squish(self, obj, n):
-        assert obj.shape[0] % n == 0
-        return obj.reshape((obj.shape[1] * n, obj.shape[0] / n))
-
     def softmax(self, x, out):
         cudanet.softmax(x._tensor, out._tensor)
 
@@ -1142,8 +1138,8 @@ class GPU(Backend):
         """
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
-    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf,
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
                    local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
@@ -1175,14 +1171,14 @@ class GPU(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
         """
-        assert ifmshape[0] == ifmshape[1]
+        assert ifmshape[-2] == ifmshape[-1]
         cudanet.convolution(
             weights._tensor, inputs._tensor, out._tensor,
-            ifmshape[0], ofmshape[0], ofmshape[1], padding, stride, nifm,
+            ifmshape[-2], ofmshape[-2], ofmshape[-1], padding, stride, nifm,
             ngroups)
 
-    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf,
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
                    local=False):
         """
         Backward propagate the error through a convolutional network layer.
@@ -1212,12 +1208,12 @@ class GPU(Backend):
         """
         cudanet.deconvolve_errors(
             weights._tensor, deltas._tensor,
-            out._tensor, ifmshape[0], ifmshape[1], ofmshape[0],
+            out._tensor, ifmshape[-2], ifmshape[-1], ofmshape[-2],
             padding, stride, nifm, ngroups)
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf, local=False):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1249,11 +1245,11 @@ class GPU(Backend):
         """
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
-            ifmshape[0], ofmshape[0], ofmshape[1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[0], local)
+            ifmshape[-2], ofmshape[-2], ofmshape[-1], fwidth,
+            padding, stride, nifm, ngroups, ofmshape[-2], local)
 
-    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
-                   links, nifm, padding, stride, fpropbuf):
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
+                   ifmshape, links, nifm, padding, stride, fpropbuf):
         """
         Forward propagate the inputs of a Pooling network layer to
         produce output pre-activations (ready for transformation by an
@@ -1284,27 +1280,28 @@ class GPU(Backend):
         """
         op = op.lower()
         if op == "max":
-            cudanet.max_pool(inputs._tensor, out._tensor, nifm, fshape[1],
-                             padding, stride, ofmshape[1])
+            cudanet.max_pool(inputs._tensor, out._tensor, nifm, fshape[-1],
+                             padding, stride, ofmshape[-1])
         elif op == "avg" or op == "mean":
             cudanet.avg_pool(
                 imgs=inputs._tensor, target=out._tensor, channels=nifm,
-                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
-                numModulesX=ofmshape[0])
+                sizeX=fshape[-2], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[-2])
         elif op == "l2":
             cudanet.l2_pool(
                 imgs=inputs._tensor, target=out._tensor, channels=nifm,
-                sizeX=fshape[0], paddingStart=padding, moduleStride=stride,
-                numModulesX=ofmshape[0])
+                sizeX=fshape[-2], paddingStart=padding, moduleStride=stride,
+                numModulesX=ofmshape[-2])
         elif op == "unpool":
             cudanet.unpool_forward(
                 smallMat=inputs._tensor, largeMat=out._tensor, channels=nifm,
-                sizeX=fshape[1], smallX=ifmshape[1], largeX=ofmshape[1])
+                sizeX=fshape[-1], smallX=ifmshape[-1], largeX=ofmshape[-1])
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
-    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
-                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
+                   ofmlocs, fshape, fpsize, ifmshape, links, nifm, padding,
+                   stride, bpropbuf):
         """
         Backward propagate the error through a pooling network layer.
 
@@ -1338,24 +1335,24 @@ class GPU(Backend):
         op = op.lower()
         if op == "max":
             cudanet.max_pool_undo(inputs._tensor, deltas._tensor,
-                                  fouts._tensor, out._tensor, fshape[1],
-                                  padding, stride, ofmshape[1])
+                                  fouts._tensor, out._tensor, fshape[-1],
+                                  padding, stride, ofmshape[-1])
         elif op == "avg" or op == "mean":
             cudanet.avg_pool_undo(
-                avgGrads=deltas._tensor, target=out._tensor, sizeX=fshape[0],
+                avgGrads=deltas._tensor, target=out._tensor, sizeX=fshape[-2],
                 paddingStart=padding, moduleStride=stride,
-                numModulesX=ofmshape[0], imgSizeX=ifmshape[0])
+                numModulesX=ofmshape[-2], imgSizeX=ifmshape[-2])
         elif op == "l2":
             cudanet.l2_pool_undo(
                 imgs=inputs._tensor, l2Grads=deltas._tensor,
-                l2Acts=fouts._tensor, target=out._tensor, sizeX=fshape[0],
+                l2Acts=fouts._tensor, target=out._tensor, sizeX=fshape[-2],
                 paddingStart=padding, moduleStride=stride,
-                numModulesX=ofmshape[0])
+                numModulesX=ofmshape[-2])
         elif op == "unpool":
             cudanet.unpool_backward(
                 largeMat=inputs._tensor, smallMat=out._tensor,
-                channels=nifm, sizeX=fshape[1], smallX=ifmshape[1],
-                largeX=ofmshape[1])
+                channels=nifm, sizeX=fshape[-1], smallX=ifmshape[-1],
+                largeX=ofmshape[-1])
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
@@ -1446,7 +1443,7 @@ class GPU(Backend):
         cudanet.local_contrast_norm(imgs=inputs._tensor,
                                     meanDiffs=meandiffs._tensor,
                                     denoms=denoms._tensor, target=out._tensor,
-                                    imgSizeX=ifmshape[0], channels=nifm,
+                                    imgSizeX=ifmshape[-2], channels=nifm,
                                     sizeX=ksize, scale=alpha, power=beta)
 
     def bprop_lcnnorm(self, out, fouts, deltas, meandiffs, denoms, ifmshape,
@@ -1486,7 +1483,7 @@ class GPU(Backend):
                                          channels=nifm,
                                          sizeX=ksize, scale=alpha, power=beta)
 
-    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape, ifmsize):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
         produce output pre-activations (ready for transformation by an
@@ -1503,9 +1500,10 @@ class GPU(Backend):
         # Let's do this the naive way for now
         cudanet.convolution(
             weights._tensor, inputs._tensor, out._tensor,
-            ifmshape[0], ifmshape[0], ifmshape[1], 0, 1, weights.shape[0], 1)
+            ifmshape[-2], ifmshape[-2], ifmshape[-1], 0, 1,
+            weights.shape[0], 1)
 
-    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+    def bprop_cmpool(self, out, weights, deltas, ifmshape, imfsize):
         """
         Backward propagate the error through a CrossMap pooling layer.
 
@@ -1516,9 +1514,9 @@ class GPU(Backend):
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
         """
-        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape, imfsize)
 
-    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+    def update_cmpool(self, out, inputs, deltas, ifmshape, ifmsize, updatebuf):
         """
         Compute the updated gradient for a CrossMap pooling layer.
 
@@ -1535,8 +1533,8 @@ class GPU(Backend):
         """
         nfilters = out.shape[0]/inputs.shape[0]
         cudanet.deconvolve_wts(
-            deltas._tensor, inputs._tensor, out._tensor, ifmshape[0],
-            ifmshape[0], ifmshape[1], 1, 0, 1, nfilters, 1, ifmshape[0])
+            deltas._tensor, inputs._tensor, out._tensor, ifmshape[-2],
+            ifmshape[-2], ifmshape[-1], 1, 0, 1, nfilters, 1, ifmshape[-2])
 
     def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
                    rho, epsilon):
