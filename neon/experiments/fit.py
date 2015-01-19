@@ -9,6 +9,7 @@ import logging
 
 from neon.experiments.experiment import Experiment
 from neon.util.persist import serialize
+from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,8 @@ class FitExperiment(Experiment):
         Actually carry out each of the experiment steps.
         """
         # load the dataset, save it to disk if specified
-        self.dataset.set_batch_size(self.model.batch_size)
+        if not self.dataset.dist_flag or (self.dataset.dist_mode != 'datapar'):
+            self.dataset.set_batch_size(self.model.batch_size)
         if not hasattr(self.dataset, 'backend'):
             self.dataset.backend = self.backend
         self.dataset.load()
@@ -58,4 +60,9 @@ class FitExperiment(Experiment):
             self.model.fit(self.dataset)
             self.model.fit_complete = True
         if hasattr(self.model, 'serialized_path'):
-            serialize(self.model, self.model.serialized_path)
+            if self.dataset.dist_flag and self.dataset.dist_mode == 'datapar':
+                from mpi4py import MPI
+                if MPI.COMM_WORLD.rank == 0:
+                    serialize(self.model, self.model.serialized_path)    
+            else:
+                serialize(self.model, self.model.serialized_path)

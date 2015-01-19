@@ -18,6 +18,7 @@
     dist_mode: &dm 'datapar', # data parallel
     backend: *be,
     repo_path: '/usr/local/data',
+    serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Cpu_{rank}.pkl',
     sample_pct: 10,
     # datapar specific parameters
     batch_size: 300,
@@ -28,10 +29,10 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 20,
     dist_mode: *dm,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
-    # serialized_path: './cnn-small.pkl',
+    serialized_path: './mnist-datapar-cpu-cnn_{size}.pkl',
     layers: [
       !obj:neon.models.layer.ConvLayer {
         name: layer1,

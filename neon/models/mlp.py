@@ -37,15 +37,7 @@ class MLP(Model):
         """
         Learn model weights on the given dataset.
         """
-        if self.dist_mode == 'datapar':
-            valid_batch_size = (self.batch_size != dataset.batch_size /
-                                dataset.num_procs)
-            if valid_batch_size:
-                raise ValueError('Dataset batch size must be Model batch '
-                                 'size * num_procs. Model batch size of %d '
-                                 'might work.' % (dataset.batch_size /
-                                                  dataset.num_procs))
-
+        
         for layer in self.layers:
             logger.info("%s", str(layer))
         ds = dataset
@@ -93,12 +85,12 @@ class MLP(Model):
                     self.backend.add(error, batch_err, error)
                 self.update(epoch)
             if self.dist_mode == 'datapar':
-                error[0] = float(MPI.COMM_WORLD.reduce(error.asnumpyarray(),
-                                                       op=MPI.SUM)[0, 0])
+                cum_err = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
+                                                op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 epoch,
-                                error.asnumpyarray() / num_batches /
+                                cum_err / num_batches /
                                 MPI.COMM_WORLD.size)
             else:
                 logger.info('epoch: %d, total training error: %0.5f', epoch,
