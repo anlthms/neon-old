@@ -163,6 +163,5 @@ class CIFAR10(Dataset):
             self.inputs['test'][:] = data
             self.targets['test'][:] = labels
             self.format()
-
         else:
             raise AttributeError('repo_path not specified in config')
