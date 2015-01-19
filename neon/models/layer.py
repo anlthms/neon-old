@@ -799,8 +799,7 @@ class RecurrentHiddenLayer(Layer):
                                                    pos, nin, nout, weight_init,
                                                    learning_rule,
                                                    activation=activation)
-        self.weights_rec = self.weight_init_rec.generate((nout, nout),
-                                                         weight_dtype)
+        self.weights_rec = weight_init_rec.generate((nout, nout), weight_dtype)
         self.pre_act_list = [self.backend.zeros((nout, batch_size),
                                                 pre_act_dtype)
                              for k in range(unrolls)]

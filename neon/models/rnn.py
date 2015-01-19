@@ -344,12 +344,12 @@ class RNN(Model):
                                  tau, numgrad)
 
             # recurrent layers[0]: loop over different unrolling sizes
-            error_h = self.layers[1].berror
+            error_h = self.layers[1].deltas
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size))
             for t in list(range(0, tau))[::-1]:  # restored to 0 as in old RNN
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.backend.copy(self.layers[0].berror)
+                error_h = self.backend.copy(self.layers[0].deltas)
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
 
@@ -468,6 +468,6 @@ class RNN(Model):
         if self.make_plots:
             trace()  # just used to keep figures open
 
-    def predict_and_error(self):
+    def predict_and_error(self, dataset):
         predictions = self.predict()
-        self.error_metrics(self.dataset, predictions)
+        self.error_metrics(dataset, predictions)
