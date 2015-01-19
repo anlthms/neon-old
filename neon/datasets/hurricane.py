@@ -5,12 +5,12 @@ import logging
 import numpy as np
 import h5py
 import os
-import ipdb
 
 from neon.datasets.dataset import Dataset
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 
 class Hurricane(Dataset):
     """
@@ -53,21 +53,21 @@ class Hurricane(Dataset):
         # take equal number of hurricanes and non-hurricanes
         if sl is None:
             sl = slice(None, None, 1)
-        self.inputs['train'] = np.vstack((one[:tr,v, sl, sl],
-                                          zero[:tr,v, sl, sl]))
-        
-        # one hot encoding required for MLP 
-        self.targets['train'] = np.vstack(([[1,0]] * tr,
-                                           [[0,1]] * tr))
+        self.inputs['train'] = np.vstack((one[:tr, v, sl, sl],
+                                          zero[:tr, v, sl, sl]))
+
+        # one hot encoding required for MLP
+        self.targets['train'] = np.vstack(([[1, 0]] * tr,
+                                           [[0, 1]] * tr))
 
         # same with test set
-        self.inputs['test'] = np.vstack((one[tr:tr+te,v, sl, sl],
-                                         zero[tr:tr+te,v, sl, sl]))
-        self.targets['test'] = np.vstack(([[1,0]] * te,
-                                          [[0,1]] * te))
+        self.inputs['test'] = np.vstack((one[tr:tr+te, v, sl, sl],
+                                         zero[tr:tr+te, v, sl, sl]))
+        self.targets['test'] = np.vstack(([[1, 0]] * te,
+                                          [[0, 1]] * te))
 
         f.close()
-        
+
         # flatten into 2d array with rows as samples
         # and columns as features
         dims = np.prod(self.inputs['train'].shape[-2:])
@@ -94,4 +94,3 @@ class Hurricane(Dataset):
 
         # convert numpy arrays into CPUTensor backend
         self.format()
-    
