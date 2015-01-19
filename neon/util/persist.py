@@ -142,8 +142,8 @@ def obj_multi_constructor(loader, tag_suffix, node,
         for param in (serialize_param, deserialize_param):
             if child_vals[param] is not None:
                 child_vals[param] = child_vals[param].format(
-                        rank=str(MPI.COMM_WORLD.rank),
-                        size=str(MPI.COMM_WORLD.size))
+                    rank=str(MPI.COMM_WORLD.rank),
+                    size=str(MPI.COMM_WORLD.size))
     if (child_vals[deserialize_param] is not None and
             os.path.exists(child_vals[deserialize_param])):
         # deserialization attempt should be made

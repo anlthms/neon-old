@@ -78,7 +78,7 @@ class MLPDist(MLP):
         # exact multiple of batch size.
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0)
             num_batches = len(inputs)
             for batch in range(num_batches):
@@ -92,12 +92,14 @@ class MLPDist(MLP):
                     self.backend.add(error,
                                      self.cost.apply_function(targets_batch),
                                      error)
-                self.update(epoch)
+                self.update(self.epochs_complete)
             if self.comm.rank == 0:
-                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                logger.info('epoch: %d, total training error: %0.5f',
+                            self.epochs_complete,
                             error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
+            self.epochs_complete += 1
 
     def predict_set(self, ds, inputs):
         for layer in self.layers:

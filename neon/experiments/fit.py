@@ -58,9 +58,10 @@ class FitExperiment(Experiment):
         # fit the model to the data, save it if specified
         if not hasattr(self.model, 'backend'):
             self.model.backend = self.backend
-        if not hasattr(self.model, 'fit_complete'):
+        if not hasattr(self.model, 'epochs_complete'):
+            self.model.epochs_complete = 0
+        if self.model.epochs_complete < self.model.num_epochs:
             self.model.fit(self.dataset)
-            self.model.fit_complete = True
         if hasattr(self.model, 'serialized_path'):
             if self.dataset.dist_flag and self.dataset.dist_mode == 'datapar':
                 if MPI_INSTALLED:

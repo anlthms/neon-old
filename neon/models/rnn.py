@@ -57,20 +57,20 @@ class RNN(Model):
         errorlist = []
         error = self.backend.empty((1, 1))
         suberror = self.backend.empty(num_batches)
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0)
             suberror.fill(0)
             hidden_init = None
             cell_init = None
-            for batch in xrange(num_batches):
-                batch_inx = xrange(batch*128*self.unrolls,
-                                   (batch+1)*128*self.unrolls+128)
+            for batch in range(num_batches):
+                batch_inx = list(range(batch*128*self.unrolls,
+                                       (batch+1)*128*self.unrolls+128))
                 self.fprop(inputs[batch_inx, :],
                            hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
-                self.update(epoch)
+                self.update(self.epochs_complete)
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
@@ -127,9 +127,10 @@ class RNN(Model):
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
             logger.info('epoch: %d, total training error per element: %0.5f',
-                        epoch, error.asnumpyarray())
+                        self.epochs_complete, error.asnumpyarray())
             for layer in self.layers:
                 logger.debug("%s", layer)
+            self.epochs_complete += 1
 
     def grad_checker(self, numgrad="lstm_ch"):
         """
@@ -149,8 +150,8 @@ class RNN(Model):
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         batch = 0
-        batch_inx = xrange(batch*128*self.unrolls,
-                           (batch+1)*128*self.unrolls+128)
+        batch_inx = list(range(batch*128*self.unrolls,
+                               (batch+1)*128*self.unrolls+128))
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
@@ -375,7 +376,7 @@ class RNN(Model):
                                       self.batch_size))
         hidden_init = None
         cell_init = None
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             batch_inx = range(batch*128*self.unrolls,
                               (batch+1)*128*self.unrolls+128)
             self.fprop(inputs[batch_inx, :],

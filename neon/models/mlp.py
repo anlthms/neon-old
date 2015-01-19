@@ -59,7 +59,7 @@ class MLP(Model):
         logger.info('commencing model fitting')
         # force preprocess even if done earlier by setting to False
         error = self.backend.empty((1, 1))
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0)
             for batch in range(num_batches):
                 if ds.macro_batched:
@@ -73,7 +73,7 @@ class MLP(Model):
                     if rem == 0:
                         quot = (batch + 1) / ds.num_minibatches_in_macro - 1
                         logger.info("%d.%d logloss= %0.5f",
-                                    epoch, quot,
+                                    self.epochs_complete, quot,
                                     error.asnumpyarray() / (batch + 1.))
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
@@ -83,20 +83,22 @@ class MLP(Model):
                     batch_err = self.get_error(targets_batch, inputs_batch)
                     self.backend.divide(batch_err, self.batch_size, batch_err)
                     self.backend.add(error, batch_err, error)
-                self.update(epoch)
+                self.update(self.epochs_complete)
             if self.dist_mode == 'datapar':
                 cum_err = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
                                                 op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
-                                epoch,
+                                self.epochs_complete,
                                 cum_err / num_batches /
                                 MPI.COMM_WORLD.size)
             else:
-                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                logger.info('epoch: %d, total training error: %0.5f',
+                            self.epochs_complete,
                             error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
+            self.epochs_complete += 1
         if ds.macro_batched:
             ds.del_mini_batch_producer()
 
@@ -315,23 +317,25 @@ class MLPB(MLP):
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
-                self.update(epoch)
+                self.update(self.epochs_complete)
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
-                    logger.info('%d.%d logloss=%0.5f', epoch,
+                    logger.info('%d.%d logloss=%0.5f', self.epochs_complete,
                                 mb_id / self.step_print - 1,
                                 np.int(error.asnumpyarray()) / mb_id)
                 mb_id += 1
-            logger.info('epoch: %d, total training error: %0.5f', epoch,
+            logger.info('epoch: %d, total training error: %0.5f',
+                        self.epochs_complete,
                         error.asnumpyarray() / self.data_layer.num_batches)
             self.print_layers(debug=True)
+            self.epochs_complete += 1
         self.data_layer.cleanup()
 
     def predict_and_error(self, dataset=None):
