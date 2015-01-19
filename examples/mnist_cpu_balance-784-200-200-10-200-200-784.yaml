@@ -10,7 +10,7 @@
   fshape: [28, 28],
   figure_filename: 'ofn.png',
 
-  backend: &be !obj:neon.backends.gpu.GPU {
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: {
       all: 'warn',
@@ -24,15 +24,25 @@
     sample_pct: 100,
   },
 
+  # lrule: &adad {
+  #   type: adadelta,
+  #   lr_params: {
+  #     epsilon: 0.000001,
+  #     rho: 0.95,
+  #     backend: *be,
+  #   },
+  # },
   lrule: &adad {
-    type: adadelta,
+    type: gradient_descent_momentum,
     lr_params: {
-      epsilon: 0.000001,
-      rho: 0.95,
+      learning_rate: 0.1,
       backend: *be,
+      momentum_params: {
+        type: constant,
+        coef: 0.0,
+      },
     },
   },
-
   wt_cfgs: [
     &wt_init_a {
       type: autoscale,
@@ -50,6 +60,7 @@
     # serialized_path: './balance-simple.pkl',
     backend: *be,
     num_epochs: 20,
+    # step_print: 5,
     batch_size: &bs 100,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
