@@ -37,7 +37,7 @@ class MLP(Model):
         """
         Learn model weights on the given dataset.
         """
-        
+
         for layer in self.layers:
             logger.info("%s", str(layer))
         ds = dataset

@@ -45,7 +45,9 @@ class FitExperiment(Experiment):
         Actually carry out each of the experiment steps.
         """
         # load the dataset, save it to disk if specified
-        if not self.dataset.dist_flag or (self.dataset.dist_mode != 'datapar'):
+        if (not hasattr(self.dataset, 'dist_flag') or
+                not self.dataset.dist_flag or (self.dataset.dist_mode !=
+                                               'datapar')):
             self.dataset.set_batch_size(self.model.batch_size)
         if not hasattr(self.dataset, 'backend'):
             self.dataset.backend = self.backend
@@ -61,8 +63,11 @@ class FitExperiment(Experiment):
             self.model.fit_complete = True
         if hasattr(self.model, 'serialized_path'):
             if self.dataset.dist_flag and self.dataset.dist_mode == 'datapar':
-                from mpi4py import MPI
-                if MPI.COMM_WORLD.rank == 0:
-                    serialize(self.model, self.model.serialized_path)    
+                if MPI_INSTALLED:
+                    from mpi4py import MPI
+                    if MPI.COMM_WORLD.rank == 0:
+                        serialize(self.model, self.model.serialized_path)
+                else:
+                    raise AttributeError("dist_flag set but MPI not installed")
             else:
                 serialize(self.model, self.model.serialized_path)

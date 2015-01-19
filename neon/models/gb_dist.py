@@ -91,14 +91,12 @@ class GBDist(GB):
 
     def fit(self, datasets):
         inputs = datasets.get_inputs(train=True)['train']
-        #self.nrecs, self.nin = inputs.shape
         self.nlayers = len(self.layers)
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
-            # logger.info('created layer:\n\t%s', str(layer))
 
         targets = datasets.get_targets(train=True)['train']
 
