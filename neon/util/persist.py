@@ -68,8 +68,10 @@ def extract_child_node_vals(node, keys):
 
 
 def obj_multi_constructor(loader, tag_suffix, node,
-                          deserialize_param='serialized_path',
-                          dist_param='dist_flag'):
+                          deserialize_param='deserialized_path',
+                          serialize_param='serialized_path',
+                          dist_param='dist_flag',
+                          overwrite_param='overwrite_list'):
     """
     Utility function used to actually import and generate a new class instance
     from its name and parameters, potentially deserializing an already
@@ -86,10 +88,21 @@ def obj_multi_constructor(loader, tag_suffix, node,
         deserialize_param (str): Tag name of the parameter that can be
                                  inspected to deserialize an already existing
                                  instance, instead of constructing a new
-                                 object.  Defaults to 'serialized_path'.
+                                 object.  Defaults to 'deserialized_path'.
+        serialize_param (str): Tag name of the parameter that can be
+                               inspected to serialize an instance as
+                               appropriate.  As a backup we check this variable
+                               to see if we shoud deserialize instead of
+                               construct a new object.  Defaults to
+                               'serialized_path'.
         dist_param (str): Tag name of the parameter that can be inspected to
                           indicate the object in question is distributed.
                           Defaults to 'dist_flag'.
+        overwrite_param (str): Tag name of the parameter that can be inspected
+                               to indicate a list of parameters whose values
+                               should be overwritten once deserialized with the
+                               values found in the original yaml file.
+                               Defaults to 'overwrite_list'.
     """
     # extract class name and import neccessary module.
     parts = tag_suffix.split('.')
@@ -112,38 +125,42 @@ def obj_multi_constructor(loader, tag_suffix, node,
     # deserialize instead of construct a new object, MPI also requires some
     # special handling
     res = None
-    dpath = None
-    child_vals = extract_child_node_vals(node, [deserialize_param, dist_param])
+    child_vals = extract_child_node_vals(node, [deserialize_param,
+                                                serialize_param, dist_param,
+                                                overwrite_param])
+    if child_vals[overwrite_param] is None:
+        child_vals[overwrite_param] = [serialize_param]
     child_vals[dist_param] = (child_vals[dist_param] == 'True')
-    if child_vals[deserialize_param] is not None:
+    if (child_vals[deserialize_param] is None and child_vals[serialize_param]
+            is not None):
+        # attempt to deserialize from serialized_path since
+        # deserialized_path not populated
+        child_vals[deserialize_param] = child_vals[serialize_param]
+    if MPI_INSTALLED:
+        # fix up any serialized/deserialized paths to populate rank and size
+        from mpi4py import MPI
+        for param in (serialize_param, deserialize_param):
+            if child_vals[param] is not None:
+                child_vals[param] = child_vals[param].format(
+                        rank=str(MPI.COMM_WORLD.rank),
+                        size=str(MPI.COMM_WORLD.size))
+    if (child_vals[deserialize_param] is not None and
+            os.path.exists(child_vals[deserialize_param])):
         # deserialization attempt should be made
-        dpath = child_vals[deserialize_param]
-        if ((child_vals[dist_param] and 'datasets' in cls.__module__) or
-                ('models' in cls.__module__ and 'Dist' in cls.__name__)):
-            # Attempting to deserialize a distributed dataset or model, need to
-            # adjust the path from what is specified in the YAML.
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                dpath = dpath.format(rank=str(MPI.COMM_WORLD.rank),
-                                     size=str(MPI.COMM_WORLD.size))
-                if os.path.exists(dpath):
-                    res = deserialize(dpath)
-                    res.__dict__[deserialize_param] = dpath
-            else:
-                raise AttributeError("dist obj but mpi4py not installed")
-        elif os.path.exists(dpath):
-            # All other types of deserializable objects
-            res = deserialize(dpath)
+        res = deserialize(child_vals[deserialize_param])
     if res is None:
         # need to create a new object
         try:
             res = cls(**loader.construct_mapping(node, deep=True))
-            if child_vals[deserialize_param] is not None and dpath is not None:
-                res.__dict__[deserialize_param] = dpath
         except TypeError as e:
             logger.warning("Unable to construct '%s' instance.  Error: %s",
                            cls.__name__, e.message)
             res = None
+    if res is not None:
+        # overwrite any parameters needing updated from original yaml file
+        for param in child_vals[overwrite_param]:
+            if child_vals[param] is not None:
+                res.__dict__[param] = child_vals[param]
     return res
 
 
