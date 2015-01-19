@@ -160,7 +160,7 @@ class MLP(Model):
 
         while i > 0:
             self.layers[i].bprop(error, self.layers[i - 1].output)
-            error = self.layers[i].berror
+            error = self.layers[i].deltas
             i -= 1
 
         self.layers[i].bprop(error, inputs)
@@ -301,7 +301,7 @@ class MLPB(MLP):
     def bprop(self):
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
-            error = None if nl is None else nl.berror
+            error = None if nl is None else nl.deltas
             ll.bprop(error)
 
     def print_layers(self, debug=False):
@@ -351,8 +351,6 @@ class MLPB(MLP):
         batch_sum = self.backend.empty((1, 1))
 
         return_err = dict()
-        return_err['validation'] = dataset.backend.empty((1, 1))
-        return_err['train'] = dataset.backend.empty((1, 1))
 
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
@@ -377,7 +375,6 @@ class MLPB(MLP):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs,
                 logloss_sum.asnumpyarray() / nrecs))
-            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
-            return_err[setname] = self.result
+            return_err[setname] = misclass_sum.asnumpyarray()[0, 0] / nrecs
         return return_err

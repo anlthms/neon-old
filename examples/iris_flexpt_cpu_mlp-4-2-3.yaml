@@ -93,7 +93,7 @@
         updates_dtype: *def_dtype,
         pre_act_dtype: *def_dtype,
         output_dtype: *def_dtype,
-        berror_dtype: *def_dtype,
+        deltas_dtype: *def_dtype,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {

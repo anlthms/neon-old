@@ -7,6 +7,7 @@ is evaluated on the predictions made.
 """
 
 import logging
+import os
 
 from neon.experiments.fit import FitExperiment
 
@@ -37,10 +38,12 @@ class WriteErrorToFile(FitExperiment):
 
         # load the data and train the model
         super(WriteErrorToFile, self).run()
-        if ('validation' in self.dataset.inputs):
+        if self.dataset.inputs[self.item] is not None:
             prediction = self.model.predict_and_error(self.dataset)
+            with open(self.filename, 'w') as f:
+                f.write(str(prediction[self.item]))
+            logger.info("Writing '%s' error to %s" % (self.item,
+                        os.getcwd() + '/' + self.filename))
         else:
-            raise AttributeError("Cannot perform WriteErrorToFile experiment "
-                                 "on a dataset with no validation set")
-        with open('neon_result_validation.txt', 'w') as f:
-            f.write(str(prediction['validation']))
+            raise AttributeError("To perform WriteErrorToFile experiment "
+                                 "please provide data '%s' set" % self.item)

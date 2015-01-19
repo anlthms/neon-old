@@ -1,21 +1,24 @@
 """
-spearmint script: config.pb mentions name: "spear_wrapper" so spearmint calls
-into this file's main() function with the current set of parameters. It does:
-- read the iris hyper-yaml file
-- parse the parameters suggested by sparemint
-- generate a temp yaml file
-- run neon
-- get the outputs
+spearmint script: config.pb refers to "spear_wrapper" so spearmint calls
+into this file's main() function with the current set of parameters. It then:
+- reads the hyper-yaml file
+- parses the parameters suggested by sparemint
+- generates a temp yaml file
+- runs neon
+- gets the outputs
 """
 
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def main(job_id, params):
-    print 'main: job #:', str(job_id)
-    print "main: we are in directory: ", os.getcwd()
-    print "main: params are: ", params
+    logger.info('spear_wrapper job #:%s' % str(job_id))
+    logger.info("spear_wrapper in directory: %s" % os.getcwd())
+    logger.info("spear_wrapper params are:%s" % params)
 
     return call_convnet(params)
 
@@ -24,28 +27,23 @@ def call_convnet(params):
     """
     runs the system call to neon and reads the result to give back to sm
     """
-
     timestring = str(int(time.time()))
 
-    # Generate the yaml ifle
-    print "call_convnet: parsing yaml"
+    # Generate the yaml file
     hyper_file = 'hyperyaml.yaml'
     yaml_file = 'yamels/temp'+timestring+'.yaml'
     try:
         os.mkdir('yamels')
     except OSError:
         "Directory exists"
-    write_params(hyper_file, yaml_file, params)
+    result_fname = write_params(hyper_file, yaml_file, params)
 
-    # Run a model
-    print "call_convnet: running neon"
-    print "cwd:", os.getcwd()
+    # System call to run bin/neon model
     callstring = "../../bin/neon " + yaml_file
     os.system(callstring)
 
-    # Read the model output
-    print "call_convnet: writing outputs"
-    with open('neon_result_validation.txt', 'r') as f:
+    # Read the model output error from txt file
+    with open(result_fname, 'r') as f:
             result = map(float, f)
     return result[0]
 
@@ -58,10 +56,11 @@ def write_params(input_file, output_file, params):
         with open(output_file, 'w') as fout:
             for line in fin:
                 if 'hyperopt' in line:
-                    print "write_params: trying to set a trace"
                     line = parse_line(line, params)
-                    print "line:", line
+                if 'filename' in line:
+                    retval = line.split()[1].strip(",")
                 fout.write(line)
+    return retval
 
 
 def parse_line(line, params):
@@ -70,5 +69,4 @@ def parse_line(line, params):
     """
     dic = [k.strip("{},") for k in line.split()]
     out = params[dic[2]][0]
-
     return dic[0] + " " + str(out) + ",\n"

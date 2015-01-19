@@ -132,7 +132,7 @@ class ConvnetDist(MLPDist):
             else:
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output)
-            error = self.layers[i].berror
+            error = self.layers[i].deltas
             i -= 1
             if isinstance(self.layers[i], LayerDist):
                 # extract self.layers[i].pre_act terms
@@ -140,18 +140,18 @@ class ConvnetDist(MLPDist):
                     self.layers[i + 1].in_indices, axis=0)
 
         # following code is difficult to refactor:
-        # 1) MPL berror has no halos for top layer, but does for middle layers
+        # 1) MPL deltas has no halos for top layer, but does for middle layers
         # note: that input into MPL is ignored (self.layers[i -
         # 1].output)
         # Following is for top MPL layer
         self.layers[i].bprop(error, self.layers[i - 1].output)
         while i > 0:
             i -= 1
-            # aggregate the berror terms at halo locations
+            # aggregate the deltas terms at halo locations
             # note the MaxPoolingLayerDist ignores the input param
-            # ConvLayerDist needs halo handling for input and berror
+            # ConvLayerDist needs halo handling for input and deltas
             self.layers[i].bprop(
                 self.layers[
                     i + 1].input.local_array.get_bprop_view(
-                    self.layers[i + 1].berror),
+                    self.layers[i + 1].deltas),
                 self.layers[i].input.local_array.chunk)

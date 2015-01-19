@@ -1,39 +1,31 @@
 
 """
-generating the PB file for Spearmint: Go through the hyper-yaml, extract lines
-that specify a !hyperopt range, dump an entry into the protobuf
+generating the PB file for Spearmint:
+- Go through the hyper-yaml
+- extract lines that specify a !hyperopt range
+- format and dump an entry into the protobuf
 """
 
 
 def write_pb(input_file, pb_file):
-    """
-    go thorugh the hyperyaml line by line, read out values and write to pb
-    """
+    # go thorugh the hyperyaml line by line, read out values and write to pb
     scipt_name = 'spear_wrapper'  # script spearmint should call
-    we_are_good = False
-    # read all lines from source
+    supported_expt_bool = False  # hyperyaml specifies supported experiment
     with open(input_file, 'r') as fin:
-        # append to pb file
         with open(pb_file, 'w') as fout:
             fout.write('language: PYTHON \nname: "' + scipt_name + '"\n\n')
             for inline in fin:
                 if 'hyperopt' in inline:
                     ho_dict = parse_line(inline)
-                    outline = write_line(ho_dict)
+                    outline = write_block(ho_dict)
                     fout.write(outline)
                 if 'WriteErrorToFile' in inline:
-                    we_are_good = True
-    return we_are_good
+                    supported_expt_bool = True
+    return supported_expt_bool
 
 
 def parse_line(line):
-    """
-    generate a dictionary ho_dict with fields:
-    name
-    type
-    start
-    end
-    """
+    # generate a dictionary ho_dict with fields: [name, type, start, end]
     dic = [k.strip("{},") for k in line.split()]
     ho_dict = dict()
     ho_dict['name'] = dic[2]
@@ -49,15 +41,13 @@ def parse_line(line):
         ho_dict['start'] = dic[5]
     else:
         print "got ho_dict['type']", ho_dict['type']
-        raise AttributeError("Supported types are FLOAT, INT, STRING")
-
+        raise AttributeError("Supported types are FLOAT, INT, ENUM")
+        # todo: Spearmint supports ENUM but we are not handling it yet.
     return ho_dict
 
 
-def write_line(ho_dict):
-    """
-    stuff
-    """
+def write_block(ho_dict):
+    # generate a block for the protobuf file from the hyperopt parameters
     outline = """variable {
     name: \""""+ho_dict['name']+"""\"
     type: """+ho_dict['type']+"""
@@ -68,11 +58,7 @@ def write_line(ho_dict):
     return outline
 
 if __name__ == '__main__':
-    """
-    specify hyperyaml to read from and protobuf to write to
-    """
-
-    # point of entry
+    # point of code entry
     input_file = 'neon/spearmint/hyperyaml.yaml'
     pb_file = 'neon/spearmint/spear_config.pb'
 

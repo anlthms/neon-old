@@ -5,6 +5,7 @@
 # Iris dataset.  Simple network meant more as a sanity check.
 
 !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
+  filename: neon_result_validation.txt,
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: {
