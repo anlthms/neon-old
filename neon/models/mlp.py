@@ -178,9 +178,12 @@ class MLP(Model):
         for batch in range(num_batches):
             self.backend.clip(preds[batch], eps, 1.0 - eps, out=preds[batch])
             sums = self.backend.sum(preds[batch], axes=0, out=sums)
+
             # XXX: work around lack of broadcasting in gpu backend.
+            temp1 = temp.asnumpyarray()
             for row in range(preds[batch].shape[0]):
-                temp[row] = sums
+                temp1[row] = sums.asnumpyarray().reshape((self.batch_size,))
+            temp = self.backend.array(temp1)
 
             self.backend.divide(preds[batch], temp, temp)
             self.backend.log(temp, out=temp)
