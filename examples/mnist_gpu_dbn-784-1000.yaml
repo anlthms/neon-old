@@ -5,29 +5,22 @@
 # template for DBM layers
 
 !obj:neon.experiments.fit.FitExperiment {
-  backend: &be !obj:neon.backends._cudamat.Cudamat {
+  backend: &be !obj:neon.backends.gpu.GPU {
     rng_seed: 0,
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-      serialized_path: '/usr/local/data/MNIST/mnist-Cudamat.pkl',
-    },
-  ],
+  dataset: &ds !obj:neon.datasets.mnist.MNIST {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+    serialized_path: '/usr/local/data/MNIST/mnist-Cudamat.pkl',
+  },
 
-  # RBM model specification
+  # DBN model specification
   model: !obj:neon.models.dbn.DBN {
     backend: *be,
     num_epochs: 20,
     batch_size: &bs 100,
-    learning_rate: &lr 0.01,
-    momentum: {
-        type: constant, # linear_monotone, nesterov
-        coef: 0.90,
     cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
     serialized_path: './dbn-cudamat20.pkl',
     layers: [
@@ -36,7 +29,17 @@
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rate: *lr,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: rbmlr,
+          lr_params: {
+            learning_rate: &lr 0.01,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant, # linear_monotone, nesterov
+              coef: 0.90,
+            },
+          },
+        },
         nin: 785, # num inputs + 1 for bias
         nout: 501, # num outputs + 1 for bias
         activation: !obj:neon.transforms.logistic.Logistic {},
