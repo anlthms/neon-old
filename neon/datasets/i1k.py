@@ -355,7 +355,7 @@ class I1K(Dataset):
 
                 logger.info("Loaded synset tars.")
                 logger.info('Building training set image list '
-                            '(this can take 10-20 minutes)...')
+                            '(this can take 10-45 minutes)...')
 
                 train_jpeg_files = []
                 for i, st in enumerate(synset_tars):
@@ -838,7 +838,7 @@ class I1K(Dataset):
         len_jpeg_files = len(jpeg_files)
         labels = self.partition_list(labels, self.output_batch_size)
         self.makedir(target_dir)
-        logger.info("Writing %s batches..." % name)
+        logger.info("Writing %s batches (this can take hours)..." % name)
         for i, (labels_batch, jpeg_file_batch) in enumerate(
                 zip(labels, jpeg_files)):
             t = time()
