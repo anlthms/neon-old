@@ -395,3 +395,9 @@ class RNN(Model):
         # TODO: return values instead?
         if self.make_plots:
             trace()  # just used to keep figures open
+
+    def predict_and_error(self, dataset=None):
+        if dataset is not None:
+            dataset = self.dataset
+        predictions = self.predict()
+        self.error_metrics(dataset, predictions)

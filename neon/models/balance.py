@@ -39,7 +39,7 @@ class Balance(MLPB):
         for path, skip_act in zip(self.pathways, [False, True, False]):
             self.class_layer.skip_act = skip_act
             for ll, nl in zip(reversed(path), reversed(path[1:] + [None])):
-                error = None if nl is None else nl.berror
+                error = None if nl is None else nl.deltas
                 ll.bprop(error)
 
     def get_reconstruction_output(self):

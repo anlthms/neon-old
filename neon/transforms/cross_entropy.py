@@ -137,6 +137,7 @@ class CrossEntropy(Cost):
 
     def initialize(self, kwargs):
         opt_param(self, ['shortcut_deriv'], True)
+
         super(CrossEntropy, self).initialize(kwargs)
         if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
@@ -164,12 +165,32 @@ class CrossEntropy(Cost):
         if not self.outputbuf or self.outputbuf.shape != databuf.shape:
             tempbuf1 = self.backend.empty(databuf.shape, self.temp_dtype)
             tempbuf2 = self.backend.empty(databuf.shape, self.temp_dtype)
-            self.temp = [tempbuf1, tempbuf2]
+            tempbuf3 = self.backend.empty((1, databuf.shape[1]),
+                                          self.temp_dtype)
+            self.temp = [tempbuf1, tempbuf2, tempbuf3]
         self.outputbuf = databuf
 
     def get_berrbuf(self):
         # used by layer2 only.
         return self.temp[0]
+
+    def apply_logloss(self, targets, eps=1e-15):
+        """
+        Logloss function -- does normalization prior to computing multiclass
+        log loss function if the output layer is not softmax
+        """
+        if isinstance(self.olayer.activation, Softmax):
+            return self.ce_function(self.backend, self.outputbuf, targets,
+                                    self.temp)
+        self.backend.clip(self.outputbuf, eps, 1.0 - eps, out=self.temp[0])
+        self.backend.sum(self.temp[0], axes=0, out=self.temp[2])
+        # XXX: work around lack of broadcasting in gpu backend.
+        for row in range(self.outputbuf.shape[0]):
+            self.temp[1][row] = self.temp[2]
+
+        self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])
+        return cross_entropy_multi(self.backend, self.temp[0], targets,
+                                   self.temp)
 
     def apply_function(self, targets):
         """
