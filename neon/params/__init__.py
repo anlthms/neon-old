@@ -1,4 +1,4 @@
 # setup some import shortcuts
-from val_init import (UniformValGen, AutoUniformValGen, GaussianValGen,  # noqa
-                      NormalValGen, SparseEigenValGen,
-                      NodeNormalizedValGen)
+from neon.params.val_init import (UniformValGen, AutoUniformValGen,  # noqa
+                                  GaussianValGen, NormalValGen,
+                                  SparseEigenValGen, NodeNormalizedValGen)
