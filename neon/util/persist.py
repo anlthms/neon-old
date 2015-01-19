@@ -91,10 +91,20 @@ def obj_multi_constructor(loader, tag_suffix, node,
                           indicate the object in question is distributed.
                           Defaults to 'dist_flag'.
     """
-    # extract class name and import neccessary module
+    # extract class name and import neccessary module.
     parts = tag_suffix.split('.')
     module = '.'.join(parts[:-1])
-    cls = __import__(module)
+    try:
+        cls = __import__(module)
+    except ImportError as err:
+        # we allow a shortcut syntax that skips neon. from import path, try
+        # again with this prepended
+        if parts[0] != "neon":
+            parts.insert(0, "neon")
+            module = '.'.join(parts[:-1])
+            cls = __import__(module)
+        else:
+            raise err
     for comp in parts[1:]:
         cls = getattr(cls, comp)
 

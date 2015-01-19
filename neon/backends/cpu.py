@@ -7,7 +7,6 @@ wraps :mod:`numpy` ndarray and related operations
 """
 
 import logging
-import math
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
@@ -360,6 +359,9 @@ class CPU(Backend):
                                       so maximal value slightly less.
                                       Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
 
         Returns:
             Tensor: Of specified size filled with these random numbers.
@@ -392,6 +394,9 @@ class CPU(Backend):
                                      to 0.0
             scale (numeric, optional): Standard deviaion.  Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
 
         Returns:
             Tensor: Of specified size filled with these random numbers.
@@ -1488,89 +1493,6 @@ class CPU(Backend):
         copies the host_weights into dev_weights
         """
         dev_weights[:] = host_weights
-
-    def gen_weights(self, size, weight_params, dtype=None):
-        """
-        Different types of weight initializations.  Includes:
-        * uniform - uniform distribution
-        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
-        maximum eigenvalue of the weight matrix is scaled to 1.2
-        * normal or gaussian - normal distribution
-        * node_normalized - initialization is as discussed in Glorot2010
-
-        Arguments:
-            size: shape of the weight matrix to generate
-            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
-
-        Returns:
-            CPUTensor: The initialized weights
-        """
-        weights = None
-        if 'dtype' in weight_params:
-            dtype = weight_params['dtype']
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
-                        str(size), low, high)
-            weights = self.uniform(low, high, size, dtype)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
-                        str(size), loc, scale)
-            weights = self.normal(loc, scale, size, dtype)
-        elif (weight_params['type'] == 'autoscale'):
-            low = 1.0/math.sqrt(size[1])
-            if 'relu' in weight_params:
-                low = low * math.sqrt(2)
-            weights = self.uniform(-low, low, size, dtype)
-        elif (weight_params['type'] == 'sparse_eigenvalued'):
-            # initialization for RNNS as in Sutskever 2013
-            sparseness = 15
-            eigenvalue = 1.2
-            if 'sparseness' in weight_params:
-                sparseness = weight_params['sparseness']
-            if 'eigenvalue' in weight_params:
-                eigenvalue = weight_params['eigenvalue']
-            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
-                        (str(size), sparseness, eigenvalue))
-            elements = size[0] * size[1]
-            nonzeros = size[0] * sparseness
-            weights = np.zeros(size).flatten()
-            nonzeroindex = np.random.permutation(elements)[0:nonzeros]
-            weights[nonzeroindex] = 0.3 * np.random.randn(nonzeros)
-            weights = weights.reshape(size)
-            if size[0] == size[1]:
-                temp = np.linalg.eig(weights)
-                max_eig = np.max(np.absolute(temp[0]))
-                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
-                weights = self.tensor_cls(eigenvalue * weights / max_eig)
-            else:
-                logger.info('Matrix is non-square, no eigenvalue scaling.')
-                weights = self.tensor_cls(weights)
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.',
-                        str(size), scale)
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size, dtype)
-        else:
-            raise AttributeError("invalid weight_params specified")
-
-        return weights
 
 
 # template for CPUDist (wrap MPI function calls so _tensor don't have to be

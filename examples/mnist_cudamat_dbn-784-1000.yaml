@@ -40,8 +40,8 @@
         nin: 785, # num inputs + 1 for bias
         nout: 501, # num outputs + 1 for bias
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
         },
@@ -55,8 +55,8 @@
         nin: 501, # prev. outputs (incl. bias)
         nout: 1001, # num outputs + 1 for bias
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
         },
@@ -70,8 +70,8 @@
         nin: 1001, # prev. outputs (incl. bias)
         nout: 101, # num outputs + 1 for bias
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
         },

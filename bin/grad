@@ -29,6 +29,8 @@ def main():
     """
     Point of code entry.
     """
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=20)  # INFO or higher
     # read in yaml configuration and initialize objects
     args = parse_args()
     experiment = deserialize(args.yaml_file)

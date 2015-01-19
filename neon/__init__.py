@@ -9,7 +9,7 @@ Full documentation is available at: http://framework.nervanasys.com/docs/latest
 """
 
 try:
-    from neon.version import VERSION as __version__  # flake8: noqa
+    from neon.version import VERSION as __version__  # noqa
 except ImportError:
     import sys
     print("ERROR: Version information not found.  Ensure you have built the "

@@ -129,7 +129,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
         Uniform random number generation of samples in range [low, high).
 
@@ -139,6 +139,8 @@ class Backend(YAMLable):
                                       Defaults to 1.0.
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
+            dtype (data-type, optional): If present, specifies the underlying
+                                         type to employ for each element.
 
         Returns:
             Tensor: of shape size filled with these random numbers.
@@ -151,7 +153,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError("Can't create direct instances of Backend")
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number generation of samples centered around
         mean loc, and with standard deviation scale.
@@ -163,6 +165,8 @@ class Backend(YAMLable):
                                        Defaults to 1.0
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
+            dtype (data-type, optional): If present, specifies the underlying
+                                         type to employ for each element.
 
         Returns:
             Tensor: of shape size filled with these random numbers.

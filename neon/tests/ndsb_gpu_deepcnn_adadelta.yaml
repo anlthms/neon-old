@@ -15,8 +15,8 @@
     image_width: 64,
     # serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
   },
-  weight_init: &wt_init {
-    type: uniform,
+  weight_init: &wt_init !obj:params.UniformValGen {
+    backend: *be,
     low: -0.1,
     high: 0.1,
   },

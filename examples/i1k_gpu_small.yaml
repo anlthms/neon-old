@@ -29,23 +29,23 @@
     end_val_batch: 4,
   },
 
-  weight_inits: &wt_init0 {
-    type: normal,
-    scale: .01,
-    bias_init: 0.0,
-  },
-
-  weight_inits: &wt_init1 {
-    type: normal,
-    scale: .01,
-    bias_init: 0.1,
-  },
-
-  weight_inits: &wt_init_fc {
-    type: normal,
-    scale: .005,
-    bias_init: 0.1,
-  },
+  weight_inits: [
+    &wt_init0 !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .01,
+      bias_init: 0.0,
+    },
+    &wt_init1 !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .01,
+      bias_init: 0.1,
+    },
+    &wt_init_fc !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .005,
+      bias_init: 0.1,
+    },
+  ],
 
   lrule: &gdm {
     type: gradient_descent_momentum,

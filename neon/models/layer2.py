@@ -330,15 +330,15 @@ class WeightLayer(Layer):
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
-        self.weights = self.backend.gen_weights(
-            self.weight_shape, self.weight_init, self.weight_dtype)
+        self.weights = self.weight_init.generate(self.weight_shape,
+                                                 self.weight_dtype)
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
-        self.use_biases = 'bias_init' in self.weight_init
+        self.use_biases = 'bias_init' in self.weight_init.__dict__
         opt_param(self, ['brule_init'], None)
         if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.biases.fill(self.weight_init['bias_init'])
+            self.biases.fill(self.weight_init.bias_init)
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]

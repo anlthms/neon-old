@@ -5,6 +5,7 @@
 Speed check
 """
 import argparse
+import logging
 import os
 import sys
 import time
@@ -34,6 +35,8 @@ def speed_check(conf_file, num_epochs):
 if __name__ == '__main__':
     tot_time = 0
     args = parse_args()
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=40)  # ERROR or higher
     if args.cpu == 1:
         print('CPU time: '),
         sys.stdout.flush()

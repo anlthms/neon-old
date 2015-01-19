@@ -56,8 +56,8 @@
         nin: 4,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
           low: -1,
           high: 1,
           bias_init: 0.0,
@@ -83,8 +83,8 @@
         nin: 2, # previous nout
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
           low: -1,
           high: 1,
           bias_init: 0.0,

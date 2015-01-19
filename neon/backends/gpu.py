@@ -9,7 +9,6 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 import cudanet
 import logging
 import numpy
-import math
 import os
 
 from neon.backends.backend import Backend, Tensor
@@ -551,7 +550,24 @@ class GPU(Backend):
                             "integer.  You specified: %s", str(seed))
             cudanet.cudanet_init_random(0)
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
+        """
+        Uniform random number sample generation.
+
+        Arguments:
+            low (numeric, optional): Minimal sample value that can be returned.
+                                     Defaults to 0.0
+            high (numeric, optional): Maximal sample value.  Open ended range
+                                      so maximal value slightly less.
+                                      Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: Of specified size filled with these random numbers.
+        """
         seq = numpy.random.uniform(low, high, size)
         dtype = self.default_dtype_if_missing(None)
         return self.tensor_cls(numpy.array(seq, dtype), dtype)
@@ -581,7 +597,22 @@ class GPU(Backend):
         # backend based random numbers:
         tsr._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
+        """
+        Gaussian/Normal random number sample generation
+
+        Arguments:
+            loc (numeric, optional): Where to center distribution.  Defaults
+                                     to 0.0
+            scale (numeric, optional): Standard deviaion.  Defaults to 1.0
+            size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
+
+        Returns:
+            GPUTensor: Of specified size filled with these random numbers.
+        """
         seq = numpy.random.normal(loc, scale, size)
         dtype = self.default_dtype_if_missing(None)
         return self.tensor_cls(numpy.array(seq, dtype), dtype)
@@ -1524,87 +1555,6 @@ class GPU(Backend):
         sets the GPUTensor dev_weights to the values in host_weights
         """
         dev_weights[:] = GPUTensor(numpy.array(host_weights, 'float32'))
-
-    def gen_weights(self, size, weight_params, dtype=None):
-        """
-        Different types of weight initializations.  Includes:
-        * uniform - uniform distribution
-        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
-        maximum eigenvalue of the weight matrix is scaled to 1.2
-        * normal or gaussian - normal distribution
-        * node_normalized - initialization is as discussed in Glorot2010
-
-        Arguments:
-            size: shape of the weight matrix to generate
-            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
-
-        Returns:
-            GPUTensor: The initialized weights
-        """
-        # FIXME: Get rid of duplication.
-        weights = None
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
-                        str(size), low, high)
-            weights = numpy.random.uniform(low, high, size)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
-                        str(size), loc, scale)
-            weights = numpy.random.normal(loc, scale, size)
-        elif (weight_params['type'] == 'autoscale'):
-            low = 1.0 / math.sqrt(size[0])
-            if 'relu' in weight_params:
-                low = low * math.sqrt(2)
-            weights = numpy.random.uniform(-low, low, size)
-        elif (weight_params['type'] == 'sparse_eigenvalued'):
-            # initialization for RNNS as in Sutskever 2013
-            sparseness = 15
-            eigenvalue = 1.2
-            if 'sparseness' in weight_params:
-                sparseness = weight_params['sparseness']
-            if 'eigenvalue' in weight_params:
-                eigenvalue = weight_params['eigenvalue']
-            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
-                        (str(size), sparseness, eigenvalue))
-            elements = size[0] * size[1]
-            nonzeros = size[0] * sparseness
-            weights = numpy.zeros(size).flatten()
-            nonzeroindex = numpy.random.permutation(elements)[0:nonzeros]
-            weights[nonzeroindex] = 0.3 * numpy.random.randn(nonzeros)
-            weights = self.copy(weights.reshape(size))
-            if size[0] == size[1]:
-                temp = numpy.linalg.eig(weights)
-                max_eig = numpy.max(numpy.absolute(temp[0]))
-                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
-                weights = eigenvalue * weights / max_eig
-            else:
-                logger.info('Matrix is non-square, no eigenvalue scaling.')
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.',
-                        str(size), scale)
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = numpy.random.uniform(-node_norm, node_norm, size)
-        else:
-            raise AttributeError("invalid weight_params specified")
-
-        return self.tensor_cls(numpy.array(weights, 'float32'))
 
 
 class GPUDataDist(GPU):

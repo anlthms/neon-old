@@ -21,12 +21,12 @@
   },
 
   weight_inits: [
-    &wt_uni {
-      type: uniform,
+    &wt_uni !obj:params.GaussianValGen {
+      backend: *be,
       scale: 0.1,
     },
-    &wt_initb {
-      type: node_normalized,
+    &wt_initb !obj:params.NodeNormalizedValGen {
+      backend: *be,
       scale: 4.0,
       bias_init: 0.0,
     },
