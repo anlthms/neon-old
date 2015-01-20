@@ -57,7 +57,21 @@ def extract_child_node_vals(node, keys):
     """
     res = dict()
     for child in node.value:
-        tag, val = [x.value for x in child]
+        # child node values are two element tuples, where the first is a scalar
+        # node, and the second can be other types of nodes.
+        tag = child[0].value
+        if isinstance(child[1], yaml.nodes.ScalarNode):
+            val = child[1].value
+        elif isinstance(child[1], yaml.nodes.SequenceNode):
+            val = [x.value for x in child[1].value]
+        elif isinstance(child[1], yaml.nodes.MappingNode):
+            val = dict()
+            for item in child[1].value:
+                val[item[0].value] = item[1].value
+        else:
+            logger.warning("unknown node type: %s, ignoring tag %s",
+                           str(type(child[1])), tag)
+            val = None
         for key in keys:
             if tag == key:
                 res[key] = val
