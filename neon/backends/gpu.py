@@ -1586,13 +1586,14 @@ class GPUDataDist(GPU):
             out._tensor.numpy_array)
         out.copy_to_device()
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf):
         super(GPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmsize, ofmlocs, ifmshape,
-                                             links, nifm, padding, stride,
-                                             ngroups, fwidth, updatebuf)
+                                             ofmshape, ofmsize, ofmlocs,
+                                             ifmshape, links, nifm, padding,
+                                             stride, ngroups, fwidth,
+                                             updatebuf)
 
         out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
                                                            op=MPI.SUM, root=0)
