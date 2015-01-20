@@ -38,7 +38,7 @@ class Layer(YAMLable):
             if self.is_local:
                 self.ifmshape = pl.ofmshape
                 self.nifm = pl.nofm
-            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
         else:
             if self.is_local:
                 if not hasattr(self, 'ifmshape'):
@@ -77,9 +77,9 @@ class Layer(YAMLable):
             ofmshape.extend([int(mt.ceil(num / self.stride))])
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
-        self.ifmsize = reduce(mul, self.ifmshape)
-        self.ofmsize = reduce(mul, self.ofmshape)
-        self.fpsize = reduce(mul, self.fshape)
+        self.ifmsize = np.prod(self.ifmshape)
+        self.ofmsize = np.prod(self.ofmshape)
+        self.fpsize = np.prod(self.fshape)
         self.fsize = self.nifm * self.fpsize
         self.nout = self.nofm * self.ofmsize
         logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
@@ -236,7 +236,7 @@ class DataLayer(Layer):
         self.reset_counter()
         if self.is_local is True:
             req_param(self, ['nofm', 'ofmshape'])
-            self.nout = self.nofm * reduce(mul, self.ofmshape)
+            self.nout = self.nofm * np.prod(self.ofmshape)
         else:
             req_param(self, ['nout'])
 
@@ -302,7 +302,7 @@ class ActivationLayer(Layer):
             self.is_local = True
             self.ifmshape = pl.ofmshape
             self.nifm = pl.nofm
-            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
         else:
             self.nin = pl.nout
         self.prev_layer = pl
