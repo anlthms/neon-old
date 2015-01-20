@@ -50,8 +50,8 @@
         ifmshape: [32, 32],
         fshape: [3, 3],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -75,8 +75,8 @@
         ifmshape: [30, 30],
         fshape: [1, 1],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: 0.0,
           high: 0.1,
         },
@@ -100,8 +100,8 @@
         ifmshape: [30, 30],
         fshape: [1, 1],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: 0.0,
           high: 0.1,
         },
@@ -136,8 +136,8 @@
         ifmshape: [15, 15],
         fshape: [2, 2],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -161,8 +161,8 @@
         ifmshape: [14, 14],
         fshape: [1, 1],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: 0.0,
           high: 0.1,
         },
@@ -186,8 +186,8 @@
         ifmshape: [14, 14],
         fshape: [1, 1],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: 0.0,
           high: 0.1,
         },
@@ -208,8 +208,8 @@
         nin: 1960,
         nout: 500,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -230,8 +230,8 @@
         nin: 500,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },

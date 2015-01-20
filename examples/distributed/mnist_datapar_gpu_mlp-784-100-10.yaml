@@ -1,6 +1,6 @@
 # Data parallel version of settings to train/test a 1 hidden layer Neural Net on full
 # MNIST. Network archetecture matches Arjun's Matlab variant.
-# Make sure np = 3 when running this example with mpirun
+# Make sure np = 2 when running this example with mpirun
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
@@ -17,7 +17,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+    # serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Gpu_{rank}.pkl',
     # datapar specific parameters:
     batch_size: 200,
     num_test_sample: 10000, #round down to a multiple of batch_size
@@ -34,7 +34,7 @@
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     learning_rate: &lr 0.1,
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
-    # serialized_path: './mlp-numpysml-simple.pkl',
+    serialized_path: './mlp-datapar-gpu-mnist.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -55,14 +55,14 @@
         nin: 784,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
           bias_init: 0.0,
         },
       },
-      !obj:neon.models.layer.Layer {
+      &lastlayer !obj:neon.models.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
@@ -78,13 +78,16 @@
         nin: 100,
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: node_normalized,
+        weight_init: !obj:params.NodeNormalizedValGen {
+          backend: *be,
           scale: 4.0,
           bias_init: 0.0,
         },
       },
     ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer,
+    },
   },
   
   # logging options that are passed to logging.basicConfig
@@ -96,7 +99,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 15,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

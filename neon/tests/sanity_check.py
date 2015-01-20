@@ -5,6 +5,7 @@
 Sanity check
 """
 import argparse
+import logging
 import os
 import sys
 from neon.util.persist import deserialize
@@ -30,6 +31,8 @@ def sanity_check(conf_file, result):
 
 
 if __name__ == '__main__':
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=40)  # ERROR or higher
     res = 0
     args = parse_args()
     if args.cpu == 1:

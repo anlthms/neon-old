@@ -13,7 +13,10 @@ import os
 import zipfile
 import glob
 
-from skimage import io, transform
+try:
+    from skimage import io, transform
+except ImportError:
+    pass
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range

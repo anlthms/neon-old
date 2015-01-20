@@ -20,7 +20,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    # serialized_path: '/usr/local/data/MNIST_{size}/mnist-Cpu_{rank}.pkl',
+    # serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Cpu_{rank}.pkl',
     # datapar specific parameters:
     batch_size: 300,
     num_test_sample: 9900, #round down to a multiple of batch_size
@@ -36,7 +36,7 @@
     num_epochs: 30,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     learning_rate: &lr 0.1,
-    # serialized_path: './mlp-numpysml-simple.pkl',
+    serialized_path: './mlp-datapar-mnist-Cpu_{size}.pkl',
     layers: [
       !obj:neon.models.layer.Layer {
         name: h0,
@@ -57,8 +57,8 @@
         nin: 784,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
           bias_init: 0.0,
@@ -79,11 +79,9 @@
         },
         nin: 100,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
-        weight_init: {
-          type: node_normalized,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: !obj:params.NodeNormalizedValGen {
+          backend: *be,
           scale: 4.0,
           bias_init: 0.0,
         },
