@@ -629,13 +629,13 @@ class CompositeLayer(Layer):
 
 
 class BranchLayer(CompositeLayer):
-
     """
     Branch layer is composed of a list of other layers concatenated with one
-    another
-    during fprop, it concatenates the component outputs and passes it on
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it concatenates the component outputs and passes it on.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):
@@ -672,13 +672,13 @@ class BranchLayer(CompositeLayer):
 
 
 class ListLayer(Layer):
-
     """
     List layer is composed of a list of other layers stacked on top of one
-    another
-    during fprop, it simply fprops along the chain
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it simply fprops along the chain.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):

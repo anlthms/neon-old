@@ -43,6 +43,12 @@ Flexpoint™
 
    neon.backends.flexpoint.Flexpoint
 
+Nervana Hardware
+----------------
+
+To add
+
+
 Models
 ======
 
@@ -50,7 +56,6 @@ Models
    :toctree: generated/
 
    neon.models.model.Model
-   neon.models.layer.Layer
 
 MLP
 ---
@@ -67,6 +72,14 @@ Autoencoder
    :toctree: generated/
 
    neon.models.autoencoder.Autoencoder
+
+Balance Network
+---------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.balance.Balance
 
 RBM
 ---
@@ -93,6 +106,153 @@ GB
    neon.models.gb.GB
    neon.models.gb_dist.GBDist
 
+Recurrent Neural Network
+------------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.rnn.RNN
+
+
+Layers
+======
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer.Layer
+
+Cost Layer
+----------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.CostLayer
+
+Activation Layer
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.ActivationLayer
+
+Data Layer
+----------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.DataLayer
+
+Weight Layer
+------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.WeightLayer
+
+Fully Connected Layer
+---------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.FCLayer
+
+Convolutional Layer
+-------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.ConvLayer
+
+Pooling Layers
+---------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.PoolingLayer
+   neon.models.layer2.CrossMapPoolingLayer
+
+DropOut Layer
+-------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.DropOutLayer
+
+Composite Layers
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.CompositeLayer
+   neon.models.layer2.BranchLayer
+   neon.models.layer2.ListLayer
+
+Normalized Layers
+-----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer2.CrossMapResponseNormLayer
+   neon.models.layer2.LocalContrastNormLayer
+
+Recurrent Layers
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.layer.RecurrentHiddenLayer
+   neon.models.layer.RecurrentOutputLayer
+   neon.models.layer.RecurrentLSTMLayer
+
+
+Learning Rules
+==============
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.learning_rule.LearningRule
+
+Gradient Descent
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.models.learning_rule.GradientDescent
+   neon.models.learning_rule.GradientDescentPretrain
+   neon.models.learning_rule.GradientDescentMomentum
+   neon.models.learning_rule.GradientDescentMomentumWeightDecay
+   neon.models.learning_rule.AdaDelta
+
+Parameter Related
+=================
+
+Value Initialization
+--------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.params.val_init.UniformValGen
+   neon.params.val_init.AutoUniformValGen
+   neon.params.val_init.GaussianValGen
+   neon.params.val_init.SparseEigenValGen
+   neon.params.val_init.NodeNormalizedValGen
+
 
 Transforms
 ==========
@@ -106,6 +266,7 @@ Activation Functions
    neon.transforms.rectified.RectLin
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
+   neon.transforms.softmax.Softmax
 
 Cost Functions
 --------------
@@ -115,6 +276,7 @@ Cost Functions
 
    neon.transforms.sum_squared.SumSquaredDiffs
    neon.transforms.cross_entropy.CrossEntropy
+   neon.transforms.xcov.XCovariance
 
 
 Datasets
@@ -165,6 +327,30 @@ ImageNet
 
    neon.datasets.i1k.I1K
 
+NDSB
+----
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.ndsb.NDSB
+
+Mobydick
+--------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.mobydick.MOBYDICK
+
+Toronto Face
+------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.datasets.tfd.TFD
+
 Synthetic
 ---------
 
@@ -172,6 +358,7 @@ Synthetic
    :toctree: generated/
 
    neon.datasets.synthetic.UniformRandom
+   neon.datasets.synthetic.ToyImages
 
 
 Experiments

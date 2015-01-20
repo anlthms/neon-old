@@ -829,13 +829,16 @@ class RecurrentHiddenLayer(Layer):
 
     def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
         """
-        This function has been refactored:
-        [done] remove duplicate code
-        [done] remove the loop altogether.
-        [todo] If the if statement can't be supported, revert to duplicated
-               code
-        Not sure why tau is passed but not used. Not that this is called for
-        decrementing t.
+        Backpropagation for recurrent hidden layers.
+
+        Notes:
+            * This function has been refactored
+            * [done] remove duplicate code
+            * [done] remove the loop altogether.
+            * [todo] If the if statement can't be supported, revert to
+              duplicated code
+            * Not sure why tau is passed but not used. Not that this is
+              called for decrementing t.
         """
         self.backend.multiply(error, self.pre_act_list[t], out=error)
         if (t > 0):  # can move down or just compute (but it's not used)

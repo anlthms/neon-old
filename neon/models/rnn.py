@@ -294,12 +294,12 @@ class RNN(Model):
     def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
               debug=False, numgrad=None):
         """
-        Refactor:
-        This bprop has an OUTER FOR LOOP over t-BPTT unrollings
-            for a given unrolling depth, we go output-hidden-hidden-input
-            which breaks down as:
-                  layers[1].bprop -- output layer
+        Backpropagation for a RNN.
 
+        Notes:
+            * Refactor: This bprop has an OUTER FOR LOOP over t-BPTT unrollings
+              for a given unrolling depth, we go output-hidden-hidden-input
+              which breaks down as: layers[1].bprop -- output layer
         """
         nin = self.layers[0].nin
 

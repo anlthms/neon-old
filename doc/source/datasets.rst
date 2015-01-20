@@ -15,7 +15,12 @@ Available Datasets
    neon.datasets.iris.Iris
    neon.datasets.mnist.MNIST
    neon.datasets.sparsenet.SPARSENET
+   neon.datasets.i1k.I1K
+   neon.datasets.ndsb.NDSB
+   neon.datasets.mobydick.MOBYDICK
+   neon.datasets.tfd.TFD
    neon.datasets.synthetic.UniformRandom
+   neon.datasets.synthetic.ToyImages
 
 Adding a new Dataset
 --------------------
