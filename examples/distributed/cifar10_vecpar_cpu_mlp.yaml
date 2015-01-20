@@ -15,7 +15,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10,
-    serialized_path: '/usr/local/data/CIFAR10-vecpar_{size}/cifar10_10pct-Cpu_{rank}.pkl',
+    # serialized_path: '/usr/local/data/CIFAR10-vecpar_{size}/cifar10_10pct-Cpu_{rank}.pkl',
   },
 
   # simple MLP model specification
@@ -36,11 +36,8 @@
             learning_rate: &lr 0.01,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
+              type: constant,
+              initial_coef: 0.90,
             },
           },
         },
