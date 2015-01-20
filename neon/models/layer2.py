@@ -220,6 +220,8 @@ class CostLayer(Layer):
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
     def get_cost(self):
+        if self.ref_layer is not None:
+            self.targets = getattr(self.ref_layer, self.ref_label)
         result = self.cost.apply_function(self.targets)
         return self.backend.divide(result, self.batch_size, result)
 
@@ -352,7 +354,8 @@ class WeightLayer(Layer):
         if self.accumulate:
             self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
                              self.updates)
-
+        for upm in self.updates:
+            upm.fill(0.0)
         self.learning_rule = self.init_learning_rule(self.lrule_init)
         self.bias_rule = None
         if self.brule_init is not None and self.use_biases:
