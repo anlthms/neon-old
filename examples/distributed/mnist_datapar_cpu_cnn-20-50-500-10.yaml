@@ -18,7 +18,7 @@
     dist_mode: &dm 'datapar', # data parallel
     backend: *be,
     repo_path: '/usr/local/data',
-    serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Cpu_{rank}.pkl',
+    # serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Cpu_{rank}.pkl',
     sample_pct: 10,
     # datapar specific parameters
     batch_size: 300,
@@ -107,11 +107,8 @@
             learning_rate: *lr,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
+              type: constant, #constant, nesterov
+              initial_coef: 0.90,
             },
           },
         },
