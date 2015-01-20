@@ -1,6 +1,8 @@
-
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
-generating the PB file for Spearmint:
+Script for generating the PB file for Spearmint:
 - Go through the hyper-yaml
 - extract lines that specify a !hyperopt range
 - format and dump an entry into the protobuf

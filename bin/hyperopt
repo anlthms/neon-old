@@ -41,7 +41,7 @@ localhost:50000.
 
 import argparse
 import os, sys
-from neon.spearmint import spear_writer
+from neon.hyperopt import spear_writer
 
 
 def parse_args():
@@ -67,7 +67,7 @@ def main():
     argz = parse_args()
     bin_path = os.path.dirname(os.path.realpath(__file__))
     root = os.path.split(os.path.split(bin_path)[0])[0]
-    hyperopt_dir = os.path.join(root, 'neon', 'neon' ,'spearmint')
+    hyperopt_dir = os.path.join(root, 'neon', 'neon' ,'hyperopt')
     spearmint_dir = os.path.join(root, 'spearmint',
                                     'spearmint' ,'bin')
     if (argz.cmd == 'reset'):
@@ -92,7 +92,7 @@ def main():
     if (argz.cmd == 'init'):
         input_file = argz.yaml
         import shutil
-        shutil.copy2(input_file, 'neon/spearmint/hyperyaml.yaml')
+        shutil.copy2(input_file, 'neon/hyperopt/hyperyaml.yaml')
         spear_writer.main()
 
 if __name__ == '__main__':

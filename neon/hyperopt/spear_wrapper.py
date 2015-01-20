@@ -1,6 +1,9 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 """
-spearmint script: config.pb refers to "spear_wrapper" so spearmint calls
-into this file's main() function with the current set of parameters. It then:
+hyperopt script: spearmint calls into this file's main() function with the
+current set of parameters. It then:
 - reads the hyper-yaml file
 - parses the parameters suggested by sparemint
 - generates a temp yaml file
