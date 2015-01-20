@@ -9,7 +9,6 @@ backend.
 import logging
 import numpy as np
 import math as mt
-from operator import mul
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
