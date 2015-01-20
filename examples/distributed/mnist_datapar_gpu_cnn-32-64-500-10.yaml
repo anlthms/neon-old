@@ -26,7 +26,7 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLP {
     backend: *be,
-    num_epochs: 10,
+    num_epochs: 30,
     dist_mode: *dm,
     batch_size: &bs 100, # this should be datasets.batch_size / num_procs
     serialized_path: './mnist-datapar-gpu-cnn_{size}.pkl',

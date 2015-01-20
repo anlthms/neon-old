@@ -1520,13 +1520,13 @@ class CPUDataDist(CPU):
         #                    out=error)
         out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf):
         super(CPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmlocs, ifmshape,
-                                             links, nifm, padding, stride,
-                                             ngroups, fwidth, updatebuf)
+                                             ofmshape, ofmsize, ofmlocs,
+                                             ifmshape, links, nifm, padding,
+                                             stride, ngroups, fwidth, updatebuf)
         out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
                                             root=0)
         out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())

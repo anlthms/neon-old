@@ -1,6 +1,6 @@
 # Data parallel version of settings to train/test a 1 hidden layer Neural Net on full
 # MNIST. Network archetecture matches Arjun's Matlab variant.
-# Make sure np = 3 when running this example with mpirun
+# Make sure np = 2 when running this example with mpirun
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   dist_flag: &df True,
@@ -17,7 +17,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/MNIST_{size}/mnist-Gpu_{rank}.pkl',
+    serialized_path: '/usr/local/data/MNIST-datapar_{size}/mnist-Gpu_{rank}.pkl',
     # datapar specific parameters:
     batch_size: 200,
     num_test_sample: 10000, #round down to a multiple of batch_size

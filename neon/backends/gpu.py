@@ -1586,11 +1586,11 @@ class GPUDataDist(GPU):
             out._tensor.numpy_array)
         out.copy_to_device()
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize, ofmlocs,
                     ifmshape, links, nifm, padding, stride, ngroups, fwidth,
                     updatebuf):
         super(GPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmlocs, ifmshape,
+                                             ofmshape, ofmsize, ofmlocs, ifmshape,
                                              links, nifm, padding, stride,
                                              ngroups, fwidth, updatebuf)
 
