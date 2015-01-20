@@ -6,6 +6,7 @@ generating the PB file for Spearmint:
 - format and dump an entry into the protobuf
 """
 
+import os
 
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
@@ -57,13 +58,14 @@ def write_block(ho_dict):
     }\n\n"""
     return outline
 
-if __name__ == '__main__':
+def main():
     # point of code entry
-    input_file = 'neon/spearmint/hyperyaml.yaml'
-    pb_file = 'neon/spearmint/spear_config.pb'
+    hyperroot = os.path.dirname(os.path.realpath(__file__))
+    in_file = os.path.join(hyperroot, 'hyperyaml.yaml')
+    pb_file = os.path.join(hyperroot, 'spear_config.pb')
 
-    success = write_pb(input_file, pb_file)
+    success = write_pb(in_file, pb_file)
     if success:
-        print "Done writing hyper ranges from ", input_file, "to", pb_file
+        print "Done writing hyper ranges from ", in_file, "to", pb_file
     else:
         raise AttributeError("Wrong experiment type, does not return result")

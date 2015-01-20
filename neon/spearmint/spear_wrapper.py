@@ -14,7 +14,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def main(job_id, params):
     logger.info('spear_wrapper job #:%s' % str(job_id))
     logger.info("spear_wrapper in directory: %s" % os.getcwd())
@@ -28,10 +27,12 @@ def call_convnet(params):
     runs the system call to neon and reads the result to give back to sm
     """
     timestring = str(int(time.time()))
+    speramint_dir = os.path.dirname(os.path.realpath(__file__))
 
     # Generate the yaml file
-    hyper_file = 'hyperyaml.yaml'
-    yaml_file = 'yamels/temp'+timestring+'.yaml'
+    hyper_file = os.path.join(speramint_dir, 'hyperyaml.yaml')
+    yaml_file = os.path.join(speramint_dir, 'yamels',
+                              'temp'+timestring+'.yaml')
     try:
         os.mkdir('yamels')
     except OSError:
@@ -39,7 +40,8 @@ def call_convnet(params):
     result_fname = write_params(hyper_file, yaml_file, params)
 
     # System call to run bin/neon model
-    callstring = "../../bin/neon " + yaml_file
+    neonbin = os.path.join(speramint_dir, '..', '..', 'bin', 'neon')
+    callstring = neonbin + " " + yaml_file
     os.system(callstring)
 
     # Read the model output error from txt file
