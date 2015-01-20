@@ -9,9 +9,8 @@
       backend: *be,
       repo_path: '/mnt/data/nersc/hurricane/',
       hdf5_file: 'hurricanes.h5',
-      variables: [0],
-      training_size: 1000,
-      test_size: 1000
+      training_size: 10000,
+      test_size: 10000
   },
   
   weight_init: &wt_init {
@@ -45,7 +44,7 @@
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 1, # Must match the number of variables.
+        nofm: 8, # Must match the number of variables.
         ofmshape: [32, 32],
       },
       !obj:neon.models.layer2.ConvLayer {
