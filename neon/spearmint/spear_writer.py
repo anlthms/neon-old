@@ -8,6 +8,7 @@ generating the PB file for Spearmint:
 
 import os
 
+
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
     scipt_name = 'spear_wrapper'  # script spearmint should call
@@ -57,6 +58,7 @@ def write_block(ho_dict):
     max:  """+str(ho_dict['end'])+"""
     }\n\n"""
     return outline
+
 
 def main():
     # point of code entry

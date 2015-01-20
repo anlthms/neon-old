@@ -14,6 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def main(job_id, params):
     logger.info('spear_wrapper job #:%s' % str(job_id))
     logger.info("spear_wrapper in directory: %s" % os.getcwd())
@@ -32,7 +33,7 @@ def call_convnet(params):
     # Generate the yaml file
     hyper_file = os.path.join(speramint_dir, 'hyperyaml.yaml')
     yaml_file = os.path.join(speramint_dir, 'yamels',
-                              'temp'+timestring+'.yaml')
+                             'temp' + timestring + '.yaml')
     try:
         os.mkdir('yamels')
     except OSError:
