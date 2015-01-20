@@ -104,6 +104,7 @@
         nofm: 64,
         fshape: [11, 11],
         stride: 4,
+        pad: 3,
         activation: !obj:neon.transforms.rectified.RectLin {},
       },
       !obj:neon.models.layer2.CrossMapResponseNormLayer {

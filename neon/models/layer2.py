@@ -75,6 +75,8 @@ class Layer(YAMLable):
             assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
             ofmshape.extend([int(mt.ceil(num / self.stride))])
+        # hard-setting this to 1 for now, as padding is working on all 3 dims
+        ofmshape[0] = 1
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
         self.ifmsize = reduce(mul, self.ifmshape)
