@@ -28,13 +28,6 @@
     num_epochs: 60,
     batch_size: &bs 100,
     learning_rate: &lr 0.01,
-    momentum: {
-      type: linear_monotone, #constant, nesterov
-      initial_coef: 0.99,
-      start_epoch: 5,
-      saturate_epoch: 5,
-      saturated_coef: 0.90,
-    },
     # serialized_path: './mlp-numpysml-simple.pkl',
     layers: [
       !obj:neon.models.layer.LayerDist {
@@ -48,19 +41,16 @@
             learning_rate: *lr,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
+              type: constant, #constant, nesterov
+              initial_coef: 0.90,
             },
           },
         },
         nin: 784,
         nout: 2000,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
           bias_init: 0.0,
@@ -81,11 +71,9 @@
         },
         nin: 2000,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
-        weight_init: {
-          type: node_normalized,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: !obj:params.NodeNormalizedValGen {
+          backend: *be,
           scale: 4.0,
           bias_init: 0.0,
         },
