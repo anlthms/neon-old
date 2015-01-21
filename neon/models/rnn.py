@@ -57,20 +57,20 @@ class RNN(Model):
         errorlist = []
         error = self.backend.empty((1, 1))
         suberror = self.backend.empty(num_batches)
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0)
             suberror.fill(0)
             hidden_init = None
             cell_init = None
-            for batch in xrange(num_batches):
-                batch_inx = xrange(batch*128*self.unrolls,
-                                   (batch+1)*128*self.unrolls+128)
+            for batch in range(num_batches):
+                batch_inx = list(range(batch*128*self.unrolls,
+                                       (batch+1)*128*self.unrolls+128))
                 self.fprop(inputs[batch_inx, :],
                            hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
                 self.bprop(targets[batch_inx, :], inputs[batch_inx, :],
                            debug=(True if batch == -1 else False))
-                self.update(epoch)
+                self.update(self.epochs_complete)
                 hidden_init = self.layers[0].output_list[-1]
                 if 'c_t' in self.layers[0].__dict__:
                     cell_init = self.layers[0].c_t[-1]
@@ -127,9 +127,10 @@ class RNN(Model):
                                      self.layers[1].output_list,
                                      targets[batch_inx, :])
             logger.info('epoch: %d, total training error per element: %0.5f',
-                        epoch, error.asnumpyarray())
+                        self.epochs_complete, error.asnumpyarray())
             for layer in self.layers:
                 logger.debug("%s", layer)
+            self.epochs_complete += 1
 
     def grad_checker(self, numgrad="lstm_ch"):
         """
@@ -149,8 +150,8 @@ class RNN(Model):
         if 'batch_size' not in self.__dict__:
             self.batch_size = nrecs
         batch = 0
-        batch_inx = xrange(batch*128*self.unrolls,
-                           (batch+1)*128*self.unrolls+128)
+        batch_inx = list(range(batch*128*self.unrolls,
+                               (batch+1)*128*self.unrolls+128))
         target_out = targets[batch_inx, :][(self.unrolls-0)*128:
                                            (self.unrolls+1)*128, :]
 
@@ -293,12 +294,12 @@ class RNN(Model):
     def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
               debug=False, numgrad=None):
         """
-        Refactor:
-        This bprop has an OUTER FOR LOOP over t-BPTT unrollings
-            for a given unrolling depth, we go output-hidden-hidden-input
-            which breaks down as:
-                  layers[1].bprop -- output layer
+        Backpropagation for a RNN.
 
+        Notes:
+            * Refactor: This bprop has an OUTER FOR LOOP over t-BPTT unrollings
+              for a given unrolling depth, we go output-hidden-hidden-input
+              which breaks down as: layers[1].bprop -- output layer
         """
         nin = self.layers[0].nin
 
@@ -343,12 +344,12 @@ class RNN(Model):
                                  tau, numgrad)
 
             # recurrent layers[0]: loop over different unrolling sizes
-            error_h = self.layers[1].berror
+            error_h = self.layers[1].deltas
             error_c = self.backend.zeros((self.layers[1].nin,
                                           self.batch_size))
             for t in list(range(0, tau))[::-1]:  # restored to 0 as in old RNN
                 self.layers[0].bprop(error_h, error_c, inputs, tau, t, numgrad)
-                error_h = self.backend.copy(self.layers[0].berror)
+                error_h = self.backend.copy(self.layers[0].deltas)
                 if 'cerror' in self.layers[0].__dict__:
                     error_c = self.layers[0].cerror
 
@@ -375,7 +376,7 @@ class RNN(Model):
                                       self.batch_size))
         hidden_init = None
         cell_init = None
-        for batch in xrange(num_batches):
+        for batch in range(num_batches):
             batch_inx = range(batch*128*self.unrolls,
                               (batch+1)*128*self.unrolls+128)
             self.fprop(inputs[batch_inx, :],
@@ -467,6 +468,6 @@ class RNN(Model):
         if self.make_plots:
             trace()  # just used to keep figures open
 
-    def predict_and_error(self):
+    def predict_and_error(self, dataset):
         predictions = self.predict()
-        self.error_metrics(self.dataset, predictions)
+        self.error_metrics(dataset, predictions)

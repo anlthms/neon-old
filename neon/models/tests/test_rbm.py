@@ -17,6 +17,7 @@ import numpy as np
 
 from neon.models.layer import RBMLayer
 from neon.models.learning_rule import GradientDescent
+from neon.params import GaussianValGen
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
 from neon.util.testing import assert_tensor_near_equal
@@ -39,7 +40,8 @@ class TestCudaRBM:
         # create fake layer
         nin = 2
         conf = {'name': 'testlayer', 'num_nodes': 2,
-                'weight_init': {'type': 'normal', 'loc': 0.0, 'scale': 0.01}}
+                'weight_init': GaussianValGen(backend=self.be, loc=0.0,
+                                              scale=0.01)}
         lr_params = {'learning_rate': 0.01, 'backend': self.be}
         thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
         activation = Logistic()

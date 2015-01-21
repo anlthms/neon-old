@@ -34,12 +34,12 @@
   },
 
   wt_cfgs: [
-    &wt_init_a {
-      type: autoscale,
+    &wt_init_a !obj:params.AutoUniformValGen {
+      backend: *be,
       bias_init: 0.0,
     },
-    &wt_init_b {
-      type: autoscale,
+    &wt_init_b !obj:params.AutoUniformValGen {
+      backend: *be,
       bias_init: 0.0,
       relu: 1,
     },

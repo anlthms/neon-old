@@ -62,7 +62,7 @@ class DBN(Model):
                             self.layers[i].weights.shape[1])
                 # If we are in the penultimate layer, append labels to the
                 # visibles ...
-            for epoch in range(self.num_epochs):
+            while self.epochs_complete < self.num_epochs:
                 error = 0.0
                 for batch in range(num_batches):
                     start_idx = batch * self.batch_size
@@ -70,7 +70,7 @@ class DBN(Model):
                     batch_in = inputs[start_idx:end_idx]
                     self.positive(batch_in, i)
                     self.negative(batch_in, i)
-                    self.update(epoch, i)
+                    self.update(self.epochs_complete, i)
                     batch_out = self.layers[i].x_minus[:,
                                                        0:(self.layers[i].
                                                           x_minus.shape[1] - 1)
@@ -80,7 +80,9 @@ class DBN(Model):
                                                       batch_out,
                                                       self.temp)
                 logger.info('epoch: %d, total training error: %0.5f',
-                            epoch, error / num_batches)
+                            self.epochs_complete, error / num_batches)
+                self.epochs_complete += 1
+            self.epochs_complete = 0  # reset for next layer
         # Part 2: up-down finetuning ... [not implemented yet]
 
     def positive(self, inputs, i):

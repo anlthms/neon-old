@@ -20,13 +20,11 @@
     },
   },
 
-  datasets: [
-    !obj:neon.datasets.iris.Iris {
-      backend: *be,
-      repo_path: '/usr/local/data',
-      sample_pct: 100,
-    },
-  ],
+  dataset: &ds !obj:neon.datasets.iris.Iris {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
 
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLP {
@@ -56,8 +54,8 @@
         nin: 4,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
           low: -1,
           high: 1,
           bias_init: 0.0,
@@ -83,12 +81,7 @@
         nin: 2, # previous nout
         nout: 3,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
-          low: -1,
-          high: 1,
-          bias_init: 0.0,
-        },
+        weight_init: *wt_init,
         weight_dtype: *def_dtype,
         updates_dtype: *def_dtype,
         pre_act_dtype: *def_dtype,

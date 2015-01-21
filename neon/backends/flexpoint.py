@@ -528,16 +528,28 @@ class Flexpoint(CPU):
         return (out_dtype, out_a, out_b)
 
     def add(self, a, b, out):
+        if not isinstance(a, self.tensor_cls):
+            a = self.wrap(a)
+        if not isinstance(b, self.tensor_cls):
+            b = self.wrap(b)
         in_dtype, a_tensor, b_tensor = self.scale_to_largest(a, b)
         np.add(a_tensor, b_tensor, out._tensor)
         fp_rescale_array(out._tensor, in_dtype, out.dtype)
 
     def subtract(self, a, b, out):
+        if not isinstance(a, self.tensor_cls):
+            a = self.wrap(a)
+        if not isinstance(b, self.tensor_cls):
+            b = self.wrap(b)
         in_dtype, a_tensor, b_tensor = self.scale_to_largest(a, b)
         np.subtract(a_tensor, b_tensor, out._tensor)
         fp_rescale_array(out._tensor, in_dtype, out.dtype)
 
     def multiply(self, a, b, out):
+        if not isinstance(a, self.tensor_cls):
+            a = self.wrap(a)
+        if not isinstance(b, self.tensor_cls):
+            b = self.wrap(b)
         # for multiplication we don't need matching scales to start
         np.multiply(a._tensor, b._tensor, out._tensor)
         tmp_dtype = flexpt_dtype(a.dtype['sign_bit'],
@@ -547,6 +559,10 @@ class Flexpoint(CPU):
         fp_rescale_array(out._tensor, tmp_dtype, out.dtype)
 
     def divide(self, a, b, out):
+        if not isinstance(a, self.tensor_cls):
+            a = self.wrap(a)
+        if not isinstance(b, self.tensor_cls):
+            b = self.wrap(b)
         # for division, shift the numerator to required scale first
         # then do integer division.
         # required scale assuming out has f frac bits, a has m frac bits, and
@@ -582,9 +598,8 @@ class Flexpoint(CPU):
         # expensive conversion to/from floating point.
         # See: http://lib.tkk.fi/Diss/2005/isbn9512275279/article8.pdf
         tmp = flex_to_float_array(x._tensor, x.dtype)
-        tmp = super(Flexpoint, self).wrap(tmp, tmp.dtype)
-        super(Flexpoint, self).logistic(tmp, tmp)
-        out._tensor = flex_from_float_array(tmp._tensor, out.dtype)
+        tmp = 1.0 / (1.0 + np.exp(- tmp))
+        out._tensor = flex_from_float_array(tmp, out.dtype)
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
@@ -594,32 +609,42 @@ class Flexpoint(CPU):
         fp_rescale_array(out._tensor, a.dtype, out.dtype)
         return out
 
-    def mean(self, x, axis=None, dtype='float32', out=None, keepdims=False):
+    def sum(self, x, axes=None, dtype='float32', out=None, keepdims=True):
         if x is None:
             return float('NaN')
-        res = np.mean(flex_to_float_array(x._tensor, x.dtype), axis, dtype,
-                      out, keepdims)
-        if axis is None and not keepdims:
+        res = np.sum(flex_to_float_array(x._tensor, x.dtype), axes, dtype,
+                     out._tensor, keepdims)
+        if axes is None and not keepdims:
             return res
         else:
             return FlexpointTensor(res, x.dtype)
 
-    def min(self, x, axis=None, out=None, keepdims=False):
+    def mean(self, x, axes=None, dtype='float32', out=None, keepdims=True):
         if x is None:
             return float('NaN')
-        res = np.min(flex_to_float_array(x._tensor, x.dtype), axis, out,
-                     keepdims)
-        if axis is None and not keepdims:
+        res = np.mean(flex_to_float_array(x._tensor, x.dtype), axes, dtype,
+                      out._tensor, keepdims)
+        if axes is None and not keepdims:
             return res
         else:
             return FlexpointTensor(res, x.dtype)
 
-    def max(self, x, axis=None, out=None, keepdims=False):
+    def min(self, x, axes=None, out=None, keepdims=True):
         if x is None:
             return float('NaN')
-        res = np.max(flex_to_float_array(x._tensor, x.dtype), axis, out,
-                     keepdims)
-        if axis is None and not keepdims:
+        res = np.min(flex_to_float_array(x._tensor, x.dtype), axes,
+                     out._tensor, keepdims)
+        if axes is None and not keepdims:
+            return res
+        else:
+            return FlexpointTensor(res, x.dtype)
+
+    def max(self, x, axes=None, out=None, keepdims=True):
+        if x is None:
+            return float('NaN')
+        res = np.max(flex_to_float_array(x._tensor, x.dtype), axes,
+                     out._tensor, keepdims)
+        if axes is None and not keepdims:
             return res
         else:
             return FlexpointTensor(res, x.dtype)

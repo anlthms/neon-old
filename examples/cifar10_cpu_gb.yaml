@@ -47,8 +47,8 @@
         ifmshape: [32, 32],
         fshape: [6, 6],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -94,8 +94,8 @@
         ifmshape: [23, 23],
         fshape: [6, 6],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -141,8 +141,8 @@
         ifmshape: [14, 14],
         fshape: [6, 6],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -186,8 +186,8 @@
         nin: 200, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },

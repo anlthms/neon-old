@@ -90,31 +90,29 @@ class GBDist(GB):
                 (self.layers[-1].nout, self.batch_size))
 
     def fit(self, datasets):
-        inputs = datasets[0].get_inputs(train=True)['train']
-        self.nrecs, self.nin = inputs.shape
+        inputs = datasets.get_inputs(train=True)['train']
         self.nlayers = len(self.layers)
         self.trainable_layers = []
         for ind in range(self.nlayers):
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
-            # logger.info('created layer:\n\t%s', str(layer))
 
-        targets = datasets[0].get_targets(train=True)['train']
+        targets = datasets.get_targets(train=True)['train']
 
         # For MPI
         self.adjust_for_dist()
 
         if self.pretraining:
-            self.pretrain(inputs, datasets[0])
+            self.pretrain(inputs, datasets)
             if self.visualize:
                 self.compute_optimal_stimulus()
         if self.spot_check:
-            test_inputs = datasets[0].get_inputs(test=True)['test']
-            test_targets = datasets[0].get_targets(test=True)['test']
+            test_inputs = datasets.get_inputs(test=True)['test']
+            test_targets = datasets.get_targets(test=True)['test']
             self.check_predictions(inputs, targets, test_inputs, test_targets)
         if self.num_epochs > 0:
-            self.train(inputs, targets, datasets[0])
+            self.train(inputs, targets, datasets)
 
     def pretrain(self, inputs, ds):
         start_time = time.time()
@@ -183,7 +181,7 @@ class GBDist(GB):
         self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
         num_batches = len(inputs)
-        for epoch in range(self.num_epochs):
+        while self.epochs.complete < self.num_epochs:
             error = 0.0
             for batch in range(num_batches):
                 if MPI.COMM_WORLD.rank == 0:
@@ -192,7 +190,7 @@ class GBDist(GB):
                 targets_batch = ds.get_batch(targets, batch)
 
                 self.fprop(inputs_batch)
-                if epoch < self.num_initial_epochs:
+                if self.epochs_complete < self.num_initial_epochs:
                     # only bprop on FC layers
                     self.bprop_last(targets_batch, inputs_batch)
                 else:
@@ -203,13 +201,14 @@ class GBDist(GB):
                                                       self.layers[-1].output,
                                                       targets_batch,
                                                       self.temp)
-                if epoch < self.num_initial_epochs:
-                    self.update_last(epoch)
+                if self.epochs_complete < self.num_initial_epochs:
+                    self.update_last(self.epochs_complete)
                 else:
-                    self.update(epoch)
+                    self.update(self.epochs_complete)
             if MPI.COMM_WORLD.rank == 0:
                 logger.info('epoch: %d, training error: %0.5f',
-                            epoch, error / num_batches)
+                            self.epochs_complete, error / num_batches)
+            self.epochs_complete += 1
         end_time = time.time()
         if MPI.COMM_WORLD.rank == 0:
             logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,

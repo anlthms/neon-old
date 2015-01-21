@@ -75,6 +75,8 @@ class Layer(YAMLable):
             assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
             ofmshape.extend([int(mt.ceil(num / self.stride))])
+        # hard-setting this to 1 for now, as padding is working on all 3 dims
+        ofmshape[0] = 1
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
         self.ifmsize = reduce(mul, self.ifmshape)
@@ -333,15 +335,15 @@ class WeightLayer(Layer):
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
-        self.weights = self.backend.gen_weights(
-            self.weight_shape, self.weight_init, self.weight_dtype)
+        self.weights = self.weight_init.generate(self.weight_shape,
+                                                 self.weight_dtype)
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
-        self.use_biases = 'bias_init' in self.weight_init
+        self.use_biases = 'bias_init' in self.weight_init.__dict__
         opt_param(self, ['brule_init'], None)
         if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.biases.fill(self.weight_init['bias_init'])
+            self.biases.fill(self.weight_init.bias_init)
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
@@ -627,13 +629,13 @@ class CompositeLayer(Layer):
 
 
 class BranchLayer(CompositeLayer):
-
     """
     Branch layer is composed of a list of other layers concatenated with one
-    another
-    during fprop, it concatenates the component outputs and passes it on
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it concatenates the component outputs and passes it on.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):
@@ -670,13 +672,13 @@ class BranchLayer(CompositeLayer):
 
 
 class ListLayer(Layer):
-
     """
     List layer is composed of a list of other layers stacked on top of one
-    another
-    during fprop, it simply fprops along the chain
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it simply fprops along the chain.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):

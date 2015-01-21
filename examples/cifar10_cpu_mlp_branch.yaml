@@ -16,8 +16,8 @@
   },
 
   weight_inits: [
-    &wt_init {
-      type: uniform,
+    &wt_init !obj:params.UniformValGen {
+      backend: *be,
       low: -0.1,
       high: 0.1,
     },

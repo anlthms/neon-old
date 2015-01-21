@@ -85,26 +85,28 @@ class GB(MLP):
         self.temp = [tempbuf1, tempbuf2]
         start_time = time.time()
         error = self.backend.empty((1, 1))
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
             for batch in range(num_batches):
                 logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
-                if epoch < self.num_initial_epochs:
+                if self.epochs_complete < self.num_initial_epochs:
                     self.bprop_last(targets_batch, inputs_batch)
                 else:
                     self.bprop(targets_batch, inputs_batch)
                 self.backend.add(error,
                                  self.cost.apply_function(targets_batch),
                                  error)
-                if epoch < self.num_initial_epochs:
-                    self.update_last(epoch)
+                if self.epochs_complete < self.num_initial_epochs:
+                    self.update_last(self.epochs_complete)
                 else:
-                    self.update(epoch)
+                    self.update(self.epochs_complete)
             logger.info('epoch: %d, training error: %0.5f',
-                        epoch, error.asnumpyarray() / num_batches)
+                        self.epochs_complete,
+                        error.asnumpyarray() / num_batches)
+            self.epochs_complete += 1
         end_time = time.time()
         logger.info('Time taken: %0.2f', end_time - start_time)
 
