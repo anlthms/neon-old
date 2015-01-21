@@ -8,7 +8,6 @@ backend.
 
 import logging
 import numpy as np
-import math as mt
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
@@ -72,8 +71,8 @@ class Layer(YAMLable):
         ofmshape = []
         for dim in range(len(self.ifmshape)):
             assert self.ifmshape[dim] >= self.fshape[dim]
-            num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
-            ofmshape.extend([int(mt.ceil(num / self.stride))])
+            num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
+            ofmshape.extend([(num + self.stride - 1) / self.stride])
         # hard-setting this to 1 for now, as padding is working on all 3 dims
         ofmshape[0] = 1
         self.ofmshape = tuple(ofmshape)
