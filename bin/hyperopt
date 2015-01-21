@@ -56,7 +56,7 @@ def parse_args():
     parser.add_argument('-n', '--threads', type=int, action='store', default=1,
                         help='number of simultaneous experiments')
     parser.add_argument('-y', '--yaml', type=str, action='store',
-                        default='examples/hyper_hurricane_cnn_small.yaml',
+                        default='examples/hyper_iris_small.yaml',
                         help='hyperyaml to generate protobuf from')
     return parser.parse_args()
 

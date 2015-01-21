@@ -1,7 +1,8 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Small convolutional net for hurricane patches.
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# Iris dataset.  Simple network meant more as a sanity check.
 
 !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
   filename: neon_result_validation.txt,
@@ -10,19 +11,17 @@
     rng_seed: 0,
   },
 
-  dataset: !obj:neon.datasets.hurricane.Hurricane {
-      backend: *be,
-      repo_path: '/Users/urs',
-      hdf5_file: 'hurricanes.h5',
-      variable: 0,
-      training_size: 1000,
-      test_size: 1000
+  dataset: &ds !obj:neon.datasets.iris.Iris {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
   },
 
-  weight_inits: &wt_init !obj:params.UniformValGen {
+  weight_init: &wt_init !obj:params.UniformValGen {
     backend: *be,
-    low: -0.1,
-    high: 0.1,
+    low: -1,
+    high: 1,
+    bias_init: 0.0,
   },
 
   lrule: &gdm {
@@ -32,64 +31,33 @@
       backend: *be,
       momentum_params: {
         type: constant,
-        coef: 0.90,
+        coef: 0,
       },
     },
   },
-  # CNN model specification
-  # essentially a multi-layer perceptron with convolutional and pooling layers
+  # simple MLP model specification
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: !hyperopt nep INT 2 10,
-    batch_size: &bs 100,
-    # serialized_path: './cnn-small.pkl',
+    num_epochs: !hyperopt nep INT 100 1000,
+    batch_size: &bs 30,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        nout: 1024,
-      },
-      !obj:neon.models.layer2.ConvLayer {
-        name: layer1,
-        nofm: 10,
-        ifmshape: [32, 32],
-        fshape: [5, 5],
-        stride: 1,
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-      },
-      !obj:neon.models.layer2.PoolingLayer {
-        name: layer2,
-        op: 'max',
-        fshape: [2, 2],
-        stride: 2,
-      },
-      !obj:neon.models.layer2.ConvLayer {
-        name: layer3,
-        nofm: 10,
-        fshape: [5, 5],
-        stride: 1,
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-      },
-      !obj:neon.models.layer2.PoolingLayer {
-        name: layer4,
-        op: 'max',
-        fshape: [2, 2],
-        stride: 2,
+        nout: 4,
       },
       !obj:neon.models.layer2.FCLayer {
-        name: layer5,
-        nout: 10,
-        activation: !obj:neon.transforms.rectified.RectLin {},
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-      },
-      !obj:neon.models.layer2.FCLayer {
-        name: output,
+        name: h0,
         nout: 2,
-        activation: !obj:neon.transforms.logistic.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+      },
+      &lastlayer !obj:neon.models.layer2.FCLayer {
+        name: output,
+        nout: 3,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:neon.transforms.logistic.Logistic {},
       },
       &costlayer !obj:neon.models.layer2.CostLayer {
         name: cost,

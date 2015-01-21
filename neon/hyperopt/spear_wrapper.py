@@ -5,7 +5,7 @@
 hyperopt script: spearmint calls into this file's main() function with the
 current set of parameters. It then:
 - reads the hyper-yaml file
-- parses the parameters suggested by sparemint
+- parses the parameters suggested by spearmint
 - generates a temp yaml file
 - runs neon
 - gets the outputs
@@ -23,10 +23,10 @@ def main(job_id, params):
     logger.info("spear_wrapper in directory: %s" % os.getcwd())
     logger.info("spear_wrapper params are:%s" % params)
 
-    return call_convnet(params)
+    return call_neon(params)
 
 
-def call_convnet(params):
+def call_neon(params):
     """
     runs the system call to neon and reads the result to give back to sm
     """
