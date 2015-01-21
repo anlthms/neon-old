@@ -63,18 +63,12 @@ class Layer(YAMLable):
         opt_param(self, ['stride'], 1)
         opt_param(self, ['pad'], 0)
 
-        if len(self.ifmshape) == 2:
-            self.ifmshape = (1, self.ifmshape[-2], self.ifmshape[-1])
-        if len(self.fshape) == 2:
-            self.fshape = (1, self.fshape[-2], self.fshape[-1])
         assert len(self.ifmshape) == len(self.fshape)
         ofmshape = []
         for dim in range(len(self.ifmshape)):
             assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
             ofmshape.extend([(num + self.stride - 1) / self.stride])
-        # hard-setting this to 1 for now, as padding is working on all 3 dims
-        ofmshape[0] = 1
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
         self.ifmsize = np.prod(self.ifmshape)
@@ -91,12 +85,10 @@ class Layer(YAMLable):
     def __str__(self):
         if self.is_local:
             format_str = (
-                '{} x ({} x {} x {}) inputs, {} x ({} x {} x {}) nodes')
+                '{} x {} inputs, {} x {} nodes')
             ionumstr = format_str.format(
-                self.nifm,
-                self.ifmshape[-3], self.ifmshape[-2], self.ifmshape[-1],
-                self.nofm,
-                self.ofmshape[-3], self.ofmshape[-2], self.ofmshape[-1])
+                self.nifm, self.format_tuple(self.ifmshape),
+                self.nofm, self.format_tuple(self.ofmshape))
         else:
             ionumstr = "{nin} inputs, {nout} nodes".format(
                        nin=self.nin, nout=self.nout)
@@ -106,6 +98,12 @@ class Layer(YAMLable):
                 (lyr_tp=self.__class__.__name__,
                  lyr_nm=self.name, ionum=ionumstr,
                  act_nm=self.activation.__class__.__name__))
+
+    def format_tuple(self, tup):
+        result = '(' + str(tup[0])
+        for dim in range(1, len(tup)):
+            result += ' x ' + str(tup[dim])
+        return result + ')'
 
     def allocate_output_bufs(self):
         make_zbuf = self.backend.zeros
@@ -125,28 +123,29 @@ class Layer(YAMLable):
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
+        # This function works for any number of dimensions.
+        ndims = len(ifmshape)
+        dimsizes = np.empty(ndims, dtype='int32')
+        for dim in range(ndims):
+            dimsizes[dim] = np.prod(ifmshape[dim:])
         links = []
-        framesize = ifmshape[-2] * ifmshape[-1]
-        for frm in range(ofmshape[-3]):
-            for row in range(ofmshape[-2]):
-                for col in range(ofmshape[-1]):
-                    # This variable tracks the top left corner of
-                    # the receptive field.
-                    src = frm * framesize + row * ifmshape[-1] + col
-                    src *= stride
-                    indlist = []
-                    for frow in range(fshape[-2]):
-                        start = src + frow * ifmshape[-1]
-                        indlist.extend(range(start, start + fshape[-1]))
-                    fminds = np.array(indlist)
-                    for ffrm in range(1, fshape[-3]):
-                        indlist.extend(list(fminds + ffrm * framesize))
-                    if fshape[-3] > 1:
-                        fminds = np.array(indlist)
-                    if self.pooling is False:
-                        for ifm in range(1, nifm):
-                            indlist.extend(list(fminds + ifm * ifmsize))
-                    links.append(indlist)
+        for ofmdim in np.ndindex(ofmshape):
+            # This variable tracks the top left corner of
+            # the receptive field.
+            src = ofmdim[-1]
+            for dim in range(-1, -ndims, -1):
+                src += dimsizes[dim] * ofmdim[dim - 1]
+            src *= stride
+            indlist = list(range(src, src + fshape[-1]))
+            for dim in range(-1, -ndims, -1):
+                indarray = np.array(indlist)
+                for dimind in range(1, fshape[dim - 1]):
+                    indlist.extend(list(indarray + dimind * dimsizes[dim]))
+            if self.pooling is False:
+                indarray = np.array(indlist)
+                for ifm in range(1, nifm):
+                    indlist.extend(list(indarray + ifm * ifmsize))
+            links.append(indlist)
         self.links = np.array(links, dtype='int32')
 
     def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
