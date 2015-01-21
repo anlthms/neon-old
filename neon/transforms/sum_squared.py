@@ -63,7 +63,7 @@ class SumSquaredDiffs(Cost):
             self.temp = [tempbuf]
         self.outputbuf = databuf
 
-    def get_berrbuf(self):
+    def get_deltabuf(self):
         return self.temp[0]
 
     def apply_function(self, targets):

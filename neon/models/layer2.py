@@ -104,7 +104,7 @@ class Layer(YAMLable):
     def allocate_output_bufs(self):
         make_zbuf = self.backend.zeros
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
-        opt_param(self, ['berr_shape'], (self.nin, self.batch_size))
+        opt_param(self, ['delta_shape'], (self.nin, self.batch_size))
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
 
@@ -115,7 +115,7 @@ class Layer(YAMLable):
 
         self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.deltas = make_zbuf(self.berr_shape, self.deltas_dtype)
+            self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
@@ -192,7 +192,7 @@ class CostLayer(Layer):
         self.targets = None
         self.cost.olayer = self.prev_layer
         self.cost.initialize(kwargs)
-        self.deltas = self.cost.get_berrbuf()
+        self.deltas = self.cost.get_deltabuf()
 
     def __str__(self):
         return ("{lyr_tp} {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
