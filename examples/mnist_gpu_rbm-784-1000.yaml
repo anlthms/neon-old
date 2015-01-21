@@ -38,8 +38,8 @@
         nin: 784,
         nout: 1000,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: normal,
+        weight_init: !obj:params.GaussianValGen {
+          backend: *be,
           loc: 0.0,
           scale: 0.01,
         },

@@ -15,8 +15,8 @@
   },
 
   weight_inits: [
-    &wt_init {
-      type: gaussian,
+    &wt_init !obj:params.GaussianValGen {
+      backend: *be,
       scale: 0.1,
     },
   ],
