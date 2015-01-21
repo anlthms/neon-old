@@ -84,20 +84,16 @@ class Layer(YAMLable):
 
     def __str__(self):
         if self.is_local:
-            format_str = (
-                '{} x {} inputs, {} x {} nodes')
-            ionumstr = format_str.format(
+            ionumstr = '{} x {} inputs, {} x {} nodes'.format(
                 self.nifm, self.format_tuple(self.ifmshape),
                 self.nofm, self.format_tuple(self.ofmshape))
         else:
-            ionumstr = "{nin} inputs, {nout} nodes".format(
-                       nin=self.nin, nout=self.nout)
+            ionumstr = '{} inputs, {} nodes'.format(self.nin, self.nout)
 
-        return ("Layer {lyr_tp} {lyr_nm}: {ionum}, {act_nm} act_fn, "
-                "\n\t".format
-                (lyr_tp=self.__class__.__name__,
-                 lyr_nm=self.name, ionum=ionumstr,
-                 act_nm=self.activation.__class__.__name__))
+        ret = '{} {}: {}'.format(self.__class__.__name__, self.name, ionumstr)
+        if self.activation is not None:
+            ret += ', {} act_fn'.format(self.activation.__class__.__name__)
+        return ret
 
     def format_tuple(self, tup):
         result = '(' + str(tup[0])
@@ -199,9 +195,10 @@ class CostLayer(Layer):
         self.deltas = self.cost.get_berrbuf()
 
     def __str__(self):
-        return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
+        return ("{lyr_tp} {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
                 "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nin=self.nin,
+                (lyr_tp=self.__class__.__name__,
+                 lyr_nm=self.name, nin=self.nin,
                  cost_nm=self.cost.__class__.__name__,
                  be_nm=self.backend.__class__.__name__))
 
@@ -250,14 +247,13 @@ class DataLayer(Layer):
 
     def __str__(self):
         if self.is_local:
-            ionumstr = "{} x ({} x {}) nodes".format(
-                       self.nofm, self.ofmshape[-2], self.ofmshape[-1])
+            ionumstr = '{} x {} nodes'.format(self.nofm,
+                                              self.format_tuple(self.ofmshape))
         else:
-            ionumstr = "{nout} nodes".format(nout=self.nout)
+            ionumstr = "{} nodes".format(self.nout)
 
-        return ("Layer {lyr_tp} {lyr_nm}: {ionum}\n\t".format
-                (lyr_tp=self.__class__.__name__,
-                 lyr_nm=self.name, ionum=ionumstr))
+        return ("{} {}: {}".format(self.__class__.__name__,
+                                   self.name, ionumstr))
 
     def set_previous_layer(self, pl):
         pass
