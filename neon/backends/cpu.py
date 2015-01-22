@@ -209,13 +209,10 @@ class CPU(Backend):
     Attributes:
         default_dtype (dtype): default element data type.  We assume 32-bit
                                float
-        epsilon (float): the unit roundoff for the elements underlying this
-                         tensor.
     See also:
         CPUTensor
     """
     default_dtype = 'float32'
-    epsilon = np.finfo(default_dtype).eps
     tensor_cls = CPUTensor
 
     def __init__(self, **kwargs):

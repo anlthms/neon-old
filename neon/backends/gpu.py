@@ -395,13 +395,8 @@ class GPU(Backend):
     based backend for matrix operations.
 
     Attributes:
-        epsilon (float): the unit roundoff for the elements underlying this
-                         tensor.
     """
-    # we need to cast epsilon to float to ensure it works with some of the type
-    # checking in cudanet functions like less_than() and so forth
     default_dtype = 'float32'
-    epsilon = float(numpy.finfo(default_dtype).eps)
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):

@@ -11,19 +11,20 @@ from neon.transforms.softmax import Softmax
 from neon.util.param import opt_param
 
 
-def cross_entropy(backend, outputs, targets, temp):
+def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
     Given that this is undefined for predicted outputs equal to exactly 0 or
-    1.0, we first clip these outputs to epsilon (backend machine precision) and
-    1.0 - epsilon respectively.
+    1.0, we first clip these outputs to epsilon and 1.0 - epsilon respectively.
 
     Arguments:
         backend (Backend): The backend class to use for computation.
         outputs (Tensor): predicted output values to be compared.
         targets (Tensor): known outcome values to be compared against.
         temp (list): temporary buffers.
+        epsilon (numeric): unit roundoff error.  Defaults to 2^-23, which
+                           matches python float32 machine epsilon.
 
     Returns:
         Tensor: Calculated cross entropy values for each element.
@@ -31,12 +32,12 @@ def cross_entropy(backend, outputs, targets, temp):
     # Compute (t-1)*log(1-y).
     backend.add(targets, -1.0, out=temp[0])
     backend.subtract(1.0, outputs, out=temp[1])
-    backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
+    backend.clip(temp[1], epsilon, 1 - epsilon, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(temp[0], temp[1], out=temp[0])
 
     # Compute t*log(y).
-    backend.clip(outputs, backend.epsilon, 1 - backend.epsilon, out=temp[1])
+    backend.clip(outputs, epsilon, 1 - epsilon, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
 
@@ -47,7 +48,7 @@ def cross_entropy(backend, outputs, targets, temp):
     return backend.sum(temp[0], axes=None, out=result)
 
 
-def cross_entropy_multi(backend, outputs, targets, temp):
+def cross_entropy_multi(backend, outputs, targets, temp, epsilon=2**-23):
     """
     Evaluates cross entropy on elements from outputs and targets.
 
@@ -56,13 +57,15 @@ def cross_entropy_multi(backend, outputs, targets, temp):
         outputs (Tensor): predicted output values to be compared.
         targets (Tensor): known outcome values to be compared against.
         temp (Tensor): temporary buffers.
+        epsilon (numeric): unit roundoff error.  Defaults to 2^-23, which
+                           matches python float32 machine epsilon.
 
     Returns:
         Tensor: Calculated cross entropy values for each element.
     """
 
     # Compute (t*log(y)).
-    backend.clip(outputs, backend.epsilon, 1, out=temp[1])
+    backend.clip(outputs, epsilon, 1, out=temp[1])
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
@@ -70,7 +73,8 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     return backend.sum(temp[0], axes=0, out=result)
 
 
-def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
+def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0,
+                             epsilon=2**-23):
     """
     Applies derivative of the cross entropy to the pairwise elements from
     outputs and targets.
@@ -84,6 +88,8 @@ def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
         outputs (Tenor): predicted output values to be compared.
         targets (Tensor): known outcome values to be compared against.
         temp (Tensor): temporary buffers.
+        epsilon (numeric): unit roundoff error.  Defaults to 2^-23, which
+                           matches python float32 machine epsilon.
 
     Returns:
         Tensor: Calculated cross entropy values for each element.
@@ -91,7 +97,7 @@ def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
     backend.subtract(outputs, targets, out=temp[0])
     backend.subtract(1.0, outputs, out=temp[1])
     backend.multiply(temp[1], outputs, out=temp[1])
-    backend.clip(temp[1], backend.epsilon, 1 - backend.epsilon, out=temp[1])
+    backend.clip(temp[1], epsilon, 1 - epsilon, out=temp[1])
     backend.divide(temp[0], temp[1], out=temp[0])
     return temp[0]
 
