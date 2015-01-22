@@ -13,55 +13,67 @@
     },
   },
 
-  datasets: [
-    # MNIST data
-    !obj:neon.datasets.mnist.MNIST {
+  dataset: !obj:neon.datasets.mnist.MNIST {
       backend: *be,
       repo_path: '/usr/local/data',
       sample_pct: 100,
+  },
+
+  weight_init: &wt_init !obj:params.GaussianValGen {
+    backend: *be,
+    loc: 0.0,
+    scale: 0.01,
+    bias_init: 0.0,
+  },
+
+  lrule: [
+    &gdm {
+      type: gradient_descent_momentum,
+      lr_params: {
+        learning_rate: 0.1,
+        backend: *be,
+        momentum_params: {
+          type: constant,
+          coef: 0.0,
+        },
+      },
+    },
+    &ada {
+      type: adadelta,
+      lr_params: {
+        rho: &ro 0.95,
+        epsilon: &eps 0.000001,
+        backend: *be,
+      },
     },
   ],
-
   # simple MLP model specification
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:neon.models.mlp.MLPB {
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
     serialized_path: './logreg.pkl',
     layers: [
-      &lastlayer !obj:neon.models.layer.Layer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        nout: 784,
+      },
+      &lastlayer !obj:neon.models.layer2.FCLayer {
         name: h0,
         backend: *be,
-        batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
-          name: h0lr,
-          lr_params: {
-            learning_rate: &lr 0.01,
-            backend: *be,
-            momentum_params: &mm {
-              type: linear_monotone,
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
-            },
-          },
-        },
         nin: 784,
         nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: !obj:params.GaussianValGen {
-          backend: *be,
-          loc: 0.0,
-          scale: 0.01,
-          bias_init: 0.0,
-        },
+      },
+      &costlayer !obj:neon.models.layer2.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
-      olayer: *lastlayer,
-    },
   },
 
   # logging options that are passed to logging.basicConfig

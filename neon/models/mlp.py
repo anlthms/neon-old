@@ -31,7 +31,6 @@ class MLP(Model):
         self.nlayers = len(self.layers)
         self.result = 0
         self.cost.initialize(kwargs)
-        assert self.layers[-1].nout <= 2 ** 15
 
     def fit(self, dataset):
         """
@@ -284,8 +283,6 @@ class MLPB(MLP):
         self.class_layer = self.layers[-2]
 
         self.link_and_initialize(self.layers, kwargs)
-
-        assert self.layers[-1].nout <= 2 ** 15
 
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
