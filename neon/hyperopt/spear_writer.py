@@ -35,11 +35,11 @@ def parse_line(line):
     ho_dict['name'] = dic[2]
     ho_dict['type'] = dic[3]
     if (ho_dict['type'] == 'FLOAT'):
-        ho_dict['end'] = float(dic[4])
-        ho_dict['start'] = float(dic[5])
+        ho_dict['start'] = float(dic[4])
+        ho_dict['end'] = float(dic[5])
     elif (ho_dict['type'] == 'INT'):
-        ho_dict['end'] = int(dic[4])
-        ho_dict['start'] = int(dic[5])
+        ho_dict['start'] = int(dic[4])
+        ho_dict['end'] = int(dic[5])
     else:
         print "got ho_dict['type']", ho_dict['type']
         raise AttributeError("Supported types are FLOAT, INT, ENUM")

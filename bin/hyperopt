@@ -40,7 +40,10 @@ localhost:50000.
 """
 
 import argparse
-import os, sys
+import os
+import shutil
+import sys
+
 from neon.hyperopt import spear_writer
 
 
@@ -71,15 +74,7 @@ def main():
     spearmint_dir = os.path.join(root, 'spearmint',
                                     'spearmint' ,'bin')
     if (argz.cmd == 'reset'):
-        os.system(os.path.join(spearmint_dir ,'cleanup') + " " + hyperopt_dir)
-        # [todo] one dirty rm here, how to unlink with *?
-        os.system('rm ' + os.path.join(hyperopt_dir, 'yamels') + '/*.yaml')
-        os.rmdir(os.path.join(hyperopt_dir, 'yamels'))
-        os.rmdir(os.path.join(hyperopt_dir, 'jobs'))
-        os.rmdir(os.path.join(hyperopt_dir, 'output'))
-        os.unlink(os.path.join(hyperopt_dir, 'neon_result_validation.txt'))
-        os.unlink(os.path.join(hyperopt_dir, 'spear_config.pb'))
-        os.unlink(os.path.join(hyperopt_dir, 'hyperyaml.yaml'))
+        shutil.rmtree(hyperopt_dir)
         print("Running cleanup")
     if (argz.cmd == 'run'):
         os.chdir(hyperopt_dir)
@@ -93,7 +88,6 @@ def main():
         if not os.path.exists(hyperopt_dir):
             os.makedirs(hyperopt_dir)
         input_file = argz.yaml
-        import shutil
         shutil.copy2(input_file, 'neon/hyperopt/expt/hyperyaml.yaml')
         spear_writer.main()
 
