@@ -31,11 +31,11 @@ def call_neon(params):
     runs the system call to neon and reads the result to give back to sm
     """
     timestring = str(int(time.time()))
-    speramint_dir = os.path.dirname(os.path.realpath(__file__))
-
+    experiment_dir = os.path.dirname(os.path.realpath(__file__))
+    experiment_dir = os.path.join(experiment_dir, 'expt')
     # Generate the yaml file
-    hyper_file = os.path.join(speramint_dir, 'hyperyaml.yaml')
-    yaml_file = os.path.join(speramint_dir, 'yamels',
+    hyper_file = os.path.join(experiment_dir, 'hyperyaml.yaml')
+    yaml_file = os.path.join(experiment_dir, 'yamels',
                              'temp' + timestring + '.yaml')
     try:
         os.mkdir('yamels')
@@ -44,7 +44,7 @@ def call_neon(params):
     result_fname = write_params(hyper_file, yaml_file, params)
 
     # System call to run bin/neon model
-    neonbin = os.path.join(speramint_dir, '..', '..', 'bin', 'neon')
+    neonbin = os.path.join(experiment_dir, '..', '..', '..', 'bin', 'neon')
     callstring = neonbin + " " + yaml_file
     os.system(callstring)
 

@@ -13,7 +13,7 @@ import os
 
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
-    scipt_name = 'spear_wrapper'  # script spearmint should call
+    scipt_name = 'neon.hyperopt.spear_wrapper'  # script spearmint should call
     supported_expt_bool = False  # hyperyaml specifies supported experiment
     with open(input_file, 'r') as fin:
         with open(pb_file, 'w') as fout:
@@ -65,8 +65,8 @@ def write_block(ho_dict):
 def main():
     # point of code entry
     hyperroot = os.path.dirname(os.path.realpath(__file__))
-    in_file = os.path.join(hyperroot, 'hyperyaml.yaml')
-    pb_file = os.path.join(hyperroot, 'spear_config.pb')
+    in_file = os.path.join(hyperroot, 'expt/hyperyaml.yaml')
+    pb_file = os.path.join(hyperroot, 'expt/spear_config.pb')
 
     success = write_pb(in_file, pb_file)
     if success:

@@ -67,7 +67,7 @@ def main():
     argz = parse_args()
     bin_path = os.path.dirname(os.path.realpath(__file__))
     root = os.path.split(os.path.split(bin_path)[0])[0]
-    hyperopt_dir = os.path.join(root, 'neon', 'neon' ,'hyperopt')
+    hyperopt_dir = os.path.join(root, 'neon', 'neon' ,'hyperopt', 'expt')
     spearmint_dir = os.path.join(root, 'spearmint',
                                     'spearmint' ,'bin')
     if (argz.cmd == 'reset'):
@@ -92,7 +92,7 @@ def main():
     if (argz.cmd == 'init'):
         input_file = argz.yaml
         import shutil
-        shutil.copy2(input_file, 'neon/hyperopt/hyperyaml.yaml')
+        shutil.copy2(input_file, 'neon/hyperopt/expt/hyperyaml.yaml')
         spear_writer.main()
 
 if __name__ == '__main__':
