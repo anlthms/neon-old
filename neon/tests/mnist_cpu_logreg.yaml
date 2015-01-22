@@ -19,19 +19,12 @@
       sample_pct: 100,
   },
 
-  weight_inits: [
-    &wt_init !obj:params.GaussianValGen {
-      backend: *be,
-      loc: 0.0,
-      scale: 0.01,
-      bias_init: 0.0,
-    },
-    &wt_initb !obj: params.NodeNormalizedValGen {
-      backend: *be,
-      scale: 4.0,
-      bias_init: 0.0,
-    },
-  ],
+  weight_init: &wt_init !obj:params.GaussianValGen {
+    backend: *be,
+    loc: 0.0,
+    scale: 0.01,
+    bias_init: 0.0,
+  },
 
   lrule: [
     &gdm {
@@ -72,7 +65,7 @@
         nin: 784,
         nout: 10,
         lrule_init: *gdm,
-        weight_init: *wt_initb,
+        weight_init: *wt_init,
         activation: !obj:neon.transforms.logistic.Logistic {},
       },
       &costlayer !obj:neon.models.layer2.CostLayer {

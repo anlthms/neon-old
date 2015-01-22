@@ -31,7 +31,6 @@ class MLP(Model):
         self.nlayers = len(self.layers)
         self.result = 0
         self.cost.initialize(kwargs)
-        assert self.layers[-1].nout <= 2 ** 15
 
     def fit(self, dataset):
         """
@@ -284,8 +283,6 @@ class MLPB(MLP):
 
         self.link_and_initialize(self.layers, kwargs)
 
-        assert self.layers[-1].nout <= 2 ** 15
-
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
             ll.set_previous_layer(pl)
@@ -375,6 +372,7 @@ class MLPB(MLP):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs,
                 logloss_sum.asnumpyarray() / nrecs))
+            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
-            return_err[setname] = misclass_sum.asnumpyarray()[0, 0] / nrecs
+            return_err[setname] = self.result
         return return_err
