@@ -18,9 +18,9 @@
       rounding: 0,
     },
     module_logging_levels: &mod_logging_levels {
-      backend: 10,
-      umd: 10,
-      compiler: 10,
+      backend: 40,
+      umd: 40,
+      compiler: 40,
     },
     use_flex_dtype: &use_flex_dtype True,
   },
