@@ -90,6 +90,8 @@ def main():
                   '--max-concurrent=' + str(argz.threads) +
                   ' -w --port=' + str(argz.port) )
     if (argz.cmd == 'init'):
+        if not os.path.exists(hyperopt_dir):
+            os.makedirs(hyperopt_dir)
         input_file = argz.yaml
         import shutil
         shutil.copy2(input_file, 'neon/hyperopt/expt/hyperyaml.yaml')

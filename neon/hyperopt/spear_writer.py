@@ -40,9 +40,6 @@ def parse_line(line):
     elif (ho_dict['type'] == 'INT'):
         ho_dict['end'] = int(dic[4])
         ho_dict['start'] = int(dic[5])
-    elif (ho_dict['type'] == 'STRING'):
-        ho_dict['end'] = dic[4]
-        ho_dict['start'] = dic[5]
     else:
         print "got ho_dict['type']", ho_dict['type']
         raise AttributeError("Supported types are FLOAT, INT, ENUM")
