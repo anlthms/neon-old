@@ -948,6 +948,7 @@ class CPU(Backend):
             weights (CPUTensor): The weight coefficient values for this layer.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -992,6 +993,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -1036,6 +1038,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -1087,6 +1090,7 @@ class CPU(Backend):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
@@ -1139,10 +1143,12 @@ class CPU(Backend):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                               each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
                             width).
+            fpsize (int): The size of each filter.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
             links (CPUTensor): Input receptive field indices.
@@ -1413,6 +1419,7 @@ class CPU(Backend):
             weights (CPUTensor): The weight coefficient values for this layer.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
         """
         tmp = self.empty([ifmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
@@ -1433,6 +1440,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
         """
         self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape, ifmsize)
 
@@ -1447,6 +1455,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
+            ifmsize (int): Total size of each input feature map.
             updatebuf (CPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
