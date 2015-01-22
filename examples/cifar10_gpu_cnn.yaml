@@ -12,8 +12,8 @@
       # serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
   },
 
-  weight_inits: &wt_init {
-    type: uniform,
+  weight_inits: &wt_init !obj:params.UniformValGen {
+    backend: *be,
     low: -0.1,
     high: 0.1,
   },
