@@ -86,7 +86,7 @@ process to train and run inference on a toy network:
 
 .. literalinclude:: ../../examples/ANNOTATED_EXAMPLE.yaml
    :linenos:
-   
+
 Installing MPI on an Ubuntu cluster (for distributed models)
 ------------------------------------------------------------
 Neon provides distributed implementations of convnets and sparse autoencoders in addition to the non-distributed implementations.
@@ -146,8 +146,58 @@ In distributed environments with multiple nodes full paths might be needed for m
 
 .. code-block:: bash
 
-    /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts 
-        /<full_path_to_neon>/neon 
+    /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts
+        /<full_path_to_neon>/neon
         /<full_path_to_examples>/mnist_distarray_cpu_cnn-20-50-500-10.yaml
 
 LD_LIBRARY_PATH should point to /<path_to_openmpi>/lib. A common file system is assumed.
+
+Hyperparameter optimization
+---------------------------
+Finding good hyperparameters for deep networks is quite tedious to do manually and can be
+greatly accelerated by performing automated hyperparameter tuning. To this end, third-party
+hyperparameter optimization packages can be integrated with neon. We currently offer
+support for Spearmint, available as a fork at `https://github.com/ursk/spearmint/`. The package depends on google protobufs and uses the flask webserver for visualizing results.
+
+To perform a serach over a set of hyperparameters specified in a neon yaml file, create a new yaml file with the top level experiment type `neon.experiments.write_error_to_file.WriteErrorToFile`. This takes two additional arguments
+
+.. code-block:: bash
+
+    !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
+    filename: neon_result_validation.txt,
+    item: test,
+The first, `filename` specifies the name of the file the result of the run should be written to, and the second, `item`, specifies which error (i.e. for the `test`, `training` or `validation` set) should be used as the objective function for the hyperparameter optimization.
+
+Then in the model specifications of the yaml simply replace a hyper-parameter
+.. code-block:: bash
+
+    # specifying a constant learning rate
+    learning_rate: 0.1,
+
+with a range over which to search
+
+.. code-block:: bash
+
+    # specifying a range from 0.01 to 0.1 for the learning rate
+    learning_rate: !hyperopt lr FLOAT 0.01 0.1,
+
+where the !hyperopt flag signals that this is a parameter to be optimized, followed by a name used to keep track of the parameter, and the type of variable. Currently, FLOAT and INT are supported. The last two parameters indicate the start and end of the range. An arbitrary number of parameters can be replaced by ranges. Only scalar, numerical parameters are supported.
+
+To run a hyperoptimization experiment, call the `bin/hyperopt` executable. To initialize a new exeriment, use the `init` flag and pass the `-y` argument to pass the yaml file containing the hyperparameter ranges, for example
+
+.. code-block:: bash
+
+    PYTHONPATH='.' bin/hyperopt init -y examples/hyper_iris_small.yaml
+
+this creates a speramint configuration file in proptobuf format in the `neon/hyperopt/expt` directory. Then run the experiment by calling with the `run` flag and specifying a port with the `-p` argument where outputs will be generated, for example
+
+.. code-block:: bash
+
+    PYTHONPATH='.' bin/hyperopt run -p 50000
+
+The output can be viewed in the browser at `http://localhost:50000`, or by directly inspecting the files in the `neon/hyperopt/expt` directory. The experiment will keep running indefinitely. It can be interrupted with `Ctrl+C` and continued by calling the `hyperopt run`command again. To start a new experiment, reset the previous one first by running
+.. code-block:: bash
+
+    PYTHONPATH='.' bin/hyperopt reset
+
+or manually deleting the contents of the `neon/hyperopt/expt` directory.
