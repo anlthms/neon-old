@@ -22,7 +22,8 @@
       umd: 40,
       compiler: 40,
     },
-    use_flex_dtype: &use_flex_dtype True,
+    use_flex_dtype: &use_flex_dtype False,
+    use_compiler: &use_compiler False,
   },
 
   dataset: &ds !obj:neon.datasets.iris.Iris {
