@@ -66,8 +66,8 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    result = backend.empty((1, temp[0].shape[1]))
-    return backend.sum(temp[0], axes=0, out=result)
+    result = backend.empty((1, 1))
+    return backend.sum(temp[0], axes=None, out=result)
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
@@ -198,7 +198,8 @@ class CrossEntropy(Cost):
         """
         result = self.ce_function(self.backend, self.outputbuf, targets,
                                   self.temp)
-        return self.backend.multiply(result, self.scale, out=result)
+        self.backend.multiply(result, self.scale, out=result)
+        return result
 
     def apply_derivative(self, targets):
         """

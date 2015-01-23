@@ -53,7 +53,7 @@ def test_xcov_gputensor():
     tempbuf4 = be.empty(outputs.shape)
     temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
     my_result = xcov_cost(be, outputs, [], temp, k1)
-    assert_tensor_near_equal(expected_result, my_result)
+    assert_tensor_near_equal(expected_result, my_result, tolerance=1e-3)
 
 
 def test_xcov_derivative_cputensor():
