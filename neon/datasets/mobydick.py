@@ -12,7 +12,7 @@ import os
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED, range
-
+from ipdb import set_trace as trace
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +69,22 @@ class MOBYDICK(Dataset):
             array = onehots
 
         return array
+    
+    def transpose_batches(self, data):
+            """
+            Transpose each minibatch within the dataset.
+            """
+            bs = self.batch_size * self.unrolls
+            trace()
+            if data.shape[0] % bs != 0:
+                logger.warning('Incompatible batch size. Discarding %d samples...',
+                               data.shape[0] % bs)
+            nbatches = data.shape[0] / bs
+            batchwise = [[] for k in range(nbatches)]
+            for batch in range(nbatches):
+                batchdata = [self.backend.array(data[batch * bs  : (batch + 1) * bs]) for k in range(self.unrolls)]
+                batchwise.append((batchdata))
+            return batchwise
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -108,7 +124,8 @@ class MOBYDICK(Dataset):
                 splay_3d = numpy.transpose(splay_3d, (1, 0, 2))
                 splay_3d = splay_3d.reshape(-1, self.batch_size)
                 self.inputs[dataset] = self.backend.array(splay_3d)
-            # self.format()  # Mobydick does not need this
+                self.targets[dataset] = self.backend.array(splay_3d) # we need targets!
+            self.format()  # runs transpose_batches
 
         else:
             raise AttributeError('repo_path not specified in config')

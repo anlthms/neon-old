@@ -401,3 +401,18 @@ class RNN(Model):
             dataset = self.dataset
         predictions = self.predict()
         self.error_metrics(dataset, predictions)
+
+class RNNB(MLPB):
+    def __init__(self, **kwargs):
+        self.data_layer = self.layers[0]
+        self.rec_layer = self.layers[1]
+        self.class_layer = self.layers[2]
+        self.cost_layer = self.layers[32]
+
+    def fprop(self):
+        pass
+
+    def bprop(self):
+        pass
+
+        
