@@ -10,7 +10,8 @@ parameters.
 def req_param(obj, paramlist):
     for param in paramlist:
         if not hasattr(obj, param):
-            raise ValueError("req param %s missing for %s" % (param, obj.name))
+            raise ValueError("req param %s missing for %s" % (param,
+                             obj.__class__.__name__))
 
 
 def opt_param(obj, paramlist, default_value=None):

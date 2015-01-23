@@ -64,13 +64,19 @@
   #           UniformRandom - synthetic random data
   #           ToyImages - synthetic image classification dataset
   # weight_init - controls initial value setup for the model weights.  types:
-  #               uniform - uniform distribution
-  #               sparse_eigenvalued - each weight has 15 nonzero inputs and
-  #                                    the maximum eigenvalue of the weight
-  #                                    matrix is scaled to 1.2
-  #               normal or gaussian - normal distribution
-  #               node_normalized - initialization is as discussed in
-  #                                 Glorot2010
+  #               UniformValGen - Uniform distribution
+  #               AutoUniformValGen - Uniform distribution where range is set
+  #                                   automatically based on the shape being
+  #                                   inititalized
+  #               SparseEigenValGen - Each weight has a configurable number of
+  #                                   nonzero inputs and these weights are
+  #                                   uniformly randomly initialized followed
+  #                                   by a scaling based on the maximum 
+  #                                   eigenvalues found.  See Sutskever2013 for
+  #                                   details.
+  #               GaussianValGen or NormalValGen - normal distribution
+  #               NodeNormalizedValGen - initialization is as discussed in
+  #                                      Glorot2010
   # lrule - the learning rule used to update weight values.  types:
   #         gradient_descent - vanilla gradient descent (supports weight decay)
   #         gradient_descent_pretrain - gradient descent that supports a
@@ -113,20 +119,29 @@
     # serialized_path - the full location and name to a python .pkl file that
     #                   we will use to cache this dataset.  Speeds up
     #                   subsequent use of this dataset.
+    # deserialized_path - where to look for a .pkl dataset to load.  Takes
+    #                     precedence over serialized_path when this is also
+    #                     present (optional though).
+    # overwrite_list - can use this to specify a list of parameter names whose
+    #                  values should be taken from this yaml file, overwriting
+    #                  what may already be present when deserializing an
+    #                  instance of this object.  Can be useful for things like
+    #                  forcing an updated serialization path and so forth.
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
     serialized_path: '/usr/local/data/Iris/iris-CPU.pkl',
+    overwrite_list: ['serialized_path']
   },
   
-  weight_init: &wt_init {
-    # uniform weight_init parameters
-    # ------------------------------
-    # type - set this to uniform to get uniform random value initialization
+  weight_init: &wt_init !obj:params.UniformValGen {
+    # UniformValGen weight_init parameters
+    # ------------------------------------
+    # backend - backend to use to construct the values
     # low - minimal uniform random value range endpoint
     # high - maximal uniform random value range endpoint
     # bias_init - initial values for biases (if used)
-    type: uniform,
+    backend: *be,
     low: -1,
     high: 1,
     bias_init: 0.0,
@@ -216,9 +231,8 @@
         #              Tanh - hyperbolic tangent squashing transform
         #              SoftMax - generalized logistic squashing transform
         #                        normalized over k dimensions
-        # weight_init - dictionary of parameters controlling how weights get
-        #               initialized.  See weight_init defined at the Experiment
-        #               level
+        # weight_init - Controls how weights get initialized.  See weight_init
+        #                        defined at the Experiment level
         name: h0,
         nout: 2,
         lrule_init: *gdm,

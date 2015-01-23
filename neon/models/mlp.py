@@ -10,6 +10,7 @@ import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
+import numpy as np
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -30,20 +31,11 @@ class MLP(Model):
         self.nlayers = len(self.layers)
         self.result = 0
         self.cost.initialize(kwargs)
-        assert self.layers[-1].nout <= 2 ** 15
 
     def fit(self, dataset):
         """
         Learn model weights on the given dataset.
         """
-        if self.dist_mode == 'datapar':
-            valid_batch_size = (self.batch_size != dataset.batch_size /
-                                dataset.num_procs)
-            if valid_batch_size:
-                raise ValueError('Dataset batch size must be Model batch '
-                                 'size * num_procs. Model batch size of %d '
-                                 'might work.' % (dataset.batch_size /
-                                                  dataset.num_procs))
 
         for layer in self.layers:
             logger.info("%s", str(layer))
@@ -66,7 +58,7 @@ class MLP(Model):
         logger.info('commencing model fitting')
         # force preprocess even if done earlier by setting to False
         error = self.backend.empty((1, 1))
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0)
             for batch in range(num_batches):
                 if ds.macro_batched:
@@ -80,8 +72,8 @@ class MLP(Model):
                     if rem == 0:
                         quot = (batch + 1) / ds.num_minibatches_in_macro - 1
                         logger.info("%d.%d logloss= %0.5f",
-                                    epoch, quot,
-                                    error / (batch + 1.))
+                                    self.epochs_complete, quot,
+                                    error.asnumpyarray() / (batch + 1.))
                 else:
                     inputs_batch = ds.get_batch(inputs, batch)
                     targets_batch = ds.get_batch(targets, batch)
@@ -90,20 +82,22 @@ class MLP(Model):
                     batch_err = self.get_error(targets_batch, inputs_batch)
                     self.backend.divide(batch_err, self.batch_size, batch_err)
                     self.backend.add(error, batch_err, error)
-                self.update(epoch)
+                self.update(self.epochs_complete)
             if self.dist_mode == 'datapar':
-                error[0, 0] = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
-                                                    op=MPI.SUM)
+                cum_err = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
+                                                op=MPI.SUM)
                 if MPI.COMM_WORLD.rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
-                                epoch,
-                                error.asnumpyarray() / num_batches /
+                                self.epochs_complete,
+                                cum_err / num_batches /
                                 MPI.COMM_WORLD.size)
             else:
-                logger.info('epoch: %d, total training error: %0.5f', epoch,
+                logger.info('epoch: %d, total training error: %0.5f',
+                            self.epochs_complete,
                             error.asnumpyarray() / num_batches)
             for layer in self.layers:
                 logger.debug("%s", layer)
+            self.epochs_complete += 1
         if ds.macro_batched:
             ds.del_mini_batch_producer()
 
@@ -178,9 +172,12 @@ class MLP(Model):
         for batch in range(num_batches):
             self.backend.clip(preds[batch], eps, 1.0 - eps, out=preds[batch])
             sums = self.backend.sum(preds[batch], axes=0, out=sums)
+
             # XXX: work around lack of broadcasting in gpu backend.
+            temp1 = temp.asnumpyarray()
             for row in range(preds[batch].shape[0]):
-                temp[row] = sums
+                temp1[row] = sums.asnumpyarray().reshape((self.batch_size,))
+            temp = self.backend.array(temp1)
 
             self.backend.divide(preds[batch], temp, temp)
             self.backend.log(temp, out=temp)
@@ -231,7 +228,6 @@ class MLP(Model):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
                          item, 100 * self.result.asnumpyarray(),
                          logloss.asnumpyarray())
-        # TODO: return values instead?
 
     def predict_and_error(self, dataset):
         for layer in self.layers:
@@ -287,8 +283,6 @@ class MLPB(MLP):
 
         self.link_and_initialize(self.layers, kwargs)
 
-        assert self.layers[-1].nout <= 2 ** 15
-
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
             ll.set_previous_layer(pl)
@@ -322,22 +316,25 @@ class MLPB(MLP):
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
-                self.update(epoch)
+                self.update(self.epochs_complete)
                 self.backend.add(error, self.cost_layer.get_cost(), error)
-                if self.step_print > 0 and mb_id % self.step_print:
-                    logger.info('%d.%d logloss=%0.5f', epoch,
-                                mb_id / self.step_print - 1, error / mb_id)
+                if self.step_print > 0 and mb_id % self.step_print == 0:
+                    logger.info('%d.%d logloss=%0.5f', self.epochs_complete,
+                                mb_id / self.step_print - 1,
+                                np.int(error.asnumpyarray()) / mb_id)
                 mb_id += 1
-            logger.info('epoch: %d, total training error: %0.5f', epoch,
+            logger.info('epoch: %d, total training error: %0.5f',
+                        self.epochs_complete,
                         error.asnumpyarray() / self.data_layer.num_batches)
             self.print_layers(debug=True)
+            self.epochs_complete += 1
         self.data_layer.cleanup()
 
     def predict_and_error(self, dataset=None):
@@ -349,6 +346,9 @@ class MLPB(MLP):
         logloss_sum = self.backend.empty((1, 1))
         misclass_sum = self.backend.empty((1, 1))
         batch_sum = self.backend.empty((1, 1))
+
+        return_err = dict()
+
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
@@ -374,3 +374,5 @@ class MLPB(MLP):
                 logloss_sum.asnumpyarray() / nrecs))
             self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
+            return_err[setname] = self.result
+        return return_err
