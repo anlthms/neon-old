@@ -11,7 +11,7 @@ def xcov_cost(backend, outputs, targets, temp, blkidx):
     backend.xcov(blk1, blk2, out=temp[2])
     backend.multiply(temp[2], temp[2], temp[2])
     result = backend.empty((1, 1))
-    backend.sum(temp[0], axes=None, out=result)
+    backend.sum(temp[2], axes=None, out=result)
     return backend.multiply(result, 0.5, result)
 
 def xcov_cost_derivative(backend, outputs, targets, temp, blkidx,
