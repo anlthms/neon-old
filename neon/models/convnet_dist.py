@@ -33,6 +33,7 @@ class ConvnetDist(MLPDist):
         layer.input = GlobalArray(cur_layer=layer)
         layer.adjust_for_dist()
         for i in range(1, self.nlayers):
+            self.backend.begin()
             layer = self.layers[i]
             logger.debug('layer= %d', i)
             if isinstance(layer, ConvLayerDist):
@@ -91,6 +92,7 @@ class ConvnetDist(MLPDist):
                     raise ValueError('Unsupported previous layer for '
                                      'LayerDist')
             layer.adjust_for_dist()
+            self.backend.end()
 
         if self.num_epochs > 0:
             # MPI related initializations for supervised bprop
@@ -105,12 +107,14 @@ class ConvnetDist(MLPDist):
         # handle FC-> FC connections
         y = inputs
         for layer in self.layers:
+            self.backend.begin()
             if (isinstance(layer, LayerDist) and
                 isinstance(self.layers[layer.pos - 1],
                            LayerDist)):
                 y = y.take(layer.in_indices, axis=0)
             layer.fprop(y)
             y = layer.output
+            self.backend.end()
 
     def bprop(self, targets, inputs):
         i = self.nlayers - 1
@@ -125,6 +129,7 @@ class ConvnetDist(MLPDist):
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         while isinstance(self.layers[i], LayerDist):
+            self.backend.begin()
             if isinstance(self.layers[i - 1], LayerDist):
                 self.layers[i].bprop(error,
                                      self.layers[i - 1].output.
@@ -138,6 +143,7 @@ class ConvnetDist(MLPDist):
                 # extract self.layers[i].pre_act terms
                 self.layers[i].pre_act_ = self.layers[i].pre_act.take(
                     self.layers[i + 1].in_indices, axis=0)
+            self.backend.end()
 
         # following code is difficult to refactor:
         # 1) MPL deltas has no halos for top layer, but does for middle layers
@@ -146,6 +152,7 @@ class ConvnetDist(MLPDist):
         # Following is for top MPL layer
         self.layers[i].bprop(error, self.layers[i - 1].output)
         while i > 0:
+            self.backend.begin()
             i -= 1
             # aggregate the deltas terms at halo locations
             # note the MaxPoolingLayerDist ignores the input param
@@ -155,3 +162,4 @@ class ConvnetDist(MLPDist):
                     i + 1].input.local_array.get_bprop_view(
                     self.layers[i + 1].deltas),
                 self.layers[i].input.local_array.chunk)
+            self.backend.end()

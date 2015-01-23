@@ -190,14 +190,15 @@ class Dataset(object):
         this function also copies the data to the device memory.
         """
         assert self.backend is not None
-        for key in self.inputs:
-            item = self.inputs[key]
-            if item is not None:
-                self.inputs[key] = self.transpose_batches(item)
-        for key in self.targets:
-            item = self.targets[key]
-            if item is not None:
-                self.targets[key] = self.transpose_batches(item)
+        for dataset in (self.inputs, self.targets):
+            self.backend.begin()
+            for key in dataset:
+                self.backend.begin()
+                item = dataset[key]
+                if item is not None:
+                    dataset[key] = self.transpose_batches(item)
+                self.backend.end()
+            self.backend.end()
 
     def get_batch(self, data, batch):
         return data[batch]

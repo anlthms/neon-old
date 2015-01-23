@@ -192,7 +192,9 @@ class CrossEntropy(Cost):
         self.backend.sum(self.temp[0], axes=0, out=self.temp[2])
         # XXX: work around lack of broadcasting in gpu backend.
         for row in range(self.outputbuf.shape[0]):
+            self.backend.begin()
             self.temp[1][row] = self.temp[2]
+            self.backend.end()
 
         self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])
         return cross_entropy_multi(self.backend, self.temp[0], targets,

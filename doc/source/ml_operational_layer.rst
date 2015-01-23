@@ -57,6 +57,7 @@ access metadata.
    neon.backends.backend.Tensor.transpose
    neon.backends.backend.Tensor.reshape
    neon.backends.backend.Tensor.repeat
+   neon.backends.backend.Tensor.free
 
 |Tensor| Attributes
 -------------------
@@ -127,6 +128,8 @@ Initialization and Setup
 
    neon.backends.backend.Backend.rng_init
    neon.backends.backend.Backend.err_init
+   neon.backends.backend.Backend.begin
+   neon.backends.backend.Backend.end
 
 Higher Level Operation Support
 ==============================
@@ -179,3 +182,10 @@ v0.7.0
   * new parameter fpsize has been added to bprop_pool
   * new parameter ifmsize has been added to fprop_cmpool, bprop_cmpool,
     update_cmpool
+
+* functions providing compiler hints:
+
+  * new Tensor.free() function indicating Tensor no longer in use and can be
+    cleaned up
+  * new backend begin() and end() functions to indicate the start and end of
+    repeated instructions (as would be present in loops and so forth).

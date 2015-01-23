@@ -66,9 +66,11 @@ class Layer(YAMLable):
         assert len(self.ifmshape) == len(self.fshape)
         ofmshape = []
         for dim in range(len(self.ifmshape)):
+            self.backend.begin()
             assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
             ofmshape.extend([(num + self.stride - 1) / self.stride])
+            self.backend.end()
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
         self.ifmsize = np.prod(self.ifmshape)
@@ -368,7 +370,9 @@ class WeightLayer(Layer):
 
         if self.accumulate:
             for upm in self.updates:
+                self.backend.begin()
                 upm.fill(0.0)
+                self.backend.end()
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
@@ -610,15 +614,21 @@ class CompositeLayer(Layer):
         super(CompositeLayer, self).initialize(kwargs)
         req_param(self, ['sublayers'])
         for l in self.sublayers:
+            self.backend.begin()
             l.initialize(kwargs)
+            self.backend.end()
 
     def update(self, epoch):
         for l in self.sublayers:
+            self.backend.begin()
             l.update(epoch)
+            self.backend.end()
 
     def set_train_mode(self, mode):
         for sublayer in self.sublayers:
+            self.backend.begin()
             sublayer.set_train_mode(mode)
+            self.backend.end()
 
 
 class BranchLayer(CompositeLayer):
@@ -634,7 +644,9 @@ class BranchLayer(CompositeLayer):
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
+            self.backend.begin()
             l.set_previous_layer(pl)
+            self.backend.end()
 
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
@@ -644,24 +656,32 @@ class BranchLayer(CompositeLayer):
         self.endidx = [0] * len(self.sublayers)
         self.endidx[0] = self.sublayers[0].nout
         for i in range(1, len(self.sublayers)):
+            self.backend.begin()
             self.endidx[i] = self.endidx[i - 1] + self.sublayers[i].nout
             self.startidx[i] = self.endidx[i - 1]
+            self.backend.end()
 
         self.allocate_output_bufs()
 
     def fprop(self, inputs):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            self.backend.begin()
             s_l.fprop(inputs)
             self.output[si:ei] = s_l.output
+            self.backend.end()
 
     def bprop(self, error):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            self.backend.begin()
             s_l.bprop(error[si:ei])
+            self.backend.end()
 
         if self.deltas is not None:
             self.deltas.fill(0.0)
             for subl in self.sublayers:
+                self.backend.begin()
                 self.backend.add(self.deltas, subl.deltas, out=self.deltas)
+                self.backend.end()
 
 
 class ListLayer(Layer):
@@ -677,8 +697,10 @@ class ListLayer(Layer):
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
+            self.backend.begin()
             l.set_previous_layer(pl)
             pl = l
+            self.backend.end()
 
     def initialize(self, kwargs):
         super(ListLayer, self).initialize(kwargs)
@@ -692,13 +714,17 @@ class ListLayer(Layer):
     def fprop(self, inputs):
         y = inputs
         for l in self.sublayers:
+            self.backend.begin()
             l.fprop(y)
             y = l.output
+            self.backend.end()
 
     def bprop(self, error):
         error = None
         for l in reversed(self.sublayers):
+            self.backend.begin()
             l.bprop(error)
+            self.backend.end()
 
 
 class CrossMapResponseNormLayer(Layer):

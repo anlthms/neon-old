@@ -31,7 +31,9 @@ class RBM(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
+            self.backend.begin()
             logger.info("%s", str(layer))
+            self.backend.end()
         inputs = dataset.get_inputs(train=True)['train']
         nin = self.layers[0].nin
         self.nlayers = len(self.layers)
@@ -45,18 +47,22 @@ class RBM(Model):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         while self.epochs_complete < self.num_epochs:
+            self.backend.begin()
             error.fill(0.0)
             for batch in range(num_batches):
+                self.backend.begin()
                 inputs_batch = dataset.get_batch(inputs, batch)
                 self.positive(inputs_batch)
                 self.negative(inputs_batch)
                 self.backend.add(error, self.cost.apply_function(inputs_batch),
                                  error)
                 self.update(self.epochs_complete)
+                self.backend.end()
             logger.info('epoch: %d, total training error: %0.5f',
                         self.epochs_complete,
                         error.asnumpyarray() / num_batches)
             self.epochs_complete += 1
+            self.backend.end()
 
     def positive(self, inputs):
         """Wrapper for RBMLayer.positive"""

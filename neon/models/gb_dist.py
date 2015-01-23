@@ -37,6 +37,7 @@ class GBDist(GB):
                                   )
         layer.adjust_for_dist()
         for i in range(1, self.nlayers):
+            self.backend.begin()
             layer = self.layers[i]
             if isinstance(layer, LocalFilteringLayerDist):
                 # for h,w assumes that prev layer is a LCNLayer
@@ -81,6 +82,7 @@ class GBDist(GB):
                 layer.prev_layer = 'LCNLayerDist'
                 layer.nout_ = layer.nout
             layer.adjust_for_dist()
+            self.backend.end()
 
         if self.num_epochs > 0:
             # MPI related initializations for supervised bprop
@@ -94,9 +96,11 @@ class GBDist(GB):
         self.nlayers = len(self.layers)
         self.trainable_layers = []
         for ind in range(self.nlayers):
+            self.backend.begin()
             layer = self.layers[ind]
             if isinstance(layer, LocalFilteringLayerDist):
                 self.trainable_layers.append(ind)
+            self.backend.end()
 
         targets = datasets.get_targets(train=True)['train']
 
@@ -119,16 +123,19 @@ class GBDist(GB):
         logger.info('commencing unsupervised pretraining')
         num_batches = len(inputs)
         for ind in range(len(self.trainable_layers)):
+            self.backend.begin()
             layer = self.layers[self.trainable_layers[ind]]
             pooling = self.layers[self.trainable_layers[ind] + 1]
             layer.pretrain_mode(pooling)
             for epoch in range(self.num_pretrain_epochs):
+                self.backend.begin()
                 tcost = 0.0
                 trcost = 0.0
                 tspcost = 0.0
                 trcost_sum = 0.0
                 tspcost_sum = 0.0
                 for batch in range(num_batches):
+                    self.backend.begin()
                     if MPI.COMM_WORLD.rank == 0:
                         logger.debug('batch = %d', batch)
                     inputs_batch = ds.get_batch(inputs, batch)
@@ -136,13 +143,16 @@ class GBDist(GB):
                     # Forward propagate the input all the way to
                     # the layer that we are pretraining.
                     for i in range(self.trainable_layers[ind]):
+                        self.backend.begin()
                         self.layers[i].fprop(output)
                         output = self.layers[i].output
+                        self.backend.end()
                     rcost, spcost = layer.pretrain(output,
                                                    self.pretrain_cost,
                                                    epoch)
                     trcost += rcost
                     tspcost += spcost
+                    self.backend.end()
                 # accumulate trcost and tspcost cost across all nodes
                 trcost_sum = MPI.COMM_WORLD.reduce(trcost,
                                                    op=MPI.SUM, root=0)
@@ -161,6 +171,8 @@ class GBDist(GB):
                                    [output, layer.defilter.output],
                                    [os.path.join('recon', 'input'),
                                     os.path.join('recon', 'output')], ind)
+                self.backend.end()
+            self.backend.end()
         logger.info('Done with pretraining')
         end_time = time.time()
         if MPI.COMM_WORLD.rank == 0:
@@ -168,8 +180,10 @@ class GBDist(GB):
                         end_time - start_time)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
+            self.backend.begin()
             if isinstance(layer, LocalFilteringLayerDist):
                 layer.train_mode()
+            self.backend.end()
 
     def train(self, inputs, targets, ds):
         """
@@ -182,8 +196,10 @@ class GBDist(GB):
         start_time = time.time()
         num_batches = len(inputs)
         while self.epochs.complete < self.num_epochs:
+            self.backend.begin()
             error = 0.0
             for batch in range(num_batches):
+                self.backend.begin()
                 if MPI.COMM_WORLD.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -205,10 +221,12 @@ class GBDist(GB):
                     self.update_last(self.epochs_complete)
                 else:
                     self.update(self.epochs_complete)
+                self.backend.end()
             if MPI.COMM_WORLD.rank == 0:
                 logger.info('epoch: %d, training error: %0.5f',
                             self.epochs_complete, error / num_batches)
             self.epochs_complete += 1
+            self.backend.end()
         end_time = time.time()
         if MPI.COMM_WORLD.rank == 0:
             logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,
@@ -256,6 +274,7 @@ class GBDist(GB):
         self.layers[i].bprop(self.layers[i + 1].deltas,
                              self.layers[i - 1].output)
         while i > 0:
+            self.backend.begin()
             i -= 1
             # aggregate the deltas terms at halo locations
             if isinstance(self.layers[i], LCNLayerDist):
@@ -276,6 +295,7 @@ class GBDist(GB):
                         i + 1].input.local_array.get_bprop_view(
                         self.layers[i + 1].deltas),
                     self.layers[i].input.local_array.chunk)
+            self.backend.end()
 
     def predict_set(self, ds, inputs):
         num_batches = len(inputs)
@@ -283,12 +303,14 @@ class GBDist(GB):
         if MPI.COMM_WORLD.rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
         for batch in range(num_batches):
+            self.backend.begin()
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
             if MPI.COMM_WORLD.rank == 0:
                 self.outputs[:, start_idx:end_idx] = self.layers[-1].output
+            self.backend.end()
 
     def predict(self, datasets, train=True, test=True, validation=True):
         """
@@ -296,6 +318,7 @@ class GBDist(GB):
         """
         res = []
         for dataset in datasets:
+            self.backend.begin()
             inputs = dataset.get_inputs(train, test, validation)
             preds = dict()
             if train and 'train' in inputs:
@@ -324,5 +347,5 @@ class GBDist(GB):
                     logger.error("must specify >=1 of: train, test, "
                                  "validation")
                 res.append(preds)
-
+            self.backend.end()
         return res

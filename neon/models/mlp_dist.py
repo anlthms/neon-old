@@ -28,6 +28,7 @@ class MLPDist(MLP):
     def adjust_for_dist(self):
         # MPI: call adjust_for_dist for each layer
         for i in range(0, self.nlayers):
+            self.backend.begin()
             layer = self.layers[i]
             layer_dist = isinstance(layer, LayerDist)
             if layer_dist:
@@ -50,8 +51,10 @@ class MLPDist(MLP):
                     start_idx = 0
                     nin = layer.nin
                     for j in range(self.comm.rank):
+                        self.backend.begin()
                         start_idx += (nin // self.comm.size +
                                       (nin % self.comm.size > j))
+                        self.backend.end()
                     layer.nin = (nin // self.comm.size +
                                  (nin % self.comm.size > self.comm.rank))
                     layer.in_indices = range(start_idx, start_idx + layer.nin)
@@ -61,13 +64,16 @@ class MLPDist(MLP):
                     raise ValueError('Unsupported previous layer for '
                                      'LayerWithNoBiasDist or LayerDist')
             layer.adjust_for_dist()
+            self.backend.end()
 
     def fit(self, dataset):
         """
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
+            self.backend.begin()
             logger.debug("%s", str(layer))
+            self.backend.end()
         self.comm = MPI.COMM_WORLD
         self.adjust_for_dist()
         ds = dataset
@@ -79,9 +85,11 @@ class MLPDist(MLP):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         while self.epochs_complete < self.num_epochs:
+            self.backend.begin()
             error.fill(0)
             num_batches = len(inputs)
             for batch in range(num_batches):
+                self.backend.begin()
                 if self.comm.rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -93,27 +101,35 @@ class MLPDist(MLP):
                                      self.cost.apply_function(targets_batch),
                                      error)
                 self.update(self.epochs_complete)
+                self.backend.end()
             if self.comm.rank == 0:
                 logger.info('epoch: %d, total training error: %0.5f',
                             self.epochs_complete,
                             error.asnumpyarray() / num_batches)
             for layer in self.layers:
+                self.backend.begin()
                 logger.debug("%s", layer)
+                self.backend.end()
             self.epochs_complete += 1
+            self.backend.end()
 
     def predict_set(self, ds, inputs):
         for layer in self.layers:
+            self.backend.begin()
             layer.set_train_mode(False)
+            self.backend.end()
         num_batches = len(inputs)
         nout = self.layers[-1].nout
         if self.comm.rank == 0:
             preds = []
         for batch in range(num_batches):
+            self.backend.begin()
             inputs_batch = ds.get_batch(inputs, batch)
             preds_batch = self.backend.empty((nout, self.batch_size))
             self.fprop(inputs_batch)
             preds_batch[:] = self.get_classifier_output()
             preds.append(preds_batch)
+            self.backend.end()
         return preds
 
     def predict(self, train=True, test=True, validation=True):
@@ -142,10 +158,12 @@ class MLPDist(MLP):
         # handle FC-> FC connections
         y = inputs
         for layer in self.layers:
+            self.backend.begin()
             if layer.pos > 0:
                 y = y.take(layer.out_indices, axis=0)
             layer.fprop(y)
             y = layer.output
+            self.backend.end()
 
     def bprop(self, targets, inputs):
         i = self.nlayers - 1
@@ -161,6 +179,7 @@ class MLPDist(MLP):
         lastlayer.pre_act_ = lastlayer.pre_act
         prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
         while i > 0:
+            self.backend.begin()
             prev_layer_dist = isinstance(self.layers[i - 1], LayerDist)
             if prev_layer_dist:
                 self.layers[i].bprop(error, self.layers[i - 1].output.
@@ -172,10 +191,13 @@ class MLPDist(MLP):
             # extract self.layers[i].pre_act terms
             self.layers[i].pre_act_ = self.layers[i].pre_act.take(
                 self.layers[i + 1].out_indices, axis=0)
+            self.backend.end()
 
         # first FC layer
         self.layers[i].bprop(self.layers[i + 1].deltas, inputs)
 
     def update(self, epoch):
         for layer in self.layers:
+            self.backend.begin()
             layer.update(epoch)
+            self.backend.end()

@@ -85,6 +85,12 @@ class GPUTensor(Tensor):
     def raw(self):
         return self._tensor
 
+    def __del__(self):
+        """
+        Called before object destruction.
+        """
+        self.free()
+
     def __str__(self):
         """
         Display a suitable representation of this Tensor.
