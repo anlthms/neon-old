@@ -46,7 +46,7 @@ class RecurrentCostLayer(CostLayer):
         #     print self.targets.shape
         '''this stuff was done in rnn.fit(), only applied to last output'''
         trace() # use to do error=apply_derivative(targets) in a loop over tau. 
-        self.cost.apply_derivative(self.targets[tau)
+        self.cost.apply_derivative(self.targets[tau])
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
     def get_cost(self):

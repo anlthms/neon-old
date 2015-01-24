@@ -10,6 +10,7 @@ import math
 
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.model import Model
+from neon.models.mlp import MLPB
 from neon.util.compat import range
 from ipdb import set_trace as trace
 
