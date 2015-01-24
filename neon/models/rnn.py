@@ -10,8 +10,10 @@ import math
 
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.model import Model
+from neon.models.mlp import MLPB
 from neon.util.compat import range
 from ipdb import set_trace as trace
+from neon.util.param import req_param
 
 logger = logging.getLogger(__name__)
 
@@ -404,15 +406,80 @@ class RNN(Model):
 
 class RNNB(MLPB):
     def __init__(self, **kwargs):
+        self.accumulate = True
+        super(RNNB, self).__init__(**kwargs) # fails to link! 
+        req_param(self, ['unrolls'])
         self.data_layer = self.layers[0]
         self.rec_layer = self.layers[1]
         self.class_layer = self.layers[2]
-        self.cost_layer = self.layers[32]
+        self.cost_layer = self.layers[3]
+        for lp in [self.layers]:
+            lp[-1].set_previous_layer(lp[-2])
+            lp[-1].initialize(kwargs)
+
+    def fit(self, dataset):
+        # old fit: hiden, cell_init. error, suberror. 
+        error = self.backend.empty((1, 1))
+        mb_id = self.backend.empty((1, 1))
+        self.print_layers()
+        self.data_layer.init_dataset(dataset)
+        self.data_layer.use_set('train')
+        logger.info('commencing model fitting')
+        for epoch in range(self.num_epochs):
+            error.fill(0.0)
+            mb_id.fill(1)
+            self.data_layer.reset_counter()
+            while self.data_layer.has_more_data():
+                self.fprop()
+                self.bprop()
+                self.update()
 
     def fprop(self):
-        pass
+        trace()
+        y = self.data_layer.fprop(None)
+        y = self.rec_layer.fprop(y)
+        y = self.class_layer.fprop(y)
+        y = self.cost_layer.fprop(y)
 
     def bprop(self):
-        pass
+        for ll, nl in zip(reversed(self.layers),
+                          reversed(self.layers[1:] + [None])):
+            error = None if nl is None else nl.deltas
+            ll.bprop(error)
 
+
+    def predict_and_error(self, dataset=None):
+        if dataset is not None:
+            self.data_layer.init_dataset(dataset)
+        predlabels = self.backend.empty((1, self.batch_size))
+        labels = self.backend.empty((1, self.batch_size))
+        misclass = self.backend.empty((1, self.batch_size))
+        logloss_sum = self.backend.empty((1, 1))
+        misclass_sum = self.backend.empty((1, 1))
+        batch_sum = self.backend.empty((1, 1))
+        for setname in ['train', 'test', 'validation']:
+            if self.data_layer.has_set(setname) is False:
+                continue
+            self.data_layer.use_set(setname, predict=True)
+            self.data_layer.reset_counter()
+            misclass_sum.fill(0.0)
+            logloss_sum.fill(0.0)
+            nrecs = self.batch_size * self.data_layer.num_batches
+            while self.data_layer.has_more_data():
+                self.fprop()
+                probs = self.get_classifier_output()
+                targets = self.data_layer.targets
+                self.backend.argmax(targets, axis=0, out=labels)
+                self.backend.argmax(probs, axis=0, out=predlabels)
+                self.backend.not_equal(predlabels, labels, misclass)
+                self.backend.sum(misclass, axes=None, out=batch_sum)
+                self.backend.add(misclass_sum, batch_sum, misclass_sum)
+                self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
+                                 axes=None, out=batch_sum)
+                self.backend.add(logloss_sum, batch_sum, logloss_sum)
+            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
+                setname, 100 * misclass_sum.asnumpyarray() / nrecs,
+                logloss_sum.asnumpyarray() / nrecs))
+            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
+            self.data_layer.cleanup()
         

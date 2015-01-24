@@ -30,13 +30,12 @@ class RecurrentOutputLayer(WeightLayer):
         # super allocate will set the correct sizes for pre_act, output, berr
         make_zbuf = self.backend.zeros
 
-        self.pre_act_list = [self.pre_act] +
+        self.pre_act_list = [self.pre_act] + \
         					[make_zbuf(self.out_shape, self.pre_act_dtype)
-        					 for k in range(1, unrolls)]
-        self.output_list = [self.output] +
+        					 for k in range(1, self.unrolls)]
+        self.output_list = [self.output] + \
         					[make_zbuf(self.out_shape, self.output_dtype)
-        					 for k in range(1, unrolls)]
-
+        					 for k in range(1, self.unrolls)]
         self.temp_out = make_zbuf(self.weight_shape, self.weight_dtype)
 
     def fprop(self, inputs, tau):
@@ -74,10 +73,10 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
         super(RecurrentHiddenLayer, self).initialize(kwargs)
 
     def allocate_output_bufs(self):
-        super(RecurrentOutputLayer, self).allocate_output_bufs()
+        super(RecurrentHiddenLayer, self).allocate_output_bufs()
         self.temp_in = self.temp_out
         self.temp_rec = self.backend.zeros(self.weight_rec_shape)
-        self.z = [self.backend.zeros(self.output_shape) for k in range(2)]
+        self.z = [self.backend.zeros(self.out_shape) for k in range(2)]
 
     def allocate_param_bufs(self):
         super(RecurrentHiddenLayer, self).allocate_param_bufs()
@@ -138,7 +137,7 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
             self.grad_log(numgrad, self.temp_rec[12, 63])
 
 
-class RecurrentLSTMLayer(Layer):
+class RecurrentLSTMLayer(WeightLayer):
 
     """
     Hidden layer with LSTM gates.

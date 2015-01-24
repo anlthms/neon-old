@@ -44,7 +44,6 @@
       },
     },
   },
-  }
 
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNNB {
@@ -61,9 +60,9 @@
         nout: 128,
       },
 
-      !obj:neon.models.layer.RecurrentHiddenLayer { #
+      !obj:neon.models.rlayer2.RecurrentHiddenLayer { #
         name: recurrent,
-        lrule_init: *gdm
+        lrule_init: *gdm,
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
@@ -72,9 +71,9 @@
         weight_init_rec: *wt_init,
       },
 
-      &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {
+      &lastlayer !obj:neon.models.rlayer2.RecurrentOutputLayer {
         name: output,
-        lrule_init: *gdm
+        lrule_init: *gdm,
         nout: 128,
         unrolls: *ur,
         activation: !obj:neon.transforms.logistic.Logistic {},
