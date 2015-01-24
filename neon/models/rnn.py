@@ -12,8 +12,8 @@ from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.model import Model
 from neon.models.mlp import MLPB
 from neon.util.compat import range
+from neon.util.param import req_param, opt_param
 from ipdb import set_trace as trace
-
 logger = logging.getLogger(__name__)
 
 
@@ -25,10 +25,7 @@ class RNN(Model):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        for req_param in ['layers', 'batch_size']:
-            if not hasattr(self, req_param):
-                raise ValueError("required parameter: %s not specified" %
-                                 req_param)
+        req_param(self, ['layers', 'batch_size'])
         self.nlayers = len(self.layers)
         self.cost.initialize(kwargs)
 
@@ -477,18 +474,21 @@ class RNN(Model):
 class RNNB(MLPB):
     def __init__(self, **kwargs):
         self.accumulate = True
-        super(RNNB, self).__init__(**kwargs) # fails to link! 
+        super(RNNB, self).__init__(**kwargs) # fails to link!
         req_param(self, ['unrolls'])
         self.data_layer = self.layers[0]
         self.rec_layer = self.layers[1]
         self.class_layer = self.layers[2]
         self.cost_layer = self.layers[3]
+
+        # Not sure this is necessary, if you print self.cost_layer.prev_layer
+        # It seems to have linked correctly by this point -AP
         for lp in [self.layers]:
             lp[-1].set_previous_layer(lp[-2])
             lp[-1].initialize(kwargs)
 
     def fit(self, dataset):
-        # old fit: hiden, cell_init. error, suberror. 
+        # old fit: hiden, cell_init. error, suberror.
         error = self.backend.empty((1, 1))
         mb_id = self.backend.empty((1, 1))
         self.print_layers()
@@ -505,19 +505,19 @@ class RNNB(MLPB):
                 print "fit calls bprop"
                 self.bprop()
                 print "fit calls update"
-                self.update()
+                self.update(epoch)
 
     def fprop(self):
         self.data_layer.fprop(None) # will set data_layer.outputs, data_layer.targets
         inputs = self.data_layer.output
         for tau in range(0, self.unrolls):
-            y = self.rec_layer.output_list # no hidden init, use output directly. 
+            y = self.rec_layer.output_list # no hidden init, use output directly.
             self.rec_layer.fprop(y[tau], inputs[tau], tau) # this is RecurrentHiddenLayer.fprop(self, y, inputs, tau, cell=None):
             y = self.rec_layer.output_list
             self.class_layer.fprop(y[tau], tau) # RecurrentOutputLayer.fprop(self, inputs, tau)
         # cost layer
         y = self.class_layer.output_list # classes? list of (128x50) tensors, ok.
-        self.cost_layer.fprop(y) # pass
+        self.cost_layer.fprop(y) # pass (We can take this out, it was only included in the loop to make things pretty -AP)
 
     def bprop(self):
         '''from mlp
@@ -526,17 +526,18 @@ class RNNB(MLPB):
             error = None if nl is None else nl.deltas
             ll.bprop(error)'''
         '''unrolling'''
-        self.cost_layer.bprop(None) # might need an unroll factor and stuff and shit. 
-        error = self.cost_layer.deltas
         trace()
         for tau in range(0, self.unrolls):
-            self.class_layer.bprop(error)
+            self.cost_layer.bprop(None, tau) # might need an unroll factor and stuff and shit. (Moved stuff in here to allow cost layer to point to tau in targetlist -AP)
+            error = self.cost_layer.deltas
+            self.class_layer.bprop(error, tau)
             error = self.class_layer.deltas
-            self.rec_layer.bprop(error)
+
+            for t in list(range(0, tau))[::-1]:  # Copied from above -- is this right?
+                #Don't need errorc for now, just RecHidLayer
+                self.rec_layer.bprop(error, error_c=None, tau, t)
             error = self.rec_layer.deltas
-        self.data_layer.bprop(error) # srsly?
-
-
+        self.data_layer.bprop(error) # srsly? (We can take this out, it was only included in the loop to make things pretty -AP)
 
 
     def predict_and_error(self, dataset=None):
@@ -573,4 +574,3 @@ class RNNB(MLPB):
                 logloss_sum.asnumpyarray() / nrecs))
             self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
-  

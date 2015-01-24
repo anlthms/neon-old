@@ -69,7 +69,7 @@ class MOBYDICK(Dataset):
             array = onehots
 
         return array
-    
+
     def transpose_batches(self, data):
             """
             Transpose each minibatch within the dataset.
