@@ -9,7 +9,10 @@ def xcov_cost(backend, outputs, targets, temp, blkidx):
     blk1 = outputs[0:blkidx]
     blk2 = outputs[blkidx:]
     backend.xcov(blk1, blk2, out=temp[2])
-    return 0.5*temp[2].sumsq()
+    backend.multiply(temp[2], temp[2], temp[2])
+    result = backend.empty((1, 1))
+    backend.sum(temp[2], axes=None, out=result)
+    return backend.multiply(result, 0.5, result)
 
 
 def xcov_cost_derivative(backend, outputs, targets, temp, blkidx,
@@ -70,15 +73,16 @@ class XCovariance(Cost):
             self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
         self.outputbuf = databuf
 
-    def get_berrbuf(self):
+    def get_deltabuf(self):
         return self.temp[3]
 
     def apply_function(self, targets):
         """
         Apply the xcov cost function to the datasets passed.
         """
-        return xcov_cost(self.backend, self.outputbuf, targets, self.temp,
-                         self.blkidx) * self.scale
+        result = xcov_cost(self.backend, self.outputbuf, targets, self.temp,
+                           self.blkidx)
+        return self.backend.multiply(result, self.scale, out=result)
 
     def apply_derivative(self, targets):
         """

@@ -19,13 +19,13 @@
   },
 
 # define two alternative weight inits and use normal for debuggin LSTM
-  wp: &wt_init {
-    type: sparse_eigenvalued,
+  wp: &wt_init !obj:params.SparseEigenValGen {
+    backend: *be,
     sparseness: 15,
     eigenvalue: 1.2,
   },
-  ww: &wt_init_x {
-    type: normal,
+  ww: &wt_init_x !obj:params.GaussianValGen {
+    backend: *be,
     loc: 0.0,
     scale: 0.1,
   },
@@ -67,7 +67,6 @@
         #gate_activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: *wt_init,
         weight_init_rec: *wt_init,
-
       },
       # output layer
       &lastlayer !obj:neon.models.layer.RecurrentOutputLayer {

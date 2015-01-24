@@ -58,8 +58,7 @@ class Layer(YAMLable):
         self.nout = nout
         self.weight_init = weight_init
         self.weight_dtype = weight_dtype
-        self.weights = self.backend.gen_weights((nout, nin), weight_init,
-                                                weight_dtype)
+        self.weights = self.weight_init.generate((nout, nin), weight_dtype)
         self.weight_updates = self.backend.empty(self.weights.shape,
                                                  updates_dtype)
         self.updates_dtype = updates_dtype
@@ -74,10 +73,10 @@ class Layer(YAMLable):
         self.pos = pos
         self.learning_rule = learning_rule
         self.batch_size = batch_size
-        self.use_biases = 'bias_init' in weight_init
+        self.use_biases = 'bias_init' in weight_init.__dict__
         if self.use_biases:
             self.biases = self.backend.empty((nout, 1), weight_dtype)
-            self.biases.fill(weight_init['bias_init'])
+            self.biases.fill(weight_init.bias_init)
             self.bias_updates = self.backend.empty(self.biases.shape,
                                                    updates_dtype)
             self.params = [self.weights, self.biases]
@@ -415,10 +414,9 @@ class RecurrentLSTMLayer(Layer):
 
         for a in ['i', 'f', 'o', 'c']:
             setattr(self, 'W' + a + 'x',
-                    be.gen_weights((nout, nin), weight_init_rec, weight_dtype))
-            setattr(self, 'W' + a + 'h', be.gen_weights((nout, nout),
-                                                        weight_init_rec,
-                                                        weight_dtype))
+                    weight_init_rec.generate((nout, nin), weight_dtype))
+            setattr(self, 'W' + a + 'h', weight_init_rec.generate(
+                    (nout, nout), weight_dtype))
             setattr(self, 'b_' + a, be.zeros((nout, 1)))
             setattr(self, 'W' + a + 'x_updates', be.zeros((nout, nin)))
             setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
@@ -726,9 +724,7 @@ class RecurrentHiddenLayer(Layer):
                                                    pos, nin, nout, weight_init,
                                                    learning_rule,
                                                    activation=activation)
-        self.weights_rec = self.backend.gen_weights((nout, nout),
-                                                    weight_init_rec,
-                                                    weight_dtype)
+        self.weights_rec = weight_init_rec.generate((nout, nout), weight_dtype)
         self.pre_act_list = [self.backend.zeros((nout, batch_size),
                                                 pre_act_dtype)
                              for k in range(unrolls)]
@@ -762,13 +758,16 @@ class RecurrentHiddenLayer(Layer):
 
     def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
         """
-        This function has been refactored:
-        [done] remove duplicate code
-        [done] remove the loop altogether.
-        [todo] If the if statement can't be supported, revert to duplicated
-               code
-        Not sure why tau is passed but not used. Not that this is called for
-        decrementing t.
+        Backpropagation for recurrent hidden layers.
+
+        Notes:
+            * This function has been refactored
+            * [done] remove duplicate code
+            * [done] remove the loop altogether.
+            * [todo] If the if statement can't be supported, revert to
+              duplicated code
+            * Not sure why tau is passed but not used. Not that this is
+              called for decrementing t.
         """
         self.backend.multiply(error, self.pre_act_list[t], out=error)
         if (t > 0):  # can move down or just compute (but it's not used)
@@ -1213,8 +1212,7 @@ class ConvLayer(LocalLayer):
                                         activation=activation,
                                         pad=pad, prev_names=prev_names)
         self.nout = self.ofmsize * nofm
-        self.weights = backend.gen_weights((self.fsize, nofm),
-                                           weight_init)
+        self.weights = weight_init.generate((self.fsize, nofm))
         self.output = backend.empty((self.nout, batch_size))
         self.weight_updates = backend.empty(self.weights.shape)
         if not isinstance(backend, CPU):
@@ -1232,10 +1230,10 @@ class ConvLayer(LocalLayer):
             self.pre_act = self.output
 
         # start bias related
-        self.use_biases = 'bias_init' in weight_init
+        self.use_biases = 'bias_init' in weight_init.__dict__
         if self.use_biases:
             self.biases = self.backend.empty((self.nout, 1))
-            self.backend.fill(self.biases, weight_init['bias_init'])
+            self.backend.fill(self.biases, weight_init.bias_init)
             self.bias_updates = self.backend.empty(self.biases.shape)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
@@ -1316,12 +1314,11 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
                                             ifmshape, fshape, stride,
                                             activation=activation, pad=pad,
                                             prev_names=prev_names)
-        self.use_biases = 'bias_init' in weight_init
+        self.use_biases = 'bias_init' in weight_init.__dict__
         if self.use_biases:
             raise NotImplementedError('TODO')
         self.nout = self.ofmsize * nofm
-        self.weights = backend.gen_weights((self.fsize, nofm),
-                                           weight_init)
+        self.weights = weight_init.generate((self.fsize, nofm))
         self.output = backend.empty((self.nout, batch_size))
         self.updates = backend.empty(self.weights.shape)
         self.prodbuf = backend.empty((nofm, batch_size))
@@ -1398,8 +1395,7 @@ class LocalFilteringLayer(LocalLayer):
         self.ifmsize = ifmshape[0] * ifmshape[1]
         self.nout = self.ofmsize * nofm
         self.output = backend.empty((self.nout, batch_size))
-        self.weights = self.backend.gen_weights((self.nout, self.fsize),
-                                                weight_init)
+        self.weights = weight_init.generate((self.nout, self.fsize))
 
         self.normalize_weights(self.weights)
         self.updates = backend.empty(self.weights.shape)
@@ -1557,8 +1553,8 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         self.output = self.backend.empty((self.nout, self.batch_size))
 
         # if initializing the weights from scratch
-        # self.weights = self.backend.gen_weights((self.nout, self.fsize),
-        #                                        self.weight_init, dtype=dtype)
+        # self.weights = self.weight_init.generate((self.nout, self.fsize),
+        #                                          dtype=dtype)
 
         # if initializing using same seed as non-dist version
         # adjust size of self.weights for halo dimensions
@@ -1590,10 +1586,10 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
                                                     fshape, stride,
                                                     prev_names=prev_names)
         self.nout = self.ofmsize * nofm
+        self.output = backend.empty((self.nout, batch_size))
         self.weight_init = weight_init
-        self.weights = self.backend.gen_weights((self.nout, self.fsize),
-                                                self.weight_init,
-                                                dtype='float32')
+        self.weights = self.weight_init.generate((self.nout, self.fsize),
+                                                 dtype='float32')
         if pretraining is True:
             self.sparsity = sparsity
             self.tied_weights = tied_weights
@@ -2477,8 +2473,7 @@ class CrossMapPoolingLayer(YAMLable):
         if pos > 0:
             self.deltas = backend.empty((self.nin, batch_size))
 
-        self.weights = backend.gen_weights((nifm, nofm),
-                                           weight_init)
+        self.weights = weight_init.generate((nifm, nofm))
         assert (self.weights.asnumpyarray() < 0).sum() == 0
         self.updates = backend.empty(self.weights.shape)
         self.output = backend.empty((self.nout, batch_size))

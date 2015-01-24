@@ -31,7 +31,7 @@ class Autoencoder(MLP):
         num_batches = len(inputs)
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
             for batch in range(num_batches):
                 inputs_batch = ds.get_batch(inputs, batch)
@@ -41,6 +41,8 @@ class Autoencoder(MLP):
                 self.backend.add(error,
                                  self.cost.apply_function(targets_batch),
                                  error)
-                self.update(epoch)
+                self.update(self.epochs_complete)
             logger.info('epoch: %d, total training error: %0.5f',
-                        epoch, error.asnumpyarray() / num_batches)
+                        self.epochs_complete,
+                        error.asnumpyarray() / num_batches)
+            self.epochs_complete += 1

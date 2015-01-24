@@ -8,8 +8,6 @@ backend.
 
 import logging
 import numpy as np
-import math as mt
-from operator import mul
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
 from neon.util.compat import range
@@ -38,7 +36,7 @@ class Layer(YAMLable):
             if self.is_local:
                 self.ifmshape = pl.ofmshape
                 self.nifm = pl.nofm
-            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
         else:
             if self.is_local:
                 if not hasattr(self, 'ifmshape'):
@@ -65,21 +63,17 @@ class Layer(YAMLable):
         opt_param(self, ['stride'], 1)
         opt_param(self, ['pad'], 0)
 
-        if len(self.ifmshape) == 2:
-            self.ifmshape = (1, self.ifmshape[-2], self.ifmshape[-1])
-        if len(self.fshape) == 2:
-            self.fshape = (1, self.fshape[-2], self.fshape[-1])
         assert len(self.ifmshape) == len(self.fshape)
         ofmshape = []
         for dim in range(len(self.ifmshape)):
             assert self.ifmshape[dim] >= self.fshape[dim]
-            num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2. * self.pad
-            ofmshape.extend([int(mt.ceil(num / self.stride))])
+            num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
+            ofmshape.extend([(num + self.stride - 1) / self.stride])
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
-        self.ifmsize = reduce(mul, self.ifmshape)
-        self.ofmsize = reduce(mul, self.ofmshape)
-        self.fpsize = reduce(mul, self.fshape)
+        self.ifmsize = np.prod(self.ifmshape)
+        self.ofmsize = np.prod(self.ofmshape)
+        self.fpsize = np.prod(self.fshape)
         self.fsize = self.nifm * self.fpsize
         self.nout = self.nofm * self.ofmsize
         logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
@@ -90,27 +84,27 @@ class Layer(YAMLable):
 
     def __str__(self):
         if self.is_local:
-            format_str = (
-                '{} x ({} x {} x {}) inputs, {} x ({} x {} x {}) nodes')
-            ionumstr = format_str.format(
-                self.nifm,
-                self.ifmshape[-3], self.ifmshape[-2], self.ifmshape[-1],
-                self.nofm,
-                self.ofmshape[-3], self.ofmshape[-2], self.ofmshape[-1])
+            ionumstr = '{} x {} inputs, {} x {} nodes'.format(
+                self.nifm, self.format_tuple(self.ifmshape),
+                self.nofm, self.format_tuple(self.ofmshape))
         else:
-            ionumstr = "{nin} inputs, {nout} nodes".format(
-                       nin=self.nin, nout=self.nout)
+            ionumstr = '{} inputs, {} nodes'.format(self.nin, self.nout)
 
-        return ("Layer {lyr_tp} {lyr_nm}: {ionum}, {act_nm} act_fn, "
-                "\n\t".format
-                (lyr_tp=self.__class__.__name__,
-                 lyr_nm=self.name, ionum=ionumstr,
-                 act_nm=self.activation.__class__.__name__))
+        ret = '{} {}: {}'.format(self.__class__.__name__, self.name, ionumstr)
+        if self.activation is not None:
+            ret += ', {} act_fn'.format(self.activation.__class__.__name__)
+        return ret
+
+    def format_tuple(self, tup):
+        result = '(' + str(tup[0])
+        for dim in range(1, len(tup)):
+            result += ' x ' + str(tup[dim])
+        return result + ')'
 
     def allocate_output_bufs(self):
         make_zbuf = self.backend.zeros
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
-        opt_param(self, ['berr_shape'], (self.nin, self.batch_size))
+        opt_param(self, ['delta_shape'], (self.nin, self.batch_size))
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
 
@@ -121,32 +115,33 @@ class Layer(YAMLable):
 
         self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.deltas = make_zbuf(self.berr_shape, self.deltas_dtype)
+            self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
+        # This function works for any number of dimensions.
+        ndims = len(ifmshape)
+        dimsizes = np.empty(ndims, dtype='int32')
+        for dim in range(ndims):
+            dimsizes[dim] = np.prod(ifmshape[dim:])
         links = []
-        framesize = ifmshape[-2] * ifmshape[-1]
-        for frm in range(ofmshape[-3]):
-            for row in range(ofmshape[-2]):
-                for col in range(ofmshape[-1]):
-                    # This variable tracks the top left corner of
-                    # the receptive field.
-                    src = frm * framesize + row * ifmshape[-1] + col
-                    src *= stride
-                    indlist = []
-                    for frow in range(fshape[-2]):
-                        start = src + frow * ifmshape[-1]
-                        indlist.extend(range(start, start + fshape[-1]))
-                    fminds = np.array(indlist)
-                    for ffrm in range(1, fshape[-3]):
-                        indlist.extend(list(fminds + ffrm * framesize))
-                    if fshape[-3] > 1:
-                        fminds = np.array(indlist)
-                    if self.pooling is False:
-                        for ifm in range(1, nifm):
-                            indlist.extend(list(fminds + ifm * ifmsize))
-                    links.append(indlist)
+        for ofmdim in np.ndindex(ofmshape):
+            # This variable tracks the top left corner of
+            # the receptive field.
+            src = ofmdim[-1]
+            for dim in range(-1, -ndims, -1):
+                src += dimsizes[dim] * ofmdim[dim - 1]
+            src *= stride
+            indlist = list(range(src, src + fshape[-1]))
+            for dim in range(-1, -ndims, -1):
+                indarray = np.array(indlist)
+                for dimind in range(1, fshape[dim - 1]):
+                    indlist.extend(list(indarray + dimind * dimsizes[dim]))
+            if self.pooling is False:
+                indarray = np.array(indlist)
+                for ifm in range(1, nifm):
+                    indlist.extend(list(indarray + ifm * ifmsize))
+            links.append(indlist)
         self.links = np.array(links, dtype='int32')
 
     def make_aux_buffers(self, nifm, ifmshape, nofm, ofmshape, fshape, stride):
@@ -197,12 +192,13 @@ class CostLayer(Layer):
         self.targets = None
         self.cost.olayer = self.prev_layer
         self.cost.initialize(kwargs)
-        self.deltas = self.cost.get_berrbuf()
+        self.deltas = self.cost.get_deltabuf()
 
     def __str__(self):
-        return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
+        return ("{lyr_tp} {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
                 "utilizing {be_nm} backend\n\t".format
-                (lyr_nm=self.name, nin=self.nin,
+                (lyr_tp=self.__class__.__name__,
+                 lyr_nm=self.name, nin=self.nin,
                  cost_nm=self.cost.__class__.__name__,
                  be_nm=self.backend.__class__.__name__))
 
@@ -220,6 +216,8 @@ class CostLayer(Layer):
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
     def get_cost(self):
+        if self.ref_layer is not None:
+            self.targets = getattr(self.ref_layer, self.ref_label)
         result = self.cost.apply_function(self.targets)
         return self.backend.divide(result, self.batch_size, result)
 
@@ -236,7 +234,7 @@ class DataLayer(Layer):
         self.reset_counter()
         if self.is_local is True:
             req_param(self, ['nofm', 'ofmshape'])
-            self.nout = self.nofm * reduce(mul, self.ofmshape)
+            self.nout = self.nofm * np.prod(self.ofmshape)
         else:
             req_param(self, ['nout'])
 
@@ -251,14 +249,13 @@ class DataLayer(Layer):
 
     def __str__(self):
         if self.is_local:
-            ionumstr = "{} x ({} x {}) nodes".format(
-                       self.nofm, self.ofmshape[-2], self.ofmshape[-1])
+            ionumstr = '{} x {} nodes'.format(self.nofm,
+                                              self.format_tuple(self.ofmshape))
         else:
-            ionumstr = "{nout} nodes".format(nout=self.nout)
+            ionumstr = "{} nodes".format(self.nout)
 
-        return ("Layer {lyr_tp} {lyr_nm}: {ionum}\n\t".format
-                (lyr_tp=self.__class__.__name__,
-                 lyr_nm=self.name, ionum=ionumstr))
+        return ("{} {}: {}".format(self.__class__.__name__,
+                                   self.name, ionumstr))
 
     def set_previous_layer(self, pl):
         pass
@@ -302,7 +299,7 @@ class ActivationLayer(Layer):
             self.is_local = True
             self.ifmshape = pl.ofmshape
             self.nifm = pl.nofm
-            self.nin = pl.nofm * reduce(mul, pl.ofmshape)
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
         else:
             self.nin = pl.nout
         self.prev_layer = pl
@@ -333,15 +330,15 @@ class WeightLayer(Layer):
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
-        self.weights = self.backend.gen_weights(
-            self.weight_shape, self.weight_init, self.weight_dtype)
+        self.weights = self.weight_init.generate(self.weight_shape,
+                                                 self.weight_dtype)
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
-        self.use_biases = 'bias_init' in self.weight_init
+        self.use_biases = 'bias_init' in self.weight_init.__dict__
         opt_param(self, ['brule_init'], None)
         if self.use_biases is True:
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
-            self.biases.fill(self.weight_init['bias_init'])
+            self.biases.fill(self.weight_init.bias_init)
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
             self.params = [self.weights, self.biases]
             self.updates = [self.weight_updates, self.bias_updates]
@@ -352,7 +349,8 @@ class WeightLayer(Layer):
         if self.accumulate:
             self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
                              self.updates)
-
+        for upm in self.updates:
+            upm.fill(0.0)
         self.learning_rule = self.init_learning_rule(self.lrule_init)
         self.bias_rule = None
         if self.brule_init is not None and self.use_biases:
@@ -627,13 +625,13 @@ class CompositeLayer(Layer):
 
 
 class BranchLayer(CompositeLayer):
-
     """
     Branch layer is composed of a list of other layers concatenated with one
-    another
-    during fprop, it concatenates the component outputs and passes it on
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it concatenates the component outputs and passes it on.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):
@@ -670,13 +668,13 @@ class BranchLayer(CompositeLayer):
 
 
 class ListLayer(Layer):
-
     """
     List layer is composed of a list of other layers stacked on top of one
-    another
-    during fprop, it simply fprops along the chain
-    during bprop, it splits the backward errors into the components and
-        accumulates into a common deltas
+    another.
+
+    During fprop, it simply fprops along the chain.
+    During bprop, it splits the backward errors into the components and
+    accumulates into a common deltas
     """
 
     def set_previous_layer(self, pl):

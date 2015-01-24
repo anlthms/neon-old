@@ -45,8 +45,8 @@
         ifmshape: [32, 32],
         fshape: [3, 3],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -77,8 +77,8 @@
         nin: 3600,
         nout: 100,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -99,8 +99,8 @@
         nin: 100,
         nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
+        weight_init: !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },

@@ -15,7 +15,7 @@
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 10,
-    # serialized_path: '/usr/local/data/CIFAR10_{size}/cifar10_10pct-Cpu_{rank}.pkl',
+    # serialized_path: '/usr/local/data/CIFAR10-vecpar_{size}/cifar10_10pct-Cpu_{rank}.pkl',
   },
 
   # simple MLP model specification
@@ -23,6 +23,7 @@
     backend: *be,
     num_epochs: 100,
     batch_size: &bs 100,
+    serialized_path: './mlp-cifar-vecpar-_{size}-Cpu_{rank}.pkl',
     layers: [
       !obj:neon.models.layer.LayerDist {
         name: h0,
@@ -35,19 +36,16 @@
             learning_rate: &lr 0.01,
             backend: *be,
             momentum_params: &mm {
-              type: linear_monotone, #constant, nesterov
-              initial_coef: 0.99,
-              start_epoch: 5,
-              saturate_epoch: 5,
-              saturated_coef: 0.90,
+              type: constant,
+              initial_coef: 0.90,
             },
           },
         },
         nin: 3072,
         nout: 200,
         activation: !obj:neon.transforms.rectified.RectLin {},
-        weight_init: {
-          type: uniform,
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -67,14 +65,8 @@
         },
         nin: 200,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {
-          shortcut_deriv: True,
-        },
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: *wt_init,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {

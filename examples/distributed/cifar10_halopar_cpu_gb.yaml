@@ -52,8 +52,8 @@
         ifmshape: [32, 32],
         fshape: [4, 4],
         stride: 1,
-        weight_init: {
-          type: uniform,
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
           low: -0.1,
           high: 0.1,
         },
@@ -99,11 +99,7 @@
         ifmshape: [27, 27],
         fshape: [3, 3],
         stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
       !obj:neon.models.layer.L2PoolingLayerDist {
         name: layer4,
@@ -146,11 +142,7 @@
         ifmshape: [23, 23],
         fshape: [3, 3],
         stride: 1,
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
       !obj:neon.models.layer.L2PoolingLayerDist {
         name: layer7,
@@ -194,11 +186,7 @@
         nin: 2888, # previous nout (nifm * ifmshape[0] * ifmshape[1])
         nout: 10,
         activation: !obj:neon.transforms.logistic.Logistic {},
-        weight_init: {
-          type: uniform,
-          low: -0.1,
-          high: 0.1,
-        },
+        weight_init: *wt_init,
       },
     ],
     cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
