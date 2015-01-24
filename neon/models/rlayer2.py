@@ -2,12 +2,56 @@ import logging
 import numpy as np
 from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
-from neon.models.layer2 import WeightLayer
+from neon.models.layer2 import WeightLayer, CostLayer
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
+from ipdb import set_trace as trace
 
 logger = logging.getLogger(__name__)
+
+class RecurrentCostLayer(CostLayer):
+    '''Not sure if this is needed, but the bprop fails here? '''
+    def __init__(self, **kwargs):
+        self.is_cost = True
+        self.nout = 1
+        super(RecurrentCostLayer, self).__init__(**kwargs)
+
+    def initialize(self, kwargs):
+        super(RecurrentCostLayer, self).initialize(kwargs)
+        req_param(self, ['cost', 'ref_layer'])
+        opt_param(self, ['ref_label'], 'targets')
+        self.targets = None
+        self.cost.olayer = self.prev_layer
+        self.cost.initialize(kwargs)
+        self.deltas = self.cost.get_berrbuf()
+
+    def __str__(self):
+        return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
+                "utilizing {be_nm} backend\n\t".format
+                (lyr_nm=self.name, nin=self.nin,
+                 cost_nm=self.cost.__class__.__name__,
+                 be_nm=self.backend.__class__.__name__))
+
+    def fprop(self, inputs):
+        pass
+
+    def bprop(self, error, tau):
+        # Since self.deltas already pointing to destination of act gradient
+        # we just have to scale by mini-batch size
+        '''for recurrent networks, the targets are a list of unrolls'''
+        if self.ref_layer is not None:
+            self.targets = getattr(self.ref_layer, self.ref_label)
+        # if self.ref_label != 'targets':
+        #     print self.targets.shape
+        '''this stuff was done in rnn.fit(), only applied to last output'''
+        trace() # use to do error=apply_derivative(targets) in a loop over tau. 
+        self.cost.apply_derivative(self.targets[tau)
+        self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
+
+    def get_cost(self):
+        result = self.cost.apply_function(self.targets)
+        return self.backend.divide(result, self.batch_size, result)
 
 
 class RecurrentOutputLayer(WeightLayer):

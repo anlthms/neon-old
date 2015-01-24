@@ -356,8 +356,7 @@ class RNN(Model):
             logger.error("must specify >=1 of: train, test, validation")
         return preds
 
-    def error_metrics(self, ds, preds, train=True, test=True,
-                      validation=False):
+    def error_metrics(self, ds, preds, train=True, test=True, validation=False):
         """
         Iterate over predictions from predict() and compare to the targets.
         Targets come from dataset. [Why in a separate function?]
@@ -404,6 +403,7 @@ class RNN(Model):
         predictions = self.predict()
         self.error_metrics(dataset, predictions)
 
+
 class RNNB(MLPB):
     def __init__(self, **kwargs):
         self.accumulate = True
@@ -430,22 +430,43 @@ class RNNB(MLPB):
             mb_id.fill(1)
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
+                print "fit calls fprop"
                 self.fprop()
+                print "fit calls bprop"
                 self.bprop()
+                print "fit calls update"
                 self.update()
 
     def fprop(self):
-        trace()
-        y = self.data_layer.fprop(None)
-        y = self.rec_layer.fprop(y)
-        y = self.class_layer.fprop(y)
-        y = self.cost_layer.fprop(y)
+        self.data_layer.fprop(None) # will set data_layer.outputs, data_layer.targets
+        inputs = self.data_layer.output
+        for tau in range(0, self.unrolls):
+            y = self.rec_layer.output_list # no hidden init, use output directly. 
+            self.rec_layer.fprop(y[tau], inputs[tau], tau) # this is RecurrentHiddenLayer.fprop(self, y, inputs, tau, cell=None):
+            y = self.rec_layer.output_list
+            self.class_layer.fprop(y[tau], tau) # RecurrentOutputLayer.fprop(self, inputs, tau)
+        # cost layer
+        y = self.class_layer.output_list # classes? list of (128x50) tensors, ok.
+        self.cost_layer.fprop(y) # pass
 
     def bprop(self):
+        '''from mlp
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
             error = None if nl is None else nl.deltas
-            ll.bprop(error)
+            ll.bprop(error)'''
+        '''unrolling'''
+        self.cost_layer.bprop(None) # might need an unroll factor and stuff and shit. 
+        error = self.cost_layer.deltas
+        trace()
+        for tau in range(0, self.unrolls):
+            self.class_layer.bprop(error)
+            error = self.class_layer.deltas
+            self.rec_layer.bprop(error)
+            error = self.rec_layer.deltas
+        self.data_layer.bprop(error) # srsly?
+
+
 
 
     def predict_and_error(self, dataset=None):

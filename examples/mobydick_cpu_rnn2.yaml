@@ -80,7 +80,7 @@
         weight_init: *wt_init,
       },
 
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:neon.models.rlayer2.RecurrentCostLayer {
         name: cost,
         ref_layer: *datalayer,
         cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
