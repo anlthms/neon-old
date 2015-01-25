@@ -24,7 +24,7 @@ class RecurrentCostLayer(CostLayer):
         self.targets = None
         self.cost.olayer = self.prev_layer
         self.cost.initialize(kwargs)
-        self.deltas = self.cost.get_berrbuf()
+        self.deltas = self.cost.get_deltabuf()
 
     def __str__(self):
         return ("Layer {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
@@ -45,7 +45,7 @@ class RecurrentCostLayer(CostLayer):
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         '''this stuff was done in rnn.fit(), only applied to last output'''
-        trace() # use to do error=apply_derivative(targets) in a loop over tau. 
+        trace() # use to do error=apply_derivative(targets) in a loop over tau.
         self.cost.apply_derivative(self.targets[tau])
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
@@ -88,7 +88,8 @@ class RecurrentOutputLayer(WeightLayer):
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
-    def bprop(self, error, inputs, tau, numgrad=False):
+    def bprop(self, error, tau, numgrad=False):
+        inputs = self.prev_layer.output_list[tau - 1]
     	if self.skip_act is False:
 	        self.backend.multiply(error, self.pre_act_list[tau - 1], error)
 
@@ -124,8 +125,10 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
 
     def allocate_param_bufs(self):
         super(RecurrentHiddenLayer, self).allocate_param_bufs()
-        self.weights_rec = self.backend.gen_weights(
-            self.weight_rec_shape, self.weight_init_rec, self.weight_dtype)
+        self.weights_rec = self.weight_init_rec.generate(
+                                            self.weight_rec_shape,
+                                            self.weight_dtype)
+
         self.updates_rec = self.backend.empty(self.weight_rec_shape,
         									  self.updates_dtype)
 
@@ -143,7 +146,7 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
-    def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
+    def bprop(self, error, error_c, tau, t, numgrad=False):
         """
         This function has been refactored:
         [done] remove duplicate code
@@ -153,6 +156,13 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
         Not sure why tau is passed but not used. Not that this is called for
         decrementing t.
         """
+        # Is this equivalent to the old way of doing inputs[t*self.nin:(t+1)*self.nin, :] with the new datalayer format?
+        if self.prev_layer.is_data:
+            inputs = self.prev_layer.output[t]
+        else:
+            inputs = self.prev_layer.output_list[t]
+
+
     	if self.skip_act is False:
 	        self.backend.multiply(error, self.pre_act_list[t], out=error)
 

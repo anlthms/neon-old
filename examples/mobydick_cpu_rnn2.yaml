@@ -19,17 +19,18 @@
   },
 
   weight_inits: [
-    &wt_init {
-      type: sparse_eigenvalued,
+    &wt_init !obj:params.SparseEigenValGen {
+      backend: *be,
       sparseness: 15,
       eigenvalue: 1.2,
     },
-    &wt_init_x {
-      type: normal,
+    &wt_initb !obj:params.NormalValGen {
+      backend: *be,
       loc: 0.0,
       scale: 0.1,
     },
   ],
+
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
@@ -59,7 +60,6 @@
         name: d0,
         nout: 128,
       },
-
       !obj:neon.models.rlayer2.RecurrentHiddenLayer { #
         name: recurrent,
         lrule_init: *gdm,
