@@ -311,7 +311,7 @@ class MLPB(MLP):
         """
         Learn model weights on the given datasets.
         """
-        error = self.backend.empty((1, 1))
+        error = self.backend.zeros((1, 1))
         self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
