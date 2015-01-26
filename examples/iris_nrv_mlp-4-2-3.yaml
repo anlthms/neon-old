@@ -10,6 +10,20 @@
     seterr_handling: {
       all: 'warn',
     },
+    default_flex_dtype: &def_flex_dtype !obj:neon.backends.flexpoint.flexpt_dtype {
+      sign_bit: True,
+      int_bits: 4,
+      frac_bits: 11,
+      overflow: 0,
+      rounding: 0,
+    },
+    module_logging_levels: &mod_logging_levels {
+      backend: 40,
+      umd: 40,
+      compiler: 40,
+    },
+    use_flex_dtype: &use_flex_dtype False,
+    use_compiler: &use_compiler False,
   },
 
   dataset: &ds !obj:neon.datasets.iris.Iris {
@@ -44,6 +58,7 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
+        dataset: *ds,
         nout: 4,
       },
       !obj:neon.models.layer2.FCLayer {
