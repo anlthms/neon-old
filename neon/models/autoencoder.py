@@ -7,7 +7,7 @@ Contains code to train stacked autoencoder models and run inference.
 
 import logging
 
-from neon.models.mlp import MLP
+from neon.models.deprecated.mlp import MLP
 from neon.util.compat import range
 
 logger = logging.getLogger(__name__)

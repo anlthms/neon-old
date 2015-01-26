@@ -7,9 +7,9 @@ Convolution network using halopar
 
 import logging
 
-from neon.models.mlp_dist import MLPDist
-from neon.models.layer import ConvLayerDist, MaxPoolingLayerDist
-from neon.models.layer import LayerDist
+from neon.models.deprecated.mlp_dist import MLPDist
+from neon.layers.deprecated.layer import ConvLayerDist, MaxPoolingLayerDist
+from neon.layers.deprecated.layer import LayerDist
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 

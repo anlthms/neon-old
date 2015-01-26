@@ -3,30 +3,30 @@
 # ----------------------------------------------------------------------------
 # Configuration for sanity checking layers.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+!obj:experiments.FitPredictErrorExperiment {
+  backend: &be !obj:backends.CPU {
     rng_seed: 0,
   },
 
-  dataset: &ds !obj:neon.datasets.synthetic.ToyImages {
+  dataset: &ds !obj:datasets.ToyImages {
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
   },
 
-  model: !obj:neon.models.mlp.MLP {
+  model: !obj:models.deprecated.mlp.MLP {
     backend: *be,
     num_epochs: 2,
     batch_size: &bs 32,
     dataset: *ds,
     learning_rate: &lr 0.01,
     layers: [
-      !obj:neon.models.layer.ConvLayer {
+      !obj:layers.deprecated.layer.ConvLayer {
         name: layer0,
         backend: *be,
         batch_size: *bs,
         pos: 0,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:optimizers.GradientDescentMomentum {
           name: layer0lr,
           lr_params: {
             learning_rate: *lr,
@@ -48,7 +48,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.MaxPoolingLayer {
+      !obj:layers.deprecated.layer.MaxPoolingLayer {
         name: layer1,
         backend: *be,
         batch_size: *bs,
@@ -58,7 +58,7 @@
         fshape: [2, 2],
         stride: 1,
       },
-      !obj:neon.models.layer.LCNLayer {
+      !obj:layers.deprecated.layer.LCNLayer {
         name: layer2,
         backend: *be,
         batch_size: *bs,
@@ -68,7 +68,7 @@
         fshape: [3, 3],
         stride: 1,
       },
-      !obj:neon.models.layer.LocalFilteringLayer {
+      !obj:layers.deprecated.layer.LocalFilteringLayer {
         name: layer3,
         backend: *be,
         batch_size: *bs,
@@ -76,7 +76,7 @@
         pretraining: False,
         sparsity: 0.0,
         tied_weights: False,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:optimizers.GradientDescentMomentum {
           name: layer3lr,
           lr_params: {
             learning_rate: *lr,
@@ -95,7 +95,7 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.AveragePoolingLayer {
+      !obj:layers.deprecated.layer.AveragePoolingLayer {
         name: layer4,
         backend: *be,
         batch_size: *bs,
@@ -105,7 +105,7 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer.L2PoolingLayer {
+      !obj:layers.deprecated.layer.L2PoolingLayer {
         name: layer5,
         backend: *be,
         batch_size: *bs,
@@ -115,13 +115,13 @@
         fshape: [2, 2],
         stride: 1,
       },
-      !obj:neon.models.layer.CrossMapPoolingLayer {
+      !obj:layers.deprecated.layer.CrossMapPoolingLayer {
         name: layer6,
         backend: *be,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         batch_size: *bs,
         pos: 6,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:optimizers.GradientDescentMomentum {
           name: rule,
           lr_params: {
             learning_rate: *lr,
@@ -138,12 +138,12 @@
           high: 0.1,
         },
       },
-      !obj:neon.models.layer.Layer {
+      !obj:layers.deprecated.layer.Layer {
         name: layer7,
         backend: *be,
         batch_size: *bs,
         pos: 7,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:optimizers.GradientDescentMomentum {
           name: layer7lr,
           lr_params: {
             learning_rate: *lr,
@@ -153,7 +153,7 @@
         },
         nin: 338,
         nout: 100,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         weight_init: !obj:params.UniformValGen {
           backend: *be,
           low: -0.1,
@@ -161,12 +161,12 @@
           bias_init: 0.0,
         },
       },
-      &lastlayer !obj:neon.models.layer.Layer {
+      &lastlayer !obj:layers.deprecated.layer.Layer {
         name: output,
         backend: *be,
         batch_size: *bs,
         pos: 8,
-        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+        learning_rule: !obj:optimizers.GradientDescentMomentum {
           name: outputlr,
           lr_params: {
             learning_rate: *lr,
@@ -176,7 +176,7 @@
         },
         nin: 100,
         nout: 2,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
         weight_init: !obj:params.UniformValGen {
           backend: *be,
           low: -0.1,
@@ -184,7 +184,7 @@
         },
       },
     ],
-    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+    cost: !obj:transforms.CrossEntropy {
       olayer: *lastlayer,
       shortcut_deriv: False,
     },

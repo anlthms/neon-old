@@ -8,13 +8,13 @@ Requires model to specify prev layers at each layer to build the layer graph
 """
 
 import logging
-from neon.models.mlp import MLPB
+from neon.models.mlp import MLP
 from neon.util.param import req_param
 
 logger = logging.getLogger(__name__)
 
 
-class Balance(MLPB):
+class Balance(MLP):
 
     def __init__(self, **kwargs):
         self.accumulate = True

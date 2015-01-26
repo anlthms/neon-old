@@ -3,12 +3,12 @@
 # ----------------------------------------------------------------------------
 # Configuration for sanity checking layers.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
+!obj:experiments.FitPredictErrorExperiment {
+  backend: &be !obj:backends.CPU {
     rng_seed: 0,
   },
 
-  dataset: &ds !obj:neon.datasets.synthetic.ToyImages {
+  dataset: &ds !obj:datasets.ToyImages {
     backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
@@ -40,37 +40,37 @@
     },
   },
 
-  model: !obj:neon.models.mlp.MLPB {
+  model: !obj:models.MLP {
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 32,
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
         nofm: 3,
         ofmshape: [32, 32],
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer0,
         nofm: 1,
         fshape: [3, 3],
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer1,
         op: 'max',
         fshape: [2, 2],
         stride: 1,
       },
-      !obj:neon.models.layer2.LocalContrastNormLayer {
+      !obj:layers.LocalContrastNormLayer {
         name: layer2,
         alpha: 0.001,
         beta: 0.75,
         ksize: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
         nofm: 4,
         fshape: [2, 2],
@@ -78,42 +78,42 @@
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'avg',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer5,
         op: 'l2',
         fshape: [2, 2],
       },
-      !obj:neon.models.layer2.CrossMapPoolingLayer {
+      !obj:layers.CrossMapPoolingLayer {
         name: layer6,
         nofm: 2,
         weight_init: *wt_init,
         lrule_init: *gdm,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: layer7,
         nout: 100,
         weight_init: *wt_initb,
         lrule_init: *gdm,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 2,
         weight_init: *wt_init,
         lrule_init: *gdm,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

@@ -11,7 +11,6 @@ import math
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.model import Model
 from neon.util.compat import range
-from ipdb import set_trace as trace
 
 logger = logging.getLogger(__name__)
 
@@ -496,6 +495,7 @@ class RNN(Model):
             self.backend.end()
         # TODO: return values instead?
         if self.make_plots:
+            from ipdb import set_trace as trace
             trace()  # just used to keep figures open
 
     def predict_and_error(self, dataset):

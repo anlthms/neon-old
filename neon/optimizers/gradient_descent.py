@@ -7,43 +7,10 @@ i.e. how the learning should proceed.
 """
 
 import logging
-import numpy as np
+import numpy
+from neon.optimizers.learning_rule import LearningRule
 
 logger = logging.getLogger(__name__)
-
-
-class LearningRule(object):
-
-    """
-    Base object for applying learning rule on the parameters to be updated
-
-    Attributes:
-        name (str): Used to identify this LearningRule when logging.
-        backend (neon.backends.backend.Backend): underlying type for stored
-                                                 data parameters like weights.
-        batch_size (int): Number of examples presented at this iteration
-    """
-
-    def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
-        self.name = name
-        self.backend = lr_params['backend']
-        self.param_dtype = param_dtype
-        self.gradient_dtype = gradient_dtype
-
-    def __str__(self):
-        return ("LearningRule {upd_nm}: {upd_tp} upd_rl, "
-                "utilizing {be_nm} backend\n\t".format
-                (upd_nm=self.name, upd_tp=self.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
-
-    def allocate_state(self, params):
-        pass
-
-    def set_pretrain_mode(self, pretrain_mode):
-        pass
-
-    def apply_rule(self, params, updates, epoch):
-        raise NotImplementedError()
 
 
 class GradientDescent(LearningRule):
@@ -209,7 +176,7 @@ class GradientDescentMomentum(GradientDescent):
     def get_learning_rate(self, epoch):
         if self.schedule_flag:
             if self.schedule['type'] == 'step':
-                div_factor = np.floor(
+                div_factor = numpy.floor(
                     (epoch + 1) / self.schedule['step_epochs'])
                 return self.learning_rate * (
                     self.schedule['ratio'] ** div_factor)
@@ -301,54 +268,4 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
             self.backend.subtract(vs_item, us_item, out=vs_item)
 
             self.backend.add(ps_item, vs_item, out=ps_item)
-            self.backend.end()
-
-
-class AdaDelta(LearningRule):
-
-    """
-    Adadelta based learning rule updates.  See Zeiler2012 for instance.
-    """
-
-    def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
-        super(AdaDelta, self).__init__(name, lr_params)
-        if 'rho' in lr_params:
-            self.rho = lr_params['rho']
-        else:
-            raise AttributeError("Missing required parameter rho")
-        if 'epsilon' in lr_params:
-            self.epsilon = lr_params['epsilon']
-        else:
-            raise AttributeError("Missing required parameter epsilon")
-        self.exp_gradsq_dtype = param_dtype
-        self.exp_deltsq_dtype = param_dtype
-        self.scratch_space_dtype = param_dtype
-        self.lrates_dtype = param_dtype
-        self.lrates_dtype = param_dtype
-        self.exp_gradsq = []
-        self.exp_deltsq = []
-        self.lrates = []
-        self.scratch_space = []
-
-    def allocate_state(self, params):
-        assert len(self.exp_gradsq) == 0
-        for item in params:
-            self.backend.begin()
-            self.exp_gradsq.append(self.backend.zeros(item.shape,
-                                                      self.exp_gradsq_dtype))
-            self.exp_deltsq.append(self.backend.zeros(item.shape,
-                                                      self.exp_deltsq_dtype))
-            self.lrates.append(self.backend.zeros(item.shape,
-                                                  self.lrates_dtype))
-            self.scratch_space.append(self.backend.zeros(
-                item.shape, self.scratch_space_dtype))
-            self.backend.end()
-
-    def apply_rule(self, params, updates, epoch):
-        for ps_item, us_item, gs_item, ds_item, ls_item, ss_item in zip(
-                params, updates, self.exp_gradsq,
-                self.exp_deltsq, self.lrates, self.scratch_space):
-            self.backend.begin()
-            self.backend.ada_update(ps_item, us_item, gs_item, ds_item,
-                                    ls_item, ss_item, self.rho, self.epsilon)
             self.backend.end()

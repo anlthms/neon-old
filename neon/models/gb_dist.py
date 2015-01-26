@@ -10,8 +10,8 @@ import os
 import time
 
 from neon.models.gb import GB
-from neon.models.layer import LocalFilteringLayerDist, LCNLayerDist
-from neon.models.layer import L2PoolingLayerDist, LayerDist
+from neon.layers.deprecated.layer import LocalFilteringLayerDist, LCNLayerDist
+from neon.layers.deprecated.layer import L2PoolingLayerDist, LayerDist
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.distarray.global_array import GlobalArray
 

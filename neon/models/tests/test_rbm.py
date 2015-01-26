@@ -15,8 +15,8 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 import numpy as np
 
-from neon.models.layer import RBMLayer
-from neon.models.learning_rule import GradientDescent
+from neon.layers.deprecated.layer import RBMLayer
+from neon.optimizers.gradient_descent import GradientDescent
 from neon.params import GaussianValGen
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs

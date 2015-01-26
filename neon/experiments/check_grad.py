@@ -10,7 +10,7 @@ import numpy as np
 
 from neon.datasets.synthetic import UniformRandom
 from neon.experiments.experiment import Experiment
-from neon.models.mlp import MLPB
+from neon.models.mlp import MLP
 from neon.util.compat import range
 
 
@@ -132,7 +132,7 @@ class GradientChecker(Experiment):
             self.trainable_layers.append(ind)
 
         if not hasattr(layer, 'dataset'):
-            if isinstance(self.model, MLPB):
+            if isinstance(self.model, MLP):
                 datashape = (self.model.data_layer.nout,
                              self.model.cost_layer.nin)
             else:
@@ -146,7 +146,7 @@ class GradientChecker(Experiment):
             self.dataset.load()
         ds = self.dataset
 
-        if isinstance(self.model, MLPB):
+        if isinstance(self.model, MLP):
             self.model.data_layer.dataset = ds
             self.model.data_layer.use_set('train')
             self.model.fprop()
@@ -175,7 +175,7 @@ class GradientChecker(Experiment):
 
         for ind in self.trainable_layers[::-1]:
             layer = self.model.layers[ind]
-            if isinstance(self.model, MLPB):
+            if isinstance(self.model, MLP):
                 result = self.check_layerb(layer)
             else:
                 result = self.check_layer(layer, inputs, targets)

@@ -9,6 +9,10 @@ import numpy as np
 
 from neon.backends.flexpt_dtype import flexpt
 
+# import shortcuts
+from neon.backends.cpu import CPU  # noqa
+from neon.backends.gpu import GPU  # noqa
+
 if np.__dict__.get('flexpt') is not None:
     raise RuntimeError('The numpy package already has a flexpt type')
 
