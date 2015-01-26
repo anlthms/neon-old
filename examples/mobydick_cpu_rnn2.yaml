@@ -5,7 +5,7 @@
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: {
-      all: 'warn', #  'warn' or 'raise'
+      all: 'raise', #  'warn' or 'raise'
       over: 'raise',
     },
   },

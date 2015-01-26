@@ -1,14 +1,108 @@
 import logging
 import numpy as np
-from neon.backends.cpu import CPU
 from neon.models import learning_rule as lr
-from neon.models.layer2 import WeightLayer, CostLayer
+from neon.models.layer2 import Layer, CostLayer
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
-from neon.util.persist import YAMLable
 from ipdb import set_trace as trace
 
 logger = logging.getLogger(__name__)
+
+
+class RecurrentLayer(Layer):
+    """
+    This is a dummy layer to prevent inheritance from outside the rlayer2 file
+    Long inheritance chains like RecurrentHiddenLayer<-RecurrentOutputLayer<-
+    WeightLayer<-Layer are extremely confusing for me, but I'm not sure if
+    this is a clean way to do it either.
+    Inheriting Layer seems to be mandatory for the yaml stuff...
+    """
+
+    def allocate_output_bufs(self):
+        make_zbuf = self.backend.zeros
+        # basically is it possible to set these opt params somewhere else?
+        opt_param(self, ['out_shape'], (self.nout, self.batch_size))
+
+        self.output = make_zbuf(self.out_shape, self.output_dtype)
+
+        if self.activation is not None:
+            self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
+        else:
+            self.pre_act = self.output
+
+        """ create deltas buffer no matter what position relative to the data
+        layer we are. In the RNN even the first layer needs deltas."""
+        self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
+
+    # c&p from WeightLayer
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            if self.is_local:
+                self.ifmshape = pl.ofmshape
+                self.nifm = pl.nofm
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
+        else:
+            if self.is_local:
+                if not hasattr(self, 'ifmshape'):
+                    sqdim = np.int(np.sqrt(pl.nout))
+                    self.ifmshape = (sqdim, sqdim)
+                self.nifm = 1
+            self.nin = pl.nout
+        self.prev_layer = pl
+
+    # No longer sure about how smart it is to c&p all this WeightLayer stuff
+    def allocate_param_bufs(self):
+        make_ebuf = self.backend.empty
+        self.weights = self.weight_init.generate(self.weight_shape,
+                                                 self.weight_dtype)
+        self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
+
+        self.use_biases = 'bias_init' in self.weight_init.__dict__
+        opt_param(self, ['brule_init'], None)
+        if self.use_biases is True:
+            self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
+            self.biases.fill(self.weight_init.bias_init)
+            self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
+            self.params = [self.weights, self.biases]
+            self.updates = [self.weight_updates, self.bias_updates]
+        else:
+            self.params = [self.weights]
+            self.updates = [self.weight_updates]
+
+        if self.accumulate:
+            self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
+                             self.updates)
+        for upm in self.updates:
+            upm.fill(0.0)
+        self.learning_rule = self.init_learning_rule(self.lrule_init)
+        self.bias_rule = None
+        if self.brule_init is not None and self.use_biases:
+            self.bias_rule = self.init_learning_rule(self.brule_init)
+            self.bias_rule.allocate_state([self.bias_updates])
+            self.learning_rule.allocate_state([self.weight_updates])
+        else:
+            self.learning_rule.allocate_state(self.updates)
+
+    # more c&p from WeightLayer, may want to revert this!
+    def init_learning_rule(self, lrule_init):
+        lrname = self.name + '_lr'
+        if lrule_init['type'] == 'gradient_descent':
+            return lr.GradientDescent(name=lrname,
+                                      lr_params=lrule_init['lr_params'])
+        elif lrule_init['type'] == 'gradient_descent_pretrain':
+            return lr.GradientDescentPretrain(
+                name=lrname, lr_params=lrule_init['lr_params'])
+        elif lrule_init['type'] == 'gradient_descent_momentum':
+            return lr.GradientDescentMomentum(
+                name=lrname, lr_params=lrule_init['lr_params'])
+        elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
+            return lr.GradientDescentMomentumWeightDecay(
+                name=lrname, lr_params=lrule_init['lr_params'])
+        elif lrule_init['type'] == 'adadelta':
+            return lr.AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
+        else:
+            raise AttributeError("invalid learning rule params specified")
+
 
 class RecurrentCostLayer(CostLayer):
     '''Not sure if this is needed, but the bprop fails here? '''
@@ -44,17 +138,18 @@ class RecurrentCostLayer(CostLayer):
             self.targets = getattr(self.ref_layer, self.ref_label)
         # if self.ref_label != 'targets':
         #     print self.targets.shape
-        '''this stuff was done in rnn.fit(), only applied to last output'''
-        trace() # use to do error=apply_derivative(targets) in a loop over tau.
+        '''this stuff was done in rnn.fit(), only applied to last output
+        so I'm not sure this statement needs to be conditional on tau...'''
         self.cost.apply_derivative(self.targets[tau])
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
     def get_cost(self):
-        result = self.cost.apply_function(self.targets)
+        #race() # not sure if it's cool to just use the last one?
+        result = self.cost.apply_function(self.targets[-1])
         return self.backend.divide(result, self.batch_size, result)
 
 
-class RecurrentOutputLayer(WeightLayer):
+class RecurrentOutputLayer(RecurrentLayer):
 
     """
     Derived from Layer. pre_act becomes pre_act_list, output becomes
@@ -66,6 +161,7 @@ class RecurrentOutputLayer(WeightLayer):
         self.weight_shape = (self.nout, self.nin)
         self.bias_shape = (self.nout, 1)
 
+        opt_param(self, ['delta_shape'], (self.nin, self.batch_size))  # moved
         self.allocate_output_bufs()
         self.allocate_param_bufs()
 
@@ -75,11 +171,11 @@ class RecurrentOutputLayer(WeightLayer):
         make_zbuf = self.backend.zeros
 
         self.pre_act_list = [self.pre_act] + \
-        					[make_zbuf(self.out_shape, self.pre_act_dtype)
-        					 for k in range(1, self.unrolls)]
+                            [make_zbuf(self.out_shape, self.pre_act_dtype)
+                             for k in range(1, self.unrolls)]
         self.output_list = [self.output] + \
-        					[make_zbuf(self.out_shape, self.output_dtype)
-        					 for k in range(1, self.unrolls)]
+                           [make_zbuf(self.out_shape, self.output_dtype)
+                            for k in range(1, self.unrolls)]
         self.temp_out = make_zbuf(self.weight_shape, self.weight_dtype)
 
     def fprop(self, inputs, tau):
@@ -90,10 +186,10 @@ class RecurrentOutputLayer(WeightLayer):
 
     def bprop(self, error, tau, numgrad=False):
         inputs = self.prev_layer.output_list[tau - 1]
-    	if self.skip_act is False:
-	        self.backend.multiply(error, self.pre_act_list[tau - 1], error)
+        if self.skip_act is False:
+            self.backend.multiply(error, self.pre_act_list[tau - 1], error)
 
-        self.backend.bprop_fc(self.berror, self.weights, error)
+        self.backend.bprop_fc(self.deltas, self.weights, error)
         self.backend.update_fc(out=self.temp_out, inputs=inputs, deltas=error)
 
         if numgrad == "output":
@@ -103,9 +199,10 @@ class RecurrentOutputLayer(WeightLayer):
                          self.weight_updates)
 
     def grad_log(self, ng, val):
-		logger.info("%s.bprop inc %s %f", self.__class__.__name__, ng, val)
+        logger.info("%s.bprop inc %s %f", self.__class__.__name__, ng, val)
 
-class RecurrentHiddenLayer(RecurrentOutputLayer):
+
+class RecurrentHiddenLayer(RecurrentLayer):
 
     """
     Derived from Layer. In addition to the lists[tau] outlined for
@@ -117,8 +214,30 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
         self.weight_rec_shape = (self.nout, self.nout)
         super(RecurrentHiddenLayer, self).initialize(kwargs)
 
+        # c&p from ROL
+        self.weight_shape = (self.nout, self.nin)
+        self.bias_shape = (self.nout, 1)
+
+        # Solution: Set delta_shape to nout since that's the correct size for
+        # the recurrent deltas
+        opt_param(self, ['delta_shape'], (self.nout, self.batch_size)) # moved
+        self.allocate_output_bufs()
+        self.allocate_param_bufs()
+
     def allocate_output_bufs(self):
         super(RecurrentHiddenLayer, self).allocate_output_bufs()
+
+        # c&p from ROL
+        make_zbuf = self.backend.zeros
+        self.pre_act_list = [self.pre_act] + \
+                            [make_zbuf(self.out_shape, self.pre_act_dtype)
+                             for k in range(1, self.unrolls)]
+        self.output_list = [self.output] + \
+                            [make_zbuf(self.out_shape, self.output_dtype)
+                             for k in range(1, self.unrolls)]
+        self.temp_out = make_zbuf(self.weight_shape, self.weight_dtype)
+
+        # these buffers are specific to RHL it seems
         self.temp_in = self.temp_out
         self.temp_rec = self.backend.zeros(self.weight_rec_shape)
         self.z = [self.backend.zeros(self.out_shape) for k in range(2)]
@@ -130,13 +249,15 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
                                             self.weight_dtype)
 
         self.updates_rec = self.backend.empty(self.weight_rec_shape,
-        									  self.updates_dtype)
+                                              self.updates_dtype)
 
         self.params.append(self.weights_rec)
         self.updates.append(self.updates_rec)
         # Not ideal, since we just allocated this in the parent function, but
         # we can change the calling order later
         self.learning_rule.allocate_state(self.updates)
+
+        # nothing to c&p since ROL does not have this and passes through to RL
 
     def fprop(self, y, inputs, tau, cell=None):
         self.backend.fprop_fc(self.z[0], y, self.weights_rec)
@@ -156,19 +277,21 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
         Not sure why tau is passed but not used. Not that this is called for
         decrementing t.
         """
-        # Is this equivalent to the old way of doing inputs[t*self.nin:(t+1)*self.nin, :] with the new datalayer format?
+        # Is this equivalent to the old way of doing
+        # inputs[t*self.nin:(t+1)*self.nin, :]
+        # with the new datalayer format?
         if self.prev_layer.is_data:
             inputs = self.prev_layer.output[t]
         else:
             inputs = self.prev_layer.output_list[t]
 
-
-    	if self.skip_act is False:
-	        self.backend.multiply(error, self.pre_act_list[t], out=error)
+        if self.skip_act is False:
+            self.backend.multiply(error, self.pre_act_list[t], out=error)
 
         # input weight update (apply curr. delta)
+
         self.backend.update_fc(out=self.temp_in,
-                               inputs=inputs[t*128:(t+1)*128, :],
+                               inputs=inputs,
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_in,
                          self.weight_updates)
@@ -180,9 +303,9 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
 
-            #**** ASK URS ***
-            #Why only at t > 0 vs. t==0? why not weights vs weights_rec
-            self.backend.bprop_fc(out=self.berror,  # output for next iteration
+            # **** ASK URS ***
+            # Why only at t > 0 vs. t==0? why not weights vs weights_rec
+            self.backend.bprop_fc(out=self.deltas,  # output for next iteration
                                   weights=self.weights_rec,
                                   deltas=error)
         if numgrad == "input":
@@ -191,7 +314,7 @@ class RecurrentHiddenLayer(RecurrentOutputLayer):
             self.grad_log(numgrad, self.temp_rec[12, 63])
 
 
-class RecurrentLSTMLayer(WeightLayer):
+class RecurrentLSTMLayer(RecurrentLayer):
 
     """
     Hidden layer with LSTM gates.
@@ -202,7 +325,7 @@ class RecurrentLSTMLayer(WeightLayer):
                  activation, gate_activation, weight_init, weight_init_rec,
                  learning_rule,
                  weight_dtype=None, delta_dtype=None, updates_dtype=None,
-                 pre_act_dtype=None, output_dtype=None, berror_dtype=None):
+                 pre_act_dtype=None, output_dtype=None, deltas_dtype=None):
         """
         In this section, create buffers for the 8 weight matrices:
         two kind of inputs (x_t and h_t-1) feeding into 4 gates (input, output,
@@ -299,8 +422,8 @@ class RecurrentLSTMLayer(WeightLayer):
         self.learning_rule.allocate_state(self.updates)
         for upm in self.updates:
             upm.fill(0.0)
-        self.berror = be.zeros((nout, batch_size))  # hidden bprop error
-        self.cerror = be.zeros((nout, batch_size))  # cell bprop error
+        self.deltas = be.zeros((nout, batch_size))  # hidden bprop error
+        self.celtas = be.zeros((nout, batch_size))  # cell bprop error
 
         self.temp_t = 0
 
@@ -430,7 +553,7 @@ class RecurrentLSTMLayer(WeightLayer):
                 do_dJ = d/dJ s(wcx*x+wch*h+b)
                 dg_dJ = d/dJ s(wcx*x+wch*h+b)
 
-        Over multiple time-steps, berror feeds back in as error.
+        Over multiple time-steps, deltas feeds back in as error.
         [TODO] Currently using a bunch of if statements to catch propagating
         into outputs[-1], which should not wrap but be 0.
         """
@@ -506,12 +629,11 @@ class RecurrentLSTMLayer(WeightLayer):
         be.multiply(error_c, self.f_t[tau], self.errs['cc'])
 
         # wrap up:
-        be.add(self.errs['hh'], self.errs['ch'], self.berror)
-        be.add(self.errs['cc'], self.errs['hc'], self.cerror)
+        be.add(self.errs['hh'], self.errs['ch'], self.deltas)
+        be.add(self.errs['cc'], self.errs['hc'], self.celtas)
 
         if numgrad is not None and numgrad.startswith("lstm"):
             ifoc_hx = numgrad[5:7]
             logger.info("LSTM.bprop: analytic dh_dw%s[%d]= %e + %e = %e",
                         ifoc_hx, tau, numtemp[ifoc_hx][0], numtemp[ifoc_hx][1],
                         numtemp[ifoc_hx][0] + numtemp[ifoc_hx][1])
-

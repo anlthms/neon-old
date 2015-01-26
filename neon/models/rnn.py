@@ -422,8 +422,7 @@ class RNN(Model):
             logger.error("must specify >=1 of: train, test, validation")
         return preds
 
-    def error_metrics(self, ds, preds, train=True, test=True,
-                      validation=False):
+    def error_metrics(self, ds, preds, train=True, test=True, validation=False):
         """
         Iterate over predictions from predict() and compare to the targets.
         Targets come from dataset. [Why in a separate function?]
@@ -471,21 +470,41 @@ class RNN(Model):
         self.error_metrics(dataset, predictions)
 
 
-class RNNB(MLPB):
+class RNNB(Model):
+    """
+    Removed inheritance from MLPB because it was freaking me out.
+    Maybe inherit Model like RNN? No idea what it's used for
+    """
     def __init__(self, **kwargs):
         self.accumulate = True
-        super(RNNB, self).__init__(**kwargs) # fails to link!
+        self.dist_mode = None
+        self.__dict__.update(kwargs)
+        req_param(self, ['layers', 'batch_size'])
         req_param(self, ['unrolls'])
+        opt_param(self, ['step_print'], -1)
+        opt_param(self, ['accumulate'], False)
+        self.result = 0
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate}
         self.data_layer = self.layers[0]
         self.rec_layer = self.layers[1]
-        self.class_layer = self.layers[2]
-        self.cost_layer = self.layers[3]
+        self.class_layer = self.layers[-2]
+        self.cost_layer = self.layers[-1]
+        self.link_and_initialize(self.layers, kwargs)
 
-        # Not sure this is necessary, if you print self.cost_layer.prev_layer
-        # It seems to have linked correctly by this point -AP
-        for lp in [self.layers]:
-            lp[-1].set_previous_layer(lp[-2])
-            lp[-1].initialize(kwargs)
+
+    def link_and_initialize(self, layer_list, kwargs, initlayer=None):
+        """Copy and paste from MLPB for ease of debugging """
+
+        for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
+            ll.set_previous_layer(pl)
+            ll.initialize(kwargs)
+
+    # C&P from MLPB
+    def print_layers(self, debug=False):
+        printfunc = logger.debug if debug else logger.info
+        for layer in self.layers:
+            printfunc("%s", str(layer))
 
     def fit(self, dataset):
         # old fit: hiden, cell_init. error, suberror.
@@ -495,29 +514,37 @@ class RNNB(MLPB):
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
-        for epoch in range(self.num_epochs):
+        while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
-            mb_id.fill(1)
+            mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
-                print "fit calls fprop"
                 self.fprop()
-                print "fit calls bprop"
                 self.bprop()
-                print "fit calls update"
-                self.update(epoch)
+                self.update(self.epochs_complete)
+                self.backend.add(error, self.cost_layer.get_cost(), error)
+                if self.step_print > 0 and mb_id % self.step_print == 0:
+                    logger.info('%d.%d logloss=%0.5f', self.epochs_complete,
+                                mb_id / self.step_print - 1,
+                                np.int(error.asnumpyarray()) / mb_id)
+                mb_id += 1
+            logger.info('epoch: %d, total training error: %0.5f',
+                        self.epochs_complete,
+                        error.asnumpyarray() / self.data_layer.num_batches)
+            self.print_layers(debug=True)
+            self.epochs_complete += 1
+        self.data_layer.cleanup()
 
     def fprop(self):
-        self.data_layer.fprop(None) # will set data_layer.outputs, data_layer.targets
+        self.data_layer.fprop(None) #  set data_layer.outputs, targets
         inputs = self.data_layer.output
         for tau in range(0, self.unrolls):
-            y = self.rec_layer.output_list # no hidden init, use output directly.
+            y = self.rec_layer.output_list # no hidden init, use output
             self.rec_layer.fprop(y[tau], inputs[tau], tau) # this is RecurrentHiddenLayer.fprop(self, y, inputs, tau, cell=None):
             y = self.rec_layer.output_list
             self.class_layer.fprop(y[tau], tau) # RecurrentOutputLayer.fprop(self, inputs, tau)
         # cost layer
-        y = self.class_layer.output_list # classes? list of (128x50) tensors, ok.
-        self.cost_layer.fprop(y) # pass (We can take this out, it was only included in the loop to make things pretty -AP)
+        y = self.class_layer.output_list
 
     def bprop(self):
         '''from mlp
@@ -526,51 +553,18 @@ class RNNB(MLPB):
             error = None if nl is None else nl.deltas
             ll.bprop(error)'''
         '''unrolling'''
-        trace()
         for tau in range(0, self.unrolls):
-            self.cost_layer.bprop(None, tau) # might need an unroll factor and stuff and shit. (Moved stuff in here to allow cost layer to point to tau in targetlist -AP)
+            self.cost_layer.bprop(None, tau) # might need an unroll factor (Moved stuff in here to allow cost layer to point to tau in targetlist -AP)
             error = self.cost_layer.deltas
             self.class_layer.bprop(error, tau)
             error = self.class_layer.deltas
 
-            for t in list(range(0, tau))[::-1]:  # Copied from above -- is this right?
-                #Don't need errorc for now, just RecHidLayer
-                self.rec_layer.bprop(error, error_c=None, tau, t)
+            for t in list(range(0, tau))[::-1]:  # TODO: is this right?
+                # No errorc for RNN, rec_layer.bprop ignores error_c parameter
+                self.rec_layer.bprop(error, None, tau, t) # no error_c!?!
             error = self.rec_layer.deltas
-        self.data_layer.bprop(error) # srsly? (We can take this out, it was only included in the loop to make things pretty -AP)
 
-
-    def predict_and_error(self, dataset=None):
-        if dataset is not None:
-            self.data_layer.init_dataset(dataset)
-        predlabels = self.backend.empty((1, self.batch_size))
-        labels = self.backend.empty((1, self.batch_size))
-        misclass = self.backend.empty((1, self.batch_size))
-        logloss_sum = self.backend.empty((1, 1))
-        misclass_sum = self.backend.empty((1, 1))
-        batch_sum = self.backend.empty((1, 1))
-        for setname in ['train', 'test', 'validation']:
-            if self.data_layer.has_set(setname) is False:
-                continue
-            self.data_layer.use_set(setname, predict=True)
-            self.data_layer.reset_counter()
-            misclass_sum.fill(0.0)
-            logloss_sum.fill(0.0)
-            nrecs = self.batch_size * self.data_layer.num_batches
-            while self.data_layer.has_more_data():
-                self.fprop()
-                probs = self.get_classifier_output()
-                targets = self.data_layer.targets
-                self.backend.argmax(targets, axis=0, out=labels)
-                self.backend.argmax(probs, axis=0, out=predlabels)
-                self.backend.not_equal(predlabels, labels, misclass)
-                self.backend.sum(misclass, axes=None, out=batch_sum)
-                self.backend.add(misclass_sum, batch_sum, misclass_sum)
-                self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
-                                 axes=None, out=batch_sum)
-                self.backend.add(logloss_sum, batch_sum, logloss_sum)
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
-                setname, 100 * misclass_sum.asnumpyarray() / nrecs,
-                logloss_sum.asnumpyarray() / nrecs))
-            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
-            self.data_layer.cleanup()
+    def update(self, epoch):
+        '''straight from old RNN'''
+        for layer in self.layers:
+            layer.update(epoch)

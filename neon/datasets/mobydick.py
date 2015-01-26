@@ -77,12 +77,15 @@ class MOBYDICK(Dataset):
             bs = self.data_dim * self.unrolls
             dd = self.data_dim
             if data.shape[0] % bs != 0:
-                logger.warning('Incompatible batch size. Discarding %d samples...',
+                logger.warning('Incompatible batch size. '
+                               'Discarding %d samples...',
                                data.shape[0] % bs)
             nbatches = data.shape[0] / bs
             batchwise = [[] for k in range(nbatches)]
             for batch in range(nbatches):
-                batchdata = [self.backend.array(data[batch * bs + k*dd : batch * bs + (k+1) * dd]) for k in range(self.unrolls)]
+                batchdata = [self.backend.array(data[batch * bs + k*dd :
+                                                batch * bs + (k+1) * dd])
+                             for k in range(self.unrolls)]
                 batchwise[batch] = batchdata
             return batchwise
 
@@ -124,7 +127,10 @@ class MOBYDICK(Dataset):
                 splay_3d = numpy.transpose(splay_3d, (1, 0, 2))
                 splay_3d = splay_3d.reshape(-1, self.batch_size)
                 self.inputs[dataset] = splay_3d
-                self.targets[dataset] = splay_3d # we need targets!
+                offbyone = numpy.zeros(splay_3d.shape)
+                length = offbyone.shape[0]
+                offbyone[0:length-128, :] = splay_3d[128:length, :]
+                self.targets[dataset] = offbyone
             self.format()  # runs transpose_batches
 
         else:
