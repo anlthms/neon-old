@@ -38,7 +38,8 @@
   ],
 
   # CNN model specification
-  # essentially a multi-layer perceptron with convolutional and pooling layers
+  # MLPL inherits everything from MLPB, but later on we will use extra
+  # localization features from this subclass.
   model: !obj:neon.models.mlp.MLPL {
     backend: *be,
     num_epochs: 5,

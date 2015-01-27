@@ -14,14 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class LocalizationExperiment(FitExperiment):
-    """
-    [TODO] This is not a real experiment yet.
-    """
+
     def run(self):
         """
-        Actually carry out each of the experiment steps.
+        Calls into the existing model for localization
         """
 
         # load the data and train the model
-        #super(LocalizationExperiment, self).run() # this might set up a lot!
         self.model.predict_and_localize(self.dataset)

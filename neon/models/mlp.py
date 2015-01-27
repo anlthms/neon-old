@@ -12,6 +12,8 @@ from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
 import numpy as np
 from ipdb import set_trace as trace
+from matplotlib import pyplot as plt
+plt.interactive(1)
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -286,9 +288,7 @@ class MLPB(MLP):
 
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
-            print "LINK"
             ll.set_previous_layer(pl)
-            print "INITIALIZE"
             ll.initialize(kwargs)
 
     def fprop(self):
@@ -390,30 +390,62 @@ class MLPL(MLPB):
 
     def predict_and_localize(self, dataset=None):
 
-        print "setting up data"
+        # setting up data
         if dataset is not None:
             self.data_layer.init_dataset(dataset)
         dataset.set_batch_size(self.batch_size)
-        self.data_layer.use_set('validation', predict=True)  #takes long
+        self.data_layer.use_set('validation', predict=True)
 
+        # seting up layers
+        self.layers[0].ofmshape = [32, 32]  # TODO: Move this to yaml
 
-        print "seting up layers"
-        self.layers[0].ofmshape = [32,32] # was 16 for training, now full size
-        self.layers[5].fshape = [5,5] # from 1x1 FC layer to 5x5 heat map
-        for l in [1,2,3,4,5,6]:  # never trust xrange
+        for l in range(1, len(self.layers)-1):
             delattr(self.layers[l], 'delta_shape')
             delattr(self.layers[l], 'out_shape')
 
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate, "no_weight_set": True}
-        self.link_and_initialize(self.layers, kwargs) # normally inits weights
 
+        self.link_and_initialize(self.layers, kwargs)  # with no_weight_set
+        self.print_layers()
+        self.fprop()
+        self.visualize()
 
+    def visualize(self):
+        """
+        Rudimentary visualization code for localization experiments:
+        """
+
+        # look at the data
+        mapp = self.layers[6].output.asnumpyarray()  # 50 is 2 x (5x5)
+        mapp0 = mapp[0:25, :].reshape(5, 5, -1)
+        mapp1 = mapp[25:50, :].reshape(5, 5, -1)
+        databatch = self.layers[0].output.asnumpyarray()
+        data0 = databatch[0*1024:1*1024, :].reshape(32, 32, -1)
+        data1 = databatch[1*1024:2*1024, :].reshape(32, 32, -1)
+
+        self.myplot(mapp0, title='positive class label strength',
+                    span=(0, 1), fig = 0)
+        self.myplot(mapp1, title='negative class label strength',
+                    span=(0, 1), fig = 1)
+        self.myplot(data0, title='data variable 0',
+                    span=(-1, 1.5), fig = 2)
+        self.myplot(data1, title='data variable 1', span=(-2, 2), fig = 3)
+
+        print "setting trace to keep plots open..."
         trace()
 
-        print "calling fprop"
-        self.fprop()
-
-        self.layers[6].output # TODO: Need to convert two FC layers to conv
-        # layers. Easier to do this during the initial traning if possible?!
-
+    @staticmethod
+    def myplot(data, title, span, fig):
+        """
+        I don't know what a staticmethod does so it may not make sense to
+        use that here
+        """
+        plt.figure(fig)
+        plt.clf()
+        for i in range(100):
+            plt.subplot(10, 10, i+1)
+            plt.imshow(data[:, :, i], interpolation='none',
+                       vmin=span[0], vmax=span[1])
+        plt.subplot(10, 10, 5)
+        plt.title(title)

@@ -158,12 +158,52 @@ for mpirun and neon, for e.g.:
 LD_LIBRARY_PATH should point to /<path_to_openmpi>/lib. A common file system
 is assumed.
 
+
+Serializing models
+------------------
+Serializing / deserialization is supported in a general way for all objects that
+appear in the yaml file. To serialize an object (i.e. to create a checkpoint),
+add a line in the yaml file like
+.. code-block:: bash
+
+  model: !obj:neon.models.mlp.MLPL {
+    serialized_path: './serialized_file_path.pkl',
+
+and the model !obj will be serialized into a pickel file at the specified path.
+This is possible for any `!obj` object, e.g. individual layers. To warm-start
+from a checkpoint, use a yaml file that contains
+.. code-block:: bash
+
+  model: !obj:neon.models.mlp.MLPL {
+    deserialized_path: './serialized_file_path.pkl',
+    # overwrite_list: [layers],
+
+and everything inside the model (layers, batch_size, backend) will be taken from
+the pickle file. The optional parameter `overwrite_list` specifies a list of
+objects that should not be taken from the pickel object, but from the yaml file.
+
+
+Object Localization
+-------------------
+(NOT SURE THIS BELONGS UNDER using_neon, MOVE SOMEWHERE ELSE?)
+Obeject localization is currently supported as a two-stage process, where first
+a network is trained on small, cropped patches of an object, and the feature
+detectors learned by this network are then reused to perform inference on a
+set of possibly much larger test images. This requires using a pair of yaml files,
+one for training that specifies a crop dataset and a data layer with the correct
+`ofmshape` size, that serializes the layer stack. The second yaml file contains
+the full images (TODO support to set corresponding `ofmshape` size). An example
+of this is given for the Hurrican dataset in the files
+`hurricane_cpu_cnn_multivar.yaml` and `hurricane_cpu_cnn_multivar_loca.yaml`
+in the `neon/tests` directory.
+
+
 Hyperparameter optimization
 ---------------------------
 Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
-with neon. We currently offer support for Spearmint, available as a fork 
+with neon. We currently offer support for Spearmint, available as a fork
 at `https://github.com/ursk/spearmint/`. The package depends on google
 protobuf and uses the flask webserver for visualizing results.
 
