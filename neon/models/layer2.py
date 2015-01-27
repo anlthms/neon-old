@@ -503,9 +503,9 @@ class ConvLayer(WeightLayer):
         else:
             self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nout, 1)
-
         self.allocate_output_bufs()
-        self.allocate_param_bufs()
+        if "no_weight_set" not in kwargs or kwargs["no_weight_set"] is False:
+            self.allocate_param_bufs()
         opt_param(self, ['prodbuf', 'bpropbuf', 'updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))

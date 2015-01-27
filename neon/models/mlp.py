@@ -11,6 +11,7 @@ from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
 import numpy as np
+from ipdb import set_trace as trace
 
 if MPI_INSTALLED:
     from mpi4py import MPI
@@ -285,7 +286,9 @@ class MLPB(MLP):
 
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
+            print "LINK"
             ll.set_previous_layer(pl)
+            print "INITIALIZE"
             ll.initialize(kwargs)
 
     def fprop(self):
@@ -376,3 +379,41 @@ class MLPB(MLP):
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
+
+
+class MLPL(MLPB):
+    """
+    Localization model. Inherits everythning from MLPB that does the learning
+    of the features. Then runs a forward pass on the larger images and [todo]
+    plots localization maps.
+    """
+
+    def predict_and_localize(self, dataset=None):
+
+        print "setting up data"
+        if dataset is not None:
+            self.data_layer.init_dataset(dataset)
+        dataset.set_batch_size(self.batch_size)
+        self.data_layer.use_set('validation', predict=True)  #takes long
+
+
+        print "seting up layers"
+        self.layers[0].ofmshape = [32,32] # was 16 for training, now full size
+        self.layers[5].fshape = [5,5] # from 1x1 FC layer to 5x5 heat map
+        for l in [1,2,3,4,5,6]:  # never trust xrange
+            delattr(self.layers[l], 'delta_shape')
+            delattr(self.layers[l], 'out_shape')
+
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate, "no_weight_set": True}
+        self.link_and_initialize(self.layers, kwargs) # normally inits weights
+
+
+        trace()
+
+        print "calling fprop"
+        self.fprop()
+
+        self.layers[6].output # TODO: Need to convert two FC layers to conv
+        # layers. Easier to do this during the initial traning if possible?!
+

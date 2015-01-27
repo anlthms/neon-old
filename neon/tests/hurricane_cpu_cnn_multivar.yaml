@@ -7,12 +7,14 @@
 
   dataset: !obj:neon.datasets.hurricane.Hurricane {
       backend: *be,
-      repo_path: '/mnt/data/nersc/hurricane/',
+      repo_path: '/usr/local/data/',
       hdf5_file: 'hurricanes.h5',
+      # variables: [0],  # used in singlevar case
+      crop: 16,  # train on a smaller center region.
       training_size: 10000,
       test_size: 10000
   },
-  
+
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
       backend: *be,
@@ -37,22 +39,22 @@
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLPB {
+  model: !obj:neon.models.mlp.MLPL {
     backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,
-    # serialized_path: './cnn-small.pkl',
+    serialized_path: './hurr16features.pkl',  # check util/persist for overwrite_param
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
         is_local: True,
         nofm: 8, # Must match the number of variables.
-        ofmshape: [32, 32],
+        ofmshape: [16, 16],
       },
       !obj:neon.models.layer2.ConvLayer {
         name: layer1,
         nofm: 10,
-        ifmshape: [32, 32],
+        #ifmshape: [16, 16],  # No longer needed? -UK
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
@@ -78,16 +80,22 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:neon.models.layer2.ConvLayer { # was FCLayer
         name: layer5,
-        nout: 10,
+        #nout: 10,
+        nofm: 10,
+        fshape: [1, 1],
+        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:neon.models.layer2.ConvLayer { # was FCLayer
         name: output,
-        nout: 2,
+        #nout: 2,
+        nofm: 2,
+        fshape: [1, 1],
+        stride: 1,
         activation: !obj:neon.transforms.logistic.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -99,7 +107,7 @@
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50
