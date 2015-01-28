@@ -240,7 +240,6 @@ class MLP(Model):
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
                          item, 100 * self.result.asnumpyarray(),
                          logloss.asnumpyarray())
-        # TODO: return values instead?
 
     def predict_and_error(self, dataset):
         for layer in self.layers:
@@ -330,7 +329,7 @@ class MLPB(MLP):
         """
         Learn model weights on the given datasets.
         """
-        error = self.backend.empty((1, 1))
+        error = self.backend.zeros((1, 1))
         self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
@@ -365,6 +364,9 @@ class MLPB(MLP):
         logloss_sum = self.backend.empty((1, 1))
         misclass_sum = self.backend.empty((1, 1))
         batch_sum = self.backend.empty((1, 1))
+
+        return_err = dict()
+
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
@@ -390,3 +392,5 @@ class MLPB(MLP):
                 logloss_sum.asnumpyarray() / nrecs))
             self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
             self.data_layer.cleanup()
+            return_err[setname] = self.result
+        return return_err

@@ -66,8 +66,8 @@ def cross_entropy_multi(backend, outputs, targets, temp):
     backend.log(temp[1], out=temp[1])
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
-    result = backend.empty((1, temp[0].shape[1]))
-    return backend.sum(temp[0], axes=0, out=result)
+    result = backend.empty((1, 1))
+    return backend.sum(temp[0], axes=None, out=result)
 
 
 def cross_entropy_derivative(backend, outputs, targets, temp, scale=1.0):
@@ -184,9 +184,14 @@ class CrossEntropy(Cost):
                                     self.temp)
         self.backend.clip(self.outputbuf, eps, 1.0 - eps, out=self.temp[0])
         self.backend.sum(self.temp[0], axes=0, out=self.temp[2])
+
         # XXX: work around lack of broadcasting in gpu backend.
+        temp1 = self.temp[1].asnumpyarray()
+        size = self.temp[2].shape[0] * self.temp[2].shape[1]
+        broadcast_row = self.temp[2].asnumpyarray().reshape((size,))
         for row in range(self.outputbuf.shape[0]):
-            self.temp[1][row] = self.temp[2]
+            temp1[row] = broadcast_row
+        self.temp[1] = self.backend.array(temp1)
 
         self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])
         return cross_entropy_multi(self.backend, self.temp[0], targets,
@@ -198,7 +203,8 @@ class CrossEntropy(Cost):
         """
         result = self.ce_function(self.backend, self.outputbuf, targets,
                                   self.temp)
-        return self.backend.multiply(result, self.scale, out=result)
+        self.backend.multiply(result, self.scale, out=result)
+        return result
 
     def apply_derivative(self, targets):
         """

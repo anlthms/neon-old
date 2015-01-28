@@ -4,26 +4,11 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset.  Simple network meant more as a sanity check.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:umd.nrv_backend.NRVBackend {
+!obj:neon.experiments.write_error_to_file.WriteErrorToFile {
+  filename: neon_result_validation.txt,
+  item: test, # if avaliable, use 'validation'
+  backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
-    seterr_handling: {
-      all: 'warn',
-    },
-    default_flex_dtype: &def_flex_dtype !obj:neon.backends.flexpoint.flexpt_dtype {
-      sign_bit: True,
-      int_bits: 4,
-      frac_bits: 11,
-      overflow: 0,
-      rounding: 0,
-    },
-    module_logging_levels: &mod_logging_levels {
-      backend: 40,
-      umd: 40,
-      compiler: 40,
-    },
-    use_flex_dtype: &use_flex_dtype False,
-    use_compiler: &use_compiler False,
   },
 
   dataset: &ds !obj:neon.datasets.iris.Iris {
@@ -36,13 +21,13 @@
     backend: *be,
     low: -1,
     high: 1,
-    # bias_init: 0.0,
+    bias_init: 0.0,
   },
 
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
-      learning_rate: 0.1,
+      learning_rate: !hyperopt lr FLOAT 0.01 0.1,
       backend: *be,
       momentum_params: {
         type: constant,
@@ -53,12 +38,11 @@
   # simple MLP model specification
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: 2500,
+    num_epochs: !hyperopt nep INT 100 1000,
     batch_size: &bs 30,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         nout: 4,
       },
       !obj:neon.models.layer2.FCLayer {

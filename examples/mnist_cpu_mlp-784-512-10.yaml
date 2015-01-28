@@ -21,14 +21,10 @@
   },
 
   weight_inits: [
-    &wt_uni !obj:params.GaussianValGen {
+    &wt_uni !obj:params.UniformValGen {
       backend: *be,
-      scale: 0.1,
-    },
-    &wt_initb !obj:params.NodeNormalizedValGen {
-      backend: *be,
-      scale: 4.0,
-      bias_init: 0.0,
+      low: -0.1,
+      high: 0.1,
     },
   ],
 
@@ -36,7 +32,7 @@
     &gd {
       type: gradient_descent,
       lr_params: {
-        learning_rate: 0.00001,
+        learning_rate: 1.,
         backend: *be,
       },
     },
