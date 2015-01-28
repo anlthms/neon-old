@@ -105,6 +105,11 @@ class MNIST(Dataset):
             self.num_procs = self.comm.size
             num_batches = len(self.train_idcs) / self.batch_size
             split_batch_size = self.batch_size / self.num_procs
+            if split_batch_size != np.int(split_batch_size):
+                raise ValueError('Dataset batch size must be Model batch '
+                                 'size * num_procs. Model batch size of %d '
+                                 'might work.' % (self.batch_size /
+                                                  self.num_procs))
             start_index = self.comm.rank * split_batch_size
             for j in range(num_batches):
                 idcs_split.extend(self.train_idcs[start_index:start_index +
@@ -112,7 +117,7 @@ class MNIST(Dataset):
                 start_index += self.batch_size
             self.train_idcs = idcs_split
             self.dist_indices = range(img_size)
-
+            self.split_batch_size = split_batch_size
             if self.num_test_sample % self.batch_size != 0:
                 raise ValueError('num_test_sample mod dataset batch size != 0')
 
@@ -205,6 +210,8 @@ class MNIST(Dataset):
                     self.targets['test'] = tmp
                 else:
                     logger.error('problems loading: %s', name)
+            if self.dist_flag and self.dist_mode == 'datapar':
+                self.batch_size = self.split_batch_size
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')

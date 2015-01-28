@@ -163,3 +163,19 @@ CrossMap Neural Network Layer
    neon.backends.backend.Backend.update_cmpool
    neon.backends.backend.Backend.fprop_cmrnorm
    neon.backends.backend.Backend.bprop_cmrnorm
+
+
+***************
+MOP API Changes
+***************
+
+v0.7.0
+======
+
+* to support 3D convolutions:
+
+  * new parameter ofmsize has been added to fprop_conv, bprop_conv,
+    update_conv, fprop_pool, bprop_pool
+  * new parameter fpsize has been added to bprop_pool
+  * new parameter ifmsize has been added to fprop_cmpool, bprop_cmpool,
+    update_cmpool

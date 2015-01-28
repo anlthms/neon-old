@@ -6,11 +6,10 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
-import os
 
 from neon.experiments.experiment import Experiment
+from neon.util.persist import serialize
 from neon.util.compat import MPI_INSTALLED
-from neon.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
 
@@ -41,67 +40,42 @@ class FitExperiment(Experiment):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
+        self.model.link()
         par_scheme = (
             self.par_scheme if 'par_scheme' in self.__dict__ else 'none')
         self.backend.configure(self.model, par_scheme=par_scheme)
-
-        self.model.link_and_initialize()
+        self.model.initialize()
 
     def run(self):
         """
         Actually carry out each of the experiment steps.
         """
-        # load and/or deserialize any unloaded datasets
-        ds = self.dataset
-        ds.set_batch_size(self.model.batch_size)
-        if not hasattr(ds, 'backend'):
-            ds.backend = self.backend
-        if hasattr(ds, 'serialized_path'):
-            if self.dist_flag:
-                if MPI_INSTALLED:
-                    from mpi4py import MPI
-                    ds.serialized_path = ds.serialized_path.format(
-                        rank=str(MPI.COMM_WORLD.rank),
-                        size=str(MPI.COMM_WORLD.size))
-                else:
-                    raise AttributeError("dist_flag set but mpi4py not "
-                                         "installed")
-            if os.path.exists(ds.serialized_path):
-                ds = deserialize(ds.serialized_path)
-            else:
-                ds.load()
-                serialize(ds, ds.serialized_path)
-        else:
-            ds.load()
+        # load the dataset, save it to disk if specified
+        if (not hasattr(self.dataset, 'dist_flag') or
+                not self.dataset.dist_flag or (self.dataset.dist_mode !=
+                                               'datapar')):
+            self.dataset.set_batch_size(self.model.batch_size)
+        if not hasattr(self.dataset, 'backend'):
+            self.dataset.backend = self.backend
+        self.dataset.load()
+        if hasattr(self.dataset, 'serialized_path'):
+            serialize(self.dataset, self.dataset.serialized_path)
 
-        # load or fit the model to the data
+        # fit the model to the data, save it if specified
         if not hasattr(self.model, 'backend'):
             self.model.backend = self.backend
+        if not hasattr(self.model, 'epochs_complete'):
+            self.model.epochs_complete = 0
+        if self.model.epochs_complete < self.model.num_epochs:
+            self.model.fit(self.dataset)
         if hasattr(self.model, 'serialized_path'):
-            mpath = self.model.serialized_path
-            if os.path.exists(mpath):
-                if self.dist_flag:
-                    if MPI_INSTALLED:
-                        # deserialize the model at the root node only
-                        # can change behavior depending on future use cases
-                        if MPI.COMM_WORLD.rank == 0:
-                            self.model = deserialize(mpath)
-                    else:
-                        raise AttributeError("dist_flag set but mpi4py not "
-                                             "installed")
-                self.model = deserialize(mpath)
-            else:
-                self.model.fit(ds)
-                if self.dist_flag:
-                    if MPI_INSTALLED:
-                        from mpi4py import MPI
-                        # serialize the model only at the root node
-                        if MPI.COMM_WORLD.rank == 0:
-                            serialize(self.model, mpath)
-                    else:
-                        raise AttributeError("dist_flag set but mpi4py not "
-                                             "installed")
+            if (hasattr(self.dataset, 'dist_flag') and self.dataset.dist_flag
+                    and self.dataset.dist_mode == 'datapar'):
+                if MPI_INSTALLED:
+                    from mpi4py import MPI
+                    if MPI.COMM_WORLD.rank == 0:
+                        serialize(self.model, self.model.serialized_path)
                 else:
-                    serialize(self.model, mpath)
-        else:
-            self.model.fit(ds)
+                    raise AttributeError("dist_flag set but MPI not installed")
+            else:
+                serialize(self.model, self.model.serialized_path)

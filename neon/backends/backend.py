@@ -21,7 +21,7 @@ class Backend(YAMLable):
         See the list of `implemented backends </backends.html>`_
     """
 
-    def empty(self, dtype=None):
+    def empty(self, shape, dtype=None):
         """
         Instantiate a new instance of this backend's Tensor class, without
         initializing element values.  This is slightly faster than
@@ -31,6 +31,7 @@ class Backend(YAMLable):
         random.
 
         Arguments:
+            shape (int, list): length of each dimension of the Tensor.
             dtype (data-type, optional): If present, specifies the underlying
                                          type to employ for each element.
         Returns:
@@ -129,7 +130,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def uniform(self, low=0.0, high=1.0, size=1):
+    def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
         Uniform random number generation of samples in range [low, high).
 
@@ -139,6 +140,8 @@ class Backend(YAMLable):
                                       Defaults to 1.0.
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
+            dtype (data-type, optional): If present, specifies the underlying
+                                         type to employ for each element.
 
         Returns:
             Tensor: of shape size filled with these random numbers.
@@ -151,7 +154,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError("Can't create direct instances of Backend")
 
-    def normal(self, loc=0.0, scale=1.0, size=1):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number generation of samples centered around
         mean loc, and with standard deviation scale.
@@ -163,6 +166,8 @@ class Backend(YAMLable):
                                        Defaults to 1.0
             size (int, list, optional): The shape of the samples to return.
                                         Defaults to 1
+            dtype (data-type, optional): If present, specifies the underlying
+                                         type to employ for each element.
 
         Returns:
             Tensor: of shape size filled with these random numbers.
@@ -665,8 +670,8 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf,
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
                    local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
@@ -680,6 +685,7 @@ class Backend(YAMLable):
             weights (Tensor): The weight coefficient values for this layer.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -701,8 +707,8 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf,
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
                    local=False):
         """
         Backward propagate the error through a convolutional network layer.
@@ -713,6 +719,7 @@ class Backend(YAMLable):
             deltas (Tensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -735,9 +742,9 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False, layer=None):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -749,6 +756,7 @@ class Backend(YAMLable):
             deltas (Tensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -766,14 +774,15 @@ class Backend(YAMLable):
                                 field
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 
-    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
-                   links, nifm, padding, stride, fpropbuf):
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
+                   ifmshape, links, nifm, padding, stride, fpropbuf):
         """
         Forward propagate the inputs of a Pooling network layer to
         produce output pre-activations (ready for transformation by an
@@ -787,6 +796,7 @@ class Backend(YAMLable):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
@@ -807,8 +817,9 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
-                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
+                   ofmlocs, fshape, fpsize, ifmshape, links, nifm, padding,
+                   stride, bpropbuf):
         """
         Backward propagate the error through a pooling network layer.
 
@@ -822,10 +833,12 @@ class Backend(YAMLable):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (Tensor): Indices giving the location of each element in
                               each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
                             width).
+            fpsize (int): The size of each filter.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
             links (Tensor): Input receptive field indices.
@@ -963,7 +976,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape, ifmsize):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
         produce output pre-activations (ready for transformation by an
@@ -976,13 +989,14 @@ class Backend(YAMLable):
             weights (Tensor): The weight coefficient values for this layer.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 
-    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+    def bprop_cmpool(self, out, weights, deltas, ifmshape, ifmsize):
         """
         Backward propagate the error through a CrossMap pooling layer.
 
@@ -992,13 +1006,14 @@ class Backend(YAMLable):
             deltas (Tensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 
-    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+    def update_cmpool(self, out, inputs, deltas, ifmshape, ifmsize, updatebuf):
         """
         Compute the updated gradient for a CrossMap pooling layer.
 
@@ -1009,6 +1024,7 @@ class Backend(YAMLable):
             deltas (Tensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
+            ifmsize (int): Total size of each input feature map.
             updatebuf (Tensor): Temporary storage buffer used to hold the
                                 updated gradient for a single receptive
                                 field
@@ -1027,13 +1043,11 @@ class Backend(YAMLable):
         self.actual_batch_size = model.batch_size
         if par_scheme == 'model':
             self.par = ModelPar(self, model)
-            self.gen_weights = self.par.gen_weights
             self.fprop_fc = self.par.fprop_fc
             self.bprop_fc = self.par.bprop_fc
             self.update_fc = self.par.update_fc
         elif par_scheme == 'data':
             self.par = DataPar(self, model)
-            self.gen_weights = self.par.gen_weights
             self.update_fc = self.par.update_fc
             self.update_conv = self.par.update_conv
         elif par_scheme == 'hybrid':

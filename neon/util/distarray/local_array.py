@@ -106,7 +106,7 @@ class LocalArray(object):
 
         # if tensor_name == 'output':
         #     tensor = self.local_image
-        # elif tensor_name == 'berror':
+        # elif tensor_name == 'deltas':
         #     tensor = self.defiltering_local_image
 
         self.batch_size = batch_size  # mini-batch size

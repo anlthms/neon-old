@@ -7,7 +7,6 @@ wraps :mod:`numpy` ndarray and related operations
 """
 
 import logging
-import math
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
@@ -236,7 +235,7 @@ class CPU(Backend):
         individual element values.
 
         Arguments:
-            shape (list of ints): The size of each dimension of the Tensor.
+            shape (int, list): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
                                      use default_dtype value ('float32'
                                      unless overridden).
@@ -361,6 +360,9 @@ class CPU(Backend):
                                       so maximal value slightly less.
                                       Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
 
         Returns:
             Tensor: Of specified size filled with these random numbers.
@@ -393,6 +395,9 @@ class CPU(Backend):
                                      to 0.0
             scale (numeric, optional): Standard deviaion.  Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
+            dtype (dtype, optional): Element data type.  If not specified we
+                                     use default_dtype value ('float32'
+                                     unless overridden).
 
         Returns:
             Tensor: Of specified size filled with these random numbers.
@@ -929,8 +934,8 @@ class CPU(Backend):
         """
         self.dot(deltas, inputs.transpose(), out)
 
-    def fprop_conv(self, out, inputs, weights, ofmshape, ofmlocs, ifmshape,
-                   links, nifm, padding, stride, ngroups, fpropbuf,
+    def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
                    local=False):
         """
         Forward propagate the inputs of a convolutional network layer to
@@ -944,6 +949,7 @@ class CPU(Backend):
             weights (CPUTensor): The weight coefficient values for this layer.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -961,8 +967,7 @@ class CPU(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
         """
-        ofmsize = ofmshape[0] * ofmshape[1]
-        fsize = len(links[0])
+        fsize = links.shape[1]
         for dst in range(ofmsize):
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
@@ -977,8 +982,8 @@ class CPU(Backend):
 
             out[ofmlocs[dst]] = fpropbuf
 
-    def bprop_conv(self, out, weights, deltas, ofmshape, ofmlocs, ifmshape,
-                   links, padding, stride, nifm, ngroups, bpropbuf,
+    def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
+                   ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
                    local=False):
         """
         Backward propagate the error through a convolutional network layer.
@@ -989,6 +994,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -1008,7 +1014,7 @@ class CPU(Backend):
         """
         fsize = links.shape[1]
         out.fill(0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             rflinks = links[dst]
             if local is False:
                 self.dot(weights,
@@ -1019,9 +1025,9 @@ class CPU(Backend):
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf, local=False, layer=None):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1033,6 +1039,7 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
@@ -1050,10 +1057,11 @@ class CPU(Backend):
                                    field
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
+            layer (Layer): The layer object.
         """
         fsize = links.shape[1]
         out.fill(0.0)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
@@ -1069,8 +1077,8 @@ class CPU(Backend):
                 self.dot(inputs.take(rflinks, axis=0), eslice,
                          out=out[(fsize*dst):(fsize*(dst+1))])
 
-    def fprop_pool(self, out, inputs, op, ofmshape, ofmlocs, fshape, ifmshape,
-                   links, nifm, padding, stride, fpropbuf):
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
+                   ifmshape, links, nifm, padding, stride, fpropbuf):
         """
         Forward propagate the inputs of a Pooling network layer to
         produce output pre-activations (ready for transformation by an
@@ -1084,6 +1092,7 @@ class CPU(Backend):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                                  each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
@@ -1100,7 +1109,7 @@ class CPU(Backend):
                                   pooled outputs for a single receptive field.
         """
         rinputs = self.hstack_maps(inputs, nifm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
@@ -1119,8 +1128,9 @@ class CPU(Backend):
                 raise AttributeError("unexpected pooling op type: %s", op)
         out[:] = self.vstack_maps(fpropbuf, nifm)
 
-    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmlocs,
-                   fshape, ifmshape, links, nifm, padding, stride, bpropbuf):
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
+                   ofmlocs, fshape, fpsize, ifmshape, links, nifm, padding,
+                   stride, bpropbuf):
         """
         Backward propagate the error through a pooling network layer.
 
@@ -1135,10 +1145,12 @@ class CPU(Backend):
                          "max", "avg", "l2" currently.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               height and width).
+            ofmsize (int): Total size of each output feature map.
             ofmlocs (CPUTensor): Indices giving the location of each element in
                               each output feature map stored in out.
             fshape (tuple): Dimensions of each filter (typically height and
                             width).
+            fpsize (int): The size of each filter.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
             links (CPUTensor): Input receptive field indices.
@@ -1154,7 +1166,7 @@ class CPU(Backend):
         op = op.lower()
         bpropbuf.fill(0.0)
         if op == "avg" or op == "mean":
-            self.divide(deltas, fshape[0] * fshape[1], deltas)
+            self.divide(deltas, fpsize, deltas)
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
         elif op == "max":
             col_inds = list(range(bpropbuf.shape[1]))
@@ -1164,7 +1176,7 @@ class CPU(Backend):
             rfouts = self.hstack_maps(fouts, nifm)
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
         rdeltas = self.hstack_maps(deltas, nifm)
-        for dst in range(ofmshape[0] * ofmshape[1]):
+        for dst in range(ofmsize):
             if op == "max":
                 rflinks = links[dst]
                 inds = rflinks.take(ofmlocs[dst], axis=0)
@@ -1216,7 +1228,7 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rout = out._tensor.reshape((nifm, H, W, N))
         for i in range(nifm):
@@ -1251,7 +1263,7 @@ class CPU(Backend):
                                   normalized outputs for a single receptive
                                   field.
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs.reshape((nifm, H, W, N))
         rout = out.reshape((nifm, H, W, N))
         rfouts = fouts.reshape((nifm, H, W, N))
@@ -1305,7 +1317,7 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], inputs.shape[1])
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], inputs.shape[1])
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rmeandiff = meandiffs._tensor.reshape((nifm, H, W, N))
         routputs = out._tensor.reshape((nifm, H, W, N))
@@ -1371,12 +1383,12 @@ class CPU(Backend):
                          denominator by.
             beta (int): scalar power to raise the normalization denominator by
         """
-        (H, W, N) = (ifmshape[0], ifmshape[1], fouts.shape[1])
-        self.multiply(fouts, self.wrap(-2 * alpha * beta), out=fouts)
+        (H, W, N) = (ifmshape[-2], ifmshape[-1], fouts.shape[1])
+        self.multiply(fouts, -2 * alpha * beta, out=fouts)
         self.multiply(fouts, deltas, out=fouts)
         self.divide(fouts, denoms, out=fouts)
         rfouts = fouts._tensor.reshape((nifm, H, W, N))
-        rberror = out._tensor.reshape((nifm, H, W, N))
+        rdeltas = out._tensor.reshape((nifm, H, W, N))
 
         offset = ksize/2 - ksize + 1
         for y in xrange(H):
@@ -1389,14 +1401,14 @@ class CPU(Backend):
                 ww = len(xidx)
                 patch = rfouts.take(xidx, axis=1).take(
                     yidx, axis=2).reshape((nifm, hh, ww, N))
-                np.sum(patch, axis=(1, 2), out=rberror[:, x, y, :])
+                np.sum(patch, axis=(1, 2), out=rdeltas[:, x, y, :])
 
         self.multiply(out, meandiffs, out=out)
         self.power(denoms, -beta, out=fouts)
         self.multiply(deltas, fouts, out=fouts)
         self.add(out, fouts, out=out)
 
-    def fprop_cmpool(self, out, inputs, weights, ifmshape):
+    def fprop_cmpool(self, out, inputs, weights, ifmshape, ifmsize):
         """
         Forward propagate the inputs of a CrossMap Pooling layer to
         produce output pre-activations (ready for transformation by an
@@ -1409,18 +1421,18 @@ class CPU(Backend):
             weights (CPUTensor): The weight coefficient values for this layer.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
         """
-        fmsize = ifmshape[0] * ifmshape[1]
-        tmp = self.empty([fmsize, out.shape[1]])
+        tmp = self.empty([ifmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
-            ofm = out[(ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofm = out[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             ofm.fill(0.0)
             for ifmind in range(weights.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 self.multiply(ifm, weights[ifmind, ofmind], tmp)
                 self.add(ofm, tmp, ofm)
 
-    def bprop_cmpool(self, out, weights, deltas, ifmshape):
+    def bprop_cmpool(self, out, weights, deltas, ifmshape, ifmsize):
         """
         Backward propagate the error through a CrossMap pooling layer.
 
@@ -1430,10 +1442,11 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).
+            ifmsize (int): Total size of each input feature map.
         """
-        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape)
+        self.fprop_cmpool(out, deltas, weights.transpose(), ifmshape, ifmsize)
 
-    def update_cmpool(self, out, inputs, deltas, ifmshape, updatebuf):
+    def update_cmpool(self, out, inputs, deltas, ifmshape, ifmsize, updatebuf):
         """
         Compute the updated gradient for a CrossMap pooling layer.
 
@@ -1444,16 +1457,16 @@ class CPU(Backend):
             deltas (CPUTensor): The error values for this layer
             ifmshape (tuple): Dimensions of each input feature map (typically
                               height and width).
+            ifmsize (int): Total size of each input feature map.
             updatebuf (CPUTensor): Temporary storage buffer used to hold the
                                    updated gradient for a single receptive
                                    field
         """
         out.fill(0.0)
-        fmsize = ifmshape[0] * ifmshape[1]
         for ofmind in range(out.shape[1]):
-            ofmd = deltas[(ofmind * fmsize):((ofmind + 1) * fmsize)]
+            ofmd = deltas[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             for ifmind in range(out.shape[0]):
-                ifm = inputs[(ifmind * fmsize):((ifmind + 1) * fmsize)]
+                ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
@@ -1490,89 +1503,6 @@ class CPU(Backend):
         """
         dev_weights[:] = host_weights
 
-    def gen_weights(self, size, weight_params, dtype=None, layer=None):
-        """
-        Different types of weight initializations.  Includes:
-        * uniform - uniform distribution
-        * sparse_eigenvalued - each weight has 15 nonzero inputs and the
-        maximum eigenvalue of the weight matrix is scaled to 1.2
-        * normal or gaussian - normal distribution
-        * node_normalized - initialization is as discussed in Glorot2010
-
-        Arguments:
-            size: shape of the weight matrix to generate
-            weight_params: parameters 'type', 'high', 'low', 'loc', etc.
-
-        Returns:
-            CPUTensor: The initialized weights
-        """
-        weights = None
-        if 'dtype' in weight_params:
-            dtype = weight_params['dtype']
-        if weight_params['type'] == 'uniform':
-            low = 0.0
-            high = 1.0
-            if 'low' in weight_params:
-                low = weight_params['low']
-            if 'high' in weight_params:
-                high = weight_params['high']
-            logger.info('generating %s uniform(%0.2f, %0.2f) weights.',
-                        str(size), low, high)
-            weights = self.uniform(low, high, size, dtype)
-        elif (weight_params['type'] == 'gaussian' or
-              weight_params['type'] == 'normal'):
-            loc = 0.0
-            scale = 1.0
-            if 'loc' in weight_params:
-                loc = weight_params['loc']
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s normal(%0.2f, %0.2f) weights.',
-                        str(size), loc, scale)
-            weights = self.normal(loc, scale, size, dtype)
-        elif (weight_params['type'] == 'autoscale'):
-            low = 1.0/math.sqrt(size[1])
-            if 'relu' in weight_params:
-                low = low * math.sqrt(2)
-            weights = self.uniform(-low, low, size, dtype)
-        elif (weight_params['type'] == 'sparse_eigenvalued'):
-            # initialization for RNNS as in Sutskever 2013
-            sparseness = 15
-            eigenvalue = 1.2
-            if 'sparseness' in weight_params:
-                sparseness = weight_params['sparseness']
-            if 'eigenvalue' in weight_params:
-                eigenvalue = weight_params['eigenvalue']
-            logger.info('generating %s SI-EV(%0.2f, %0.2f) weights.' %
-                        (str(size), sparseness, eigenvalue))
-            elements = size[0] * size[1]
-            nonzeros = size[0] * sparseness
-            weights = np.zeros(size).flatten()
-            nonzeroindex = np.random.permutation(elements)[0:nonzeros]
-            weights[nonzeroindex] = 0.3 * np.random.randn(nonzeros)
-            weights = weights.reshape(size)
-            if size[0] == size[1]:
-                temp = np.linalg.eig(weights)
-                max_eig = np.max(np.absolute(temp[0]))
-                logger.info('cpu: dividing by max eigenvalue %2.2f', max_eig)
-                weights = self.tensor_cls(eigenvalue * weights / max_eig)
-            else:
-                logger.info('Matrix is non-square, no eigenvalue scaling.')
-                weights = self.tensor_cls(weights)
-        elif weight_params['type'] == 'node_normalized':
-            # initialization is as discussed in Glorot2010
-            scale = 1.0
-            if 'scale' in weight_params:
-                scale = weight_params['scale']
-            logger.info('generating %s node_normalized(%0.2f) weights.',
-                        str(size), scale)
-            node_norm = scale * math.sqrt(6.0 / sum(size))
-            weights = self.uniform(-node_norm, node_norm, size, dtype)
-        else:
-            raise AttributeError("invalid weight_params specified")
-
-        return weights
-
 
 # template for CPUDist (wrap MPI function calls so _tensor don't have to be
 # exposed in layer code)
@@ -1601,13 +1531,14 @@ class CPUDataDist(CPU):
         #                    out=error)
         out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups, fwidth,
-                    updatebuf):
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
+                    fwidth, updatebuf):
         super(CPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmlocs, ifmshape,
-                                             links, nifm, padding, stride,
-                                             ngroups, fwidth, updatebuf)
+                                             ofmshape, ofmsize, ofmlocs,
+                                             ifmshape, links, nifm, padding,
+                                             stride, ngroups, fwidth,
+                                             updatebuf)
         out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
                                             root=0)
         out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())

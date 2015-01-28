@@ -16,8 +16,8 @@
   },
 
   weight_inits: [
-    &wt_init {
-      type: uniform,
+    &wt_init !obj:params.UniformValGen {
+      backend: *be,
       low: -0.1,
       high: 0.1,
     },
@@ -42,7 +42,6 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         nout: 3072,
       },
       !obj:neon.models.layer2.FCLayer {

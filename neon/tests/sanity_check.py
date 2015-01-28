@@ -5,6 +5,7 @@
 Sanity check
 """
 import argparse
+import logging
 import os
 import sys
 from neon.util.persist import deserialize
@@ -25,15 +26,20 @@ def sanity_check(conf_file, result):
     dir = os.path.dirname(os.path.realpath(__file__))
     experiment = deserialize(os.path.join(dir, conf_file))
     experiment.run()
-    print(float(experiment.model.result.asnumpyarray()))
-    assert float(experiment.model.result.asnumpyarray()) == result
+    print(float(experiment.model.result))
+    assert float(experiment.model.result) == result
+
 
 if __name__ == '__main__':
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=40)  # ERROR or higher
     res = 0
     args = parse_args()
     if args.cpu == 1:
         print('CPU check '),
-        sanity_check('check_cpu.yaml', 0.453125)
+        # sanity_check('check_cpu.yaml', 0.453125)
+        sanity_check('check_cpu2.yaml', 0.437500)
+
         print('OK')
     if args.gpu == 1:
         print('GPU check '),

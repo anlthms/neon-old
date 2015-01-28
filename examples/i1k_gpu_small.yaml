@@ -29,23 +29,23 @@
     end_val_batch: 4,
   },
 
-  weight_inits: &wt_init0 {
-    type: normal,
-    scale: .01,
-    bias_init: 0.0,
-  },
-
-  weight_inits: &wt_init1 {
-    type: normal,
-    scale: .01,
-    bias_init: 0.1,
-  },
-
-  weight_inits: &wt_init_fc {
-    type: normal,
-    scale: .005,
-    bias_init: 0.1,
-  },
+  weight_inits: [
+    &wt_init0 !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .01,
+      bias_init: 0.0,
+    },
+    &wt_init1 !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .01,
+      bias_init: 0.1,
+    },
+    &wt_init_fc !obj:params.GaussianValGen {
+      backend: *be,
+      scale: .005,
+      bias_init: 0.1,
+    },
+  ],
 
   lrule: &gdm {
     type: gradient_descent_momentum,
@@ -86,11 +86,11 @@
     backend: *be,
     num_epochs: 60,
     batch_size: &bs 128,
+    step_print: 24,
     serialized_path: '/usr/local/data/I1K/I1K_small_alexnet_model.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         is_local: True,
         nofm: 3,
         ofmshape: [*cis, *cis],
@@ -103,6 +103,7 @@
         nofm: 64,
         fshape: [11, 11],
         stride: 4,
+        pad: 3,
         activation: !obj:neon.transforms.rectified.RectLin {},
       },
       !obj:neon.models.layer2.CrossMapResponseNormLayer {

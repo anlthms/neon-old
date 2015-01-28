@@ -1,70 +1,62 @@
-# ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
-# ----------------------------------------------------------------------------
-# Experiment settings to train/test a CNN on MNIST.
+# Small convolutional net for hurricane patches.
 
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
   },
 
-  # MNIST data
-  dataset: &ds !obj:neon.datasets.mnist.MNIST {
-    backend: *be,
-    repo_path: '/usr/local/data',
-    sample_pct: 10,
+  dataset: !obj:neon.datasets.hurricane.Hurricane {
+      backend: *be,
+      repo_path: '/mnt/data/nersc/hurricane/',
+      hdf5_file: 'hurricanes.h5',
+      variables: [0],
+      training_size: 1000,
+      test_size: 1000
   },
-
-  weight_init: &wt_init !obj:params.UniformValGen {
-    backend: *be,
-    low: -0.1,
-    high: 0.1,
-  },
-
-  lrules: [
-    &gd {
-      type: gradient_descent,
-      lr_params: {
-        learning_rate: 0.01,
-        backend: *be,
-      },
-    },
-    &gdm {
-      type: gradient_descent_momentum,
-      lr_params: {
-        learning_rate: 0.01,
-        backend: *be,
-        momentum_params: {
-          type: constant, # linear_monotone, nesterov
-          coef: 0.90,
-        },
-      },
-    },
-    &ada {
-      type: adadelta,
-      lr_params: {
-        rho: &ro 0.95,
-        epsilon: &eps 0.000001,
-        backend: *be,
-      },
+  
+  weight_inits: [
+    &wt_init !obj:params.UniformValGen {
+      backend: *be,
+      low: -0.1,
+      high: 0.1,
     },
   ],
+
+  lrules: [
+      &gdm {
+        type: gradient_descent_momentum,
+        lr_params: {
+          learning_rate: 0.01,
+          backend: *be,
+          momentum_params: {
+            type: constant, # linear_monotone, nesterov
+            coef: 0.90,
+          },
+        },
+      },
+  ],
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:neon.models.mlp.MLPB {
     backend: *be,
-    num_epochs: 2,
+    num_epochs: 5,
     batch_size: &bs 100,
+    # serialized_path: './cnn-small.pkl',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        nout: 784,
+        is_local: True,
+        nofm: 1, # Must match the number of variables.
+        ofmshape: [32, 32],
       },
       !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        nofm: 20,
+        nofm: 10,
+        ifmshape: [32, 32],
         fshape: [5, 5],
-        lrule_init: *gd,
+        stride: 1,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:neon.models.layer2.PoolingLayer {
@@ -75,9 +67,10 @@
       },
       !obj:neon.models.layer2.ConvLayer {
         name: layer3,
-        nofm: 50,
+        nofm: 10,
         fshape: [5, 5],
-        lrule_init: *gd,
+        stride: 1,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:neon.models.layer2.PoolingLayer {
@@ -88,17 +81,17 @@
       },
       !obj:neon.models.layer2.FCLayer {
         name: layer5,
-        nout: 500,
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-        activation: !obj:neon.transforms.rectified.RectLin {},
-      },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
-        name: output,
         nout: 10,
+        activation: !obj:neon.transforms.rectified.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
+      },
+      !obj:neon.models.layer2.FCLayer {
+        name: output,
+        nout: 2,
         activation: !obj:neon.transforms.logistic.Logistic {},
+        lrule_init: *gdm,
+        weight_init: *wt_init,
       },
       &costlayer !obj:neon.models.layer2.CostLayer {
         name: cost,
@@ -107,7 +100,7 @@
       },
     ],
   },
-
+  
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

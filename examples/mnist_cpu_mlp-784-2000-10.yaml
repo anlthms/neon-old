@@ -19,14 +19,14 @@
   },
 
   weight_inits: [
-    &wt_init {
-      type: normal,
+    &wt_init !obj:params.GaussianValGen {
+      backend: *be,
       loc: 0.0,
       scale: 0.01,
       bias_init: 0.0,
     },
-    &wt_initb {
-      type: node_normalized,
+    &wt_initb !obj:params.NodeNormalizedValGen {
+      backend: *be,
       scale: 4.0,
       bias_init: 0.0,
     },
@@ -61,7 +61,6 @@
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
-        dataset: *ds,
         nout: 784,
       },
       !obj:neon.models.layer2.FCLayer {
