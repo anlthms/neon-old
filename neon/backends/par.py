@@ -141,10 +141,10 @@ class DataPar(NoPar):
         self.orig_update_fc(out, inputs, deltas)
         self.update(out, layer)
 
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmlocs,
-                    ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False, layer=None):
-        self.orig_update_conv(out, inputs, weights, deltas, ofmshape, ofmlocs,
-                              ifmshape, links, nifm, padding, stride, ngroups,
-                              fwidth, updatebuf, local)
+    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
+                    ofmlocs, ifmshape, links, nifm, padding, stride,
+                    ngroups, fwidth, updatebuf, local=False, layer=None):
+        self.orig_update_conv(out, inputs, weights, deltas, ofmshape, ofmsize,
+                              ofmlocs, ifmshape, links, nifm, padding, stride,
+                              ngroups, fwidth, updatebuf, local)
         self.update(out, layer)
