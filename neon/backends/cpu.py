@@ -908,6 +908,7 @@ class CPU(Backend):
             inputs (CPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             weights (CPUTensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
         """
         self.dot(weights, inputs, out)
 
@@ -919,6 +920,7 @@ class CPU(Backend):
             out (CPUTensor): Where to store the backward propagated errors.
             weights (CPUTensor): The weight coefficient values for this layer.
             deltas (CPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         self.dot(weights.transpose(), deltas, out)
 
@@ -931,6 +933,7 @@ class CPU(Backend):
             inputs (CPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             deltas (CPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         self.dot(deltas, inputs.transpose(), out)
 

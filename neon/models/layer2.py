@@ -508,8 +508,8 @@ class ConvLayer(WeightLayer):
         if self.local_conv is False:
             opt_param(self, ['weight_shape'], (self.fsize, self.nofm))
         else:
-            opt_param(self, ['weight_shape'],
-                      (self.fsize * self.ofmsize, self.nofm))
+            weight_shape = (self.fsize * self.ofmsize, self.nofm)
+            opt_param(self, ['weight_shape'], weight_shape)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()

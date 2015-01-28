@@ -635,6 +635,7 @@ class Backend(YAMLable):
             inputs (Tensor): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
             weights (Tensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -649,6 +650,7 @@ class Backend(YAMLable):
             out (Tensor): Where to store the backward propagated errors.
             weights (Tensor): The weight coefficient values for this layer.
             deltas (Tensor): The error values for this layer
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -664,6 +666,7 @@ class Backend(YAMLable):
             inputs (Tensor): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
             deltas (Tensor): The error values for this layer
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.

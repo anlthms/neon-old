@@ -1113,6 +1113,7 @@ class GPU(Backend):
             inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             weights (GPUTensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
         """
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
@@ -1124,6 +1125,7 @@ class GPU(Backend):
             out (GPUTensor): Where to store the backward propagated errors.
             weights (GPUTensor): The weight coefficient values for this layer.
             deltas (GPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
@@ -1136,6 +1138,7 @@ class GPU(Backend):
             inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             deltas (GPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
