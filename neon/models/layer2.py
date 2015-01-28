@@ -47,12 +47,16 @@ class Layer(YAMLable):
         self.prev_layer = pl
         if self.is_local:
             self.link_local()
+        self.set_weight_shape()
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
         self.output = None
         self.deltas = None
+
+    def set_weight_shape(self):
+        pass
 
     def link_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
@@ -411,12 +415,13 @@ class FCLayer(WeightLayer):
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
-
-        opt_param(self, ['weight_shape'], (self.nout, self.nin))
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
+
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nout, self.nin))
 
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
@@ -500,19 +505,14 @@ class ConvLayer(WeightLayer):
     def __init__(self, **kwargs):
         self.is_local = True
         super(ConvLayer, self).__init__(**kwargs)
+        opt_param(self, ['local_conv'], False)
 
     def initialize(self, kwargs):
         super(ConvLayer, self).initialize(kwargs)
         self.initialize_local()
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
-        opt_param(self, ['local_conv'], False)
 
-        if self.local_conv is False:
-            opt_param(self, ['weight_shape'], (self.fsize, self.nofm))
-        else:
-            weight_shape = (self.fsize * self.ofmsize, self.nofm)
-            opt_param(self, ['weight_shape'], weight_shape)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
@@ -522,6 +522,13 @@ class ConvLayer(WeightLayer):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
+
+    def set_weight_shape(self):
+        if hasattr(self, 'local_conv') and self.local_conv:
+            weight_shape = (self.fsize * self.ofmsize, self.nofm)
+        else:
+            weight_shape = (self.fsize, self.nofm)
+        opt_param(self, ['weight_shape'], weight_shape)
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
@@ -821,12 +828,14 @@ class CrossMapPoolingLayer(WeightLayer):
         req_param(self, ['nofm'])
 
         self.initialize_local()
-        opt_param(self, ['weight_shape'], (self.nifm, self.nofm))
         self.allocate_output_bufs()
         self.allocate_param_bufs()
         opt_param(self, ['updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.updatebuf = self.backend.empty((1, 1))
+
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nifm, self.nofm))
 
     def fprop(self, inputs):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,

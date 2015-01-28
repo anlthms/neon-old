@@ -118,8 +118,7 @@ class DataPar(NoPar):
             assert hasattr(layer, 'nin')
             assert not hasattr(layer, 'par')
             conf = DataPar.Config()
-            bufshape = (layer.nout, layer.nin)
-            conf.updatebuf = np.empty(bufshape, dtype=np.float32)
+            conf.updatebuf = np.empty(layer.weight_shape, dtype=np.float32)
             layer.par = conf
 
     def distribute(self, batchdata):
