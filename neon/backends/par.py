@@ -42,7 +42,7 @@ class ModelPar(NoPar):
             if not self.distributable(layer):
                 continue
             assert hasattr(layer, 'nin')
-            assert not hasattr(layer, 'par')
+            assert not hasattr(layer, 'parconf')
             conf = ModelPar.Config()
             nout = layer.nout
             realnin = layer.nin
@@ -67,28 +67,31 @@ class ModelPar(NoPar):
             conf.scount *= bs
             conf.rcount *= bs
             conf.displ *= bs
-            layer.par = conf
             layer.weight_shape = (nout, conf.end - conf.start)
+            layer.parconf = conf
 
     def fprop_fc(self, out, inputs, weights, layer):
-        self.orig_fprop_fc(out, inputs[layer.par.start:layer.par.end], weights)
+        conf = layer.parconf
+        self.orig_fprop_fc(out, inputs[conf.start:conf.end], weights)
         sendbuf = [out.asnumpyarray(), MPI.FLOAT]
-        recvbuf = [layer.par.fpropbuf, MPI.FLOAT]
+        recvbuf = [conf.fpropbuf, MPI.FLOAT]
         comm.Reduce(sendbuf, recvbuf, op=MPI.SUM)
-        comm.Bcast(buf=[layer.par.fpropbuf, MPI.FLOAT])
-        out[:] = self.backend.array(layer.par.fpropbuf)
+        comm.Bcast(buf=[conf.fpropbuf, MPI.FLOAT])
+        out[:] = self.backend.array(conf.fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
-        self.orig_bprop_fc(out[layer.par.start:layer.par.end], weights, deltas)
-        outbuf = out.asnumpyarray()[layer.par.start:layer.par.end]
-        sendbuf = [outbuf, layer.par.scount, MPI.FLOAT]
-        recvbuf = [layer.par.bpropbuf, layer.par.rcount,
-                   layer.par.displ, MPI.FLOAT]
+        conf = layer.parconf
+        self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
+        outbuf = out.asnumpyarray()[conf.start:conf.end]
+        sendbuf = [outbuf, conf.scount, MPI.FLOAT]
+        recvbuf = [conf.bpropbuf, conf.rcount,
+                   conf.displ, MPI.FLOAT]
         comm.Allgatherv(sendbuf, recvbuf)
-        out[:] = self.backend.array(layer.par.bpropbuf)
+        out[:] = self.backend.array(conf.bpropbuf)
 
     def update_fc(self, out, inputs, deltas, layer):
-        self.orig_update_fc(out, inputs[layer.par.start:layer.par.end], deltas)
+        conf = layer.parconf
+        self.orig_update_fc(out, inputs[conf.start:conf.end], deltas)
 
 
 class DataPar(NoPar):
@@ -116,29 +119,29 @@ class DataPar(NoPar):
             if not self.distributable(layer):
                 continue
             assert hasattr(layer, 'nin')
-            assert not hasattr(layer, 'par')
+            assert not hasattr(layer, 'parconf')
             conf = DataPar.Config()
             conf.updatebuf = np.empty(layer.weight_shape, dtype=np.float32)
-            layer.par = conf
+            layer.parconf = conf
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
 
-    def update(self, out, layer):
+    def update(self, out, conf):
         # NOTE: To make this faster, compute the weight updates
         # asynchronously. There is no need to wait for completion
         # until the updates are to be applied to the weights (the
         # weights are updated after the gradients are propagated
         # all the way back).
         sendbuf = [out.asnumpyarray(), MPI.FLOAT]
-        recvbuf = [layer.par.updatebuf, MPI.FLOAT]
+        recvbuf = [conf.updatebuf, MPI.FLOAT]
         comm.Reduce(sendbuf, recvbuf, op=MPI.SUM)
-        comm.Bcast(buf=[layer.par.updatebuf, MPI.FLOAT])
-        out[:] = self.backend.array(layer.par.updatebuf)
+        comm.Bcast(buf=[conf.updatebuf, MPI.FLOAT])
+        out[:] = self.backend.array(conf.updatebuf)
 
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)
-        self.update(out, layer)
+        self.update(out, layer.parconf)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride,
@@ -146,4 +149,4 @@ class DataPar(NoPar):
         self.orig_update_conv(out, inputs, weights, deltas, ofmshape, ofmsize,
                               ofmlocs, ifmshape, links, nifm, padding, stride,
                               ngroups, fwidth, updatebuf, local)
-        self.update(out, layer)
+        self.update(out, layer.parconf)

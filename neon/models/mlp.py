@@ -301,11 +301,6 @@ class MLPB(MLP):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
 
-    def allocate_param_bufs(self):
-        for ll in self.layers:
-            if hasattr(ll, 'allocate_param_bufs'):
-                ll.allocate_param_bufs()
-
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             y = None if pl is None else pl.output
