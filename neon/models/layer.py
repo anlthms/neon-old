@@ -1421,6 +1421,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         if self.pos > 0:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
                                     padding=0, stride=self.stride,
