@@ -1064,6 +1064,12 @@ class Backend(YAMLable):
     def distribute(self, data):
         return self.par.distribute(data)
 
+    def rank(self):
+        return self.par.rank()
+
+    def reduce(self, tensor):
+        return self.par.reduce(tensor)
+
 
 class Tensor(object):
     """

@@ -22,6 +22,12 @@ class NoPar(object):
     def distribute(self, batchdata):
         return self.backend.array(batchdata)
 
+    def rank(self):
+        return mpi_rank
+
+    def reduce(self, tensor):
+        return tensor.asnumpyarray()
+
 
 class ModelPar(NoPar):
 
@@ -106,6 +112,7 @@ class DataPar(NoPar):
         self.orig_update_fc = backend.update_fc
         self.orig_update_conv = backend.update_conv
         self.init_model(model, backend)
+        self.reducebuf = np.empty((1, 1), dtype=np.float32)
 
     def init_model(self, model, backend):
         self.batch_size = backend.actual_batch_size / mpi_size
@@ -126,6 +133,11 @@ class DataPar(NoPar):
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
+
+    def reduce(self, tensor):
+        comm.Reduce([tensor.asnumpyarray(), MPI.FLOAT],
+                    [self.reducebuf, MPI.FLOAT], op=MPI.SUM)
+        return self.reducebuf / mpi_size
 
     def update(self, out, conf):
         # NOTE: To make this faster, compute the weight updates
