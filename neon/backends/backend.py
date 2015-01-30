@@ -1067,8 +1067,8 @@ class Backend(YAMLable):
     def rank(self):
         return self.par.rank()
 
-    def reduce(self, tensor):
-        return self.par.reduce(tensor)
+    def reduce_cost(self, tensor):
+        return self.par.reduce_cost(tensor)
 
 
 class Tensor(object):

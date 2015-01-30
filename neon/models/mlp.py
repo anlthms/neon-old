@@ -321,9 +321,11 @@ class MLPB(MLP):
         return self.class_layer.output
 
     def print_training_error(self, error, num_batches, partial=False):
-        errorval = self.backend.reduce(error) / num_batches
+        rederr = self.backend.reduce_cost(error)
         if self.backend.rank() != 0:
             return
+
+        errorval = rederr / num_batches
         if partial is True:
             assert self.step_print != 0
             logger.info('%d.%d training error: %0.5f', self.epochs_complete,
@@ -331,6 +333,18 @@ class MLPB(MLP):
         else:
             logger.info('epoch: %d, training error: %0.5f',
                         self.epochs_complete, errorval)
+
+    def print_test_error(self, setname, misclass, logloss, nrecs):
+        redmisclass = self.backend.reduce_cost(misclass)
+        redlogloss = self.backend.reduce_cost(logloss)
+        if self.backend.rank() != 0:
+            return
+
+        misclassval = redmisclass / nrecs
+        loglossval = redlogloss / nrecs
+        self.result = misclassval
+        logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                     setname, 100 * misclassval, loglossval)
 
     def fit(self, dataset):
         """
@@ -390,10 +404,7 @@ class MLPB(MLP):
                 self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
                                  axes=None, out=batch_sum)
                 self.backend.add(logloss_sum, batch_sum, logloss_sum)
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
-                setname, 100 * misclass_sum.asnumpyarray() / nrecs,
-                logloss_sum.asnumpyarray() / nrecs))
-            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
+            self.print_test_error(setname, misclass_sum, logloss_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err

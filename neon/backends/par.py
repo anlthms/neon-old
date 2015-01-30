@@ -25,7 +25,7 @@ class NoPar(object):
     def rank(self):
         return mpi_rank
 
-    def reduce(self, tensor):
+    def reduce_cost(self, tensor):
         return tensor.asnumpyarray()
 
 
@@ -134,10 +134,12 @@ class DataPar(NoPar):
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
 
-    def reduce(self, tensor):
+    def reduce_cost(self, tensor):
         comm.Reduce([tensor.asnumpyarray(), MPI.FLOAT],
                     [self.reducebuf, MPI.FLOAT], op=MPI.SUM)
-        return self.reducebuf / mpi_size
+        if mpi_rank == 0:
+            return self.reducebuf / mpi_size
+        return 0
 
     def update(self, out, conf):
         # NOTE: To make this faster, compute the weight updates
