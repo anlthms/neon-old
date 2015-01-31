@@ -328,7 +328,7 @@ class MLPB(MLP):
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     logger.info('%d.%d logloss=%0.5f', self.epochs_complete,
                                 mb_id / self.step_print - 1,
-                                np.int(error.asnumpyarray()) / mb_id)
+                                np.float(error.asnumpyarray()) / mb_id)
                 mb_id += 1
             logger.info('epoch: %d, total training error: %0.5f',
                         self.epochs_complete,
