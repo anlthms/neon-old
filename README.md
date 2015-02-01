@@ -10,9 +10,11 @@ Our in-house developed python machine learning library.
     make install  # sudo make install
     # or:
     pip install .  # sudo pip install .
-    
-    # import neon into your app, and you are good to go
 
+    # run the included command line executable to start launching your
+    # experiments
+    neon --help
+    
 
 ### Required Dependencies ###
 We strive to have as few of these as possible
@@ -28,7 +30,7 @@ These provide additional functionality, and assist developers
 * [flake8](https://flake8.readthedocs.org/) for style checking
   * [pep8-naming](https://pypi.python.org/pypi/pep8-naming) plugin for variable
     name checking
-* [Nervana cuda-convnet2](http://gitlab.localdomain/algorithms/cuda-convnet2/)
+* [Nervana cuda-convnet2](http://github.com/NervanaSystems/cuda-convnet2/)
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
   that powers our GPU backend.
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
@@ -73,7 +75,8 @@ See docs for full details.
 
 
 ## Issue Tracking ##
-* http://nervanasys.atlassian.net/browse/MYL
+* https://github.com/NervanaSystems/neon/issues
+* [internal tracking](http://nervanasys.atlassian.net/browse/MYL)
 
 
 ## Documentation ##
@@ -81,7 +84,7 @@ See docs for full details.
 * [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_neon.html)
 * [API](http://framework.nervanasys.com/docs/latest/api.html)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
-* [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
+* [Architecture](https://framework.nervanasys.com/docs/latest/developing_neon.html#architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
 
