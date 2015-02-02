@@ -5,7 +5,7 @@
   backend: &be !obj:neon.backends.cpu.CPU {
     rng_seed: 0,
     seterr_handling: {
-      all: 'raise', #  'warn' or 'raise'
+      all: 'warn', #  'warn' or 'raise'
       over: 'raise',
     },
   },
@@ -34,7 +34,7 @@
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
-      learning_rate: 0.2,
+      learning_rate: 0.002,  #  0.2,
       backend: *be,
       momentum_params: {
         type: linear_monotone, # constant, nesterov dont work
@@ -53,7 +53,7 @@
     batch_size: &bs 50,
     reset_period: 50,
     unrolls: *ur,
-    make_plots: False,
+    make_plots: True,
     shortcut_deriv: False,
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
@@ -89,7 +89,7 @@
   },
 
   logging: {
-    level: 20,
+    level: 10,  # 10 debug, 20 info, 30 warning
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

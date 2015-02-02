@@ -24,11 +24,19 @@ class RecurrentLayer(Layer):
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
-
         if self.activation is not None:
             self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
         else:
             self.pre_act = self.output
+
+        # TODO: Get rid of output and pre_act. But they seem to be used in the
+        # cost to set a buffer size.
+        self.pre_act_list = [self.pre_act] + \
+                            [make_zbuf(self.out_shape, self.pre_act_dtype)
+                             for k in range(1, self.unrolls)]
+        self.output_list = [self.output] + \
+                           [make_zbuf(self.out_shape, self.output_dtype)
+                            for k in range(1, self.unrolls)]
 
         """ create deltas buffer no matter what position relative to the data
         layer we are. In the RNN even the first layer needs deltas."""
@@ -103,9 +111,30 @@ class RecurrentLayer(Layer):
         else:
             raise AttributeError("invalid learning rule params specified")
 
+    # c&p from WeightLayer
+    def update(self, epoch):
+        if self.bias_rule is None:
+            self.learning_rule.apply_rule(self.params, self.updates, epoch)
+        else:
+            self.learning_rule.apply_rule([self.weights],
+                                          [self.weight_updates], epoch)
+            self.bias_rule.apply_rule([self.biases],
+                                      [self.bias_updates], epoch)
+
+        if self.accumulate:
+            # self.updates is a list with update buffers, from alloc_param_bufs
+            for upm in self.updates:
+                upm.fill(0.0)
+
+    def grad_log(self, ng, val):
+        logger.info("%s.bprop inc '%s' by %f", self.__class__.__name__, ng,
+                    val.asnumpyarray())
+
 
 class RecurrentCostLayer(CostLayer):
-    '''Not sure if this is needed, but the bprop fails here? '''
+    '''CostLayer adapted for RNN. Somewhere it must define a buffer where the
+    cost looks for the predictions. '''
+
     def __init__(self, **kwargs):
         self.is_cost = True
         self.nout = 1
@@ -133,18 +162,20 @@ class RecurrentCostLayer(CostLayer):
     def bprop(self, error, tau):
         # Since self.deltas already pointing to destination of act gradient
         # we just have to scale by mini-batch size
-        '''for recurrent networks, the targets are a list of unrolls'''
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
-        # if self.ref_label != 'targets':
-        #     print self.targets.shape
-        '''this stuff was done in rnn.fit(), only applied to last output
-        so I'm not sure this statement needs to be conditional on tau...'''
-        self.cost.apply_derivative(self.targets[tau])
+
+        self.cost.apply_derivative(self.targets[tau])  # predictions now set outside.
         self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
 
+    def set_targets(self):
+        '''experimental, for num_grad. normally this is set in bprop'''
+        '''points to the entire list, and the tau is picked later. '''
+        print "setting targets:", self.ref_label, "from ref_layer", self.ref_layer
+        self.targets = getattr(self.ref_layer, self.ref_label)
+
     def get_cost(self):
-        #race() # not sure if it's cool to just use the last one?
+        '''this is called from rnn.run and only needs to look at the last one'''
         result = self.cost.apply_function(self.targets[-1])
         return self.backend.divide(result, self.batch_size, result)
 
@@ -166,17 +197,12 @@ class RecurrentOutputLayer(RecurrentLayer):
         self.allocate_param_bufs()
 
     def allocate_output_bufs(self):
+        make_zbuf = self.backend.zeros
         super(RecurrentOutputLayer, self).allocate_output_bufs()
         # super allocate will set the correct sizes for pre_act, output, berr
-        make_zbuf = self.backend.zeros
-
-        self.pre_act_list = [self.pre_act] + \
-                            [make_zbuf(self.out_shape, self.pre_act_dtype)
-                             for k in range(1, self.unrolls)]
-        self.output_list = [self.output] + \
-                           [make_zbuf(self.out_shape, self.output_dtype)
-                            for k in range(1, self.unrolls)]
         self.temp_out = make_zbuf(self.weight_shape, self.weight_dtype)
+
+
 
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau], inputs, self.weights)
@@ -197,9 +223,6 @@ class RecurrentOutputLayer(RecurrentLayer):
 
         self.backend.add(self.weight_updates, self.temp_out,
                          self.weight_updates)
-
-    def grad_log(self, ng, val):
-        logger.info("%s.bprop inc %s %f", self.__class__.__name__, ng, val)
 
 
 class RecurrentHiddenLayer(RecurrentLayer):
@@ -225,34 +248,34 @@ class RecurrentHiddenLayer(RecurrentLayer):
         self.allocate_param_bufs()
 
     def allocate_output_bufs(self):
+        make_zbuf = self.backend.zeros
         super(RecurrentHiddenLayer, self).allocate_output_bufs()
 
-        # c&p from ROL
-        make_zbuf = self.backend.zeros
-        self.pre_act_list = [self.pre_act] + \
-                            [make_zbuf(self.out_shape, self.pre_act_dtype)
-                             for k in range(1, self.unrolls)]
-        self.output_list = [self.output] + \
-                            [make_zbuf(self.out_shape, self.output_dtype)
-                             for k in range(1, self.unrolls)]
-        self.temp_out = make_zbuf(self.weight_shape, self.weight_dtype)
-
-        # these buffers are specific to RHL it seems
-        self.temp_in = self.temp_out
-        self.temp_rec = self.backend.zeros(self.weight_rec_shape)
-        self.z = [self.backend.zeros(self.out_shape) for k in range(2)]
+        # these buffers are specific to RHL:
+        # had self.temp_in=temp_out, to save space.
+        # Extra temp buffers z[0]=w*x and z[1]=w*input.
+        self.temp_in = make_zbuf(self.weight_shape, self.weight_dtype)
+        self.temp_rec = make_zbuf(self.weight_rec_shape)
+        self.z = [make_zbuf(self.out_shape) for k in range(2)]
 
     def allocate_param_bufs(self):
         super(RecurrentHiddenLayer, self).allocate_param_bufs()
         self.weights_rec = self.weight_init_rec.generate(
                                             self.weight_rec_shape,
                                             self.weight_dtype)
-
+        # Not sure if it's cool to be emtpy! Might start adding to this before
+        # it ever gets zeroed out by update!
         self.updates_rec = self.backend.empty(self.weight_rec_shape,
                                               self.updates_dtype)
 
         self.params.append(self.weights_rec)
         self.updates.append(self.updates_rec)
+        # (URS) added this loop because rec is an empty buffer that otherwise
+        # does not get initialized and I think that's what was giving me the
+        # nondeterministic behavior. Why even use emtpy if all these things
+        # need to be zero anyway?
+        for upm in self.updates:
+            upm.fill(0.0)
         # Not ideal, since we just allocated this in the parent function, but
         # we can change the calling order later
         self.learning_rule.allocate_state(self.updates)
@@ -280,8 +303,13 @@ class RecurrentHiddenLayer(RecurrentLayer):
         # Is this equivalent to the old way of doing
         # inputs[t*self.nin:(t+1)*self.nin, :]
         # with the new datalayer format?
+        # HANG ON! data_layer.output is INPUTS, need the TARGETS!
+        '''Trouble: Discovered that RHL.bprop loses state / error gets reset to zero!?
+        this outputs to self.deltas, and they get recycled back in as error. Weird.
+        both terms have in common they are ocmputed from error. check error. '''
         if self.prev_layer.is_data:
             inputs = self.prev_layer.output[t]
+            targets = self.prev_layer.targets[t-1] # somehow fake inputs here!
         else:
             inputs = self.prev_layer.output_list[t]
 
@@ -291,7 +319,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
         # input weight update (apply curr. delta)
 
         self.backend.update_fc(out=self.temp_in,
-                               inputs=inputs,
+                               inputs=inputs, # TODO: SHOULD BE TARGETS NOT INPUTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_in,
                          self.weight_updates)
@@ -305,12 +333,12 @@ class RecurrentHiddenLayer(RecurrentLayer):
 
             # **** ASK URS ***
             # Why only at t > 0 vs. t==0? why not weights vs weights_rec
-            self.backend.bprop_fc(out=self.deltas,  # output for next iteration
+            self.backend.bprop_fc(out=self.deltas,  #
                                   weights=self.weights_rec,
-                                  deltas=error)
-        if numgrad == "input":
+                                  deltas=error)  # would like a deepcopy
+        if numgrad == "input": ## this become 0 after 1
             self.grad_log(numgrad, self.temp_in[12, 110])
-        if numgrad == "rec":
+        if numgrad == "rec":   ## this becomes 0 after 2
             self.grad_log(numgrad, self.temp_rec[12, 63])
 
 

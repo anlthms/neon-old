@@ -89,7 +89,8 @@ class VisualizeRNN(object):
         plt.plot(np.arange(len(suberror_list)) / np.float(len(suberror_list))
                  * len(error_list), suberror_list)
         plt.plot(error_list, linewidth=2)
-        plt.ylim((.010, .035))
+        #plt.ylim((.010, .035))
+        plt.ylim((min(suberror_list), max(error_list)))
         plt.draw()
         plt.show()
 
@@ -125,7 +126,7 @@ class VisualizeRNN(object):
             if i == 0:
                 plt.title('out2')
             plt.subplot(len(pre1), 5, 5 * i + 5)
-            plt.imshow(targets[i*128:(i+1)*128, :].asnumpyarray(),
+            plt.imshow(targets[i].asnumpyarray(),
                        vmin=-1, vmax=1, interpolation='nearest')
             if i == 0:
                 plt.title('target')
