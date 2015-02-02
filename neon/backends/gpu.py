@@ -12,11 +12,9 @@ import numpy
 import os
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
 
-if MPI_INSTALLED:
-    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -1568,6 +1566,11 @@ class GPUDataDist(GPU):
     """
     helper sub-class for data parallel implementations
     """
+    try:
+        from mpi4py import MPI
+        logger.info("successfully imported mpi4py")
+    except ImportError:
+        logger.warning("mpi4py could not be imported")
 
     def __init__(self, **kwargs):
         local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])

@@ -12,6 +12,6 @@ try:
     from neon.version import VERSION as __version__  # noqa
 except ImportError:
     import sys
-    print("ERROR: Version information not found.  Ensure you have built the "
-          "software.\n    From the top level dir issue: 'make build'")
+    print("ERROR: Version information not found.  Ensure you have installed the "
+          "software.\n    From the top level dir issue: 'make install'")
     sys.exit(1)

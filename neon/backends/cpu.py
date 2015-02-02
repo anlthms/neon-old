@@ -10,10 +10,8 @@ import logging
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 
-if MPI_INSTALLED:
-    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -1544,6 +1542,11 @@ class CPU(Backend):
 # template for CPUDist (wrap MPI function calls so _tensor don't have to be
 # exposed in layer code)
 class CPUDist(CPU):
+    try:
+        from mpi4py import MPI
+        logger.info("successfully imported mpi4py")
+    except ImportError:
+        logger.warning("mpi4py could not be imported")
 
     def bcast(self, buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
@@ -1551,10 +1554,14 @@ class CPUDist(CPU):
 
 # once CPUDist is implemented inherit from CPUDist
 class CPUDataDist(CPU):
-
     """
     helper sub-class for data parallel implementations
     """
+    try:
+        from mpi4py import MPI
+        logger.info("successfully imported mpi4py")
+    except ImportError:
+        logger.warning("mpi4py could not be imported")
 
     def update_fc(self, out, inputs, deltas):
         super(CPUDataDist, self).update_fc(out, inputs, deltas)
