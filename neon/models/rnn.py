@@ -10,13 +10,11 @@ import math
 
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.model import Model
-from neon.models.mlp import MLPB
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from ipdb import set_trace as trace
 logger = logging.getLogger(__name__)
 
-from matplotlib import pyplot as plt
 
 class RNN(Model):
 
@@ -219,7 +217,9 @@ class RNN(Model):
         logger.info("RNN grad_checker: analytical %e", analytical)
         logger.info("RNN grad_checker: ratio %e", numerical/analytical)
 
-    def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None, cell_init=None, debug=False, unrolls=None, num_target=None, num_i=0, num_j=0):
+    def fprop_eps(self, inputs, eps_tau, eps, hidden_init=None, cell_init=None,
+                  debug=False, unrolls=None, num_target=None, num_i=0,
+                  num_j=0):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -258,7 +258,8 @@ class RNN(Model):
                                                        num_j].asnumpyarray() -
                                             eps)
 
-    def fprop(self, inputs, hidden_init=None, cell_init=None, debug=False, unrolls=None):
+    def fprop(self, inputs, hidden_init=None, cell_init=None, debug=False,
+              unrolls=None):
         """
         have a pre_act and output for every unrolling step. The layer needs
         to keep track of all of these, so we tell it which unroll we are in.
@@ -287,7 +288,8 @@ class RNN(Model):
                 c = self.layers[0].c_t[tau]
             self.layers[1].fprop(inputs=y, tau=tau)
 
-    def bprop(self, targets, inputs, hidden_init=None, cell_init=None, debug=False, numgrad=None):
+    def bprop(self, targets, inputs, hidden_init=None, cell_init=None,
+              debug=False, numgrad=None):
         """
         Backpropagation for a RNN.
 
@@ -419,7 +421,8 @@ class RNN(Model):
             logger.error("must specify >=1 of: train, test, validation")
         return preds
 
-    def error_metrics(self, ds, preds, train=True, test=True, validation=False):
+    def error_metrics(self, ds, preds,
+                      train=True, test=True, validation=False):
         """
         Iterate over predictions from predict() and compare to the targets.
         Targets come from dataset. [Why in a separate function?]
@@ -511,26 +514,19 @@ class RNNB(Model):
         self.data_layer.use_set('train')
         # "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
-        self.grad_checker(numgrad="input") # needs init'ed dataset
-        #kill=me
+        self.grad_checker(numgrad="input")
         logger.info('commencing model fitting')
         errorlist = []
         suberrorlist = []
-        suberror = self.backend.zeros((1,1))
+        suberror = self.backend.zeros((1, 1))
         while self.epochs_complete < self.num_epochs:
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
-                # hidden_init / reset
                 self.reset(mb_id)
-
-                # fprop automaticall increments minibatch.
-                self.fprop(debug = True if (mb_id is -1) else False)
-
-                # new bprop:
-                self.bprop(debug = True if (mb_id is -1) else False)
-                # new  update:
+                self.fprop(debug=(True if (mb_id is -1) else False))
+                self.bprop(debug=(True if (mb_id is -1) else False))
                 self.update(self.epochs_complete)
 
                 self.cost_layer.cost.set_outputbuf(
@@ -579,34 +575,34 @@ class RNNB(Model):
                              self.class_layer.pre_act_list,
                              self.class_layer.output_list,
                              self.cost_layer.targets)
-        #import numpy as np
-
-        # viz.plot_lstm(self.rec_layer.Wix.asnumpyarray(),
-        #               self.rec_layer.Wfx.asnumpyarray(),
-        #               self.rec_layer.Wox.asnumpyarray(),
-        #               self.rec_layer.Wcx.asnumpyarray(),
-        #               np.hstack((self.rec_layer.Wih.asnumpyarray(),
-        #                         self.rec_layer.b_i.asnumpyarray(),
-        #                         self.rec_layer.b_i.asnumpyarray())),
-        #               np.hstack((self.rec_layer.Wfh.asnumpyarray(),
-        #                         self.rec_layer.b_f.asnumpyarray(),
-        #                         self.rec_layer.b_f.asnumpyarray())),
-        #               np.hstack((self.rec_layer.Woh.asnumpyarray(),
-        #                         self.rec_layer.b_o.asnumpyarray(),
-        #                         self.rec_layer.b_o.asnumpyarray())),
-        #               np.hstack((self.rec_layer.Wch.asnumpyarray(),
-        #                         self.rec_layer.b_c.asnumpyarray(),
-        #                         self.rec_layer.b_c.asnumpyarray())),
-        #               scale=1.1, fig=4)
-        # viz.plot_lstm(self.rec_layer.i_t[0].asnumpyarray(),
-        #               self.rec_layer.f_t[0].asnumpyarray(),
-        #               self.rec_layer.o_t[0].asnumpyarray(),
-        #               self.rec_layer.g_t[1].asnumpyarray(),
-        #               self.rec_layer.net_i[0].asnumpyarray(),
-        #               self.rec_layer.c_t[0].asnumpyarray(),
-        #               self.rec_layer.c_t[1].asnumpyarray(),
-        #               self.rec_layer.c_phi[1].asnumpyarray(),
-        #               scale=21, fig=5)
+        if 'c_t' in self.rec_layer.__dict__:
+            import numpy as np
+            viz.plot_lstm(self.rec_layer.Wix.asnumpyarray(),
+                          self.rec_layer.Wfx.asnumpyarray(),
+                          self.rec_layer.Wox.asnumpyarray(),
+                          self.rec_layer.Wcx.asnumpyarray(),
+                          np.hstack((self.rec_layer.Wih.asnumpyarray(),
+                                    self.rec_layer.b_i.asnumpyarray(),
+                                    self.rec_layer.b_i.asnumpyarray())),
+                          np.hstack((self.rec_layer.Wfh.asnumpyarray(),
+                                    self.rec_layer.b_f.asnumpyarray(),
+                                    self.rec_layer.b_f.asnumpyarray())),
+                          np.hstack((self.rec_layer.Woh.asnumpyarray(),
+                                    self.rec_layer.b_o.asnumpyarray(),
+                                    self.rec_layer.b_o.asnumpyarray())),
+                          np.hstack((self.rec_layer.Wch.asnumpyarray(),
+                                    self.rec_layer.b_c.asnumpyarray(),
+                                    self.rec_layer.b_c.asnumpyarray())),
+                          scale=1.1, fig=4)
+            viz.plot_lstm(self.rec_layer.i_t[0].asnumpyarray(),
+                          self.rec_layer.f_t[0].asnumpyarray(),
+                          self.rec_layer.o_t[0].asnumpyarray(),
+                          self.rec_layer.g_t[1].asnumpyarray(),
+                          self.rec_layer.net_i[0].asnumpyarray(),
+                          self.rec_layer.c_t[0].asnumpyarray(),
+                          self.rec_layer.c_t[1].asnumpyarray(),
+                          self.rec_layer.c_phi[1].asnumpyarray(),
+                          scale=21, fig=5)
 
     def fprop(self, debug=False, eps_tau=-1, eps=0,
               num_target=None, num_i=0, num_j=0):
@@ -614,29 +610,24 @@ class RNNB(Model):
         Fixed mystery bug: Needed the _previous_ y, not the _current_ one! FFS!
         Adding numerical gradient functionality here to avoid duplicate fprops.
         """
-        self.data_layer.fprop(None) # get next mini batch, done outside loop.
+        self.data_layer.fprop(None)  # get next mini batch
         inputs = self.data_layer.output
         y = self.rec_layer.output_list  # note: just a shorthand, no copy.
         for tau in range(0, self.unrolls):
             if tau == eps_tau:
-                #trace()
-                print "fprop modding eps_tau", eps_tau, "num_i, num_j",num_i, num_j
-                self.backend.add(num_target[num_i, num_j], eps, out=num_target[num_i, num_j]) # TODO: This does not add anything! Should it generate a warning / error?
-                num_target[num_i, num_j] = (num_target[num_i, num_j].asnumpyarray() + eps) # So we can only add in numpy-land?
-            if debug: logger.debug("in RNNB.fprop, tau %d, input %d" % (tau,
-                                   inputs[tau].asnumpyarray().argmax(0)[0]))
+                numpy_target = num_target[num_i, num_j].asnumpyarray()
+                num_target[num_i, num_j] = (numpy_target + eps)
+            if debug:
+                logger.debug("in RNNB.fprop, tau %d, input %d" % (tau,
+                             inputs[tau].asnumpyarray().argmax(0)[0]))
             self.rec_layer.fprop(y[tau-1], inputs[tau], tau)
             self.class_layer.fprop(y[tau], tau)
-            if tau == eps_tau: num_target[num_i, num_j] = (num_target[num_i, num_j].asnumpyarray() - eps)
+            if tau == eps_tau:
+                num_target[num_i, num_j] = (numpy_target - eps)
         # cost layer fprop is a pass.
 
     def bprop(self, debug, numgrad=None):
-        '''from mlp
-        for ll, nl in zip(reversed(self.layers),
-                          reversed(self.layers[1:] + [None])):
-            error = None if nl is None else nl.deltas
-            ll.bprop(error)'''
-        '''unrolling'''
+
         if numgrad is None:
             min_unroll = 1
         else:
@@ -647,26 +638,25 @@ class RNNB(Model):
             self.cost_layer.cost.set_outputbuf(
                 self.class_layer.output_list[tau-1])
             self.cost_layer.bprop(None, tau-1)
-            if debug: logger.debug("in RNNB.bprop, tau %d target %d" % (tau-1,
-                self.cost_layer.targets[tau-1].asnumpyarray().argmax(0)[0]))
+            if debug:
+                tmp = self.cost_layer.targets[tau-1].asnumpyarray()
+                tmp = tmp.argmax(0)[0]
+                logger.debug("in RNNB.bprop, tau %d target %d" % (tau-1, tmp))
             error = self.cost_layer.deltas
             self.class_layer.bprop(error, tau, numgrad=numgrad)
-            error = self.class_layer.deltas #
-            cerror = None # cell does not get an output error
+            error = self.class_layer.deltas
+            cerror = None  # cell does not get an output error
 
-            # GOING INTO FULL GRADLOCK! This loop was losing state!
             for t in list(range(0, tau))[::-1]:
                 self.rec_layer.bprop(error, cerror, tau, t, numgrad=numgrad)
-                error[:] = self.rec_layer.deltas # why need deepcopy?
+                error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
                 if 'c_t' in self.rec_layer.__dict__:
                     cerror = self.rec_layer.c_t
-
 
     def update(self, epoch):
         '''straight from old RNN == MLP == MLPB'''
         for layer in self.layers:
-            #print "update layer", layer
-            layer.update(epoch)  # update now also zeros out update buffers.
+            layer.update(epoch)  # update also zeros out update buffers.
 
     # taken from RNN, really need this.
     def grad_checker(self, numgrad="lstm_ch"):
@@ -716,33 +706,31 @@ class RNNB(Model):
 
         eps = 1e-6  # better to use float64 in cpu.py for this
         numerical = 0  # initialize buffer
-        # extra loop to inject epsilon in different unrolling stages
+        #  loop to inject epsilon in different unrolling stages
         for eps_tau in range(0, self.unrolls):
-
-            '''problem: first and second fprop call give different costs.
-            do the predictions change or what?
-            output_list totally changes. need to reset hidden to zero before fprop!'''
-            self.reset(1) # flush hidden input
+            self.reset(1)  # clear hidden input
             self.fprop(debug=False, eps_tau=eps_tau, eps=0,
                        num_target=num_target, num_i=num_i, num_j=num_j)
-            self.cost_layer.set_targets()  # st cost_layer.targets to data_layer.targets. multiple calls dont change it.
-            self.data_layer.reset_counter() # because datalayer.fprop changes batch_idx
-            self.cost_layer.cost.set_outputbuf(self.class_layer.output_list[-1]) # targets are set, this sets predictions.
-            suberror_eps = self.cost_layer.get_cost().asnumpyarray() # set_outputbuf and get_cost same as in fit()
+            self.cost_layer.set_targets()
+            self.data_layer.reset_counter()
+            self.cost_layer.cost.set_outputbuf(
+                self.class_layer.output_list[-1])
+            suberror_eps = self.cost_layer.get_cost().asnumpyarray()
 
-            self.reset(1) # flush hidden input
+            self.reset(1)
             self.fprop(debug=False, eps_tau=eps_tau, eps=eps,
                        num_target=num_target, num_i=num_i, num_j=num_j)
             self.data_layer.reset_counter()
-            self.cost_layer.cost.set_outputbuf(self.class_layer.output_list[-1]) # new
-            suberror_ref = self.cost_layer.get_cost().asnumpyarray() # new. get_cost is hardcoded to look at targets[-1]
+            self.cost_layer.cost.set_outputbuf(
+                self.class_layer.output_list[-1])
+            suberror_ref = self.cost_layer.get_cost().asnumpyarray()
 
-            num_part = (suberror_eps - suberror_ref) / eps   ## no longer normalize by  float(self.batch_size * self.rec_layer.nin)
+            num_part = (suberror_eps - suberror_ref) / eps
             logger.debug("numpart for  eps_tau=%d of %d is %e",
                         eps_tau, self.unrolls, num_part)
             numerical += num_part
 
-        # bprop for comparison -- is this on the same data batch?
+        # bprop for analytical gradient
         self.bprop(debug=False, numgrad=numgrad)
 
         analytical = anl_target[num_i, num_j].asnumpyarray()
@@ -782,10 +770,12 @@ class RNNB(Model):
             misclass_sum.fill(0.0)
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
-            outputs_pred = self.backend.zeros(((self.data_layer.num_batches+1)
-                                             *(self.unrolls), self.batch_size))
-            outputs_targ = self.backend.zeros(((self.data_layer.num_batches+1)
-                                             *(self.unrolls), self.batch_size))
+            outputs_pred = self.backend.zeros(
+                ((self.data_layer.num_batches + 1)
+                 * (self.unrolls), self.batch_size))
+            outputs_targ = self.backend.zeros(
+                ((self.data_layer.num_batches + 1)
+                 * (self.unrolls), self.batch_size))
             mb_id = 0
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
@@ -817,7 +807,7 @@ class RNNB(Model):
             return_err[setname] = self.result
             logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs /
-                self.unrolls,logloss_sum.asnumpyarray() / nrecs /
+                self.unrolls, logloss_sum.asnumpyarray() / nrecs /
                 self.unrolls))
         trace()  # stop to look at plots
         return return_err
@@ -829,15 +819,15 @@ class RNNB(Model):
             import numpy as np
 
             # flatten the predictions
-            records = self.data_layer.num_batches*self.unrolls
-            pred_flat = pred[0:records+0,:].transpose().reshape((-1,)
-                        )[2:40].asnumpyarray()[:,0].astype(np.int8).T
-            targ_flat = targ[0:records+0,:].transpose().reshape((-1,)
-                        )[2:40].asnumpyarray()[:,0].astype(np.int8).T
+            records = self.data_layer.num_batches * self.unrolls
+            pred_flat = pred[0:records + 0, :].transpose().reshape((-1,)
+                )[2:40].asnumpyarray()[:, 0].astype(np.int8).T
+            targ_flat = targ[0:records + 0, :].transpose().reshape((-1,)
+                )[2:40].asnumpyarray()[:, 0].astype(np.int8).T
 
             # remove special characters, replace them with '#'
-            pred_flat[pred_flat<32] = 35
-            targ_flat[targ_flat<32] = 35
+            pred_flat[pred_flat < 32] = 35
+            targ_flat[targ_flat < 32] = 35
 
             # create output strings
             logging.info("the target for '%s' is: '%s'", setname,
