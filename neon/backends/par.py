@@ -83,7 +83,7 @@ class ModelPar(NoPar):
         recvbuf = [conf.fpropbuf, MPI.FLOAT]
         comm.Reduce(sendbuf, recvbuf, op=MPI.SUM)
         comm.Bcast(buf=[conf.fpropbuf, MPI.FLOAT])
-        out[:] = self.backend.array(conf.fpropbuf)
+        self.backend.copy_from(out, conf.fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
         conf = layer.parconf
@@ -93,7 +93,7 @@ class ModelPar(NoPar):
         recvbuf = [conf.bpropbuf, conf.rcount,
                    conf.displ, MPI.FLOAT]
         comm.Allgatherv(sendbuf, recvbuf)
-        out[:] = self.backend.array(conf.bpropbuf)
+        self.backend.copy_from(out, conf.bpropbuf)
 
     def update_fc(self, out, inputs, deltas, layer):
         conf = layer.parconf
@@ -151,7 +151,7 @@ class DataPar(NoPar):
         recvbuf = [conf.updatebuf, MPI.FLOAT]
         comm.Reduce(sendbuf, recvbuf, op=MPI.SUM)
         comm.Bcast(buf=[conf.updatebuf, MPI.FLOAT])
-        out[:] = self.backend.array(conf.updatebuf)
+        self.backend.copy_from(out, conf.updatebuf)
 
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)

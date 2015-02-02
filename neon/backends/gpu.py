@@ -529,6 +529,17 @@ class GPU(Backend):
         assert type(tsr) == self.tensor_cls
         return self.tensor_cls(tsr._tensor.copy())
 
+    def copy_from(self, dst, src):
+        """
+        Copy from src to dst.
+
+        Arguments:
+            dst (Tensor): the object to copy to
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        dst.set_host_mat(src)
+        dst.copy_to_device()
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),

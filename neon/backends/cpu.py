@@ -328,6 +328,16 @@ class CPU(Backend):
         """
         return self.tensor_cls(np.copy(tsr._tensor))
 
+    def copy_from(self, dst, src):
+        """
+        Copy from src to dst.
+
+        Arguments:
+            dst (Tensor): the object to copy to
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        dst[:] = src
+
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(np.empty_like(a._tensor))
