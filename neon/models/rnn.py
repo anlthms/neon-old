@@ -30,6 +30,12 @@ class RNN(Model):
         self.nlayers = len(self.layers)
         self.cost.initialize(kwargs)
 
+    def link(self):
+        pass
+
+    def initialize(self):
+        pass
+
     def fit(self, dataset):
         self.dataset = dataset
         # self.grad_checker(numgrad="rec")

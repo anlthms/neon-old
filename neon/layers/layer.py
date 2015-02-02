@@ -57,6 +57,9 @@ class Layer(YAMLable):
                 self.nifm = 1
             self.nin = pl.nout
         self.prev_layer = pl
+        if self.is_local:
+            self.link_local()
+        self.set_weight_shape()
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
@@ -64,7 +67,10 @@ class Layer(YAMLable):
         self.output = None
         self.deltas = None
 
-    def initialize_local(self):
+    def set_weight_shape(self):
+        pass
+
+    def link_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
 
         opt_param(self, ['ofmlocs', 'links'])
@@ -78,11 +84,9 @@ class Layer(YAMLable):
         assert len(self.ifmshape) == len(self.fshape)
         ofmshape = []
         for dim in range(len(self.ifmshape)):
-            self.backend.begin()
             assert self.ifmshape[dim] >= self.fshape[dim]
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
             ofmshape.extend([(num + self.stride - 1) / self.stride])
-            self.backend.end()
         self.ofmshape = tuple(ofmshape)
         self.pad = -self.pad
         self.ifmsize = np.prod(self.ifmshape)
@@ -92,6 +96,8 @@ class Layer(YAMLable):
         self.nout = self.nofm * self.ofmsize
         logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
                      self.name, self.nifm, self.ifmshape, self.ofmshape)
+
+    def initialize_local(self):
         if isinstance(self.backend, CPU):
             self.make_aux_buffers(self.nifm, self.ifmshape, self.nofm,
                                   self.ofmshape, self.fshape, self.stride)
@@ -227,10 +233,9 @@ class CostLayer(Layer):
         # we just have to scale by mini-batch size
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
-        # if self.ref_label != 'targets':
-        #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
+        self.backend.divide(self.deltas, self.backend.actual_batch_size,
+                            out=self.deltas)
 
     def get_cost(self):
         if self.ref_layer is not None:
@@ -343,6 +348,10 @@ class WeightLayer(Layer):
     """
     Typical hidden layer with weight parameters to be learned.
     """
+    def __init__(self, **kwargs):
+        super(WeightLayer, self).__init__(**kwargs)
+        self.distributable = True
+
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
         req_param(self, ['weight_init', 'lrule_init'])

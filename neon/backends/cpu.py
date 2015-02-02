@@ -10,8 +10,10 @@ import logging
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import range
+from neon.util.compat import MPI_INSTALLED, range
 
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +225,7 @@ class CPU(Backend):
         self.__dict__.update(kwargs)
         self.err_init()
         self.rng_init()
+        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -897,7 +900,7 @@ class CPU(Backend):
         np.multiply(out._tensor, y._tensor, out._tensor)
         return out
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -908,10 +911,11 @@ class CPU(Backend):
             inputs (CPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             weights (CPUTensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
         """
         self.dot(weights, inputs, out)
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 
@@ -919,10 +923,11 @@ class CPU(Backend):
             out (CPUTensor): Where to store the backward propagated errors.
             weights (CPUTensor): The weight coefficient values for this layer.
             deltas (CPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         self.dot(weights.transpose(), deltas, out)
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 
@@ -931,6 +936,7 @@ class CPU(Backend):
             inputs (CPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             deltas (CPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         self.dot(deltas, inputs.transpose(), out)
 
@@ -1031,7 +1037,7 @@ class CPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False):
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1061,6 +1067,7 @@ class CPU(Backend):
                                    field
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
+            layer (Layer): The layer object.
         """
         fsize = links.shape[1]
         out.fill(0.0)
@@ -1542,11 +1549,6 @@ class CPU(Backend):
 # template for CPUDist (wrap MPI function calls so _tensor don't have to be
 # exposed in layer code)
 class CPUDist(CPU):
-    try:
-        from mpi4py import MPI
-        logger.info("successfully imported mpi4py")
-    except ImportError:
-        logger.warning("mpi4py could not be imported")
 
     def bcast(self, buf, rank=0):
         buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
@@ -1557,11 +1559,6 @@ class CPUDataDist(CPU):
     """
     helper sub-class for data parallel implementations
     """
-    try:
-        from mpi4py import MPI
-        logger.info("successfully imported mpi4py")
-    except ImportError:
-        logger.warning("mpi4py could not be imported")
 
     def update_fc(self, out, inputs, deltas):
         super(CPUDataDist, self).update_fc(out, inputs, deltas)

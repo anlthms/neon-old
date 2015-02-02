@@ -7,6 +7,7 @@ Houses low-level code for performing underlying data manipulation operations.
 """
 
 from neon.util.persist import YAMLable
+from neon.backends.par import NoPar, ModelPar, DataPar
 
 
 class Backend(YAMLable):
@@ -649,7 +650,7 @@ class Backend(YAMLable):
         """
         pass
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -660,13 +661,14 @@ class Backend(YAMLable):
             inputs (Tensor): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
             weights (Tensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 
@@ -674,13 +676,14 @@ class Backend(YAMLable):
             out (Tensor): Where to store the backward propagated errors.
             weights (Tensor): The weight coefficient values for this layer.
             deltas (Tensor): The error values for this layer
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 
@@ -689,6 +692,7 @@ class Backend(YAMLable):
             inputs (Tensor): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
             deltas (Tensor): The error values for this layer
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -769,7 +773,7 @@ class Backend(YAMLable):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False):
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -799,6 +803,7 @@ class Backend(YAMLable):
                                 field
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
+            layer (Layer): The layer object.
 
         Raises:
             NotImplementedError: Can't be instantiated directly.
@@ -1057,6 +1062,39 @@ class Backend(YAMLable):
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
+
+    # The functions below can be moved out to a utility class if it is
+    # desirable to leave this class abstract.
+
+    def configure(self, model, par_scheme):
+        # Save the original batch_size value that is specified
+        # in the configuration file.
+        self.actual_batch_size = model.batch_size
+        if par_scheme == 'model':
+            self.par = ModelPar(self, model)
+            self.fprop_fc = self.par.fprop_fc
+            self.bprop_fc = self.par.bprop_fc
+            self.update_fc = self.par.update_fc
+        elif par_scheme == 'data':
+            self.par = DataPar(self, model)
+            self.update_fc = self.par.update_fc
+            self.update_conv = self.par.update_conv
+        elif par_scheme == 'hybrid':
+            raise NotImplementedError()
+        elif par_scheme == 'none':
+            self.par = NoPar(self, model)
+        else:
+            raise AttributeError("Invalid parallel scheme specified",
+                                 par_scheme)
+
+    def distribute(self, data):
+        return self.par.distribute(data)
+
+    def rank(self):
+        return self.par.rank()
+
+    def reduce_cost(self, tensor):
+        return self.par.reduce_cost(tensor)
 
 
 class Tensor(object):

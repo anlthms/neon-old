@@ -40,6 +40,12 @@ class FitExperiment(Experiment):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
+        self.model.link()
+        par_scheme = (
+            self.par_scheme if 'par_scheme' in self.__dict__ else 'none')
+        self.backend.configure(self.model, par_scheme=par_scheme)
+        self.model.initialize()
+
     def run(self):
         """
         Actually carry out each of the experiment steps.

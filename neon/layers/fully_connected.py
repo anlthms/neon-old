@@ -8,7 +8,7 @@ backend.
 
 import logging
 from neon.layers.layer import WeightLayer
-from neon.util.param import req_param
+from neon.util.param import req_param, opt_param
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +24,17 @@ class FCLayer(WeightLayer):
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
-
-        self.weight_shape = (self.nout, self.nin)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
 
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nout, self.nin))
+
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
-                              weights=self.weights)
+                              weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
@@ -46,11 +47,12 @@ class FCLayer(WeightLayer):
 
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
-                                  deltas=error)
+                                  deltas=error, layer=self)
 
         upm = self.utemp if self.accumulate else self.updates
 
-        self.backend.update_fc(out=upm[0], inputs=inputs, deltas=error)
+        self.backend.update_fc(out=upm[0], inputs=inputs,
+                               deltas=error, layer=self)
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[1])
 

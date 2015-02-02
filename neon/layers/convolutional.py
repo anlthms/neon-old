@@ -14,26 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 class ConvLayer(WeightLayer):
-
     """
     Convolutional layer.
     """
-
     def __init__(self, **kwargs):
         self.is_local = True
         super(ConvLayer, self).__init__(**kwargs)
+        opt_param(self, ['local_conv'], False)
 
     def initialize(self, kwargs):
         super(ConvLayer, self).initialize(kwargs)
         self.initialize_local()
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
-        opt_param(self, ['local_conv'], False)
 
-        if self.local_conv is False:
-            self.weight_shape = (self.fsize, self.nofm)
-        else:
-            self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
@@ -43,6 +37,13 @@ class ConvLayer(WeightLayer):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
+
+    def set_weight_shape(self):
+        if hasattr(self, 'local_conv') and self.local_conv:
+            weight_shape = (self.fsize * self.ofmsize, self.nofm)
+        else:
+            weight_shape = (self.fsize, self.nofm)
+        opt_param(self, ['weight_shape'], weight_shape)
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
@@ -85,7 +86,8 @@ class ConvLayer(WeightLayer):
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fshape[-1],
                                  updatebuf=self.updatebuf,
-                                 local=self.local_conv)
+                                 local=self.local_conv,
+                                 layer=self)
 
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[1])

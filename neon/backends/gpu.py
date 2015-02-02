@@ -12,9 +12,11 @@ import numpy
 import os
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import range
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.error import TooSlowToImplementError
 
+if MPI_INSTALLED:
+    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -407,6 +409,7 @@ class GPU(Backend):
         self.__dict__.update(kwargs)
         cudanet.cublas_init()
         self.rng_init()
+        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -1100,7 +1103,7 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
-    def fprop_fc(self, out, inputs, weights):
+    def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
         produce output pre-activations (ready for transformation by an
@@ -1111,10 +1114,11 @@ class GPU(Backend):
             inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             weights (GPUTensor): The weight coefficient values for this layer.
+            layer (Layer): The layer object.
         """
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
 
@@ -1122,10 +1126,11 @@ class GPU(Backend):
             out (GPUTensor): Where to store the backward propagated errors.
             weights (GPUTensor): The weight coefficient values for this layer.
             deltas (GPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.
 
@@ -1134,6 +1139,7 @@ class GPU(Backend):
             inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             deltas (GPUTensor): The error values for this layer
+            layer (Layer): The layer object.
         """
         cudanet.dot(deltas._tensor, inputs.transpose()._tensor, out._tensor)
 
@@ -1214,7 +1220,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False):
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1244,6 +1250,7 @@ class GPU(Backend):
                                    field
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
+            layer (Layer): The layer object.
         """
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
@@ -1566,11 +1573,6 @@ class GPUDataDist(GPU):
     """
     helper sub-class for data parallel implementations
     """
-    try:
-        from mpi4py import MPI
-        logger.info("successfully imported mpi4py")
-    except ImportError:
-        logger.warning("mpi4py could not be imported")
 
     def __init__(self, **kwargs):
         local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])

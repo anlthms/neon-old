@@ -9,7 +9,7 @@ import logging
 import os
 import yaml
 
-from neon.util.compat import PY3
+from neon.util.compat import PY3, MPI_INSTALLED
 
 if PY3:
     import pickle

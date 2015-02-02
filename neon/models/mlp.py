@@ -6,14 +6,13 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import numpy as np
-from neon.models.model import Model
+from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
 logger = logging.getLogger(__name__)
 
 
-class MLP(Model):
+class MLP(MLP_old):
 
     """
     Fully connected, feed-forward, multi-layer perceptron model
@@ -26,18 +25,18 @@ class MLP(Model):
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
         self.result = 0
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
-                  "accumulate": self.accumulate}
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
 
-        self.link_and_initialize(self.layers, kwargs)
-
-    def link_and_initialize(self, layer_list, kwargs, initlayer=None):
-        for ll, pl in zip(layer_list, [initlayer] + layer_list[:-1]):
-            self.backend.begin()
+    def link(self, initlayer=None):
+        for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
+
+    def initialize(self, initlayer=None):
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate}
+        for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
             self.backend.end()
 
@@ -72,6 +71,32 @@ class MLP(Model):
     def get_classifier_output(self):
         return self.class_layer.output
 
+    def print_training_error(self, error, num_batches, partial=False):
+        rederr = self.backend.reduce_cost(error)
+        if self.backend.rank() != 0:
+            return
+
+        errorval = rederr / num_batches
+        if partial is True:
+            assert self.step_print != 0
+            logger.info('%d.%d training error: %0.5f', self.epochs_complete,
+                        num_batches / self.step_print - 1, errorval)
+        else:
+            logger.info('epoch: %d, training error: %0.5f',
+                        self.epochs_complete, errorval)
+
+    def print_test_error(self, setname, misclass, logloss, nrecs):
+        redmisclass = self.backend.reduce_cost(misclass)
+        redlogloss = self.backend.reduce_cost(logloss)
+        if self.backend.rank() != 0:
+            return
+
+        misclassval = redmisclass / nrecs
+        loglossval = redlogloss / nrecs
+        self.result = misclassval
+        logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
+                     setname, 100 * misclassval, loglossval)
+
     def fit(self, dataset):
         """
         Learn model weights on the given datasets.
@@ -93,14 +118,10 @@ class MLP(Model):
                 self.update(self.epochs_complete)
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
-                    logger.info('%d.%d logloss=%0.5f', self.epochs_complete,
-                                mb_id / self.step_print - 1,
-                                np.int(error.asnumpyarray()) / mb_id)
+                    self.print_training_error(error, mb_id, partial=True)
                 mb_id += 1
                 self.backend.end()
-            logger.info('epoch: %d, total training error: %0.5f',
-                        self.epochs_complete,
-                        error.asnumpyarray() / self.data_layer.num_batches)
+            self.print_training_error(error, self.data_layer.num_batches)
             self.print_layers(debug=True)
             self.epochs_complete += 1
             self.backend.end()
@@ -142,10 +163,7 @@ class MLP(Model):
                                  axes=None, out=batch_sum)
                 self.backend.add(logloss_sum, batch_sum, logloss_sum)
                 self.backend.end()
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
-                setname, 100 * misclass_sum.asnumpyarray() / nrecs,
-                logloss_sum.asnumpyarray() / nrecs))
-            self.result = misclass_sum.asnumpyarray()[0, 0] / nrecs
+            self.print_test_error(setname, misclass_sum, logloss_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
             self.backend.end()

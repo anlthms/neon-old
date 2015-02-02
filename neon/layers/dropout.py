@@ -31,14 +31,17 @@ class DropOutLayer(Layer):
     def initialize(self, kwargs):
         opt_param(self, ['keep'], 0.5)
         super(DropOutLayer, self).initialize(kwargs)
-        if self.prev_layer.is_local:
-            self.is_local = True
-            self.nifm = self.nofm = self.prev_layer.nofm
-            self.ifmshape = self.ofmshape = self.prev_layer.ofmshape
-        self.nout = self.nin
         self.keepmask = self.backend.empty((self.nin, self.batch_size))
         self.train_mode = True
         self.allocate_output_bufs()
+
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            self.is_local = True
+            self.nifm = self.nofm = pl.nofm
+            self.ifmshape = self.ofmshape = pl.ofmshape
+        self.nout = self.nin = pl.nout
+        self.prev_layer = pl
 
     def fprop(self, inputs):
         if (self.train_mode):

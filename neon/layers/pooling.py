@@ -65,20 +65,22 @@ class CrossMapPoolingLayer(WeightLayer):
     """
     def __init__(self, **kwargs):
         self.is_local = True
+        self.fshape = (1, 1)
         super(CrossMapPoolingLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
-        self.fshape = (1, 1)
         super(CrossMapPoolingLayer, self).initialize(kwargs)
         req_param(self, ['nofm'])
 
         self.initialize_local()
-        self.weight_shape = (self.nifm, self.nofm)
         self.allocate_output_bufs()
         self.allocate_param_bufs()
         opt_param(self, ['updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.updatebuf = self.backend.empty((1, 1))
+
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nifm, self.nofm))
 
     def fprop(self, inputs):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,

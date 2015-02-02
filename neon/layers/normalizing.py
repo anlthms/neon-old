@@ -32,6 +32,7 @@ class CrossMapResponseNormLayer(Layer):
     def __init__(self, **kwargs):
         self.is_local = True
         self.stride = 1
+        self.fshape = (1, 1)
         super(CrossMapResponseNormLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):

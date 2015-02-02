@@ -52,6 +52,10 @@ class BranchLayer(CompositeLayer):
     accumulates into common deltas
     """
 
+    def __init__(self, **kwargs):
+        super(BranchLayer, self).__init__(**kwargs)
+        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
+
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
@@ -62,7 +66,6 @@ class BranchLayer(CompositeLayer):
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
 
-        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
         self.startidx = [0] * len(self.sublayers)
         self.endidx = [0] * len(self.sublayers)
         self.endidx[0] = self.sublayers[0].nout
