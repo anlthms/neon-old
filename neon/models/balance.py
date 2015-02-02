@@ -25,10 +25,13 @@ class Balance(MLPB):
         self.class_layer = self.classlayers[-2]
         self.branch_layer = self.stylelayers[-2]
         self.pathways = [self.layers, self.classlayers, self.stylelayers]
+        self.kwargs = kwargs
 
+    def initialize(self, initlayer=None):
+        super(Balance, self).initialize(initlayer)
         for lp in [self.classlayers, self.stylelayers]:
             lp[-1].set_previous_layer(lp[-2])
-            lp[-1].initialize(kwargs)
+            lp[-1].initialize(self.kwargs)
 
     def fprop(self):
         super(Balance, self).fprop()

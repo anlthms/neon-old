@@ -168,8 +168,8 @@ class MNIST(Dataset):
             self.train_idcs = list(range(60000))
             if 'sample_pct' in self.__dict__:
                 if self.sample_pct >= 1.0:
+                    logger.info('sampling percentage: %d', self.sample_pct)
                     self.sample_pct /= 100.0
-                    logger.info('sampling pct: %0.2f', self.sample_pct)
                 if self.sample_pct < 1.0:
                     numpy.random.shuffle(self.train_idcs)
                 self.train_idcs = self.train_idcs[0:int(

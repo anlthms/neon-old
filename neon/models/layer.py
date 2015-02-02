@@ -1421,6 +1421,7 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         if self.pos > 0:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
                                     padding=0, stride=self.stride,
@@ -2408,7 +2409,9 @@ class LCNLayerDist(LCNLayer):
                 self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (self.nifm, self.fheight, self.fwidth))
-                rfilter[fm, self.fheight / 2, self.fwidth / 2] -= 1.0
+                midval = rfilter[fm, self.fheight / 2, self.fwidth / 2]
+                rfilter[fm, self.fheight / 2, self.fwidth / 2] = (
+                    midval.asnumpyarray()[0, 0] - 1.0)
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, start_row:start_row + inset.shape[1],
