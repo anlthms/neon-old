@@ -514,7 +514,7 @@ class RNNB(Model):
         self.data_layer.use_set('train')
         # "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
-        self.grad_checker(numgrad="lstm_fh")
+        self.grad_checker(numgrad="lstm_oh")
         logger.info('commencing model fitting')
         errorlist = []
         suberrorlist = []
@@ -563,7 +563,7 @@ class RNNB(Model):
         if (batch % self.reset_period) == 0 or batch == 1:
             self.rec_layer.output_list[-1].fill(0)
             if 'c_t' in self.rec_layer.__dict__:
-                        self.rec_layer.c_t[-1].fill(0)
+                self.rec_layer.c_t[-1].fill(0)
 
     def plot_layers(self, viz, suberrorlist, errorlist):
 
@@ -611,7 +611,7 @@ class RNNB(Model):
             self.rec_layer.fprop(y[tau-1], c[tau-1], inputs[tau], tau)
             self.class_layer.fprop(y[tau], tau)
             if tau == eps_tau:
-                num_target[num_i, num_j] = (numpy_target - eps)
+                num_target[num_i, num_j] = numpy_target
 
         # cost layer fprop is a pass.
 
@@ -642,7 +642,7 @@ class RNNB(Model):
                 self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
                 if 'c_t' in self.rec_layer.__dict__:
-                    cerror[:] = self.rec_layer.celtas
+                    cerror[:] = self.rec_layer.celtas  # no deepcopy needed?
 
     def update(self, epoch):
         '''straight from old RNN == MLP == MLPB'''

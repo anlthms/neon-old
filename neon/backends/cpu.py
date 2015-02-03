@@ -28,7 +28,7 @@ class CPUTensor(Tensor):
         obj (numpy.ndarray): the actual data values.  Python built-in
                              types like lists and tuples are also supported.
         dtype (numpy.ndtype, optional): underlying data type of the elements.
-                                        If None will use float64.
+                                        If None will use float32.
 
     See also:
         CPU
@@ -44,7 +44,7 @@ class CPUTensor(Tensor):
 
     def __init__(self, obj, dtype=None):
         if dtype is None:
-            dtype = 'float64'
+            dtype = 'float32'
         if type(obj) != np.ndarray:
             self._tensor = np.array(obj, dtype)
         elif obj.dtype != dtype:
@@ -192,7 +192,7 @@ class CPUTensor(Tensor):
     def exp(self):
         return self.__class__(np.exp(self._tensor))
 
-    def sumsq(self, axis=None, dtype='float64', out=None):
+    def sumsq(self, axis=None, dtype='float32', out=None):
         res = np.sum(self._tensor * self._tensor, axis, dtype, out)
         if axis is None:
             return res
@@ -214,7 +214,7 @@ class CPU(Backend):
     See also:
         CPUTensor
     """
-    default_dtype = 'float64'
+    default_dtype = 'float32'
     epsilon = np.finfo(default_dtype).eps
     tensor_cls = CPUTensor
 
@@ -236,7 +236,7 @@ class CPU(Backend):
         Arguments:
             shape (int, list): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -256,7 +256,7 @@ class CPU(Backend):
                                  built-in types like ints and lists are
                                  supported.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -273,7 +273,7 @@ class CPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -290,7 +290,7 @@ class CPU(Backend):
         Arguments:
             shape (list of ints): The size of each dimension of the Tensor.
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -360,7 +360,7 @@ class CPU(Backend):
                                       Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:
@@ -395,7 +395,7 @@ class CPU(Backend):
             scale (numeric, optional): Standard deviaion.  Defaults to 1.0
             size (array_like or int, optional): Shape of generated samples
             dtype (dtype, optional): Element data type.  If not specified we
-                                     use default_dtype value ('float64'
+                                     use default_dtype value ('float32'
                                      unless overridden).
 
         Returns:

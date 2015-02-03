@@ -60,7 +60,7 @@
         name: d0,
         nout: 128,
       },
-      !obj:neon.models.rlayer2.RecurrentLSTMLayer { #RecurrentHiddenLayer RecurrentLSTMLayer
+      !obj:neon.models.rlayer2.RecurrentLSTMLayer {  # RecurrentHiddenLayer RecurrentLSTMLayer
         name: recurrent,
         lrule_init: *gdm,
         nout: 64,

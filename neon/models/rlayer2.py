@@ -309,8 +309,8 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.eh_ot_cphip = be.zeros(net_sze)
 
         # error buffers
-        self.deltas = be.zeros((self.nout, self.batch_size))  # hidden bprop error
-        self.celtas = be.zeros((self.nout, self.batch_size))  # cell bprop error
+        self.deltas = be.zeros((self.nout, self.batch_size))  # hidden bprop error  ------- deltas
+        self.celtas = be.zeros((self.nout, self.batch_size))  # cell bprop error    --------celtas
 
         # temp buffer for numerical gradient
         self.temp_t = 0
@@ -501,7 +501,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
 
         # Only change to layer2: input now comes direct from datalayer
         if self.prev_layer.is_data:
-            cur_input = self.prev_layer.output[tau]  # 4 3 2 1 0
+            cur_input = self.prev_layer.output[tau]
         else:
             cur_input = self.prev_layer.output_list[tau]
 
@@ -577,7 +577,6 @@ class RecurrentLSTMLayer(RecurrentLayer):
         # wrap up:
         be.add(self.errs['hh'], self.errs['ch'], self.deltas)
         be.add(self.errs['cc'], self.errs['hc'], self.celtas)
-
         if numgrad is not None and numgrad.startswith("lstm"):
             ifoc_hx = numgrad[5:7]
             logger.info("LSTM.bprop: analytic dh_dw%s[%d]= %e + %e = %e",
