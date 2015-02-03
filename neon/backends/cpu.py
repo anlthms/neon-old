@@ -152,6 +152,9 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def copy_from(self, src):
+        self._tensor[:] = src
+
     def transpose(self):
         return self.__class__(self._tensor.transpose(),
                               dtype=self._tensor.dtype)
