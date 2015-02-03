@@ -34,22 +34,25 @@ class FitExperiment(Experiment):
     def __init__(self, **kwargs):
         # default dist_flag to False
         self.dist_flag = False
+        self.datapar = False
+        self.modelpar = False
         self.__dict__.update(kwargs)
         for req_param in ['backend', 'dataset', 'model']:
             if not hasattr(self, req_param):
                 raise ValueError("required parameter: %s not specified" %
                                  req_param)
 
+    def init_model(self):
         self.model.link()
-        par_scheme = (
-            self.par_scheme if 'par_scheme' in self.__dict__ else 'none')
-        self.backend.configure(self.model, par_scheme=par_scheme)
+        self.backend.configure(self.model, self.datapar, self.modelpar)
         self.model.initialize()
 
     def run(self):
         """
         Actually carry out each of the experiment steps.
         """
+        self.init_model()
+
         # load the dataset, save it to disk if specified
         if (not hasattr(self.dataset, 'dist_flag') or
                 not self.dataset.dist_flag or (self.dataset.dist_mode !=

@@ -34,6 +34,7 @@ def main():
     # read in yaml configuration and initialize objects
     args = parse_args()
     experiment = deserialize(args.yaml_file)
+    experiment.init_model()
 
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)
