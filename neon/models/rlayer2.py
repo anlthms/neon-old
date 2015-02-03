@@ -4,7 +4,7 @@ from neon.models import learning_rule as lr
 from neon.models.layer2 import WeightLayer, CostLayer
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
-
+from ipdb import set_trace as trace
 logger = logging.getLogger(__name__)
 
 
@@ -13,12 +13,11 @@ class RecurrentLayer(WeightLayer):
     This inherits generously from WeightLayer, in particular
 
     def set_previous_layer(self, pl):
-
     def allocate_param_bufs(self):
-
     def init_learning_rule(self, lrule_init):
-
     def update(self, epoch):
+
+    and from Layer, it takes __init__ (which just checks parameters)
     """
 
     def allocate_output_bufs(self):
@@ -193,7 +192,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
         # we can change the calling order later
         self.learning_rule.allocate_state(self.updates)
 
-    def fprop(self, y, inputs, tau, cell=None):
+    def fprop(self, y, c, inputs, tau):
         self.backend.fprop_fc(self.z[0], y, self.weights_rec)
         self.backend.fprop_fc(self.z[1], inputs, self.weights)
         self.backend.add(self.z[0], self.z[1], self.pre_act_list[tau])
@@ -201,42 +200,39 @@ class RecurrentHiddenLayer(RecurrentLayer):
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
-    def bprop(self, error, error_c, tau, t, numgrad=False):
+    def bprop(self, error, error_c, tau, numgrad=False):
         """
         This function has been refactored:
         [done] remove duplicate code
         [done] remove the loop altogether.
         [todo] If the if statement can't be supported, revert to duplicated
                code
-        Not sure why tau is passed but not used. Not that this is called for
-        decrementing t.
         """
 
         if self.prev_layer.is_data:
-            inputs = self.prev_layer.output[t]
-            targets = self.prev_layer.targets[t-1]  # somehow fake inputs here! But for t=0, (which is never reached btw), don;t have a target.
+            inputs = self.prev_layer.output[tau]  # 4 3 2 1 0
         else:
-            inputs = self.prev_layer.output_list[t]
+            inputs = self.prev_layer.output_list[tau]
 
         if self.skip_act is False:
-            self.backend.multiply(error, self.pre_act_list[t], out=error)
+            self.backend.multiply(error, self.pre_act_list[tau], out=error)
 
         # input weight update (apply curr. delta)
         self.backend.update_fc(out=self.temp_in,
-                               inputs=inputs,  # TODO: SHOULD BE TARGETS NOT INPUTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                               inputs=inputs,  # input not target here!
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_in,
                          self.weight_updates)
 
-        if (t > 0):
+        if (tau > 0):
             # recurrent weight update (apply prev. delta)
             self.backend.update_fc(out=self.temp_rec,
-                                   inputs=self.output_list[t - 1],
+                                   inputs=self.output_list[tau - 1],
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
 
             # **** ASK URS ***
-            # Why only at t > 0 vs. t==0? why not weights vs weights_rec
+            # Why only at tau > 0 vs. tau==0? why not weights vs weights_rec
             self.backend.bprop_fc(out=self.deltas,  #
                                   weights=self.weights_rec,
                                   deltas=error)  # would like a deepcopy
@@ -253,48 +249,35 @@ class RecurrentLSTMLayer(RecurrentLayer):
     This is a plug in replacement for RecurrentHiddenLayer()
     """
 
-    def __init__(self, name, backend, batch_size, pos, nin, nout, unrolls,
-                 activation, gate_activation, weight_init, weight_init_rec,
-                 learning_rule,
-                 weight_dtype=None, delta_dtype=None, updates_dtype=None,
-                 pre_act_dtype=None, output_dtype=None, deltas_dtype=None):
-        """
-        In this section, create buffers for the 8 weight matrices:
-        two kind of inputs (x_t and h_t-1) feeding into 4 gates (input, output,
-        forget, cell). In addition to weights, create buffers for preactivation
-        values and for the intermediate values computed in the LSTM cell.
+    def initialize(self, kwargs):
+        req_param(self, ['weight_init_rec'])
+        self.weight_rec_shape = (self.nout, self.nout)
+        super(RecurrentLSTMLayer, self).initialize(kwargs)
+        self.weight_shape = (self.nout, self.nin)
+        self.bias_shape = (self.nout, 1)
 
-        """
-        # super calls into Layer.__init__() for weight init.
-        super(RecurrentLSTMLayer, self).__init__(name, backend, batch_size,
-                                                 pos, nin, nout, weight_init,
-                                                 learning_rule,
-                                                 activation=activation)
+        opt_param(self, ['delta_shape'], (self.nout, self.batch_size))
+        self.allocate_output_bufs()
+        self.allocate_param_bufs()
+
+
+    def allocate_output_bufs(self):
+        """ all the activations and temp buffers live here """
+        make_zbuf = self.backend.zeros
+        super(RecurrentLSTMLayer, self).allocate_output_bufs()
 
         # things that are not initalized by the super class
-        self.gate_activation = gate_activation  # same for activation in super
-        be = backend
-        net_sze = (self.nout, batch_size)  # tuple with activation size.
+        be = self.backend
+        net_sze = (self.nout, self.batch_size)  # tuple with activation size.
 
-        # create weight matrices -- TODO: weight_init in yaml
+        # buffers for gate activation
         for a in ['i', 'f', 'o', 'g']:
             setattr(self, a + '_t',
-                    [be.zeros(net_sze) for k in range(unrolls)])
+                    [be.zeros(net_sze) for k in range(self.unrolls)])
             setattr(self, 'net_' + a,
-                    [be.zeros(net_sze) for k in range(unrolls)])
+                    [be.zeros(net_sze) for k in range(self.unrolls)])
 
-        for a in ['i', 'f', 'o', 'c']:
-            setattr(self, 'W' + a + 'x',
-                    be.gen_weights((nout, nin), weight_init_rec, weight_dtype))
-            setattr(self, 'W' + a + 'h', be.gen_weights((nout, nout),
-                                                        weight_init_rec,
-                                                        weight_dtype))
-            setattr(self, 'b_' + a, be.zeros((nout, 1)))
-            setattr(self, 'W' + a + 'x_updates', be.zeros((nout, nin)))
-            setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
-            setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
-
-        # pre-allocate for d{i,f,o,c}_dh1
+        # outputs: pre-allocate for d{i,f,o,c}_dh1
         self.d_dh1 = {gateid: be.zeros(net_sze) for
                       gateid in ['i', 'f', 'o', 'c']}
         self.dc_d_dh1 = {gateid: be.zeros(net_sze) for
@@ -304,6 +287,54 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.gatedic = {}
         self.gatedic_u = {}
 
+        # buffers for cell and output
+        self.c_t = [be.zeros(net_sze) for k in range(self.unrolls)]
+        self.c_phi = [be.zeros(net_sze) for k in range(self.unrolls)]
+        self.c_phip = [be.zeros(net_sze) for k in range(self.unrolls)]
+        self.output_list = [be.zeros(net_sze) for k in range(self.unrolls)]
+
+        # pre-allocate preactivation buffers
+        self.temp_x = [be.zeros(net_sze) for k in range(self.unrolls)]
+        self.temp_h = [be.zeros(net_sze) for k in range(self.unrolls)]
+
+        # pre-allocate derivative buffers
+        self.dh_dwx_buf = be.zeros((self.nout, self.nin))
+        self.dh_dwh_buf = be.zeros((self.nout, self.nout))
+
+        self.delta_buf = be.zeros(net_sze)
+        self.bsum_buf = be.zeros((self.nout, 1))
+
+        # This quantity seems to be computed repeatedly
+        # error_h * self.o_t[tau] * self.c_phip[tau]
+        self.eh_ot_cphip = be.zeros(net_sze)
+
+        # error buffers
+        self.deltas = be.zeros((self.nout, self.batch_size))  # hidden bprop error
+        self.celtas = be.zeros((self.nout, self.batch_size))  # cell bprop error
+
+        # temp buffer for numerical gradient
+        self.temp_t = 0
+
+
+    def allocate_param_bufs(self):
+        """ Weights and updates live here """
+        super(RecurrentLSTMLayer, self).allocate_param_bufs()
+
+        be = self.backend
+
+        # set params (self.Wix = gen_weights) -- gen_weights is now
+        for a in ['i', 'f', 'o', 'c']:
+            setattr(self, 'W' + a + 'x', self.weight_init_rec.generate(
+                    self.weight_shape, self.weight_dtype))
+            setattr(self, 'W' + a + 'h', self.weight_init_rec.generate(
+                    self.weight_rec_shape, self.weight_dtype))
+            setattr(self, 'b_' + a, be.zeros((self.nout, 1)))
+            setattr(self, 'W' + a + 'x_updates', be.zeros(self.weight_shape))
+            setattr(self, 'W' + a + 'h_updates',
+                    be.zeros(self.weight_rec_shape))
+            setattr(self, 'b_' + a + '_updates', be.zeros((self.nout, 1)))
+
+        # pack params (stuff like Wix, Wix_updates)
         for a in ['i', 'f', 'o', 'c']:
             gateid = 'g' if a is 'c' else a
             self.gatedic[a] = [getattr(self, 'W' + a + 'x'),
@@ -315,33 +346,13 @@ class RecurrentLSTMLayer(RecurrentLayer):
                                  getattr(self, 'W' + a + 'h_updates'),
                                  getattr(self, 'b_' + a + '_updates')]
 
-        # If this isn't initialized correctly, get NaNs pretty quickly.
+        # param: If this isn't initialized correctly, get NaNs pretty quickly.
         be.add(self.b_i, 1, self.b_i)  # sigmoid(1) opens the gate
         # +5 following clockwork RNN paper "to encourage long term memory"
         be.add(self.b_f, -1, self.b_f)  # sigmoid(-1) closes gate.
         be.add(self.b_o, 1, self.b_o)   # sigmoid(1) open
 
-        # and for higher up entities in the LSTM cell.
-        self.c_t = [be.zeros(net_sze) for k in range(unrolls)]
-        self.c_phi = [be.zeros(net_sze) for k in range(unrolls)]
-        self.c_phip = [be.zeros(net_sze) for k in range(unrolls)]
-        self.output_list = [be.zeros(net_sze) for k in range(unrolls)]
-
-        # pre-allocate preactivation buffers
-        self.temp_x = [be.zeros(net_sze) for k in range(unrolls)]
-        self.temp_h = [be.zeros(net_sze) for k in range(unrolls)]
-
-        # pre-allocate derivative buffers
-        self.dh_dwx_buf = be.zeros((nout, nin))
-        self.dh_dwh_buf = be.zeros((nout, nout))
-
-        self.delta_buf = be.zeros(net_sze)
-        self.bsum_buf = be.zeros((nout, 1))
-
-        # This quantity seems to be computed repeatedly
-        # error_h * self.o_t[tau] * self.c_phip[tau]
-        self.eh_ot_cphip = be.zeros(net_sze)
-
+        # pack params
         self.param_names = ['input', 'forget', 'output', 'cell']
         self.params = [self.Wix, self.Wfx, self.Wox, self.Wcx, self.Wih,
                        self.Wfh, self.Woh, self.Wch, self.b_i, self.b_f,
@@ -354,10 +365,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.learning_rule.allocate_state(self.updates)
         for upm in self.updates:
             upm.fill(0.0)
-        self.deltas = be.zeros((nout, batch_size))  # hidden bprop error
-        self.celtas = be.zeros((nout, batch_size))  # cell bprop error
 
-        self.temp_t = 0
 
     def list_product(self, target, plist):
         """
@@ -398,7 +406,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         be.add(netl[tau], b, netl[tau])
         actfunc.apply_both(be, netl[tau], tl[tau])
 
-    def fprop(self, y, inputs, tau, cell):
+    def fprop(self, y, cell, inputs, tau):
         """
         Forward pass for the google-style LSTM cell with forget gates, no
         peepholes.
@@ -451,7 +459,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.activation.apply_both(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
 
-    def bprop(self, error_h, error_c, inputs, tau_tot, tau, numgrad=False):
+    def bprop(self, error_h, error_c, tau, numgrad=False):
         """
         For LSTM, inject h-error and c-error, get 8 w's and h, c out. It's
         more complicated than bprop thorugh a standard layer mostly because
@@ -490,7 +498,13 @@ class RecurrentLSTMLayer(RecurrentLayer):
         into outputs[-1], which should not wrap but be 0.
         """
         be = self.backend
-        cur_input = inputs[tau*self.nin:(tau+1)*self.nin, :]
+
+        # Only change to layer2: input now comes direct from datalayer
+        if self.prev_layer.is_data:
+            cur_input = self.prev_layer.output[tau]  # 4 3 2 1 0
+        else:
+            cur_input = self.prev_layer.output_list[tau]
+
         cur_output = self.output_list[tau - 1]
 
         numtemp = {}

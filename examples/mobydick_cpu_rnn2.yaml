@@ -34,7 +34,7 @@
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
-      learning_rate: 0.002,  #  0.2,
+      learning_rate: 0.2,  #  0.002 for RNN,
       backend: *be,
       momentum_params: {
         type: linear_monotone, # constant, nesterov dont work
@@ -60,13 +60,13 @@
         name: d0,
         nout: 128,
       },
-      !obj:neon.models.rlayer2.RecurrentHiddenLayer { #
+      !obj:neon.models.rlayer2.RecurrentLSTMLayer { #RecurrentHiddenLayer RecurrentLSTMLayer
         name: recurrent,
         lrule_init: *gdm,
         nout: 64,
         unrolls: *ur,
         activation: !obj:neon.transforms.tanh.Tanh {},
-        #gate_activation: !obj:neon.transforms.logistic.Logistic {},
+        gate_activation: !obj:neon.transforms.logistic.Logistic {},
         weight_init: *wt_init,
         weight_init_rec: *wt_init,
       },

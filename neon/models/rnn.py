@@ -514,7 +514,7 @@ class RNNB(Model):
         self.data_layer.use_set('train')
         # "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
-        self.grad_checker(numgrad="input")
+        self.grad_checker(numgrad="lstm_fh")
         logger.info('commencing model fitting')
         errorlist = []
         suberrorlist = []
@@ -566,53 +566,41 @@ class RNNB(Model):
                         self.rec_layer.c_t[-1].fill(0)
 
     def plot_layers(self, viz, suberrorlist, errorlist):
-        viz.plot_weights(self.rec_layer.weights.asnumpyarray(),
-                         self.rec_layer.weights_rec.asnumpyarray(),
-                         self.class_layer.weights.asnumpyarray())
+
+        # generic error plot
         viz.plot_error(suberrorlist, errorlist)
-        viz.plot_activations(self.rec_layer.pre_act_list,
-                             self.rec_layer.output_list,
-                             self.class_layer.pre_act_list,
-                             self.class_layer.output_list,
-                             self.cost_layer.targets)
+
+        # LSTM specific plots
         if 'c_t' in self.rec_layer.__dict__:
             import numpy as np
-            viz.plot_lstm(self.rec_layer.Wix.asnumpyarray(),
-                          self.rec_layer.Wfx.asnumpyarray(),
-                          self.rec_layer.Wox.asnumpyarray(),
-                          self.rec_layer.Wcx.asnumpyarray(),
-                          np.hstack((self.rec_layer.Wih.asnumpyarray(),
-                                    self.rec_layer.b_i.asnumpyarray(),
-                                    self.rec_layer.b_i.asnumpyarray())),
-                          np.hstack((self.rec_layer.Wfh.asnumpyarray(),
-                                    self.rec_layer.b_f.asnumpyarray(),
-                                    self.rec_layer.b_f.asnumpyarray())),
-                          np.hstack((self.rec_layer.Woh.asnumpyarray(),
-                                    self.rec_layer.b_o.asnumpyarray(),
-                                    self.rec_layer.b_o.asnumpyarray())),
-                          np.hstack((self.rec_layer.Wch.asnumpyarray(),
-                                    self.rec_layer.b_c.asnumpyarray(),
-                                    self.rec_layer.b_c.asnumpyarray())),
-                          scale=1.1, fig=4)
-            viz.plot_lstm(self.rec_layer.i_t[0].asnumpyarray(),
-                          self.rec_layer.f_t[0].asnumpyarray(),
-                          self.rec_layer.o_t[0].asnumpyarray(),
-                          self.rec_layer.g_t[1].asnumpyarray(),
-                          self.rec_layer.net_i[0].asnumpyarray(),
-                          self.rec_layer.c_t[0].asnumpyarray(),
-                          self.rec_layer.c_t[1].asnumpyarray(),
-                          self.rec_layer.c_phi[1].asnumpyarray(),
-                          scale=21, fig=5)
+            viz.plot_lstm_wts(self.rec_layer, scale=1.1, fig=4)
+            viz.plot_lstm_acts(self.rec_layer, scale=21, fig=5)
+        # RNN specific plots
+        else:
+            viz.plot_weights(self.rec_layer.weights.asnumpyarray(),
+                             self.rec_layer.weights_rec.asnumpyarray(),
+                             self.class_layer.weights.asnumpyarray())
+            viz.plot_activations(self.rec_layer.pre_act_list,
+                                 self.rec_layer.output_list,
+                                 self.class_layer.pre_act_list,
+                                 self.class_layer.output_list,
+                                 self.cost_layer.targets)
 
     def fprop(self, debug=False, eps_tau=-1, eps=0,
               num_target=None, num_i=0, num_j=0):
         """
-        Fixed mystery bug: Needed the _previous_ y, not the _current_ one! FFS!
+        Fixed mystery bug: Needed the _previous_ y, not the _current_ one!
         Adding numerical gradient functionality here to avoid duplicate fprops.
+        TODO: Make a version where the for tau loop is inside the layer. The
+        best way is to have a baseclass for both RNN and LSTM for this.
         """
         self.data_layer.fprop(None)  # get next mini batch
         inputs = self.data_layer.output
         y = self.rec_layer.output_list  # note: just a shorthand, no copy.
+        c = [None for k in range(len(y))]
+        if 'c_t' in self.rec_layer.__dict__:
+            c = self.rec_layer.c_t
+
         for tau in range(0, self.unrolls):
             if tau == eps_tau:
                 numpy_target = num_target[num_i, num_j].asnumpyarray()
@@ -620,14 +608,17 @@ class RNNB(Model):
             if debug:
                 logger.debug("in RNNB.fprop, tau %d, input %d" % (tau,
                              inputs[tau].asnumpyarray().argmax(0)[0]))
-            self.rec_layer.fprop(y[tau-1], inputs[tau], tau)
+            self.rec_layer.fprop(y[tau-1], c[tau-1], inputs[tau], tau)
             self.class_layer.fprop(y[tau], tau)
             if tau == eps_tau:
                 num_target[num_i, num_j] = (numpy_target - eps)
+
         # cost layer fprop is a pass.
 
     def bprop(self, debug, numgrad=None):
-
+        """
+        TODO: move the loop over t into the layer class.
+        """
         if numgrad is None:
             min_unroll = 1
         else:
@@ -645,13 +636,13 @@ class RNNB(Model):
             error = self.cost_layer.deltas
             self.class_layer.bprop(error, tau, numgrad=numgrad)
             error = self.class_layer.deltas
-            cerror = None  # cell does not get an output error
-
+            cerror = self.backend.zeros((self.class_layer.nin,
+                                         self.batch_size)) # todo: don't alloc -- also why don't these preserve state? No, this is the error from the class layer.
             for t in list(range(0, tau))[::-1]:
-                self.rec_layer.bprop(error, cerror, tau, t, numgrad=numgrad)
+                self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
                 if 'c_t' in self.rec_layer.__dict__:
-                    cerror = self.rec_layer.c_t
+                    cerror[:] = self.rec_layer.celtas
 
     def update(self, epoch):
         '''straight from old RNN == MLP == MLPB'''

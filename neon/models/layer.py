@@ -482,7 +482,7 @@ class RecurrentLSTMLayer(Layer):
         self.learning_rule.allocate_state(self.updates)
         for upm in self.updates:
             upm.fill(0.0)
-        self.deltas = be.zeros((nout, batch_size))  # hidden bprop error
+        self.deltas = be.zeros((nout, batch_size))  # hidden bprop error          -- berror or deltas?
         self.cerror = be.zeros((nout, batch_size))  # cell bprop error
 
         self.temp_t = 0
@@ -689,7 +689,7 @@ class RecurrentLSTMLayer(Layer):
         be.multiply(error_c, self.f_t[tau], self.errs['cc'])
 
         # wrap up:
-        be.add(self.errs['hh'], self.errs['ch'], self.berror)
+        be.add(self.errs['hh'], self.errs['ch'], self.berror)  #       ------------write berror not deltas
         be.add(self.errs['cc'], self.errs['hc'], self.cerror)
 
         if numgrad is not None and numgrad.startswith("lstm"):
