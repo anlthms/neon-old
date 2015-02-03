@@ -561,8 +561,8 @@ class RNNB(Model):
         """
 
         if (batch % self.reset_period) == 0 or batch == 1:
-            self.rec_layer.output_list[-1].fill(0) # fprop state
-            self.rec_layer.deltas.fill(0) # bprop state
+            self.rec_layer.output_list[-1].fill(0)  # reset fprop state
+            self.rec_layer.deltas.fill(0)  # reset bprop state
             if 'c_t' in self.rec_layer.__dict__:
                 self.rec_layer.c_t[-1].fill(0)
                 self.rec_layer.celtas.fill(0)
@@ -574,7 +574,6 @@ class RNNB(Model):
 
         # LSTM specific plots
         if 'c_t' in self.rec_layer.__dict__:
-            import numpy as np
             viz.plot_lstm_wts(self.rec_layer, scale=1.1, fig=4)
             viz.plot_lstm_acts(self.rec_layer, scale=21, fig=5)
         # RNN specific plots
@@ -641,13 +640,14 @@ class RNNB(Model):
             error = self.backend.zeros(self.class_layer.deltas.shape)
             error[:] = self.class_layer.deltas
             # NEW: Mixing in errors from hidden and output layer
-            self.backend.add(self.class_layer.deltas, self.rec_layer.deltas, out=error) # mix in state!
+            self.backend.add(self.class_layer.deltas, self.rec_layer.deltas,
+                             out=error)  # mix in state!
             # NICE: With this addition, GRADPLOSION iminent!
-            for t in list(range(0, tau))[::-1]: # 5 4 3 2 1 0
+            for t in list(range(0, tau))[::-1]:
                 if 'c_t' in self.rec_layer.__dict__:
-                    cerror = self.rec_layer.celtas  # on t=0, state from prev. batch
+                    cerror = self.rec_layer.celtas  # on t=0, prev batch state
                 else:
-                    cerror = None # RNN
+                    cerror = None  # for normal RNN
                 self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
 
