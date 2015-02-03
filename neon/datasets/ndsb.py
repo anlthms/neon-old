@@ -49,6 +49,7 @@ class NDSB(Dataset):
 
     def fetch_dataset(self, rootdir, leafdir):
         datadir = os.path.join(rootdir, leafdir)
+        datadir = os.path.expandvars(os.path.expanduser(datadir))
         if os.path.exists(datadir):
             return True
 
@@ -104,6 +105,7 @@ class NDSB(Dataset):
         if 'repo_path' not in self.__dict__:
             raise AttributeError('repo_path not specified in config')
 
+        self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
         rootdir = os.path.join(self.repo_path,
                                self.__class__.__name__)
         inputs, targets, filetree = self.read_images(rootdir, 'train', '*')

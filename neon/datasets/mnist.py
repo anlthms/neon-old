@@ -161,6 +161,8 @@ class MNIST(Dataset):
         if self.inputs['train'] is not None:
             return
         if 'repo_path' in self.__dict__:
+            self.repo_path = os.path.expandvars(os.path.expanduser(
+                self.repo_path))
             save_dir = os.path.join(self.repo_path,
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):

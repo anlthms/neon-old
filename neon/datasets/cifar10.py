@@ -52,6 +52,7 @@ class CIFAR10(Dataset):
                 raise AttributeError("dist_flag set but mpi4py not installed")
 
     def fetch_dataset(self, save_dir):
+        save_dir = os.path.expandvars(os.path.expanduser(save_dir))
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
@@ -125,6 +126,8 @@ class CIFAR10(Dataset):
         if self.inputs['train'] is not None:
             return
         if 'repo_path' in self.__dict__:
+            self.repo_path = os.path.expandvars(os.path.expanduser(
+                self.repo_path))
             if self.dist_flag:
                 self.adjust_for_dist()
                 ncols = len(self.dist_indices)

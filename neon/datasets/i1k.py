@@ -283,6 +283,7 @@ class I1K(Dataset):
         self.end_val_batch = -1
         self.preprocess_done = False
         self.__dict__.update(kwargs)
+        self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
 
         if not hasattr(self, 'save_dir'):
             self.save_dir = os.path.join(self.repo_path,
@@ -316,8 +317,12 @@ class I1K(Dataset):
             # if self.dist_flag:
             #    self.adjust_for_dist()
 
+            self.load_path = os.path.expandvars(os.path.expanduser(
+                self.load_path))
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
+            self.save_dir = os.path.expandvars(os.path.expanduser(
+                self.save_dir))
             save_dir = self.save_dir
             if os.path.exists(os.path.join(save_dir, prefix_macro + str(
                     self.output_image_size))):

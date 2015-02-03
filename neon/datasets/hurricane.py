@@ -31,6 +31,7 @@ class Hurricane(Dataset):
         self.__dict__.update(kwargs)
         if 'repo_path' not in kwargs:
             raise ValueError('Missing repo_path.')
+        self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
 
         self.rootdir = os.path.join(self.repo_path, self.__class__.__name__)
 

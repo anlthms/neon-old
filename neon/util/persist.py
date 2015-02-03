@@ -209,7 +209,7 @@ def deserialize(load_path):
     """
     global yaml_initialized
     if not isinstance(load_path, file):
-        load_path = file(load_path)
+        load_path = file(os.path.expandvars(os.path.expanduser(load_path)))
     fname = load_path.name
     logger.warn("deserializing object from:  %s", fname)
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
