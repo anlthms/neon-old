@@ -30,28 +30,20 @@ class Balance(MLP):
     def initialize(self, initlayer=None):
         super(Balance, self).initialize(initlayer)
         for lp in [self.classlayers, self.stylelayers]:
-            self.backend.begin()
             lp[-1].set_previous_layer(lp[-2])
             lp[-1].initialize(self.kwargs)
-            self.backend.end()
 
     def fprop(self):
         super(Balance, self).fprop()
         for ll in [self.classlayers[-1], self.stylelayers[-1]]:
-            self.backend.begin()
             ll.fprop(ll.prev_layer.output)
-            self.backend.end()
 
     def bprop(self):
         for path, skip_act in zip(self.pathways, [False, True, False]):
-            self.backend.begin()
             self.class_layer.skip_act = skip_act
             for ll, nl in zip(reversed(path), reversed(path[1:] + [None])):
-                self.backend.begin()
                 error = None if nl is None else nl.deltas
                 ll.bprop(error)
-                self.backend.end()
-            self.backend.end()
 
     def get_reconstruction_output(self):
         return self.out_layer.output
@@ -59,9 +51,7 @@ class Balance(MLP):
     def generate_output(self, inputs):
         y = inputs
         for layer in self.layers[1:]:
-            self.backend.begin()
             layer.fprop(y)
             y = layer.output
             if layer is self.branch_layer:
                 y[self.zidx:] = self.zparam
-            self.backend.end()

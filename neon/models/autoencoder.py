@@ -23,9 +23,7 @@ class Autoencoder(MLP):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            self.backend.begin()
             logger.info("%s", str(layer))
-            self.backend.end()
         ds = datasets[0]
         inputs = ds.get_inputs(train=True)['train']
         targets = ds.get_inputs(train=True)['train']
@@ -34,10 +32,8 @@ class Autoencoder(MLP):
         logger.info('commencing model fitting')
         error = self.backend.empty((1, 1))
         while self.epochs_complete < self.num_epochs:
-            self.backend.begin()
             error.fill(0.0)
             for batch in range(num_batches):
-                self.backend.begin()
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
                 self.fprop(inputs_batch)
@@ -46,9 +42,7 @@ class Autoencoder(MLP):
                                  self.cost.apply_function(targets_batch),
                                  error)
                 self.update(self.epochs_complete)
-                self.backend.end()
             logger.info('epoch: %d, total training error: %0.5f',
                         self.epochs_complete,
                         error.asnumpyarray() / num_batches)
             self.epochs_complete += 1
-            self.backend.end()

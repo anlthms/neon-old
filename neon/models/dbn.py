@@ -32,9 +32,7 @@ class DBN(Model):
         Learn model weights on the given datasets.
         """
         for layer in self.layers:
-            self.backend.begin()
             logger.info("%s", str(layer))
-            self.backend.end()
         inputs = datasets[0].get_inputs(train=True)['train']
         nrecs, nin = inputs.shape
         self.nlayers = len(self.layers)
@@ -44,7 +42,6 @@ class DBN(Model):
         num_batches = int(math.ceil((nrecs + 0.0) / self.batch_size))
         # Part 1: Unsupervised pretraining
         for i in range(self.nlayers):
-            self.backend.begin()
             if i > 0:
                 logger.info('layer %d: setting inputs to output of previous '
                             'layer', i)
@@ -53,26 +50,21 @@ class DBN(Model):
                              self.layers[i - 1].s_hid_plus.shape[1] - 1)
                 outputs = self.backend.zeros(out_shape)
                 for batch in range(num_batches):
-                    self.backend.begin()
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
                     self.positive(inputs[start_idx:end_idx], i - 1)
                     prev_end = self.layers[i - 1].s_hid_plus.shape[1] - 1
                     outputs[start_idx:end_idx] = (self.layers[i -
                                                   1].s_hid_plus[:, 0:prev_end])
-                    self.backend.end()
                 inputs = outputs
                 logger.info('inputs (%d, %d) weights (%d,%d)', inputs.shape[0],
                             inputs.shape[1], self.layers[i].weights.shape[0],
                             self.layers[i].weights.shape[1])
                 # If we are in the penultimate layer, append labels to the
                 # visibles ...
-            self.backend.end()
             while self.epochs_complete < self.num_epochs:
-                self.backend.begin()
                 error = 0.0
                 for batch in range(num_batches):
-                    self.backend.begin()
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
                     batch_in = inputs[start_idx:end_idx]
@@ -87,11 +79,9 @@ class DBN(Model):
                                                       batch_in,
                                                       batch_out,
                                                       self.temp)
-                    self.backend.end()
                 logger.info('epoch: %d, total training error: %0.5f',
                             self.epochs_complete, error / num_batches)
                 self.epochs_complete += 1
-                self.backend.end()
             self.epochs_complete = 0  # reset for next layer
         # Part 2: up-down finetuning ... [not implemented yet]
 

@@ -192,14 +192,10 @@ class Dataset(object):
         """
         assert self.backend is not None
         for dataset in (self.inputs, self.targets):
-            self.backend.begin()
             for key in dataset:
-                self.backend.begin()
                 item = dataset[key]
                 if item is not None:
                     dataset[key] = self.transpose_batches(item)
-                self.backend.end()
-            self.backend.end()
 
     def get_batch(self, data, batch):
         return data[batch]

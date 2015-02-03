@@ -181,17 +181,13 @@ class LayerDist(Layer):
                          self.ifmshape[1], self.nifm, self.global_size,
                          self.global_width)
             for cur_channel in range(self.nifm):
-                self.backend.begin()
                 current_index = (cur_channel * self.global_size +
                                  self.top_left_row_output * self.global_width +
                                  self.top_left_col_output)
                 for cur_row in range(self.ifmshape[0]):
-                    self.backend.begin()
                     in_indices.extend(
                         range(current_index, current_index + self.ifmshape[1]))
                     current_index += self.global_width
-                    self.backend.end()
-                self.backend.end()
         elif self.prev_layer == 'LayerDist':
             in_indices = self.in_indices
         else:
@@ -282,9 +278,7 @@ class LayerMultiPass(Layer):
                                              activation=activation,
                                              prev_names=prev_names)
         for uparam in self.updates:
-            self.backend.begin()
             uparam[:] = 0.0
-            self.backend.end()
 
         self.utemp = map(lambda x:
                          self.backend.empty(x.shape, self.updates_dtype),
@@ -293,9 +287,7 @@ class LayerMultiPass(Layer):
     def update(self, epoch):
         self.learning_rule.apply_rule(self.params, self.updates, epoch)
         for uparam in self.updates:
-            self.backend.begin()
             uparam[:] = 0.0
-            self.backend.end()
 
     def bprop(self, error, inputs, useshortcut=False):
         # If we are back propagating error from more than one cost through the
@@ -409,15 +401,12 @@ class RecurrentLSTMLayer(Layer):
 
         # create weight matrices -- TODO: weight_init in yaml
         for a in ['i', 'f', 'o', 'g']:
-            self.backend.begin()
             setattr(self, a + '_t',
                     [be.zeros(net_sze) for k in range(unrolls)])
             setattr(self, 'net_' + a,
                     [be.zeros(net_sze) for k in range(unrolls)])
-            self.backend.end()
 
         for a in ['i', 'f', 'o', 'c']:
-            self.backend.begin()
             setattr(self, 'W' + a + 'x',
                     weight_init_rec.generate((nout, nin), weight_dtype))
             setattr(self, 'W' + a + 'h', weight_init_rec.generate(
@@ -426,7 +415,6 @@ class RecurrentLSTMLayer(Layer):
             setattr(self, 'W' + a + 'x_updates', be.zeros((nout, nin)))
             setattr(self, 'W' + a + 'h_updates', be.zeros((nout, nout)))
             setattr(self, 'b_' + a + '_updates', be.zeros((nout, 1)))
-            self.backend.end()
 
         # If this isn't initialized correctly, get NaNs pretty quickly.
         be.add(be.zeros((nout, 1)), 1, self.b_i)   # sigmoid(1) opens the gate
@@ -905,13 +893,11 @@ class BranchLayer(YAMLable):
         self.batch_size = batch_size
 
         for i in range(self.nsublayers):
-            self.backend.begin()
             self.nout += self.sublayers[i].nout
             self.endidx[i] = self.nout
             if i > 0:
                 self.startidx[i] = (self.startidx[i - 1] +
                                     self.sublayers[i - 1].nout)
-            self.backend.end()
 
         self.output = backend.empty((self.nout, batch_size), output_dtype)
         self.pos = pos
@@ -921,33 +907,25 @@ class BranchLayer(YAMLable):
     def fprop(self, inputs):
         for (sublayer, s_idx, e_idx) in zip(self.sublayers,
                                             self.startidx, self.endidx):
-            self.backend.begin()
             sublayer.fprop(inputs)
             self.output[s_idx:e_idx] = sublayer.output
-            self.backend.end()
 
     def bprop(self, error, inputs):
         for (sublayer, s_idx, e_idx) in zip(self.sublayers,
                                             self.startidx, self.endidx):
-            self.backend.begin()
             sublayer.bprop(error[s_idx:e_idx], inputs)
-            self.backend.end()
 
         if self.pos > 0:
             self.deltas[:] = 0.0
             for sublayer in self.sublayers:
-                self.backend.begin()
                 self.backend.add(self.deltas, sublayer.deltas, out=self.deltas)
-                self.backend.end()
 
     def update(self, epoch):
         pass
 
     def set_train_mode(self, mode):
         for sublayer in self.sublayers:
-            self.backend.begin()
             sublayer.set_train_mode(mode)
-            self.backend.end()
 
 
 class DropOutLayer(YAMLable):
@@ -1111,9 +1089,7 @@ class LocalLayer(YAMLable):
                                         self.ofmsize))
         self.ofmlocs = backend.empty((self.ofmsize, nofm), dtype='int32')
         for dst in range(self.ofmsize):
-            self.backend.begin()
             backend.add(ofmstarts, dst, self.ofmlocs[dst])
-            self.backend.end()
 
         # Figure out the connections with the previous layer.
         if not isinstance(backend, CPU):
@@ -1138,21 +1114,16 @@ class LocalLayer(YAMLable):
             # This variable tracks the top left corner of the receptive field.
             src = 0
             for dst in range(self.ofmsize):
-                self.backend.begin()
                 # Collect the column indices for the
                 # entire receptive field.
                 colinds = []
                 for row in xrange(self.fheight):
-                    self.backend.begin()
                     start = src + row * self.ifmwidth
                     colinds += range(start, start + self.fwidth)
-                    self.backend.end()
                 fminds = colinds[:]
                 if pooling is False:
                     for ifm in range(1, nifm):
-                        self.backend.begin()
                         colinds += [x + ifm * self.ifmsize for x in fminds]
-                        self.backend.end()
 
                 expr1 = (src % self.ifmwidth + self.fwidth + stride)
                 if expr1 <= self.ifmwidth:
@@ -1164,7 +1135,6 @@ class LocalLayer(YAMLable):
                     src += stride * self.ifmwidth - src % self.ifmwidth
                     assert src % self.ifmwidth == 0
                 self.links[dst, :] = backend.array(colinds, dtype='i32')
-                self.backend.end()
             self.rlinks = self.links.asnumpyarray()
 
     def normalize_weights(self, weights):
@@ -1246,9 +1216,7 @@ class LocalLayerDist(LocalLayer):
         self.ofmlocs = self.backend.empty((self.ofmsize, self.nofm),
                                           dtype='int32')
         for dst in range(self.ofmsize):
-            self.backend.begin()
             self.backend.add(ofmstarts, dst, self.ofmlocs[dst])
-            self.backend.end()
 
         # stores the flattened px location across
         # ofm in columns
@@ -1268,21 +1236,16 @@ class LocalLayerDist(LocalLayer):
         # This variable tracks the top left corner of the receptive field.
         src = 0
         for dst in range(self.ofmsize):
-            self.backend.begin()
             # Collect the column indices for the
             # entire receptive field.
             colinds = []
             for row in range(self.fheight):
-                self.backend.begin()
                 start = src + row * self.ifmwidth
                 colinds += range(start, start + self.fwidth)
-                self.backend.end()
             fminds = colinds[:]
             if self.pooling is False:
                 for ifm in range(1, self.nifm):
-                    self.backend.begin()
                     colinds += [x + ifm * self.ifmsize for x in fminds]
-                    self.backend.end()
 
             if (src % self.ifmwidth + self.fwidth + self.stride) <= (
                     self.ifmwidth):
@@ -1294,7 +1257,6 @@ class LocalLayerDist(LocalLayer):
                 src += self.stride * self.ifmwidth - src % self.ifmwidth
                 assert src % self.ifmwidth == 0
             self.links[dst] = self.backend.array(colinds)
-            self.backend.end()
         self.rlinks = self.links.asnumpyarray()
 
         self.nout = self.nifm * self.ofmsize
@@ -1574,7 +1536,6 @@ class LocalFilteringLayer(LocalLayer):
 
     def fprop(self, inputs):
         for dst in range(self.ofmsize):
-            self.backend.begin()
             rflinks = self.rlinks[dst]
             # We use a different filter for each receptive field.
             # size-guide
@@ -1586,13 +1547,11 @@ class LocalFilteringLayer(LocalLayer):
                              out=self.prodbuf)
             # size: # mbs x nofm
             self.output[self.ofmlocs[dst]] = self.prodbuf
-            self.backend.end()
 
     def bprop(self, error, inputs):
         if self.pos > 0:
             self.deltas.fill(0)
             for dst in range(self.ofmsize):
-                self.backend.begin()
                 # Use the same filter that was used for forward propagation
                 # of this receptive field.
                 # size-guide
@@ -1606,17 +1565,14 @@ class LocalFilteringLayer(LocalLayer):
                                  self.deltas.take(rflinks, axis=0),
                                  out=self.bpropbuf)
                 self.deltas[rflinks] = self.bpropbuf
-                self.backend.end()
 
         for dst in range(self.ofmsize):
-            self.backend.begin()
             rflinks = self.rlinks[dst]
             delta_slice = error.take(self.ofmlocs[dst], axis=0)
             self.backend.dot(delta_slice,
                              inputs.take(rflinks, axis=0).transpose(),
                              out=self.updatebuf)
             self.updates[self.ofmlocs[dst]] = self.updatebuf
-            self.backend.end()
 
     def update(self, epoch):
         self.learning_rule.apply_rule([self.weights], [self.updates], epoch)
@@ -1673,17 +1629,13 @@ class LocalFilteringLayerDist(LocalLayerDist, LocalFilteringLayer):
         # adjust size of self.weights for halo dimensions
         out_indices = []
         for cur_channel in range(self.nofm):
-            self.backend.begin()
             current_index = (cur_channel * self.global_ofmsize +
                              top_left_row_output * self.global_ofmwidth +
                              top_left_col_output)
             for cur_row in range(self.ofmheight):
-                self.backend.begin()
                 out_indices.extend(
                     range(current_index, current_index + self.ofmwidth))
                 current_index += self.global_ofmwidth
-                self.backend.end()
-            self.backend.end()
         self.weights = self.weights.take(out_indices, axis=0)
 
         self.normalize_weights(self.weights)
@@ -1795,7 +1747,6 @@ class LocalDeFilteringLayer(object):
     def fprop(self, inputs):
         self.output.fill(0)
         for dst in range(self.prev.ofmsize):
-            self.backend.begin()
             rflinks = self.rlinks[dst]
             # size guide:
             # inputs[:, self.prev.ofmlocs[dst]]: mbs x nout -> mbs x nofm
@@ -1806,11 +1757,9 @@ class LocalDeFilteringLayer(object):
                              out=self.prodbuf)
             output_slice = self.output[rflinks]
             self.backend.add(output_slice, self.prodbuf, output_slice)
-            self.backend.end()
 
     def bprop(self, error, inputs):
         for dst in range(self.prev.ofmsize):
-            self.backend.begin()
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights.take(self.prev.ofmlocs[dst],
                                                axis=0),
@@ -1822,7 +1771,6 @@ class LocalDeFilteringLayer(object):
                              delta_slice.transpose(),
                              out=self.updatebuf)
             self.updates[self.prev.ofmlocs[dst]] = self.updatebuf
-            self.backend.end()
 
     def update(self, epoch):
         self.learning_rule.apply_rule(self.weights, self.updates, epoch)
@@ -2101,12 +2049,10 @@ class Convolver(LocalLayer):
 
     def fprop(self, inputs):
         for dst in range(self.ofmsize):
-            self.backend.begin()
             rflinks = self.rlinks[dst]
             self.backend.dot(self.weights, inputs.take(rflinks, axis=0),
                              out=self.prodbuf)
             self.output[self.ofmlocs[dst]] = self.prodbuf
-            self.backend.end()
 
 
 class LCNLayer(YAMLable):
@@ -2187,13 +2133,11 @@ class LCNLayer(YAMLable):
                                                      self.filters.shape[1]))
             self.sqtemp = backend.empty(self.output.shape)
             for fm in range(nifm):
-                self.backend.begin()
                 self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (nifm, self.fheight, self.fwidth))
                 fm_filt = rfilter[fm, self.fheight / 2, self.fwidth / 2]
                 self.backend.subtract(fm_filt, 1.0, fm_filt)
-                self.backend.end()
 
     def __str__(self):
         return ("LCNLayer %s: %d nin, %d nout, "
@@ -2260,9 +2204,7 @@ class LCNLayer(YAMLable):
     def bprop_sub_normalize(self, error, inputs):
         self.exerror.fill(0)
         for fm in range(self.nifm):
-            self.backend.begin()
             for dst in range(self.conv.ofmsize):
-                self.backend.begin()
                 rflinks = self.conv.rlinks[dst]
                 loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
                        self.conv.ofmsize * fm)
@@ -2272,8 +2214,6 @@ class LCNLayer(YAMLable):
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, self.prodbuf,
                                       exerror_slice)
-                self.backend.end()
-            self.backend.end()
         self.reshape_error()
 
     def bprop_div_normalize(self, error, inputs):
@@ -2288,9 +2228,7 @@ class LCNLayer(YAMLable):
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
         for fm in range(self.nifm):
-            self.backend.begin()
             for dst in range(self.conv.ofmsize):
-                self.backend.begin()
                 # self.conv.ofmlocs is over 1 fm only
                 loc = (self.conv.ofmlocs[dst].asnumpyarray().squeeze() +
                        self.conv.ofmsize * fm)
@@ -2320,8 +2258,6 @@ class LCNLayer(YAMLable):
                 self.backend.multiply(error[loc].transpose(), frame, out=frame)
                 exerror_slice = self.exerror[rflinks]
                 self.backend.subtract(exerror_slice, frame, exerror_slice)
-                self.backend.end()
-            self.backend.end()
         self.reshape_error()
 
     def bprop(self, error, inputs):
@@ -2467,14 +2403,12 @@ class LCNLayerDist(LCNLayer):
                                                      self.filters.shape[1]))
             self.sqtemp = self.backend.empty(self.output.shape)
             for fm in range(self.nifm):
-                self.backend.begin()
                 self.bprop_filters[fm] = self.backend.copy(self.filters)
                 rfilter = self.bprop_filters[fm].reshape(
                     (self.nifm, self.fheight, self.fwidth))
                 midval = rfilter[fm, self.fheight / 2, self.fwidth / 2]
                 rfilter[fm, self.fheight / 2, self.fwidth / 2] = (
                     midval.asnumpyarray()[0, 0] - 1.0)
-                self.backend.end()
 
     def copy_to_inset(self, canvas, inset, start_row, start_col):
         canvas[:, start_row:start_row + inset.shape[1],
@@ -2539,9 +2473,7 @@ class LCNLayerDist(LCNLayer):
         self.backend.divide(self.diverror, self.sqtemp, out=self.diverror)
 
         for fm in range(self.nifm):
-            self.backend.begin()
             for dst in range(self.conv.ofmsize):
-                self.backend.begin()
                 # self.conv.ofmlocs is over 1 fm only
                 loc = (self.conv.ofmlocs[dst].asnumpyarray() +
                        self.conv.ofmsize * fm)
@@ -2569,8 +2501,6 @@ class LCNLayerDist(LCNLayer):
                 self.backend.multiply(error[loc].repeat(self.fsize, axis=0),
                                       frame, out=frame)
                 self.exerror[rflinks] -= frame
-                self.backend.end()
-            self.backend.end()
         self.reshape_error()
 
     def bprop(self, error, inputs):

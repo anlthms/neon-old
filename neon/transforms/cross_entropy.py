@@ -196,9 +196,7 @@ class CrossEntropy(Cost):
         size = self.temp[2].shape[0] * self.temp[2].shape[1]
         broadcast_row = self.temp[2].asnumpyarray().reshape((size,))
         for row in range(self.outputbuf.shape[0]):
-            self.backend.begin()
             temp1[row] = broadcast_row
-            self.backend.end()
         self.temp[1] = self.backend.array(temp1)
 
         self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])

@@ -41,7 +41,6 @@ class AdaDelta(LearningRule):
     def allocate_state(self, params):
         assert len(self.exp_gradsq) == 0
         for item in params:
-            self.backend.begin()
             self.exp_gradsq.append(self.backend.zeros(item.shape,
                                                       self.exp_gradsq_dtype))
             self.exp_deltsq.append(self.backend.zeros(item.shape,
@@ -50,13 +49,10 @@ class AdaDelta(LearningRule):
                                                   self.lrates_dtype))
             self.scratch_space.append(self.backend.zeros(
                 item.shape, self.scratch_space_dtype))
-            self.backend.end()
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item, gs_item, ds_item, ls_item, ss_item in zip(
                 params, updates, self.exp_gradsq,
                 self.exp_deltsq, self.lrates, self.scratch_space):
-            self.backend.begin()
             self.backend.ada_update(ps_item, us_item, gs_item, ds_item,
                                     ls_item, ss_item, self.rho, self.epsilon)
-            self.backend.end()

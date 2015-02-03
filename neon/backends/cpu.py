@@ -60,12 +60,6 @@ class CPUTensor(Tensor):
     def raw(self):
         return self._tensor
 
-    def __del__(self):
-        """
-        Called before object destruction.
-        """
-        self.free()
-
     def __str__(self):
         """
         Display a suitable representation of this Tensor.
@@ -975,7 +969,6 @@ class CPU(Backend):
         """
         fsize = links.shape[1]
         for dst in range(ofmsize):
-            self.begin()
             # Compute the weighted average of the receptive field
             # and store the result within the destination feature map.
             # Do this for all filters in one shot.
@@ -988,7 +981,6 @@ class CPU(Backend):
                          inputs.take(rflinks, axis=0), out=fpropbuf)
 
             out[ofmlocs[dst]] = fpropbuf
-            self.end()
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
@@ -1023,7 +1015,6 @@ class CPU(Backend):
         fsize = links.shape[1]
         out.fill(0.0)
         for dst in range(ofmsize):
-            self.begin()
             rflinks = links[dst]
             if local is False:
                 self.dot(weights,
@@ -1033,7 +1024,6 @@ class CPU(Backend):
                          deltas.take(ofmlocs[dst], axis=0), out=bpropbuf)
             self.add(bpropbuf, out.take(rflinks, axis=0), out=bpropbuf)
             out[rflinks] = bpropbuf
-            self.end()
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
@@ -1072,7 +1062,6 @@ class CPU(Backend):
         fsize = links.shape[1]
         out.fill(0.0)
         for dst in range(ofmsize):
-            self.begin()
             # Accumulate the weight updates, going over all
             # corresponding cells in the output feature maps.
             rflinks = links[dst]
@@ -1087,7 +1076,6 @@ class CPU(Backend):
             else:
                 self.dot(inputs.take(rflinks, axis=0), eslice,
                          out=out[(fsize*dst):(fsize*(dst+1))])
-            self.end()
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
                    ifmshape, links, nifm, padding, stride, fpropbuf):
@@ -1122,7 +1110,6 @@ class CPU(Backend):
         """
         rinputs = self.hstack_maps(inputs, nifm)
         for dst in range(ofmsize):
-            self.begin()
             # For this output unit, get the corresponding receptive fields
             # within all input feature maps.
             rf = rinputs.take(links[dst], axis=0)
@@ -1139,7 +1126,6 @@ class CPU(Backend):
                 fpropbuf[dst] = self.norm(rf, 2, axis=0)
             else:
                 raise AttributeError("unexpected pooling op type: %s", op)
-            self.end()
         out[:] = self.vstack_maps(fpropbuf, nifm)
 
     def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
@@ -1191,7 +1177,6 @@ class CPU(Backend):
             bprop_slice = self.empty([links.shape[1], bpropbuf.shape[1]])
         rdeltas = self.hstack_maps(deltas, nifm)
         for dst in range(ofmsize):
-            self.begin()
             if op == "max":
                 rflinks = links[dst]
                 inds = rflinks.take(ofmlocs[dst], axis=0)
@@ -1218,7 +1203,6 @@ class CPU(Backend):
                 bpropbuf[inds] = bprop_slice[:]
             else:
                 raise AttributeError("unexpected pooling op type: %s", op)
-            self.end()
         out[:] = self.vstack_maps(bpropbuf, nifm)
 
     def fprop_cmrnorm(self, out, inputs, ifmshape, nifm, ksize, alpha, beta):
@@ -1248,10 +1232,8 @@ class CPU(Backend):
         rinputs = inputs._tensor.reshape((nifm, H, W, N))
         rout = out._tensor.reshape((nifm, H, W, N))
         for i in range(nifm):
-            self.begin()
             x = rinputs[max(i-ksize/2, 0):min(i-ksize/2+ksize, nifm)]
             np.square(x).sum(axis=0, out=rout[i])
-            self.end()
         self.multiply(out, alpha, out=out)
         self.add(out, 1.0, out=out)
         self.power(out, -beta, out=out)
@@ -1298,15 +1280,11 @@ class CPU(Backend):
         self.multiply(otemp, -2 * alpha * beta, out=otemp)
         rout.fill(0.0)
         for i in range(nifm):
-            self.begin()
             for j in range(max(i-ksize/2, 0), min(i-ksize/2+ksize, nifm)):
-                self.begin()
                 self.multiply(otemp[i], rinputs[j], out=bpropbuf)
                 if i == j:
                     self.add(bpropbuf, itemp[i], out=bpropbuf)
                 self.add(rout[i], bpropbuf, out=rout[i])
-                self.end()
-            self.end()
         self.multiply(deltas, out, out=out)
 
     def fprop_lcnnorm(self, out, inputs, meandiffs, denoms, ifmshape, nifm,
@@ -1345,12 +1323,10 @@ class CPU(Backend):
         routputs = out._tensor.reshape((nifm, H, W, N))
 
         for y in xrange(H):
-            self.begin()
             starty = y - ksize/2
             yidx = range(max(starty, 0), min(starty + ksize, H))
             hh = len(yidx)
             for x in xrange(W):
-                self.begin()
                 startx = x - ksize/2
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
@@ -1358,24 +1334,18 @@ class CPU(Backend):
                     yidx, axis=2).reshape((nifm, hh, ww, N))
                 rmeandiff[:, x, y, :] = rinputs[:, x, y, :] - patch.mean(
                     axis=(1, 2))
-                self.end()
-            self.end()
 
         for y in xrange(H):
-            self.begin()
             starty = y - ksize/2
             yidx = range(max(starty, 0), min(starty + ksize, H))
             hh = len(yidx)
             for x in xrange(W):
-                self.begin()
                 startx = x - ksize/2
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
                 patch = rmeandiff.take(xidx, axis=1).take(
                     yidx, axis=2).reshape((nifm, hh, ww, N))
                 np.square(patch).sum(axis=(1, 2), out=routputs[:, x, y, :])
-                self.end()
-            self.end()
 
         self.multiply(out, alpha, out=denoms)
         self.add(denoms, 1, out=denoms)
@@ -1422,20 +1392,16 @@ class CPU(Backend):
 
         offset = ksize/2 - ksize + 1
         for y in xrange(H):
-            self.begin()
             starty = y + offset
             yidx = range(max(starty, 0), min(starty + ksize, H))
             hh = len(yidx)
             for x in xrange(W):
-                self.begin()
                 startx = x + offset
                 xidx = range(max(startx, 0), min(startx + ksize, W))
                 ww = len(xidx)
                 patch = rfouts.take(xidx, axis=1).take(
                     yidx, axis=2).reshape((nifm, hh, ww, N))
                 np.sum(patch, axis=(1, 2), out=rdeltas[:, x, y, :])
-                self.end()
-            self.end()
 
         self.multiply(out, meandiffs, out=out)
         self.power(denoms, -beta, out=fouts)
@@ -1459,16 +1425,12 @@ class CPU(Backend):
         """
         tmp = self.empty([ifmsize, out.shape[1]])
         for ofmind in range(weights.shape[1]):
-            self.begin()
             ofm = out[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             ofm.fill(0.0)
             for ifmind in range(weights.shape[0]):
-                self.begin()
                 ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 self.multiply(ifm, weights[ifmind, ofmind], tmp)
                 self.add(ofm, tmp, ofm)
-                self.end()
-            self.end()
 
     def bprop_cmpool(self, out, weights, deltas, ifmshape, ifmsize):
         """
@@ -1502,17 +1464,13 @@ class CPU(Backend):
         """
         out.fill(0.0)
         for ofmind in range(out.shape[1]):
-            self.begin()
             ofmd = deltas[(ofmind * ifmsize):((ofmind + 1) * ifmsize)]
             for ifmind in range(out.shape[0]):
-                self.begin()
                 ifm = inputs[(ifmind * ifmsize):((ifmind + 1) * ifmsize)]
                 ofmd = ofmd.reshape((1, ofmd.shape[0] * ofmd.shape[1]))
                 ifm = ifm.reshape((ifm.shape[0] * ifm.shape[1], 1))
                 self.dot(ofmd, ifm, updatebuf)
                 out[ifmind, ofmind] = updatebuf
-                self.end()
-            self.end()
 
     def ada_update(self, ps_item, us_item, gs_item, ds_item, ls_item, ss_item,
                    rho, epsilon):

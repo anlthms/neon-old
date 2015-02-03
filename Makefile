@@ -62,7 +62,7 @@ endif
 
 .PHONY: default build develop install uninstall test test_all sanity speed \
 	      grad all clean_pyc clean doc html style lint bench dist publish_doc \
-	      release
+	      insert_compiler_hints strip_compiler_hints release
 
 default: build
 
@@ -129,6 +129,14 @@ clean:
 	-python setup.py clean
 	-rm -f neon/backends/flexpt_dtype.so
 	-rm -f neon/backends/flexpt_cython.so
+
+insert_compiler_hints:
+	@echo "Preprocessing source code to insert compiler hints..."
+	-python neon/util/compiler_hints.py
+
+strip_compiler_hints:
+	@echo "Preprocessing source code to remove compiler hints..."
+	-python neon/util/compiler_hints.py -s
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

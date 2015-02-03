@@ -38,35 +38,26 @@ class MLP(MLP_old):
                   "accumulate": self.accumulate}
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
-            self.backend.end()
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-            self.backend.begin()
             y = None if pl is None else pl.output
             ll.fprop(y)
-            self.backend.end()
 
     def bprop(self):
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
-            self.backend.begin()
             error = None if nl is None else nl.deltas
             ll.bprop(error)
-            self.backend.end()
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
         for layer in self.layers:
-            self.backend.begin()
             printfunc("%s", str(layer))
-            self.backend.end()
 
     def update(self, epoch):
         for layer in self.layers:
-            self.backend.begin()
             layer.update(epoch)
-            self.backend.end()
 
     def get_classifier_output(self):
         return self.class_layer.output
@@ -107,12 +98,10 @@ class MLP(MLP_old):
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         while self.epochs_complete < self.num_epochs:
-            self.backend.begin()
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
-                self.backend.begin()
                 self.fprop()
                 self.bprop()
                 self.update(self.epochs_complete)
@@ -120,11 +109,9 @@ class MLP(MLP_old):
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)
                 mb_id += 1
-                self.backend.end()
             self.print_training_error(error, self.data_layer.num_batches)
             self.print_layers(debug=True)
             self.epochs_complete += 1
-            self.backend.end()
         self.data_layer.cleanup()
 
     def predict_and_error(self, dataset=None):
@@ -140,9 +127,7 @@ class MLP(MLP_old):
         return_err = dict()
 
         for setname in ['train', 'test', 'validation']:
-            self.backend.begin()
             if self.data_layer.has_set(setname) is False:
-                self.backend.end()
                 continue
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
@@ -150,7 +135,6 @@ class MLP(MLP_old):
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
-                self.backend.begin()
                 self.fprop()
                 probs = self.get_classifier_output()
                 targets = self.data_layer.targets
@@ -162,9 +146,7 @@ class MLP(MLP_old):
                 self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
                                  axes=None, out=batch_sum)
                 self.backend.add(logloss_sum, batch_sum, logloss_sum)
-                self.backend.end()
             self.print_test_error(setname, misclass_sum, logloss_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
-            self.backend.end()
         return return_err

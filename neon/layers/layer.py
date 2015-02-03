@@ -400,9 +400,7 @@ class WeightLayer(Layer):
 
         if self.accumulate:
             for upm in self.updates:
-                self.backend.begin()
                 upm.fill(0.0)
-                self.backend.end()
 
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
