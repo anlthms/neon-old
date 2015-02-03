@@ -130,19 +130,6 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def copy_from(self, dst, src):
-        """
-        Copy from src to dst.
-
-        Arguments:
-            dst (Tensor): the object to copy to
-            src (numpy.ndarray): the host-resident object to copy from
-
-        Raises:
-            NotImplementedError: Can't be instantiated directly.
-        """
-        raise NotImplementedError()
-
     def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
         Uniform random number generation of samples in range [low, high).
@@ -1197,6 +1184,18 @@ class Tensor(object):
             Tensor: new variant with the same dimensions as self except along
                     the specified axis, where it will contain the repeated
                     elements.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def copy_from(self, src):
+        """
+        Copy contents from src.
+
+        Arguments:
+            src (numpy.ndarray): the host-resident object to copy from
 
         Raises:
             NotImplementedError: Can't be instantiated directly.

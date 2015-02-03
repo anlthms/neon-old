@@ -302,6 +302,15 @@ class GPUTensor(Tensor):
     def copy_to_device(self):
         self._tensor.copy_to_device()
 
+    def copy_from(self, src):
+        """
+        Copy contents from src.
+
+        Arguments:
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        self._tensor.copy_from(src)
+
     def transpose(self):
         return TransposedGPUTensor(self._tensor, self._tensor.T)
 
@@ -528,19 +537,6 @@ class GPU(Backend):
         """
         assert type(tsr) == self.tensor_cls
         return self.tensor_cls(tsr._tensor.copy())
-
-    def copy_from(self, dst, src):
-        """
-        Copy from src to dst.
-
-        Arguments:
-            dst (Tensor): the object to copy to
-            src (numpy.ndarray): the host-resident object to copy from
-        """
-        oldmat = dst._tensor.numpy_array
-        dst.set_host_mat(src)
-        dst.copy_to_device()
-        dst.set_host_mat(oldmat)
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:

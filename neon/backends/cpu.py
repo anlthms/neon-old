@@ -152,6 +152,9 @@ class CPUTensor(Tensor):
     def __delitem__(self, key):
         raise ValueError("cannot delete array elements")
 
+    def copy_from(self, src):
+        self._tensor[:] = src
+
     def transpose(self):
         return self.__class__(self._tensor.transpose(),
                               dtype=self._tensor.dtype)
@@ -327,16 +330,6 @@ class CPU(Backend):
             CPUTensor: new array object with the same values as tsr.
         """
         return self.tensor_cls(np.copy(tsr._tensor))
-
-    def copy_from(self, dst, src):
-        """
-        Copy from src to dst.
-
-        Arguments:
-            dst (Tensor): the object to copy to
-            src (numpy.ndarray): the host-resident object to copy from
-        """
-        dst[:] = src
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
