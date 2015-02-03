@@ -537,8 +537,10 @@ class GPU(Backend):
             dst (Tensor): the object to copy to
             src (numpy.ndarray): the host-resident object to copy from
         """
+        oldmat = dst._tensor.numpy_array
         dst.set_host_mat(src)
         dst.copy_to_device()
+        dst.set_host_mat(oldmat)
 
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
