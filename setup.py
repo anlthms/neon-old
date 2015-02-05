@@ -58,9 +58,10 @@ class NeonCommand(Command):
                                                    'cython>=0.19.1']
         if self.gpu == "1":
             self.distribution.install_requires += ['cudanet']
-            self.distribution.dependency_links += ['http://gitlab.localdomain'
-                                                   '/algorithms/cuda-convnet2'
-                                                   '.git#egg=cudanet']
+            self.distribution.dependency_links += ['http://github.com/'
+                                                   'NervanaSystems/'
+                                                   'cuda-convnet2.git#'
+                                                   'egg=cudanet-0.2']
         if self.dist == "1":
             self.distribution.install_requires += ['mpi4py>=1.3.1']
 
