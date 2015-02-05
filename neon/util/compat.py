@@ -28,9 +28,13 @@ if CUDA_GPU:
         CUDA_GPU = False
 
 MPI_INSTALLED = False
+mpi_size = 1
+mpi_rank = 0
 try:
-    import mpi4py  # flake8: noqa
+    from mpi4py import MPI  # flake8: noqa
     MPI_INSTALLED = True
+    mpi_size = MPI.COMM_WORLD.size
+    mpi_rank = MPI.COMM_WORLD.rank
 except ImportError:
     logger.warning('mpi4py not found')
 

@@ -45,6 +45,9 @@ class Layer(YAMLable):
                 self.nifm = 1
             self.nin = pl.nout
         self.prev_layer = pl
+        if self.is_local:
+            self.link_local()
+        self.set_weight_shape()
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
@@ -52,7 +55,10 @@ class Layer(YAMLable):
         self.output = None
         self.deltas = None
 
-    def initialize_local(self):
+    def set_weight_shape(self):
+        pass
+
+    def link_local(self):
         req_param(self, ['nifm', 'ifmshape', 'fshape'])
 
         opt_param(self, ['ofmlocs', 'links'])
@@ -78,6 +84,8 @@ class Layer(YAMLable):
         self.nout = self.nofm * self.ofmsize
         logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
                      self.name, self.nifm, self.ifmshape, self.ofmshape)
+
+    def initialize_local(self):
         if isinstance(self.backend, CPU):
             self.make_aux_buffers(self.nifm, self.ifmshape, self.nofm,
                                   self.ofmshape, self.fshape, self.stride)
@@ -217,7 +225,8 @@ class CostLayer(Layer):
         # if self.ref_label != 'targets':
         #     print self.targets.shape
         self.cost.apply_derivative(self.targets)
-        self.backend.divide(self.deltas, self.batch_size, out=self.deltas)
+        self.backend.divide(self.deltas, self.backend.actual_batch_size,
+                            out=self.deltas)
 
     def get_cost(self):
         if self.ref_layer is not None:
@@ -327,6 +336,10 @@ class ActivationLayer(Layer):
 
 class WeightLayer(Layer):
 
+    def __init__(self, **kwargs):
+        super(WeightLayer, self).__init__(**kwargs)
+        self.distributable = True
+
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
         req_param(self, ['weight_init', 'lrule_init'])
@@ -406,16 +419,17 @@ class FCLayer(WeightLayer):
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
         req_param(self, ['nin', 'nout'])
-
-        self.weight_shape = (self.nout, self.nin)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
 
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nout, self.nin))
+
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
-                              weights=self.weights)
+                              weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.activation is not None:
@@ -428,11 +442,12 @@ class FCLayer(WeightLayer):
 
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
-                                  deltas=error)
+                                  deltas=error, layer=self)
 
         upm = self.utemp if self.accumulate else self.updates
 
-        self.backend.update_fc(out=upm[0], inputs=inputs, deltas=error)
+        self.backend.update_fc(out=upm[0], inputs=inputs,
+                               deltas=error, layer=self)
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[1])
 
@@ -494,18 +509,14 @@ class ConvLayer(WeightLayer):
     def __init__(self, **kwargs):
         self.is_local = True
         super(ConvLayer, self).__init__(**kwargs)
+        opt_param(self, ['local_conv'], False)
 
     def initialize(self, kwargs):
         super(ConvLayer, self).initialize(kwargs)
         self.initialize_local()
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
-        opt_param(self, ['local_conv'], False)
 
-        if self.local_conv is False:
-            self.weight_shape = (self.fsize, self.nofm)
-        else:
-            self.weight_shape = (self.fsize * self.ofmsize, self.nofm)
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
@@ -515,6 +526,13 @@ class ConvLayer(WeightLayer):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
+
+    def set_weight_shape(self):
+        if hasattr(self, 'local_conv') and self.local_conv:
+            weight_shape = (self.fsize * self.ofmsize, self.nofm)
+        else:
+            weight_shape = (self.fsize, self.nofm)
+        opt_param(self, ['weight_shape'], weight_shape)
 
     def fprop(self, inputs):
         self.backend.fprop_conv(out=self.pre_act, inputs=inputs,
@@ -557,7 +575,8 @@ class ConvLayer(WeightLayer):
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fshape[-1],
                                  updatebuf=self.updatebuf,
-                                 local=self.local_conv)
+                                 local=self.local_conv,
+                                 layer=self)
 
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[1])
@@ -581,14 +600,17 @@ class DropOutLayer(Layer):
     def initialize(self, kwargs):
         opt_param(self, ['keep'], 0.5)
         super(DropOutLayer, self).initialize(kwargs)
-        if self.prev_layer.is_local:
-            self.is_local = True
-            self.nifm = self.nofm = self.prev_layer.nofm
-            self.ifmshape = self.ofmshape = self.prev_layer.ofmshape
-        self.nout = self.nin
         self.keepmask = self.backend.empty((self.nin, self.batch_size))
         self.train_mode = True
         self.allocate_output_bufs()
+
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            self.is_local = True
+            self.nifm = self.nofm = pl.nofm
+            self.ifmshape = self.ofmshape = pl.ofmshape
+        self.nout = self.nin = pl.nout
+        self.prev_layer = pl
 
     def fprop(self, inputs):
         if (self.train_mode):
@@ -638,6 +660,10 @@ class BranchLayer(CompositeLayer):
     accumulates into a common deltas
     """
 
+    def __init__(self, **kwargs):
+        super(BranchLayer, self).__init__(**kwargs)
+        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
+
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
@@ -646,7 +672,6 @@ class BranchLayer(CompositeLayer):
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
 
-        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
         self.startidx = [0] * len(self.sublayers)
         self.endidx = [0] * len(self.sublayers)
         self.endidx[0] = self.sublayers[0].nout
@@ -728,6 +753,7 @@ class CrossMapResponseNormLayer(Layer):
     def __init__(self, **kwargs):
         self.is_local = True
         self.stride = 1
+        self.fshape = (1, 1)
         super(CrossMapResponseNormLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
@@ -804,20 +830,22 @@ class CrossMapPoolingLayer(WeightLayer):
 
     def __init__(self, **kwargs):
         self.is_local = True
+        self.fshape = (1, 1)
         super(CrossMapPoolingLayer, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
-        self.fshape = (1, 1)
         super(CrossMapPoolingLayer, self).initialize(kwargs)
         req_param(self, ['nofm'])
 
         self.initialize_local()
-        self.weight_shape = (self.nifm, self.nofm)
         self.allocate_output_bufs()
         self.allocate_param_bufs()
         opt_param(self, ['updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.updatebuf = self.backend.empty((1, 1))
+
+    def set_weight_shape(self):
+        opt_param(self, ['weight_shape'], (self.nifm, self.nofm))
 
     def fprop(self, inputs):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,

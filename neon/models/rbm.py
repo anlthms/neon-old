@@ -26,6 +26,18 @@ class RBM(Model):
                                  req_param)
         self.cost.initialize(kwargs)
 
+    def link(self, initlayer=None):
+        """
+        To make legacy config files work.
+        """
+        pass
+
+    def initialize(self):
+        """
+        To make legacy config files work.
+        """
+        pass
+
     def fit(self, dataset):
         """
         Learn model weights on the given datasets.
