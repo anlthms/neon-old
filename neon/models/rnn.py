@@ -560,11 +560,7 @@ class RNNB(Model):
         """
         if (batch % self.reset_period) == 0 or batch == 1:
             self.rec_layer.output_list[-1].fill(0)  # reset fprop state
-<<<<<<< HEAD
             self.rec_layer.deltas.fill(0)  # reset bprop (for non-truncated)
-=======
-            self.rec_layer.deltas.fill(0)  # reset bprop state
->>>>>>> cccfb82b6dd5bd6142b6e702b4dc5549a542eb5b
             if 'c_t' in self.rec_layer.__dict__:
                 self.rec_layer.c_t[-1].fill(0)
                 self.rec_layer.celtas.fill(0)
@@ -659,17 +655,7 @@ class RNNB(Model):
                 logger.debug("in RNNB.bprop, tau %d target %d" % (tau-1, tmp))
             error = self.cost_layer.deltas
             self.class_layer.bprop(error, tau, numgrad=numgrad)
-<<<<<<< HEAD
             error = self.class_layer.deltas
-=======
-            # OLD: top level bprop gets only ouput layer delts
-            error = self.backend.zeros(self.class_layer.deltas.shape)
-            error[:] = self.class_layer.deltas
-            # NEW: Mixing in errors from hidden and output layer
-            self.backend.add(self.class_layer.deltas, self.rec_layer.deltas,
-                             out=error)  # mix in state!
-            # NICE: With this addition, GRADPLOSION iminent!
->>>>>>> cccfb82b6dd5bd6142b6e702b4dc5549a542eb5b
             for t in list(range(0, tau))[::-1]:
                 if 'c_t' in self.rec_layer.__dict__:
                     cerror = self.rec_layer.celtas  # on t=0, prev batch state
@@ -677,7 +663,6 @@ class RNNB(Model):
                     cerror = None  # for normal RNN
                 self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
-<<<<<<< HEAD
 
     def bprop_tt(self, debug, numgrad=None):
         """
@@ -719,8 +704,6 @@ class RNNB(Model):
             self.backend.add(temp1, temp2, out=self.rec_layer.deltas)
             if 'c_t' in self.rec_layer.__dict__:
                 self.backend.add(temp1c, temp2c, out=self.rec_layer.celtas)
-=======
->>>>>>> cccfb82b6dd5bd6142b6e702b4dc5549a542eb5b
 
     def update(self, epoch):
         '''straight from old RNN == MLP == MLPB'''

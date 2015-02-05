@@ -34,11 +34,7 @@
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
-<<<<<<< HEAD
       learning_rate: 0.002,  #  0.002 for RNN, 0.2 for LSTM
-=======
-      learning_rate: 0.0000002,  #  0.002 for RNN, 0.2 for LSTM and 0.000002 for RNN with state
->>>>>>> cccfb82b6dd5bd6142b6e702b4dc5549a542eb5b
       backend: *be,
       momentum_params: {
         type: linear_monotone, # constant, nesterov dont work
@@ -53,7 +49,7 @@
   # simple RNN model specification
   model: !obj:neon.models.rnn.RNNB {
     backend: *be,
-    num_epochs: 50,
+    num_epochs: 10,
     batch_size: &bs 50,
     reset_period: 50,  # 50 for LSTM, 20 for RNN?
     unrolls: *ur,
