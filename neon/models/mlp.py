@@ -10,7 +10,6 @@ import math
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
-import numpy as np
 
 if MPI_INSTALLED:
     from mpi4py import MPI

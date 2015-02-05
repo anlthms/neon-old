@@ -110,7 +110,6 @@ class Layer(YAMLable):
         return result + ')'
 
     def allocate_output_bufs(self):
-        print "[SI1] L aob"
         make_zbuf = self.backend.zeros
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
         opt_param(self, ['delta_shape'], (self.nin, self.batch_size))
@@ -124,10 +123,7 @@ class Layer(YAMLable):
 
         self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            print "-- success"
             self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
-        else:
-            print "-- fail with", self.prev_layer
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.

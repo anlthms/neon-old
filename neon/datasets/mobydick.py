@@ -12,7 +12,6 @@ import os
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import MPI_INSTALLED, range
-from ipdb import set_trace as trace
 logger = logging.getLogger(__name__)
 
 
@@ -83,8 +82,9 @@ class MOBYDICK(Dataset):
             nbatches = data.shape[0] / bs
             batchwise = [[] for k in range(nbatches)]
             for batch in range(nbatches):
-                batchdata = [self.backend.array(data[batch * bs + k*dd :
-                                                batch * bs + (k+1) * dd])
+                batchdata = [self.backend.array(data[(batch * bs + k * dd):
+                                                     (batch * bs + (k + 1) *
+                                                      dd)])
                              for k in range(self.unrolls)]
                 batchwise[batch] = batchdata
             return batchwise
@@ -129,7 +129,8 @@ class MOBYDICK(Dataset):
                 self.inputs[dataset] = splay_3d
                 offbyone = numpy.zeros(splay_3d.shape)
                 length = offbyone.shape[0]
-                offbyone[0:length-128, :] = splay_3d[128:length, :]
+                offbyone[0:length - self.data_dim, :] = splay_3d[self.data_dim:
+                                                                 length, :]
                 self.targets[dataset] = offbyone
             self.format()  # runs transpose_batches
 

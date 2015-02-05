@@ -89,7 +89,6 @@ class VisualizeRNN(object):
         plt.plot(np.arange(len(suberror_list)) / np.float(len(suberror_list))
                  * len(error_list), suberror_list)
         plt.plot(error_list, linewidth=2)
-        #plt.ylim((.010, .035))
         plt.ylim((min(suberror_list), max(error_list)))
         plt.draw()
         plt.show()

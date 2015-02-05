@@ -50,8 +50,8 @@ class RNN(Model):
         targets = self.backend.copy(inputs)
         nrecs = inputs.shape[0]
         viz = VisualizeRNN()
-        num_batches = int(math.floor((nrecs + 0.0) / 128
-                                                   / self.unrolls)) - 1
+        dd = self.dataset.data_dim
+        num_batches = int(math.floor((nrecs + 0.0) / dd / self.unrolls)) - 1
         logger.info('Divide input %d into batches of size %d with %d timesteps'
                     'for %d batches',
                     nrecs, self.batch_size, self.unrolls, num_batches)
@@ -66,8 +66,8 @@ class RNN(Model):
             hidden_init = None
             cell_init = None
             for batch in range(num_batches):
-                batch_inx = list(range(batch*128*self.unrolls,
-                                       (batch+1)*128*self.unrolls+128))
+                batch_inx = list(range(batch * dd * self.unrolls,
+                                       (batch + 1) * dd * self.unrolls + dd))
                 self.fprop(inputs[batch_inx, :],
                            hidden_init=hidden_init, cell_init=cell_init,
                            debug=(True if batch == -1 else False))
@@ -82,8 +82,8 @@ class RNN(Model):
                     if 'c_t' in self.layers[0].__dict__:
                         cell_init.fill(0)
                 self.cost.set_outputbuf(self.layers[-1].output_list[-1])
-                target_out = targets[batch_inx, :][(self.unrolls-0)*128:
-                                                   (self.unrolls+1)*128, :]
+                target_out = targets[batch_inx, :][(self.unrolls - 0) * dd:
+                                                   (self.unrolls + 1) * dd, :]
                 suberror = self.cost.apply_function(target_out)
                 self.backend.divide(suberror, float(self.batch_size *
                                                     self.layers[0].nin),
@@ -93,10 +93,10 @@ class RNN(Model):
                 self.backend.add(error, suberror, error)
             errorlist.append(float(error.asnumpyarray()))
             if self.make_plots is True:
+                import numpy as np
                 viz.plot_weights(self.layers[0].weights.asnumpyarray(),
                                  self.layers[0].Wih.asnumpyarray(),
                                  self.layers[1].weights.asnumpyarray())
-                import numpy as np
                 viz.plot_lstm(self.layers[0].Wix.asnumpyarray(),
                               self.layers[0].Wfx.asnumpyarray(),
                               self.layers[0].Wox.asnumpyarray(),

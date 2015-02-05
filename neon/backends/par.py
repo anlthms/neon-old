@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from neon.util.compat import MPI_INSTALLED, mpi_size, mpi_rank, range
+from neon.util.compat import MPI_INSTALLED, mpi_size, mpi_rank
 
 if MPI_INSTALLED:
     from mpi4py import MPI
