@@ -472,8 +472,7 @@ class RNN(Model):
 
 class RNNB(Model):
     """
-    Removed inheritance from MLPB because it was freaking me out.
-    Maybe inherit Model like RNN? No idea what it's used for
+    RNNB is the layer2 version of the RNN.
     """
     def __init__(self, **kwargs):
         self.accumulate = True
@@ -559,7 +558,6 @@ class RNNB(Model):
         The shuffle is no longer necesseary because fprop directly looks
         into the output_list buffer.
         """
-
         if (batch % self.reset_period) == 0 or batch == 1:
             self.rec_layer.output_list[-1].fill(0)  # reset fprop state
             self.rec_layer.deltas.fill(0)  # reset bprop (for non-truncated)
@@ -568,7 +566,6 @@ class RNNB(Model):
                 self.rec_layer.celtas.fill(0)
 
     def plot_layers(self, viz, suberrorlist, errorlist):
-
         # generic error plot
         viz.plot_error(suberrorlist, errorlist)
 
@@ -667,7 +664,6 @@ class RNNB(Model):
                 self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
 
-
     def bprop_tt(self, debug, numgrad=None):
         """
         Keep state over consecutive unrollings. Explodes for RNN, and is not
@@ -695,11 +691,13 @@ class RNNB(Model):
                 internal_cerror = None
                 external_cerror = None
 
-            self.rec_layer.bprop(external_error, external_cerror, tau, numgrad=numgrad)
+            self.rec_layer.bprop(external_error, external_cerror, tau,
+                                 numgrad=numgrad)
             temp1[:] = self.rec_layer.deltas
             if 'c_t' in self.rec_layer.__dict__:
                 temp1c[:] = self.rec_layer.celtas
-            self.rec_layer.bprop(internal_error, internal_cerror, tau, numgrad=numgrad)
+            self.rec_layer.bprop(internal_error, internal_cerror, tau,
+                                 numgrad=numgrad)
             temp2[:] = self.rec_layer.deltas
             if 'c_t' in self.rec_layer.__dict__:
                 temp2c[:] = self.rec_layer.celtas
@@ -781,7 +779,7 @@ class RNNB(Model):
 
             num_part = (suberror_eps - suberror_ref) / eps
             logger.debug("numpart for  eps_tau=%d of %d is %e",
-                        eps_tau, self.unrolls, num_part)
+                         eps_tau, self.unrolls, num_part)
             numerical += num_part
 
         # bprop for analytical gradient
@@ -824,10 +822,10 @@ class RNNB(Model):
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             outputs_pred = self.backend.zeros(
-                ((self.data_layer.num_batches + 1)
+                ((self.data_layer.num_batches + 0)
                  * (self.unrolls), self.batch_size))
             outputs_targ = self.backend.zeros(
-                ((self.data_layer.num_batches + 1)
+                ((self.data_layer.num_batches + 0)
                  * (self.unrolls), self.batch_size))
             mb_id = 0
             self.data_layer.reset_counter()
@@ -862,7 +860,8 @@ class RNNB(Model):
                 setname, 100 * misclass_sum.asnumpyarray() / nrecs /
                 self.unrolls, logloss_sum.asnumpyarray() / nrecs /
                 self.unrolls))
-        trace()  # stop to look at plots
+        if self.make_plots is True:
+            trace()  # stop to look at plots
         return return_err
 
     def write_string(self, pred, targ, setname):
@@ -872,18 +871,16 @@ class RNNB(Model):
             import numpy as np
 
             # flatten the predictions
-            records = self.data_layer.num_batches * self.unrolls
-            pred_flat = pred[0:records + 0, :].transpose().reshape((-1,)
-                )[2:40].asnumpyarray()[:, 0].astype(np.int8).T
-            targ_flat = targ[0:records + 0, :].transpose().reshape((-1,)
-                )[2:40].asnumpyarray()[:, 0].astype(np.int8).T
-
+            pred_flat = pred.transpose().reshape((-1,))
+            pred_int = pred_flat[2:40].asnumpyarray()[:, 0].astype(np.int8).T
+            targ_flat = targ.transpose().reshape((-1,))
+            targ_int = targ_flat[2:40].asnumpyarray()[:, 0].astype(np.int8).T
             # remove special characters, replace them with '#'
-            pred_flat[pred_flat < 32] = 35
-            targ_flat[targ_flat < 32] = 35
+            pred_int[pred_int < 32] = 35
+            targ_int[targ_int < 32] = 35
 
             # create output strings
             logging.info("the target for '%s' is: '%s'", setname,
-                         ''.join(targ_flat.view('c')))
+                         ''.join(targ_int.view('c')))
             logging.info("prediction for '%s' is: '%s'", setname,
-                         ''.join(pred_flat.view('c')))
+                         ''.join(pred_int.view('c')))

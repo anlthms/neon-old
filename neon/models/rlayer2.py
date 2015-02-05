@@ -147,13 +147,9 @@ class RecurrentHiddenLayer(RecurrentLayer):
         self.weight_rec_shape = (self.nout, self.nout)
         super(RecurrentHiddenLayer, self).initialize(kwargs)
 
-        # c&p from ROL
         self.weight_shape = (self.nout, self.nin)
         self.bias_shape = (self.nout, 1)
-
-        # Solution: Set delta_shape to nout since that's the correct size for
-        # the recurrent deltas
-        opt_param(self, ['delta_shape'], (self.nout, self.batch_size))  # moved
+        opt_param(self, ['delta_shape'], (self.nout, self.batch_size))
         self.allocate_output_bufs()
         self.allocate_param_bufs()
 
@@ -162,28 +158,24 @@ class RecurrentHiddenLayer(RecurrentLayer):
         super(RecurrentHiddenLayer, self).allocate_output_bufs()
 
         # these buffers are specific to RHL:
-        # had self.temp_in=temp_out, to save space.
-        # Extra temp buffers z[0]=w*x and z[1]=w*input.
+        # might want self.temp_in=temp_out, to save a buffer.
         self.temp_in = make_zbuf(self.weight_shape, self.weight_dtype)
         self.temp_rec = make_zbuf(self.weight_rec_shape)
+        # Extra temp buffers z[0]=w*x and z[1]=w*input.
         self.z = [make_zbuf(self.out_shape) for k in range(2)]
 
     def allocate_param_bufs(self):
         super(RecurrentHiddenLayer, self).allocate_param_bufs()
-        self.weights_rec = self.weight_init_rec.generate(
-                                            self.weight_rec_shape,
-                                            self.weight_dtype)
-        # Not sure if it's cool to be emtpy! Might start adding to this before
-        # it ever gets zeroed out by update!
+        s_we_ge = self.weight_init_rec.generate  # pep8 forever!
+        self.weights_rec = s_we_ge(self.weight_rec_shape, self.weight_dtype)
         self.updates_rec = self.backend.empty(self.weight_rec_shape,
                                               self.updates_dtype)
 
         self.params.append(self.weights_rec)
         self.updates.append(self.updates_rec)
-        # (URS) added this loop because rec is an empty buffer that otherwise
-        # does not get initialized and I think that's what was giving me the
-        # nondeterministic behavior. Why even use emtpy if all these things
-        # need to be zero anyway?
+        # added this loop because rec is an empty buffer that otherwise
+        # does not get initialized and gives nondeterministic behavior.
+        # Why do we use emtpy if all these things need to be zero anyway?
         for upm in self.updates:
             upm.fill(0.0)
         # Not ideal, since we just allocated this in the parent function, but
@@ -208,7 +200,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
         """
 
         if self.prev_layer.is_data:
-            inputs = self.prev_layer.output[tau]  # 4 3 2 1 0
+            inputs = self.prev_layer.output[tau]
         else:
             inputs = self.prev_layer.output_list[tau]
 
@@ -217,7 +209,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
 
         # input weight update (apply curr. delta)
         self.backend.update_fc(out=self.temp_in,
-                               inputs=inputs,  # input not target here!
+                               inputs=inputs,
                                deltas=error)
         self.backend.add(self.weight_updates, self.temp_in,
                          self.weight_updates)
@@ -231,9 +223,9 @@ class RecurrentHiddenLayer(RecurrentLayer):
 
             # **** ASK URS ***
             # Why only at tau > 0 vs. tau==0? why not weights vs weights_rec
-            self.backend.bprop_fc(out=self.deltas,  #
+            self.backend.bprop_fc(out=self.deltas,
                                   weights=self.weights_rec,
-                                  deltas=error)  # would like a deepcopy
+                                  deltas=error)
         if numgrad == "input":
             self.grad_log(numgrad, self.temp_in[12, 110])
         if numgrad == "rec":
