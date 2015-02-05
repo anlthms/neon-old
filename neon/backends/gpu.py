@@ -302,6 +302,15 @@ class GPUTensor(Tensor):
     def copy_to_device(self):
         self._tensor.copy_to_device()
 
+    def copy_from(self, src):
+        """
+        Copy contents from src.
+
+        Arguments:
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        self._tensor.copy_from(src)
+
     def transpose(self):
         return TransposedGPUTensor(self._tensor, self._tensor.T)
 

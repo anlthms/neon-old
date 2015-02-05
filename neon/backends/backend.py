@@ -1040,26 +1040,24 @@ class Backend(YAMLable):
     # The functions below can be moved out to a utility class if it is
     # desirable to leave this class abstract.
 
-    def configure(self, model, par_scheme):
+    def configure(self, model, datapar, modelpar):
         # Save the original batch_size value that is specified
         # in the configuration file.
         self.actual_batch_size = model.batch_size
-        if par_scheme == 'model':
+        if datapar and modelpar:
+            raise NotImplementedError('Hybrid parallelization scheme not '
+                                      'implemented yet.')
+        if modelpar:
             self.par = ModelPar(self, model)
             self.fprop_fc = self.par.fprop_fc
             self.bprop_fc = self.par.bprop_fc
             self.update_fc = self.par.update_fc
-        elif par_scheme == 'data':
+        elif datapar:
             self.par = DataPar(self, model)
             self.update_fc = self.par.update_fc
             self.update_conv = self.par.update_conv
-        elif par_scheme == 'hybrid':
-            raise NotImplementedError()
-        elif par_scheme == 'none':
-            self.par = NoPar(self, model)
         else:
-            raise AttributeError("Invalid parallel scheme specified",
-                                 par_scheme)
+            self.par = NoPar(self, model)
 
     def distribute(self, data):
         return self.par.distribute(data)
@@ -1184,6 +1182,18 @@ class Tensor(object):
             Tensor: new variant with the same dimensions as self except along
                     the specified axis, where it will contain the repeated
                     elements.
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
+    def copy_from(self, src):
+        """
+        Copy contents from src.
+
+        Arguments:
+            src (numpy.ndarray): the host-resident object to copy from
 
         Raises:
             NotImplementedError: Can't be instantiated directly.

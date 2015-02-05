@@ -34,6 +34,12 @@ def parse_args():
                         help='Trace through function calls. Optional '
                              'argument is a regex filter on the name of the '
                              'source files to confine the trace to.')
+    parser.add_argument('--datapar', action='store_true',
+                        help='Use data parallelization to distribute over '
+                             'multiple nodes.')
+    parser.add_argument('--modelpar', action='store_true',
+                        help='Use model parallelization to distribute over '
+                             'multiple nodes.')
     return(parser.parse_args())
 
 
@@ -72,6 +78,8 @@ def main():
                              experiment.logging["level"])
                 logger.setLevel(experiment.logging["level"])
         # carry out the experiment
+        experiment.datapar = args.datapar
+        experiment.modelpar = args.modelpar
         result = experiment.run()
         if args.profile is not None:
             if args.profile == "":
