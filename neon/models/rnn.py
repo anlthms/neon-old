@@ -497,6 +497,12 @@ class RNNB(Model):
         self.cost_layer = self.layers[-1]
         self.link_and_initialize(self.layers, kwargs)
 
+    def link(self):
+        pass
+
+    def initialize(self):
+        pass
+
     def link_and_initialize(self, layer_list, kwargs, initlayer=None):
         """Copy and paste from MLPB for ease of debugging """
 
