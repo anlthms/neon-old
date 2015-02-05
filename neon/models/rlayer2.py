@@ -1,10 +1,8 @@
 import logging
 import numpy as np
-from neon.models import learning_rule as lr
 from neon.models.layer2 import WeightLayer, CostLayer
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
-from ipdb import set_trace as trace
 logger = logging.getLogger(__name__)
 
 
@@ -260,10 +258,8 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.allocate_output_bufs()
         self.allocate_param_bufs()
 
-
     def allocate_output_bufs(self):
         """ all the activations and temp buffers live here """
-        make_zbuf = self.backend.zeros
         super(RecurrentLSTMLayer, self).allocate_output_bufs()
 
         # things that are not initalized by the super class
@@ -309,12 +305,11 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.eh_ot_cphip = be.zeros(net_sze)
 
         # error buffers
-        self.deltas = be.zeros((self.nout, self.batch_size))  # hidden bprop error  ------- deltas
-        self.celtas = be.zeros((self.nout, self.batch_size))  # cell bprop error    --------celtas
+        self.deltas = be.zeros((self.nout, self.batch_size))
+        self.celtas = be.zeros((self.nout, self.batch_size))
 
         # temp buffer for numerical gradient
         self.temp_t = 0
-
 
     def allocate_param_bufs(self):
         """ Weights and updates live here """
@@ -365,7 +360,6 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.learning_rule.allocate_state(self.updates)
         for upm in self.updates:
             upm.fill(0.0)
-
 
     def list_product(self, target, plist):
         """

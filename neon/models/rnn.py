@@ -514,7 +514,7 @@ class RNNB(Model):
         self.data_layer.use_set('train')
         # "output":"input":"rec"
         #           "lstm_x":"lstm_ih":"lstm_fh":"lstm_oh":"lstm_ch"
-        self.grad_checker(numgrad="lstm_oh")
+        self.grad_checker(numgrad="output")
         logger.info('commencing model fitting')
         errorlist = []
         suberrorlist = []
@@ -561,9 +561,11 @@ class RNNB(Model):
         """
 
         if (batch % self.reset_period) == 0 or batch == 1:
-            self.rec_layer.output_list[-1].fill(0)
+            self.rec_layer.output_list[-1].fill(0)  # reset fprop state
+            self.rec_layer.deltas.fill(0)  # reset bprop (for non-truncated)
             if 'c_t' in self.rec_layer.__dict__:
                 self.rec_layer.c_t[-1].fill(0)
+                self.rec_layer.celtas.fill(0)
 
     def plot_layers(self, viz, suberrorlist, errorlist):
 
@@ -572,7 +574,6 @@ class RNNB(Model):
 
         # LSTM specific plots
         if 'c_t' in self.rec_layer.__dict__:
-            import numpy as np
             viz.plot_lstm_wts(self.rec_layer, scale=1.1, fig=4)
             viz.plot_lstm_acts(self.rec_layer, scale=21, fig=5)
         # RNN specific plots
@@ -601,6 +602,7 @@ class RNNB(Model):
         if 'c_t' in self.rec_layer.__dict__:
             c = self.rec_layer.c_t
 
+        # loop for rec_layer
         for tau in range(0, self.unrolls):
             if tau == eps_tau:
                 numpy_target = num_target[num_i, num_j].asnumpyarray()
@@ -609,13 +611,34 @@ class RNNB(Model):
                 logger.debug("in RNNB.fprop, tau %d, input %d" % (tau,
                              inputs[tau].asnumpyarray().argmax(0)[0]))
             self.rec_layer.fprop(y[tau-1], c[tau-1], inputs[tau], tau)
-            self.class_layer.fprop(y[tau], tau)
             if tau == eps_tau:
                 num_target[num_i, num_j] = numpy_target
 
+        # loop for class_layer
+        for tau in range(0, self.unrolls):
+            if tau == eps_tau:
+                numpy_target = num_target[num_i, num_j].asnumpyarray()
+                num_target[num_i, num_j] = (numpy_target + eps)
+            if debug:
+                logger.debug("in RNNB.fprop, tau %d, input %d" % (tau,
+                             inputs[tau].asnumpyarray().argmax(0)[0]))
+            self.class_layer.fprop(y[tau], tau)
+            if tau == eps_tau:
+                num_target[num_i, num_j] = numpy_target
         # cost layer fprop is a pass.
 
     def bprop(self, debug, numgrad=None):
+        """
+        Parent method for bptt and truncated-bptt. Truncation is neccessary
+        for the standard RNN as a way to prevent exploding gradients. For the
+        LSTM it also
+        """
+        if self.truncate:
+            self.trunc_bprop_tt(debug, numgrad)
+        else:
+            self.bprop_tt(debug, numgrad)
+
+    def trunc_bprop_tt(self, debug, numgrad=None):
         """
         TODO: move the loop over t into the layer class.
         """
@@ -636,13 +659,53 @@ class RNNB(Model):
             error = self.cost_layer.deltas
             self.class_layer.bprop(error, tau, numgrad=numgrad)
             error = self.class_layer.deltas
-            cerror = self.backend.zeros((self.class_layer.nin,
-                                         self.batch_size)) # todo: don't alloc -- also why don't these preserve state? No, this is the error from the class layer.
             for t in list(range(0, tau))[::-1]:
+                if 'c_t' in self.rec_layer.__dict__:
+                    cerror = self.rec_layer.celtas  # on t=0, prev batch state
+                else:
+                    cerror = None  # for normal RNN
                 self.rec_layer.bprop(error, cerror, t, numgrad=numgrad)
                 error[:] = self.rec_layer.deltas  # [TODO] why need deepcopy?
-                if 'c_t' in self.rec_layer.__dict__:
-                    cerror[:] = self.rec_layer.celtas  # no deepcopy needed?
+
+
+    def bprop_tt(self, debug, numgrad=None):
+        """
+        Keep state over consecutive unrollings. Explodes for RNN, and is not
+        currently used for anything, but future recurrent layers might use it.
+        """
+
+        temp1 = self.backend.zeros(self.class_layer.deltas.shape)
+        temp2 = self.backend.zeros(self.class_layer.deltas.shape)
+        temp1c = self.backend.zeros(self.class_layer.deltas.shape)
+        temp2c = self.backend.zeros(self.class_layer.deltas.shape)
+
+        for tau in list(range(self.unrolls))[::-1]:
+            self.cost_layer.cost.set_outputbuf(
+                self.class_layer.output_list[tau])
+            self.cost_layer.bprop(None, tau)
+            cost_error = self.cost_layer.deltas
+            self.class_layer.bprop(cost_error, tau, numgrad=numgrad)
+
+            external_error = self.class_layer.deltas
+            internal_error = self.rec_layer.deltas
+            if 'c_t' in self.rec_layer.__dict__:
+                internal_cerror = self.rec_layer.celtas
+                external_cerror = self.backend.zeros(temp1.shape)
+            else:
+                internal_cerror = None
+                external_cerror = None
+
+            self.rec_layer.bprop(external_error, external_cerror, tau, numgrad=numgrad)
+            temp1[:] = self.rec_layer.deltas
+            if 'c_t' in self.rec_layer.__dict__:
+                temp1c[:] = self.rec_layer.celtas
+            self.rec_layer.bprop(internal_error, internal_cerror, tau, numgrad=numgrad)
+            temp2[:] = self.rec_layer.deltas
+            if 'c_t' in self.rec_layer.__dict__:
+                temp2c[:] = self.rec_layer.celtas
+            self.backend.add(temp1, temp2, out=self.rec_layer.deltas)
+            if 'c_t' in self.rec_layer.__dict__:
+                self.backend.add(temp1c, temp2c, out=self.rec_layer.celtas)
 
     def update(self, epoch):
         '''straight from old RNN == MLP == MLPB'''
@@ -732,7 +795,6 @@ class RNNB(Model):
         logger.debug("RNN grad_checker: analytical %e", analytical)
         logger.debug("RNN grad_checker: ratio %e", 1./(numerical/analytical))
         logger.debug("---------------------------------------------")
-        trace()
 
     # adapted from MLPB, added time unrolling
     def predict_and_error(self, dataset=None):
