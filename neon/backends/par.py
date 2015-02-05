@@ -1,10 +1,10 @@
 import logging
 import numpy as np
-from neon.util.compat import MPI_INSTALLED, mpi_size, mpi_rank, range
+from neon.util.compat import MPI_INSTALLED, mpi_size, mpi_rank
 
 if MPI_INSTALLED:
     from mpi4py import MPI
-    from mpi4py.MPI import COMM_WORLD as comm
+    from mpi4py.MPI import COMM_WORLD as comm  # noqa
 
 logger = logging.getLogger(__name__)
 

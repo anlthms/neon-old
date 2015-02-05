@@ -12,7 +12,7 @@ import numpy
 import os
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, mpi_rank, range
+from neon.util.compat import MPI_INSTALLED, range
 from neon.util.error import TooSlowToImplementError
 
 if MPI_INSTALLED:
