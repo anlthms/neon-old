@@ -7,6 +7,7 @@ Simple multi-layer perceptron model.
 
 import logging
 import math
+import neon.util.metrics as ms
 from neon.models.model import Model
 from neon.util.compat import MPI_INSTALLED, range
 from neon.util.param import opt_param, req_param
@@ -395,10 +396,8 @@ class MLPB(MLP):
                 self.fprop()
                 probs = self.get_classifier_output()
                 targets = self.data_layer.targets
-                self.backend.argmax(targets, axis=0, out=labels)
-                self.backend.argmax(probs, axis=0, out=predlabels)
-                self.backend.not_equal(predlabels, labels, misclass)
-                self.backend.sum(misclass, axes=None, out=batch_sum)
+                ms.misclass_sum(self.backend, probs, targets, predlabels,
+                                labels, misclass, batch_sum)
                 self.backend.add(misclass_sum, batch_sum, misclass_sum)
                 self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
                                  axes=None, out=batch_sum)
@@ -407,3 +406,36 @@ class MLPB(MLP):
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
+
+    def predict_fullset(self, dataset, setname):
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * self.data_layer.num_batches
+        outputs = self.backend.empty((self.class_layer.nout, nrecs))
+        targets = self.backend.empty(outputs.shape)
+        batch = 0
+        while self.data_layer.has_more_data():
+            self.fprop()
+            start = batch * self.batch_size
+            end = start + self.batch_size
+            outputs[:, start:end] = self.get_classifier_output()
+            targets[:, start:end] = self.data_layer.targets
+            batch += 1
+
+        self.data_layer.cleanup()
+        return outputs, targets
+
+    def report(self, outputs, targets, metric):
+        nrecs = outputs.shape[1]
+        if metric == 'misclass rate':
+            sumval = self.backend.empty((1, 1))
+            labels = self.backend.empty((nrecs, 1))
+            preds = self.backend.empty(labels.shape)
+            misclass = self.backend.empty(labels.shape)
+            ms.misclass_sum(self.backend, outputs, targets,
+                            preds, labels, misclass, sumval)
+            misclassval = sumval.asnumpyarray() / nrecs
+            return  misclassval * 100
+        raise NotImplementedError('metric not implemented:', metric)

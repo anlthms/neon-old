@@ -30,11 +30,23 @@ class FitPredictErrorExperiment(FitExperiment):
     TODO:
         add other params
     """
+    def __init__(self, **kwargs):
+        self.report_sets = []
+        self.metrics = []
+        super(FitPredictErrorExperiment, self).__init__(**kwargs)
+
     def run(self):
         """
         Actually carry out each of the experiment steps.
         """
 
-        # load the data and train the model
+        # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
         self.model.predict_and_report(self.dataset)
+
+        # Report error metrics.
+        for setname in self.report_sets:
+            res = self.model.predict_fullset(self.dataset, setname)
+            for metric in self.metrics:
+                val = self.model.report(*res, metric=metric)
+                logger.info('%s set %s %.5f', setname, metric, val)
