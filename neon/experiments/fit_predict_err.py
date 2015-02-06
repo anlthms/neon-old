@@ -37,4 +37,4 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # load the data and train the model
         super(FitPredictErrorExperiment, self).run()
-        self.model.predict_and_error(self.dataset)
+        self.model.predict_and_report(self.dataset)

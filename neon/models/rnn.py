@@ -471,7 +471,7 @@ class RNN(Model):
         if self.make_plots:
             trace()  # just used to keep figures open
 
-    def predict_and_error(self, dataset):
+    def predict_and_report(self, dataset):
         predictions = self.predict()
         self.error_metrics(dataset, predictions)
 
@@ -807,7 +807,7 @@ class RNNB(Model):
         logger.debug("---------------------------------------------")
 
     # adapted from MLPB, added time unrolling
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         """
         todo: take the
             outputs[idx, :] = letters

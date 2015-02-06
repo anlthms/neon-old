@@ -240,7 +240,7 @@ class MLP(Model):
                          item, 100 * self.result.asnumpyarray(),
                          logloss.asnumpyarray())
 
-    def predict_and_error(self, dataset):
+    def predict_and_report(self, dataset):
         for layer in self.layers:
             layer.set_train_mode(False)
         be = self.backend
@@ -371,7 +371,7 @@ class MLPB(MLP):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         if dataset is not None:
             self.data_layer.init_dataset(dataset)
         predlabels = self.backend.empty((1, self.batch_size))
