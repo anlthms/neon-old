@@ -175,72 +175,6 @@ class MLP(Model):
         for layer in self.layers:
             layer.update(epoch)
 
-    def logloss(self, preds, targets, eps=1e-15):
-        num_batches = len(preds)
-        temp = self.backend.empty(preds[0].shape)
-        sums = self.backend.empty((1, self.batch_size))
-        batch_sum = self.backend.empty((1, 1))
-        result = self.backend.zeros((1, 1))
-        for batch in range(num_batches):
-            self.backend.clip(preds[batch], eps, 1.0 - eps, out=preds[batch])
-            sums = self.backend.sum(preds[batch], axes=0, out=sums)
-
-            # XXX: work around lack of broadcasting in gpu backend.
-            temp1 = temp.asnumpyarray()
-            for row in range(preds[batch].shape[0]):
-                temp1[row] = sums.asnumpyarray().reshape((self.batch_size,))
-            temp = self.backend.array(temp1)
-
-            self.backend.divide(preds[batch], temp, temp)
-            self.backend.log(temp, out=temp)
-            self.backend.multiply(targets[batch], temp, temp)
-            self.backend.sum(temp, axes=None, out=batch_sum)
-            self.backend.add(result, batch_sum, result)
-        self.backend.multiply(result, -1, result)
-        return self.backend.divide(result, self.batch_size * num_batches,
-                                   result)
-
-    def misclass_rate(self, preds, targets):
-        # Simple misclassification error.
-        num_batches = len(preds)
-        labels = self.backend.empty((1, self.batch_size))
-        predlabels = self.backend.empty((1, self.batch_size))
-        misclass = self.backend.empty((1, self.batch_size))
-        batch_sum = self.backend.empty((1, 1))
-        misclass_sum = self.backend.zeros((1, 1))
-        for batch in range(num_batches):
-            self.backend.argmax(targets[batch], axis=0, out=labels)
-            self.backend.argmax(preds[batch], axis=0, out=predlabels)
-            self.backend.not_equal(predlabels, labels, misclass)
-            self.backend.sum(misclass, axes=None, out=batch_sum)
-            self.backend.add(misclass_sum, batch_sum, misclass_sum)
-        return self.backend.divide(misclass_sum,
-                                   num_batches * self.batch_size, misclass_sum)
-
-    # TODO: move out to separate config params and module.
-    def error_metrics(self, datasets, predictions, train=True, test=True,
-                      validation=True):
-        items = []
-        if train:
-            items.append('train')
-        if test:
-            items.append('test')
-        if validation:
-            items.append('validation')
-        ds = datasets
-        preds = predictions
-        targets = ds.get_targets(train=True, test=True, validation=True)
-        for item in items:
-            if item not in targets:
-                continue
-            if item not in preds:
-                continue
-            self.result = self.misclass_rate(preds[item], targets[item])
-            logloss = self.logloss(preds[item], targets[item])
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                         item, 100 * self.result.asnumpyarray(),
-                         logloss.asnumpyarray())
-
     def predict_and_report(self, dataset):
         for layer in self.layers:
             layer.set_train_mode(False)
@@ -430,12 +364,25 @@ class MLPB(MLP):
     def report(self, outputs, targets, metric):
         nrecs = outputs.shape[1]
         if metric == 'misclass rate':
-            sumval = self.backend.empty((1, 1))
-            labels = self.backend.empty((nrecs, 1))
+            retval = self.backend.empty((1, 1))
+            labels = self.backend.empty((1, nrecs))
             preds = self.backend.empty(labels.shape)
             misclass = self.backend.empty(labels.shape)
             ms.misclass_sum(self.backend, outputs, targets,
-                            preds, labels, misclass, sumval)
-            misclassval = sumval.asnumpyarray() / nrecs
-            return  misclassval * 100
+                            preds, labels, misclass, retval)
+            misclassval = retval.asnumpyarray() / nrecs
+            return misclassval * 100
+
+        if metric == 'auc':
+            return ms.auc(self.backend, outputs[0], targets[0])
+
+        if metric == 'log loss':
+            retval = self.backend.empty((1, 1))
+            sums = self.backend.empty((1, outputs.shape[1]))
+            temp = self.backend.empty(outputs.shape)
+            ms.logloss(self.backend, outputs, targets, sums, temp, retval)
+            self.backend.multiply(retval, -1, out=retval)
+            self.backend.divide(retval, nrecs, out=retval)
+            return retval.asnumpyarray()
+
         raise NotImplementedError('metric not implemented:', metric)
