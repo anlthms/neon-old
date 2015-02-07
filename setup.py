@@ -59,9 +59,9 @@ class NeonCommand(Command):
         if self.gpu == "1":
             self.distribution.install_requires += ['cudanet']
             self.distribution.dependency_links += ['https://github.com/'
-                                                   '/NervanaSystems/'
-                                                   'cuda-convnet2'
-                                                   '.git#egg=cudanet']
+                                                   'NervanaSystems/'
+                                                   'cuda-convnet2.git#'
+                                                   'egg=cudanet-0.2']
         if self.dist == "1":
             self.distribution.install_requires += ['mpi4py>=1.3.1']
 

@@ -8,3 +8,6 @@ from neon.layers.layer import (Layer, DataLayer, CostLayer,  # noqa
 from neon.layers.normalizing import (CrossMapResponseNormLayer,  # noqa
                                      LocalContrastNormLayer)
 from neon.layers.pooling import PoolingLayer, CrossMapPoolingLayer  # noqa
+from neon.layers.recurrent import (RecurrentLayer, RecurrentCostLayer,  # noqa
+                                   RecurrentOutputLayer, RecurrentHiddenLayer,
+                                   RecurrentLSTMLayer)

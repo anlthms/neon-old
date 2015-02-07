@@ -55,7 +55,8 @@ class MOBYDICK(Dataset):
         with open(fname, 'r') as f:
             text = f.read()
             numbers = numpy.fromstring(text, dtype='int8')
-            onehots = numpy.zeros((128, numbers.shape[0]))
+            assert(self.data_dim == 128), "one-hot encoded ASCII required"
+            onehots = numpy.zeros((self.data_dim, numbers.shape[0]))
             for i in range(numbers.shape[0]):
                 onehots[numbers[i], i] = 1
 
@@ -66,6 +67,26 @@ class MOBYDICK(Dataset):
             array = onehots
 
         return array
+
+    def transpose_batches(self, data):
+            """
+            Transpose each minibatch within the dataset.
+            """
+            bs = self.data_dim * self.unrolls
+            dd = self.data_dim
+            if data.shape[0] % bs != 0:
+                logger.warning('Incompatible batch size. '
+                               'Discarding %d samples...',
+                               data.shape[0] % bs)
+            nbatches = data.shape[0] / bs
+            batchwise = [[] for k in range(nbatches)]
+            for batch in range(nbatches):
+                batchdata = [self.backend.array(data[(batch * bs + k * dd):
+                                                     (batch * bs + (k + 1) *
+                                                      dd)])
+                             for k in range(self.unrolls)]
+                batchwise[batch] = batchdata
+            return batchwise
 
     def load(self):
         self.initialize()
@@ -105,9 +126,16 @@ class MOBYDICK(Dataset):
                 idx_list = numpy.arange(num_batches * self.batch_size)
                 idx_list = idx_list.reshape(self.batch_size, num_batches)
                 splay_3d = self.preinputs[dataset][:, idx_list.T]
-                splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
-                self.inputs[dataset] = self.backend.array(splay_3d)
-            # self.format()  # Mobydick does not need this
+                splay_3d = numpy.transpose(splay_3d, (1, 0, 2))
+                splay_3d = splay_3d.reshape(-1, self.batch_size)
+                self.inputs[dataset] = splay_3d
+                offbyone = numpy.zeros(splay_3d.shape)
+                length = offbyone.shape[0]
+                offbyone[0:length - self.data_dim, :] = splay_3d[self.data_dim:
+                                                                 length, :]
+                self.targets[dataset] = offbyone
+            self.format()  # runs transpose_batches
+
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?
