@@ -33,7 +33,7 @@ class Dataset(object):
     def __getstate__(self):
         """
         Defines what and how we go about serializing an instance of this class.
-        In this case we also want to include and loaded datasets and backend
+        In this case we also want to include any loaded datasets and backend
         references.
 
         Returns:

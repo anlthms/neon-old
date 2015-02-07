@@ -10,13 +10,10 @@ import logging
 import numpy as np
 from neon.backends.cpu import CPU
 from neon.transforms.gaussian import gaussian_filter
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.distarray import gdist_consts as gc
 from neon.util.distarray.local_array import LocalArray
 from neon.util.persist import YAMLable
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +204,7 @@ class LayerDist(Layer):
         self.learning_rule.allocate_state(self.updates)
         self.delta_ = self.backend.empty((self.nout_, self.batch_size))
         self.delta_gather = self.backend.empty(
-            (MPI.COMM_WORLD.size * self.nout, self.batch_size))
+            (self.backend.mpi_size * self.nout, self.batch_size))
         if self.pos > 0:
             # This is storage for the backward propagated error.
             self.deltas = self.backend.empty((self.nin, self.batch_size))
@@ -216,18 +213,19 @@ class LayerDist(Layer):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
                               weights=self.weights)
         # accumulate the pre_act values before applying non-linearity
-        self.pre_act._tensor = MPI.COMM_WORLD.reduce(
-            self.pre_act.asnumpyarray(), op=MPI.SUM, root=0)
+        self.pre_act._tensor = self.backend.comm.reduce(
+            self.pre_act.asnumpyarray(), op=self.backend.mpi.SUM, root=0)
         # apply non-linearity on the output node
-        if MPI.COMM_WORLD.rank == 0 and self.activation is not None:
+        if self.backend.mpi_rank == 0 and self.activation is not None:
             # this stores the derivatives in self.pre_act
             self.activation.apply_both(self.backend, self.pre_act, self.output)
         # strictly, following line not needed for top-most layer
-        self.output._tensor = MPI.COMM_WORLD.bcast(self.output.asnumpyarray())
+        self.output._tensor = self.backend.comm.bcast(
+            self.output.asnumpyarray())
         # broadcast back the pre_act values for bprop.
         # note: suboptimal for dist implementation,
         # but a consequence of reusing the pre_act buffer for fprop and bprop
-        self.pre_act._tensor = MPI.COMM_WORLD.bcast(
+        self.pre_act._tensor = self.backend.comm.bcast(
             self.pre_act.asnumpyarray())
 
     def bprop(self, error, inputs):
@@ -239,11 +237,11 @@ class LayerDist(Layer):
         if self.activation is not None:
             self.backend.multiply(error, self.pre_act_, out=error)
         if self.nout_ != self.nout:
-            MPI.COMM_WORLD.Allgather(
+            self.backend.comm.Allgather(
                 error.asnumpyarray(), self.delta_gather._tensor)
             self.delta_._tensor = np.vstack(
-                np.split(self.delta_gather.asnumpyarray(), MPI.COMM_WORLD.size,
-                         axis=0))
+                np.split(self.delta_gather.asnumpyarray(),
+                         self.backend.mpi_size, axis=0))
             if self.pos > 0:
                 self.backend.bprop_fc(out=self.deltas,
                                       weights=self.weights,
@@ -1427,9 +1425,9 @@ class ConvLayerDist(LocalLayerDist, ConvLayer):
         # accumulate updates across tiles for all filters
         # if want to keep weights unshared across nodes, could not do the
         # transfers here
-        self.updates._tensor = MPI.COMM_WORLD.reduce(
-            self.updates.asnumpyarray(), op=MPI.SUM, root=0)
-        self.updates._tensor = MPI.COMM_WORLD.bcast(
+        self.updates._tensor = self.backend.comm.reduce(
+            self.updates.asnumpyarray(), op=self.backend.mpi.SUM, root=0)
+        self.updates._tensor = self.backend.comm.bcast(
             self.updates.asnumpyarray())
         self.backend.update_conv(out=self.updates, inputs=inputs,
                                  weights=self.weights, deltas=error,

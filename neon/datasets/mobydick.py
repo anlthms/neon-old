@@ -11,7 +11,7 @@ import numpy
 import os
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +40,13 @@ class MOBYDICK(Dataset):
         self.dist_mode = 0  # halo/tower method
         self.macro_batched = False
         self.__dict__.update(kwargs)
+
+    def initialize(self):
+        # perform additional setup that can't be done at initial construction
         if self.dist_flag:
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                self.comm = MPI.COMM_WORLD
-                # for now require that comm.size is a square and divides 28
-                if self.comm.size not in [1, 4, 16]:
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-            else:
-                raise AttributeError("dist_flag set but mpi4py not installed")
+            self.comm = self.backend.comm
+            if self.comm.size not in [1, 4, 16]:
+                raise AttributeError('MPI.COMM_WORLD.size not compatible')
 
     def read_txt_file(self, fname, dtype=None):
         """
@@ -70,6 +68,7 @@ class MOBYDICK(Dataset):
         return array
 
     def load(self):
+        self.initialize()
         if self.inputs['train'] is not None:
             return
         if 'repo_path' in self.__dict__:
@@ -109,7 +108,6 @@ class MOBYDICK(Dataset):
                 splay_3d = numpy.transpose(splay_3d, (1, 0, 2)).reshape(-1, 50)
                 self.inputs[dataset] = self.backend.array(splay_3d)
             # self.format()  # Mobydick does not need this
-
         else:
             raise AttributeError('repo_path not specified in config')
             # TODO: try and download and read in directly?

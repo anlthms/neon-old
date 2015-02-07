@@ -9,7 +9,7 @@ import logging
 import os
 import yaml
 
-from neon.util.compat import PY3, MPI_INSTALLED
+from neon.util.compat import PY3
 
 if PY3:
     import pickle
@@ -150,7 +150,10 @@ def obj_multi_constructor(loader, tag_suffix, node,
         # attempt to deserialize from serialized_path since
         # deserialized_path not populated
         child_vals[deserialize_param] = child_vals[serialize_param]
-    if MPI_INSTALLED:
+    if False:
+        # TODO: we want to run this if running a datapar or modelpar model,
+        # need some way to check this!
+
         # fix up any serialized/deserialized paths to populate rank and size
         from mpi4py import MPI
         for param in (serialize_param, deserialize_param):

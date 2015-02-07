@@ -52,7 +52,7 @@ ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+http://gitlab.localdomain/algorithms/cuda-convnet2.git\#egg=cudanet'
+    'git+http://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet-0.2'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -102,12 +102,12 @@ test_all:
 sanity: build
 	@echo "Running sanity checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py \
-		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
+		--cpu $(CPU) --gpu $(GPU) --datapar $(DIST) --modelpar $(DIST)
 
 speed: build
 	@echo "Running speed checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py \
-		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
+		--cpu $(CPU) --gpu $(GPU) --datapar $(DIST) --modelpar $(DIST)
 
 grad: build
 	@echo "Running gradient checks..."

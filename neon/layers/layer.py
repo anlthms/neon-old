@@ -356,6 +356,7 @@ class WeightLayer(Layer):
         super(WeightLayer, self).initialize(kwargs)
         req_param(self, ['weight_init', 'lrule_init'])
         opt_param(self, ['accumulate'], False)
+        self.weight_init.initialize(self.backend)
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
@@ -409,18 +410,20 @@ class WeightLayer(Layer):
     def init_learning_rule(self, lrule_init):
         lrname = self.name + '_lr'
         if lrule_init['type'] == 'gradient_descent':
-            return GradientDescent(name=lrname,
-                                   lr_params=lrule_init['lr_params'])
+            lr = GradientDescent(name=lrname,
+                                 lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_pretrain':
-            return GradientDescentPretrain(
+            lr = GradientDescentPretrain(
                 name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum':
-            return GradientDescentMomentum(
+            lr = GradientDescentMomentum(
                 name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
-            return GradientDescentMomentumWeightDecay(
+            lr = GradientDescentMomentumWeightDecay(
                 name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'adadelta':
-            return AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
+            lr = AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
         else:
             raise AttributeError("invalid learning rule params specified")
+        lr.initialize(self.backend)
+        return lr

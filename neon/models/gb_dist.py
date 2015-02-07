@@ -12,15 +12,10 @@ import time
 from neon.models.gb import GB
 from neon.layers.deprecated.layer import LocalFilteringLayerDist, LCNLayerDist
 from neon.layers.deprecated.layer import L2PoolingLayerDist, LayerDist
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.distarray.global_array import GlobalArray
 
 logger = logging.getLogger(__name__)
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
-else:
-    logger.error('mpi4py not found')
 
 
 class GBDist(GB):
@@ -129,7 +124,7 @@ class GBDist(GB):
                 trcost_sum = 0.0
                 tspcost_sum = 0.0
                 for batch in range(num_batches):
-                    if MPI.COMM_WORLD.rank == 0:
+                    if self.backend.mpi_rank == 0:
                         logger.debug('batch = %d', batch)
                     inputs_batch = ds.get_batch(inputs, batch)
                     output = inputs_batch
@@ -144,12 +139,14 @@ class GBDist(GB):
                     trcost += rcost
                     tspcost += spcost
                 # accumulate trcost and tspcost cost across all nodes
-                trcost_sum = MPI.COMM_WORLD.reduce(trcost,
-                                                   op=MPI.SUM, root=0)
-                tspcost_sum = MPI.COMM_WORLD.reduce(tspcost,
-                                                    op=MPI.SUM, root=0)
+                trcost_sum = self.backend.comm.reduce(trcost,
+                                                      op=self.backend.mpi.SUM,
+                                                      root=0)
+                tspcost_sum = self.backend.comm.reduce(tspcost,
+                                                       op=self.backend.mpi.SUM,
+                                                       root=0)
                 # display cost to logger on root node
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     tcost = trcost_sum + tspcost_sum
                     logger.info('layer: %d, epoch: %d, cost: %0.2f + %0.2f ='
                                 ' %0.2f', self.trainable_layers[ind], epoch,
@@ -163,8 +160,8 @@ class GBDist(GB):
                                     os.path.join('recon', 'output')], ind)
         logger.info('Done with pretraining')
         end_time = time.time()
-        if MPI.COMM_WORLD.rank == 0:
-            logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,
+        if self.backend.mpi_rank == 0:
+            logger.info('%d time taken: %0.2f', self.backend.mpi_rank,
                         end_time - start_time)
         # Switch the layers from pretraining to training mode.
         for layer in self.layers:
@@ -184,7 +181,7 @@ class GBDist(GB):
         while self.epochs.complete < self.num_epochs:
             error = 0.0
             for batch in range(num_batches):
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     logger.debug('batch = %d', batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
@@ -196,7 +193,7 @@ class GBDist(GB):
                 else:
                     # bprop through full stack
                     self.bprop(targets_batch, inputs_batch)
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     error += self.cost.apply_function(self.backend,
                                                       self.layers[-1].output,
                                                       targets_batch,
@@ -205,18 +202,18 @@ class GBDist(GB):
                     self.update_last(self.epochs_complete)
                 else:
                     self.update(self.epochs_complete)
-            if MPI.COMM_WORLD.rank == 0:
+            if self.backend.mpi_rank == 0:
                 logger.info('epoch: %d, training error: %0.5f',
                             self.epochs_complete, error / num_batches)
             self.epochs_complete += 1
         end_time = time.time()
-        if MPI.COMM_WORLD.rank == 0:
-            logger.info('%d time taken: %0.2f', MPI.COMM_WORLD.rank,
+        if self.backend.mpi_rank == 0:
+            logger.info('%d time taken: %0.2f', self.backend.mpi_rank,
                         end_time - start_time)
 
     def bprop_last(self, targets, inputs):
         # Backprop on just the last layer.
-        if MPI.COMM_WORLD.rank == 0:
+        if self.backend.mpi_rank == 0:
             # apply derivative on root node's FC layer output
             # potential todo: for large output layers might want to distribute?
             self.error = self.cost.apply_derivative(self.backend,
@@ -224,7 +221,7 @@ class GBDist(GB):
                                                     targets, self.temp)
             self.backend.divide(self.error, targets.shape[1], out=self.error)
         # MPI: broadcast the error matrix
-        self.error._tensor = MPI.COMM_WORLD.bcast(self.error.asnumpyarray())
+        self.error._tensor = self.backend.comm.bcast(self.error.asnumpyarray())
         self.layers[-1].pre_act_ = self.layers[-1].pre_act
         self.layers[-1].bprop(self.error, self.layers[-2].output)
 
@@ -234,12 +231,12 @@ class GBDist(GB):
 
         error = self.backend.zeros((self.batch_size, self.layers[-1].nout))
         # apply derivative on root node's FC layer output
-        if MPI.COMM_WORLD.rank == 0:
+        if self.backend.mpi_rank == 0:
             error = self.cost.apply_derivative(self.backend,
                                                lastlayer.output, targets,
                                                self.temp)
             self.backend.divide(error, targets.shape[1], out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.asnumpyarray())
+        error._tensor = self.backend.comm.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         lastlayer.bprop(error, self.layers[i - 1].output)
@@ -280,14 +277,14 @@ class GBDist(GB):
     def predict_set(self, ds, inputs):
         num_batches = len(inputs)
         nrecs = num_batches * self.batch_size
-        if MPI.COMM_WORLD.rank == 0:
+        if self.backend.mpi_rank == 0:
             self.outputs = self.backend.zeros((self.layers[-1].nout, nrecs))
         for batch in range(num_batches):
             inputs_batch = ds.get_batch(inputs, batch)
             self.fprop(inputs_batch)
             start_idx = batch * self.batch_size
             end_idx = min((batch + 1) * self.batch_size, nrecs)
-            if MPI.COMM_WORLD.rank == 0:
+            if self.backend.mpi_rank == 0:
                 self.outputs[:, start_idx:end_idx] = self.layers[-1].output
 
     def predict(self, datasets, train=True, test=True, validation=True):
@@ -300,26 +297,26 @@ class GBDist(GB):
             preds = dict()
             if train and 'train' in inputs:
                 self.predict_set(dataset, inputs['train'])
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     train_shape = (1, self.outputs.shape[0])
                     preds['train'] = dataset.backend.empty(train_shape)
                     dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['train'])
             if test and 'test' in inputs:
                 self.predict_set(dataset, inputs['test'])
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     test_shape = (1, self.outputs.shape[0])
                     preds['test'] = dataset.backend.empty(test_shape)
                     dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['test'])
             if validation and 'validation' in inputs:
                 self.predict_set(dataset, inputs['validation'])
-                if MPI.COMM_WORLD.rank == 0:
+                if self.backend.mpi_rank == 0:
                     val_shape = (1, self.outputs.shape[0])
                     preds['validation'] = dataset.backend.empty(val_shape)
                     dataset.backend.argmax(self.outputs, axis=0,
                                            out=preds['validation'])
-            if MPI.COMM_WORLD.rank == 0:
+            if self.backend.mpi_rank == 0:
                 if len(preds) is 0:
                     logger.error("must specify >=1 of: train, test, "
                                  "validation")

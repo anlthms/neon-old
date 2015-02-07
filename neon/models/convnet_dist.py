@@ -10,15 +10,10 @@ import logging
 from neon.models.deprecated.mlp_dist import MLPDist
 from neon.layers.deprecated.layer import ConvLayerDist, MaxPoolingLayerDist
 from neon.layers.deprecated.layer import LayerDist
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.distarray.global_array import GlobalArray
 
 logger = logging.getLogger(__name__)
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
-else:
-    logger.error('mpi4py not found')
 
 
 class ConvnetDist(MLPDist):
@@ -52,10 +47,10 @@ class ConvnetDist(MLPDist):
                 # nout will be the split size of the layer
                 layer.nout_ = layer.nout
                 if i < self.nlayers - 1:
-                    if layer.nout % MPI.COMM_WORLD.size != 0:
+                    if layer.nout % self.backend.mpi_size != 0:
                         raise ValueError('Unsupported layer.nout % '
                                          'MPI.COMM_WORLD.size != 0')
-                    layer.nout = layer.nout / MPI.COMM_WORLD.size
+                    layer.nout = layer.nout / self.backend.mpi_size
                 if isinstance(self.layers[i - 1], MaxPoolingLayerDist):
                     mp_layer = self.layers[i - 1]
                     layer.top_left_row_output = (
@@ -79,12 +74,12 @@ class ConvnetDist(MLPDist):
                     layer.prev_layer = 'MaxPoolingLayerDist'
                 elif isinstance(self.layers[i - 1], LayerDist):
                     # split the inputs nin across MPI.COMM_WORLD.size
-                    if layer.nin % MPI.COMM_WORLD.size != 0:
+                    if layer.nin % self.backend.mpi_size != 0:
                         raise ValueError('Unsupported layer.nin % '
                                          'MPI.COMM_WORLD.size != 0')
-                    layer.nin = layer.nin / MPI.COMM_WORLD.size
-                    layer.in_indices = range(MPI.COMM_WORLD.rank * layer.nin,
-                                             (MPI.COMM_WORLD.rank + 1) *
+                    layer.nin = layer.nin / self.backend.mpi_size
+                    layer.in_indices = range(self.backend.mpi_rank * layer.nin,
+                                             (self.backend.mpi_rank + 1) *
                                              layer.nin)
                     layer.prev_layer = 'LayerDist'
                 else:
@@ -118,10 +113,10 @@ class ConvnetDist(MLPDist):
 
         error = self.backend.zeros((self.layers[-1].nout, self.batch_size))
         # apply derivative on root node's FC layer output
-        if MPI.COMM_WORLD.rank == 0:
+        if self.backend.mpi_rank == 0:
             error = self.cost.apply_derivative(targets)
             self.backend.divide(error, targets.shape[1], out=error)
-        error._tensor = MPI.COMM_WORLD.bcast(error.asnumpyarray())
+        error._tensor = self.backend.comm.bcast(error.asnumpyarray())
         # Update the output layer.
         lastlayer.pre_act_ = lastlayer.pre_act
         while isinstance(self.layers[i], LayerDist):

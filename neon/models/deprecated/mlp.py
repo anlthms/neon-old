@@ -8,11 +8,8 @@ Simple multi-layer perceptron model.
 import logging
 import math
 from neon.models.model import Model
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.param import req_param
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +92,13 @@ class MLP(Model):
                     self.backend.add(error, batch_err, error)
                 self.update(self.epochs_complete)
             if self.dist_mode == 'datapar':
-                cum_err = MPI.COMM_WORLD.reduce(error.asnumpyarray(),
-                                                op=MPI.SUM)
-                if MPI.COMM_WORLD.rank == 0:
+                cum_err = self.backend.comm.reduce(error.asnumpyarray(),
+                                                   op=self.backend.mpi.SUM)
+                if self.backend.mpi_rank == 0:
                     logger.info('epoch: %d, total training error: %0.5f',
                                 self.epochs_complete,
                                 cum_err / num_batches /
-                                MPI.COMM_WORLD.size)
+                                self.backend.mpi_size)
             else:
                 logger.info('epoch: %d, total training error: %0.5f',
                             self.epochs_complete,
@@ -160,7 +157,7 @@ class MLP(Model):
         error = self.cost.apply_derivative(targets)
         batch_size = self.batch_size
         if self.dist_mode == 'datapar':
-            batch_size *= MPI.COMM_WORLD.size
+            batch_size *= self.backend.mpi_size
         self.backend.divide(error, batch_size, out=error)
 
         while i > 0:

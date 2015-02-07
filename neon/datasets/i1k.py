@@ -18,7 +18,7 @@ from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.backends.gpu import GPU, GPUTensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 import sys
 import threading
 import Queue
@@ -289,17 +289,6 @@ class I1K(Dataset):
             self.save_dir = os.path.join(self.repo_path,
                                          self.__class__.__name__)
 
-        if self.dist_flag:
-            raise NotImplementedError('Dist not implemented for I1K!')
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                self.comm = MPI.COMM_WORLD
-                # for now require that comm.size is a square and divides 32
-                if self.comm.size not in [1, 4, 16]:
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-            else:
-                raise AttributeError("dist_flag set but mpi4py not installed")
-
         if self.start_train_batch != -1:
             # number of batches to train for this yaml file (<= total
             # available)
@@ -310,6 +299,13 @@ class I1K(Dataset):
             # available)
             self.n_val_batches = self.end_val_batch - \
                 self.start_val_batch + 1
+
+    def initialize(self):
+        # perform additional setup that can't be done at initial construction
+        if self.dist_flag:
+            self.comm = self.backend.comm
+            if self.comm.size not in [1, 4, 16]:
+                raise AttributeError('MPI.COMM_WORLD.size not compatible')
 
     def load(self):
         if 'repo_path' in self.__dict__:

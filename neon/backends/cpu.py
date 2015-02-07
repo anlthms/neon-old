@@ -10,10 +10,7 @@ import logging
 import numpy as np
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, range
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
@@ -337,7 +334,8 @@ class CPU(Backend):
     def err_init(self):
         # support numpy.seterr settings:
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
-        if 'seterr_handling' in self.__dict__:
+        if ('seterr_handling' in self.__dict__ and self.seterr_handling is not
+                None):
             logger.info("Updating numpy.seterr settings: %s",
                         str(self.seterr_handling))
             np.seterr(**self.seterr_handling)
@@ -1507,12 +1505,11 @@ class CPU(Backend):
         dev_weights[:] = host_weights
 
 
-# template for CPUDist (wrap MPI function calls so _tensor don't have to be
-# exposed in layer code)
+# template for CPUDist
 class CPUDist(CPU):
 
     def bcast(self, buf, rank=0):
-        buf._tensor = MPI.COMM_WORLD.bcast(buf._tensor, rank)
+        buf._tensor = self.comm.bcast(buf._tensor, rank)
 
 
 # once CPUDist is implemented inherit from CPUDist
@@ -1526,12 +1523,9 @@ class CPUDataDist(CPU):
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
-                                            root=0)
-        # This division by comm.size corresponds to following line in mlp bprop
-        # self.backend.divide(error, targets.shape[targets.major_axis()],
-        #                    out=error)
-        out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())
+        out._tensor = self.comm.reduce(out.asnumpyarray(), op=self.mpi.SUM,
+                                       root=0)
+        out._tensor = self.comm.bcast(out.asnumpyarray())
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
@@ -1541,6 +1535,6 @@ class CPUDataDist(CPU):
                                              ifmshape, links, nifm, padding,
                                              stride, ngroups, fwidth,
                                              updatebuf)
-        out._tensor = MPI.COMM_WORLD.reduce(out.asnumpyarray(), op=MPI.SUM,
-                                            root=0)
-        out._tensor = MPI.COMM_WORLD.bcast(out.asnumpyarray())
+        out._tensor = self.comm.reduce(out.asnumpyarray(), op=self.mpi.SUM,
+                                       root=0)
+        out._tensor = self.comm.bcast(out.asnumpyarray())

@@ -2,6 +2,7 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 # Configuration for sanity checking layers.
+# Should see a result value of: 0.453125
 
 !obj:experiments.FitPredictErrorExperiment {
   backend: &be !obj:backends.CPU {

@@ -9,14 +9,9 @@ import logging
 
 from neon.models.deprecated.mlp import MLP
 from neon.layers.deprecated.layer import LayerDist
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
-else:
-    logger.error('mpi4py not found')
 
 
 class MLPDist(MLP):
@@ -68,7 +63,7 @@ class MLPDist(MLP):
         """
         for layer in self.layers:
             logger.debug("%s", str(layer))
-        self.comm = MPI.COMM_WORLD
+        self.comm = self.backend.comm
         self.adjust_for_dist()
         ds = dataset
         inputs = ds.get_inputs(train=True)['train']

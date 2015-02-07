@@ -7,7 +7,6 @@ Houses low-level code for performing underlying data manipulation operations.
 """
 
 from neon.util.persist import YAMLable
-from neon.backends.par import NoPar, ModelPar, DataPar
 
 
 class Backend(YAMLable):
@@ -1062,28 +1061,6 @@ class Backend(YAMLable):
             NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
-
-    # The functions below can be moved out to a utility class if it is
-    # desirable to leave this class abstract.
-
-    def configure(self, model, datapar, modelpar):
-        # Save the original batch_size value that is specified
-        # in the configuration file.
-        self.actual_batch_size = model.batch_size
-        if datapar and modelpar:
-            raise NotImplementedError('Hybrid parallelization scheme not '
-                                      'implemented yet.')
-        if modelpar:
-            self.par = ModelPar(self, model)
-            self.fprop_fc = self.par.fprop_fc
-            self.bprop_fc = self.par.bprop_fc
-            self.update_fc = self.par.update_fc
-        elif datapar:
-            self.par = DataPar(self, model)
-            self.update_fc = self.par.update_fc
-            self.update_conv = self.par.update_conv
-        else:
-            self.par = NoPar(self, model)
 
     def distribute(self, data):
         return self.par.distribute(data)

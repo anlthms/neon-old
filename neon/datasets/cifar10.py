@@ -12,7 +12,7 @@ import os
 import tarfile
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.persist import deserialize
 
 
@@ -41,15 +41,15 @@ class CIFAR10(Dataset):
         self.dist_flag = False
         self.macro_batched = False
         self.__dict__.update(kwargs)
+
+    def initialize(self):
+        # ensure this gets called for distributed case once a backend has been
+        # setup.
         if self.dist_flag:
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                self.comm = MPI.COMM_WORLD
-                # for now require that comm.size is a square and divides 32
-                if self.comm.size not in [1, 4, 16]:
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-            else:
-                raise AttributeError("dist_flag set but mpi4py not installed")
+            self.comm = self.backend.comm
+            # for now require that comm.size is a square and divides 32
+            if self.comm.size not in [1, 4, 16]:
+                raise AttributeError('MPI.COMM_WORLD.size not compatible')
 
     def fetch_dataset(self, save_dir):
         save_dir = os.path.expandvars(os.path.expanduser(save_dir))
@@ -69,7 +69,8 @@ class CIFAR10(Dataset):
 
     def adjust_for_dist(self):
         # computes the indices to load from input data for the dist case
-
+        if not hasattr(self, 'comm'):
+            self.initialize()
         comm_rank = self.comm.rank
         self.dist_indices = []
         img_width = 32

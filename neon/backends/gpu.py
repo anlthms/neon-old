@@ -12,11 +12,8 @@ import numpy
 import os
 
 from neon.backends.backend import Backend, Tensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -1584,13 +1581,14 @@ class GPUDataDist(GPU):
 
         if (local_size > num_devices):
             logger.warning('Node %s: requested device: %d  max devices: %d',
-                           MPI.Get_processor_name(), local_size, num_devices)
+                           self.mpi.Get_processor_name(), local_size,
+                           num_devices)
             raise AttributeError("Asking for more gpu devices than are "
                                  "available on node")
 
         cudanet.set_device_id(local_rank)
         logger.info('Setting Device on %s to %d',
-                    MPI.Get_processor_name(), local_rank)
+                    self.mpi.Get_processor_name(), local_rank)
         super(GPUDataDist, self).__init__(**kwargs)
 
     def update_fc(self, out, inputs, deltas):
@@ -1598,10 +1596,9 @@ class GPUDataDist(GPU):
         # trivial implementation below
         # could optimize by making each proc responsible for #params/comm.size
         # of the params
-        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
-                                                           op=MPI.SUM, root=0)
-        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
-            out._tensor.numpy_array)
+        out._tensor.numpy_array[:] = self.comm.reduce(out.asnumpyarray(),
+                                                      op=self.mpi.SUM, root=0)
+        out._tensor.numpy_array[:] = self.comm.bcast(out._tensor.numpy_array)
         out.copy_to_device()
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
@@ -1613,9 +1610,8 @@ class GPUDataDist(GPU):
                                              stride, ngroups, fwidth,
                                              updatebuf)
 
-        out._tensor.numpy_array[:] = MPI.COMM_WORLD.reduce(out.asnumpyarray(),
-                                                           op=MPI.SUM, root=0)
-        out._tensor.numpy_array[:] = MPI.COMM_WORLD.bcast(
-            out._tensor.numpy_array)
+        out._tensor.numpy_array[:] = self.comm.reduce(out.asnumpyarray(),
+                                                      op=self.mpi.SUM, root=0)
+        out._tensor.numpy_array[:] = self.comm.bcast(out._tensor.numpy_array)
 
         out.copy_to_device()

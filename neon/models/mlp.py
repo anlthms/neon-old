@@ -33,7 +33,8 @@ class MLP(MLP_old):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
 
-    def initialize(self, initlayer=None):
+    def initialize(self, backend, initlayer=None):
+        self.backend = backend
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate}
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
