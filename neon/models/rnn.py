@@ -10,7 +10,7 @@ import logging
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.mlp import MLP
 from neon.util.compat import range
-from neon.util.param import req_param, opt_param
+from neon.util.param import req_param
 
 logger = logging.getLogger(__name__)
 
