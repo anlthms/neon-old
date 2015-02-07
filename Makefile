@@ -113,11 +113,13 @@ grad: build
 	@echo "Running gradient checks..."
 ifeq ($(CPU), 1)
 	@echo "CPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_cpu.yaml
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad \
+		examples/convnet/synthetic-sanity_check.yaml
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_gpu.yaml
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+		examples/convnet/synthetic-sanity_check.yaml
 endif
 
 all: style test sanity grad speed
