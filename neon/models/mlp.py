@@ -228,6 +228,8 @@ class MLPB(MLP):
     def link(self, initlayer=None):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
+        self.print_layers()
+        logger.info('Utilizing %s backend\n', self.backend.__class__.__name__)
 
     def initialize(self, initlayer=None):
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
@@ -285,7 +287,6 @@ class MLPB(MLP):
         Learn model weights on the given datasets.
         """
         error = self.backend.zeros((1, 1))
-        self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')

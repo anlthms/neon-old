@@ -9,6 +9,9 @@ import logging
 import numpy as np
 import os
 import zipfile
+import pylab
+import matplotlib
+import matplotlib.pyplot as plt
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
@@ -43,6 +46,7 @@ class BCI(Dataset):
     def __init__(self, **kwargs):
         self.dist_flag = False
         self.macro_batched = False
+        self.data_type = 'raw'
         self.__dict__.update(kwargs)
 
     def fetch_dataset(self, rootdir, setname, datadir):
@@ -117,8 +121,8 @@ class BCI(Dataset):
         serialize(targetdict, pklpath)
         return targetdict
 
-    def prep_data(self, inputdict, targetdict, subs, sessions,
-                  nsamples, features):
+    def prep_raw_data(self, inputdict, targetdict, subs,
+                  sessions, nsamples, features):
         nfeatures = len(features)
         nrows = 0
         for subid in subs:
@@ -139,20 +143,42 @@ class BCI(Dataset):
                 row += nsessrows
         assert row == nrows
         row = 0
+        rinputs = inputs.reshape((nrows, nfeatures, nsamples))
         for subid in subs:
             for sessid in sessions:
                 fbinds = np.nonzero(inputdict[subid][sessid][:, -1])[0]
                 sessdata = inputdict[subid][sessid]
                 for ind in fbinds:
-                    for gfind in range(nfeatures):
-                        gf = features[gfind]
-                        startcol = gfind * nsamples
-                        endcol = startcol + nsamples
-                        inputs[row, startcol:endcol] = (
-                            sessdata[ind:ind+nsamples, gf])
+                    for featind in range(nfeatures):
+                        feat = features[featind]
+                        rinputs[row, featind] = (
+                            sessdata[ind:ind+nsamples, feat])
                     row += 1
         assert row == nrows
         return inputs, targets
+
+    def sgram(self, signal, height, width):
+        sgram = pylab.specgram(signal, NFFT=128, Fs=2, noverlap=120,
+                               cmap=matplotlib.cm.gist_heat)[0]
+        return sgram[:height, :width]
+
+    def prep_sgram_data(self, inputdict, targetdict, subs,
+                           sessions, nsamples, features):
+        raw_inputs, targets = self.prep_raw_data(
+            inputdict, targetdict, subs, sessions, nsamples, features)
+
+        nfeatures = len(features)
+        nrows = raw_inputs.shape[0]
+        height, width = 16, 16
+        inputs = np.zeros((nrows, nfeatures, height, width))
+
+        raw_inputs = raw_inputs.reshape((nrows, nfeatures, nsamples))
+        for row in range(nrows):
+            for featind in range(nfeatures):
+                fvector = raw_inputs[row, featind]
+                sgram = self.sgram(fvector, height, width)
+                inputs[row, featind] = sgram
+        return inputs.reshape((nrows, nfeatures*height*width)), targets
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -173,6 +199,13 @@ class BCI(Dataset):
         np.random.shuffle(subs)
         trainsubs = subs[:split]
         valsubs = subs[split:]
+
+        if self.data_type == 'raw':
+            self.prep_data = self.prep_raw_data
+        elif self.data_type == 'sgram':
+            self.prep_data = self.prep_sgram_data
+        else:
+            raise AttributeError('invalid data type specified')
 
         traininputs, traintargets = self.prep_data(
             inputdict, targetdict, trainsubs,
