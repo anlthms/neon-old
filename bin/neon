@@ -104,10 +104,16 @@ def main():
                              experiment.logging["level"])
                 logger.setLevel(experiment.logging["level"])
         # carry out the experiment
-        backend = gen_backend(model=experiment.model, gpu=args.gpu,
-                              datapar=args.datapar, modelpar=args.modelpar,
-                              flexpoint=args.flexpoint, rng_seed=args.rng_seed,
-                              numerr_handling=args.numerr_handling)
+        if not hasattr(experiment, 'backend') or experiment.backend is None:
+            backend = gen_backend(model=experiment.model, gpu=args.gpu,
+                                  datapar=args.datapar, modelpar=args.modelpar,
+                                  flexpoint=args.flexpoint,
+                                  rng_seed=args.rng_seed,
+                                  numerr_handling=args.numerr_handling)
+        else:
+            logger.info("utilizing %s backend from yaml file",
+                        backend.__class__.__name__)
+            backend = experiment.backend
         experiment.initialize(backend)
         result = experiment.run()
         if args.profile is not None:

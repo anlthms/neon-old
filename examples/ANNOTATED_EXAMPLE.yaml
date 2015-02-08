@@ -12,15 +12,15 @@
 # - a scalar string, boolean, or number ex: 'hello', False, 25.6
 # - a list of values ex: [1, 2, 3]
 # - a dictionary of key/value pairs ex: { a: 1, b: 2, c: 3 }
-# - a python object instantiation ex: !obj:neon.transforms.logistic.Logistic {}
+# - a python object instantiation ex: !obj:transforms.Logistic {}
 #   note that object constructor arguments are passed between the curly braces
 #   as key/value pairs
 #
 # Parameters can be split over multiple lines, and comments can be added by
 # prepending a # character.
 #
-# A common source of error is forgetting ',' between parameters belonging to
-# the same object
+# A common source of error is forgetting the ',' between parameters belonging
+# to the same object
 #
 # To save on explicit repetition, you can reference parameters by assigning a
 # variable alias, then dereference them where needed later.  The syntax for
@@ -45,14 +45,11 @@
 # GenOutputExperiment - fit experiment where at the end we want to visualize
 #                       the output compared to the input (useful for things
 #                       like autoencoders or balance networks).
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+# WriteErrorToFile - fit experiment where at the end we save off the
+#                    predictions to a file on disk
+!obj:experiments.FitPredictErrorExperiment {
   # Fit*Experiment parameters:
   # --------------------------
-  # backend - Controls how data will be constructed and operated on
-  #           during the experiment.  Key parameter allowing the following types:
-  #           CPU - 32-bit float numpy wrapped CPU based data
-  #           Flexpoint - fixed decimal point wrapped CPU based data
-  #           GPU - 32-bit float custom cuda-convnet2 wrapped GPU based data
   # dataset - The input data to train/test against.  types:
   #           MNIST - handwritten digit image dataset
   #           CIFAR10 - 10 class object image dataset
@@ -60,6 +57,7 @@
   #           SPARSENET - small natural image dataset (Olshausen and Field)
   #           Iris - RA Fisher's 3 class flower dataset
   #           MOBYDICK - Content of the book Moby Dick
+  #           NDSB - National Data Science Bowl Image dataset
   #           TFD - Toronto Face image dataset
   #           UniformRandom - synthetic random data
   #           ToyImages - synthetic image classification dataset
@@ -85,8 +83,8 @@
   #                                     based updates
   #         adadelta - Adadelta based updates.  See Zeiler2012
   # model - the type of machine learning algorithm to employ.  types:
-  #         MLP, MLPB, MLPDist - feed-forward multi-layer perceptron neural
-  #                              network
+  #         MLP, MLPDist - feed-forward multi-layer perceptron neural
+  #                        network
   #         RBM - restricted Boltzmann machine
   #         RNN - Recurrent neural network
   #         Balance - Balance network
@@ -96,21 +94,10 @@
   #         ConvnetDist - Halo parallel distributed convolutional network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
-  backend: &be !obj:neon.backends.cpu.CPU {
-    # CPU backend parameters:
-    # -----------------------
-    # rng_seed - seed value for random number generator
-    # seterr_handling - controls how floating point errors are handled
-    rng_seed: 0,
-    seterr_handling: {
-      all: 'warn',
-    },
-  },
   
-  dataset: &ds !obj:neon.datasets.iris.Iris {
+  dataset: &ds !obj:datasets.Iris {
     # Iris dataset parameters
     # -----------------------
-    # backend - backend to use to store and operate on this dataset
     # repo_path - on-disk repository location where this dataset resides
     #             (specify repository root containing the Iris dir, and not
     #             the Iris dir directly)
@@ -127,10 +114,9 @@
     #                  what may already be present when deserializing an
     #                  instance of this object.  Can be useful for things like
     #                  forcing an updated serialization path and so forth.
-    backend: *be,
-    repo_path: '/usr/local/data',
+    repo_path: '~/data',
     sample_pct: 100,
-    serialized_path: '/usr/local/data/Iris/iris-CPU.pkl',
+    serialized_path: '~/data/Iris/iris-CPU.pkl',
     overwrite_list: ['serialized_path']
   },
   
@@ -141,7 +127,6 @@
     # low - minimal uniform random value range endpoint
     # high - maximal uniform random value range endpoint
     # bias_init - initial values for biases (if used)
-    backend: *be,
     low: -1,
     high: 1,
     bias_init: 0.0,
@@ -177,8 +162,7 @@
     #                      values until we reach the saturate_epoch.
     type: gradient_descent_momentum,
     lr_params: {
-      learning_rate: 0.1,
-      backend: *be,
+      learning_rate: 0.5,
       momentum_params: {
         type: constant,
         coef: 0,
@@ -186,10 +170,9 @@
     },
   },
 
-  model: !obj:neon.models.mlp.MLPB {
+  model: !obj:models.MLP {
     # MLP model parameters
     # --------------------
-    # backend - backend to use to store data constructed for this model
     # batch_size - number of training instances in each mini-batch.  Should
     #              be no larger than the size of the training dataset.
     # num_epochs - the number of iterations through the entire training set
@@ -200,12 +183,11 @@
     # layers - list of neural network layer objects.  Models will typically
     #          have a single DataLayer, followed by 1 or more hidden layers,
     #          then a final CostLayer.
-    backend: *be,
-    num_epochs: 2500,
+    num_epochs: 25,
     batch_size: &bs 30,
     serialized_path: './iris-mlp-simple.pkl',
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         # DataLayer parameters
         # --------------------
         # The data layer feeds data from the input dataset defined in the
@@ -216,7 +198,7 @@
         name: d0,
         nout: 4,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         # FCLayer parameters
         # ------------------
         # Apart from Data and Cost layers, internal layers have parameters:
@@ -237,16 +219,16 @@
         nout: 2,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 3,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         # CostLayer parameters
         # --------------------
         # This layer defines the cost or objective function to be optimized.
@@ -263,7 +245,7 @@
         #        SumSquaredDiffs - computes the sum of squared differences.
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

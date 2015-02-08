@@ -3,20 +3,15 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test a CNN on MNIST.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitPredictErrorExperiment {
 
   # MNIST data
-  dataset: &ds !obj:neon.datasets.mnist.MNIST {
-    backend: *be,
-    repo_path: '/usr/local/data',
+  dataset: &ds !obj:datasets.MNIST {
+    repo_path: '~/data',
     sample_pct: 10,
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
-    backend: *be,
     low: -0.1,
     high: 0.1,
   },
@@ -26,7 +21,6 @@
       type: gradient_descent_momentum,
       lr_params: {
         learning_rate: 0.01,
-        backend: *be,
         momentum_params: {
           type: constant, # linear_monotone, nesterov
           coef: 0.90,
@@ -38,65 +32,63 @@
       lr_params: {
         rho: &ro 0.95,
         epsilon: &eps 0.000001,
-        backend: *be,
       },
     },
   ],
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
+  model: !obj:models.MLP {
     num_epochs: 5,
     batch_size: &bs 100,
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 784,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer1,
         nofm: 16,
         fshape: [5, 5],
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
         nofm: 32,
         fshape: [5, 5],
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: layer5,
         nout: 500,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 10,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
         weight_init: *wt_init,
         lrule_init: *gdm,
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

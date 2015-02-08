@@ -4,22 +4,16 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset.  Simple network meant more as a sanity check.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
-    rng_seed: 0,
-    seterr_handling: {
-      all: 'warn',
-    },
-  },
+!obj:experiments.WriteErrorToFile {
+  filename: neon_result_validation.txt,
+  item: test, # if avaliable, use 'validation'
 
-  dataset: &ds !obj:neon.datasets.iris.Iris {
-    backend: *be,
-    repo_path: '/usr/local/data',
+  dataset: &ds !obj:datasets.Iris {
+    repo_path: '~/data',
     sample_pct: 100,
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
-    backend: *be,
     low: -1,
     high: 1,
     bias_init: 0.0,
@@ -28,8 +22,7 @@
   lrule: &gdm {
     type: gradient_descent_momentum,
     lr_params: {
-      learning_rate: 0.1,
-      backend: *be,
+      learning_rate: !hyperopt lr FLOAT 0.01 0.1,
       momentum_params: {
         type: constant,
         coef: 0,
@@ -37,33 +30,32 @@
     },
   },
   # simple MLP model specification
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
-    num_epochs: 2500,
+  model: !obj:models.MLP {
+    num_epochs: !hyperopt nep INT 100 1000,
     batch_size: &bs 30,
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 4,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:ayers.FCLayer {
         name: h0,
         nout: 2,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 3,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

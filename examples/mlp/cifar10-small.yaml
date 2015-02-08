@@ -1,22 +1,16 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# GPU based MLP on CIFAR-10
+# MLP on CIFAR-10
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:neon.datasets.cifar10.CIFAR10 {
-    backend: *be,
-    repo_path: '/usr/local/data',
+  dataset: &ds !obj:datasets.CIFAR10 {
+    repo_path: '~/data',
     sample_pct: 10,
-      # serialized_path: '/usr/local/data/CIFAR10/cifar10_10pct-Cpu.pkl',
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
-    backend: *be,
     low: -0.1,
     high: 0.1,
   },
@@ -25,7 +19,6 @@
     type: gradient_descent_momentum,
     lr_params: {
       learning_rate: 0.01,
-      backend: *be,
       momentum_params: {
         type: constant,
         coef: 0.90,
@@ -33,33 +26,32 @@
     },
   },
 
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
+  model: !obj:models.MLP {
     num_epochs: 100,
     batch_size: &bs 100,
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 3072,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: h0,
         nout: 200,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 10,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

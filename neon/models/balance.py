@@ -27,8 +27,9 @@ class Balance(MLP):
         self.pathways = [self.layers, self.classlayers, self.stylelayers]
         self.kwargs = kwargs
 
-    def initialize(self, initlayer=None):
-        super(Balance, self).initialize(initlayer)
+    def initialize(self, backend, initlayer=None):
+        super(Balance, self).initialize(backend, initlayer)
+        self.kwargs['backend'] = self.backend
         for lp in [self.classlayers, self.stylelayers]:
             lp[-1].set_previous_layer(lp[-2])
             lp[-1].initialize(self.kwargs)

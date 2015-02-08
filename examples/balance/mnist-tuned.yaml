@@ -4,23 +4,15 @@
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
 
- !obj:neon.experiments.generate_output.GenOutputExperiment {
+ !obj:experiments.GenOutputExperiment {
   zparam: 0.0,
   olayout: [12, 6],
   fshape: [28, 28],
   figure_filename: 'ofn.png',
 
-  backend: &be !obj:neon.backends.gpu.GPU {
-    rng_seed: 0,
-    seterr_handling: {
-      all: 'warn',
-    },
-  },
-
   # MNIST data
-  dataset: &ds !obj:neon.datasets.mnist.MNIST {
-    backend: *be,
-    repo_path: '/usr/local/data',
+  dataset: &ds !obj:datasets.MNIST {
+    repo_path: '~/data',
     sample_pct: 100,
   },
 
@@ -29,57 +21,53 @@
     lr_params: {
       epsilon: 0.000001,
       rho: 0.95,
-      backend: *be,
     },
   },
 
   wt_cfgs: [
     &wt_init_a !obj:params.AutoUniformValGen {
-      backend: *be,
       bias_init: 0.0,
     },
     &wt_init_b !obj:params.AutoUniformValGen {
-      backend: *be,
       bias_init: 0.0,
       relu: 1,
     },
   ],
 
   # simple Balance model specification
-  model: !obj:neon.models.balance.Balance {
+  model: !obj:models.Balance {
     # serialized_path: './balance-simple.pkl',
-    backend: *be,
     num_epochs: 20,
     batch_size: &bs 100,
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 784,
       },
-      &h0 !obj:neon.models.layer2.FCLayer {
+      &h0 !obj:layers.FCLayer {
         name: h0,
         lrule_init: *adad,
         weight_init: *wt_init_b,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         nout: 200,
       },
-      &h1 !obj:neon.models.layer2.FCLayer {
+      &h1 !obj:layers.FCLayer {
         name: h1,
         lrule_init: *adad,
         weight_init: *wt_init_a,
         nout: 200,
       },
-      &blayer !obj:neon.models.layer2.BranchLayer {
+      &blayer !obj:layers.BranchLayer {
         name: blayer,
         sublayers: [
-          &classlayer !obj:neon.models.layer2.FCLayer {
+          &classlayer !obj:layers.FCLayer {
             name: classlayer,
             lrule_init: *adad,
             weight_init: *wt_init_a,
-            activation: !obj:neon.transforms.softmax.Softmax {},
+            activation: !obj:transforms.Softmax {},
             nout: &zidx 10,
           },
-          &stylelayer !obj:neon.models.layer2.FCLayer {
+          &stylelayer !obj:layers.FCLayer {
             name: stylelayer,
             lrule_init: *adad,
             weight_init: *wt_init_a,
@@ -87,30 +75,30 @@
           },
         ],
       },
-      &h3 !obj:neon.models.layer2.FCLayer {
+      &h3 !obj:layers.FCLayer {
         name: h3,
         lrule_init: *adad,
         weight_init: *wt_init_a,
         nout: 200,
       },
-      &h4 !obj:neon.models.layer2.FCLayer {
+      &h4 !obj:layers.FCLayer {
         name: h4,
         lrule_init: *adad,
         weight_init: *wt_init_b,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         nout: 200,
       },
-      &outlayer !obj:neon.models.layer2.FCLayer {
+      &outlayer !obj:layers.FCLayer {
         name: outlayer,
         lrule_init: *adad,
         weight_init: *wt_init_a,
         nout: 784,
       },
-      &sumsqcostlayer !obj:neon.models.layer2.CostLayer {
+      &sumsqcostlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
         ref_label: output,
-        cost: !obj:neon.transforms.sum_squared.SumSquaredDiffs {},
+        cost: !obj:transforms.SumSquaredDiffs {},
       },
     ],
     classlayers: [
@@ -118,10 +106,10 @@
       *h0,
       *h1,
       *classlayer,
-      &xentcostlayer !obj:neon.models.layer2.CostLayer {
+      &xentcostlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+        cost: !obj:transforms.CrossEntropy {
           scale: 10,
         },
       },
@@ -131,10 +119,10 @@
       *h0,
       *h1,
       *blayer,
-      &xcovcostlayer !obj:neon.models.layer2.CostLayer {
+      &xcovcostlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.xcov.XCovariance {
+        cost: !obj:transforms.XCovariance {
           blkidx: 10,
           scale: 10,
         },

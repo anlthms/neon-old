@@ -3,20 +3,15 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train a stacked autoencoder on MNIST.
 
-!obj:neon.experiments.fit.FitExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitExperiment {
 
-  dataset: &ds !obj:neon.datasets.mnist.MNIST {
-    backend: *be,
-    repo_path: '/usr/local/data',
+  dataset: &ds !obj:datasets.MNIST {
+    repo_path: '~/data',
     sample_pct: 100,
   },
 
   weight_inits: [
     &wt_init !obj:params.GaussianValGen {
-      backend: *be,
       scale: 0.1,
     },
   ],
@@ -25,7 +20,6 @@
     type: gradient_descent_momentum,
     lr_params: {
       learning_rate: &lr 0.0001,
-      backend: *be,
       momentum_params: &mm {
         type: constant, # linear_monotone, nesterov
         coef: 0.90,
@@ -34,76 +28,74 @@
   },
 
   # Autoencoder model specification
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
+  model: !obj:models.MLP {
     num_epochs: 60,
     batch_size: &bs 100,
-    # serialized_path: './ae-cudanet.pkl',
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 784,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: enc1,
         nout: 1000,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: enc2,
         nout: 500,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: enc3,
         nout: 250,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: enc4,
         nout: 30,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: dec1,
         nout: 250,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: dec2,
         nout: 500,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: dec3,
         nout: 1000,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: dec4,
         nout: 784,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
         ref_label: output,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },
