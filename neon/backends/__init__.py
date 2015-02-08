@@ -13,8 +13,7 @@ import sys
 from neon.backends.flexpt_dtype import flexpt
 
 # import shortcuts
-from neon.backends.cpu import CPU  # noqa
-from neon.backends.gpu import GPU  # noqa
+from neon.backends.cpu import CPU
 from neon.backends.par import NoPar, ModelPar, DataPar
 
 if np.__dict__.get('flexpt') is not None:
@@ -109,6 +108,7 @@ def gen_backend(model, gpu=False, datapar=False, modelpar=False,
         logger.warning("Flexpoint(TM) backend not currently available")
 
     if gpu:
+        from neon.backends.gpu import GPU
         logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
         be = GPU(rng_seed=rng_seed)
