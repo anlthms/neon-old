@@ -12,13 +12,16 @@ import zipfile
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
+from neon.util.persist import serialize, deserialize
 
 
 logger = logging.getLogger(__name__)
 
 
-gsubs = [2, 6, 7, 11]
-gsessions = range(1, 6)
+SUBS = [2, 6, 7, 11, 12, 13, 14, 16, 17, 18, 20, 21, 22, 23, 24, 26]
+SESSIONS = range(1, 6)
+FEATURES = [15, 20, 31, 55]
+NSAMPLES = 260
 
 
 class BCI(Dataset):
@@ -60,6 +63,10 @@ class BCI(Dataset):
         return True
 
     def read_data(self, rootdir, setname):
+        pklpath = os.path.join(rootdir, 'inputdict.pkl')
+        if os.path.exists(pklpath):
+            return deserialize(pklpath)
+
         datadir = os.path.join(rootdir, setname)
         if self.fetch_dataset(rootdir, setname, datadir) is False:
             return None
@@ -68,24 +75,23 @@ class BCI(Dataset):
         for walkresult in os.walk(datadir):
             filenames = walkresult[2]
             nfiles = len(filenames)
-            datadict = {}
+            inputdict = {}
             for filename in filenames:
                 subid = int(filename.split('_')[1][1:])
-                # XXX
-                if subid not in gsubs:
-                    continue
                 sessid = int(filename.split('_')[2].split('.')[0][-2:])
-                if sessid not in gsessions:
-                    continue
-                if subid not in datadict.keys():
-                    datadict[subid] = {}
+                if subid not in inputdict.keys():
+                    inputdict[subid] = {}
                 fullpath = os.path.join(datadir, filename)
                 logger.info('Reading %s', fullpath)
-                datadict[subid][sessid] = np.genfromtxt(
+                inputdict[subid][sessid] = np.genfromtxt(
                     fullpath, delimiter=',', dtype='float32', skip_header=1)
-        return datadict
+        serialize(inputdict, pklpath)
+        return inputdict
 
-    def read_targets(self, rootdir, subs):
+    def read_targets(self, rootdir, subs, sessions):
+        pklpath = os.path.join(rootdir, 'targetdict.pkl')
+        if os.path.exists(pklpath):
+            return deserialize(pklpath)
         targetfile = os.path.join(rootdir, 'TrainLabels.csv')
         rawtargets = np.genfromtxt(targetfile, dtype='S16,int',
                                    delimiter=',', skip_header=1)
@@ -104,26 +110,28 @@ class BCI(Dataset):
         targetdict = {}
         for subid in subs:
             targetdict[subid] = {}
-            for sessid in gsessions:
+            for sessid in sessions:
                 subtarget = targets[targets[:, 0] == subid]
                 sesstarget = subtarget[subtarget[:, 1] == sessid]
                 targetdict[subid][sessid] = sesstarget[:, 2]
+        serialize(targetdict, pklpath)
         return targetdict
 
-    def prep_data(self, datadict, targetdict, subs):
-        nfeatures = 260
+    def prep_data(self, inputdict, targetdict, subs, sessions,
+                  nsamples, features):
+        nfeatures = len(features)
         nrows = 0
         for subid in subs:
-            for sessid in gsessions:
+            for sessid in sessions:
                 nsessrows = targetdict[subid][sessid].shape[0]
-                assert nsessrows == (datadict[subid][sessid][:, -1] == 1).sum()
+                assert nsessrows == (inputdict[subid][sessid][:, -1] == 1).sum()
                 nrows += nsessrows
 
-        features = np.zeros((nrows, nfeatures))
+        inputs = np.zeros((nrows, nfeatures*nsamples))
         targets = np.zeros((nrows, 2))
         row = 0
         for subid in subs:
-            for sessid in gsessions:
+            for sessid in sessions:
                 nsessrows = targetdict[subid][sessid].shape[0]
                 for col in range(2):
                     tview = targets[row:row+nsessrows, col]
@@ -132,14 +140,19 @@ class BCI(Dataset):
         assert row == nrows
         row = 0
         for subid in subs:
-            for sessid in gsessions:
-                fbinds = np.nonzero(datadict[subid][sessid][:, -1])[0]
-                sessdata = datadict[subid][sessid]
+            for sessid in sessions:
+                fbinds = np.nonzero(inputdict[subid][sessid][:, -1])[0]
+                sessdata = inputdict[subid][sessid]
                 for ind in fbinds:
-                    features[row] = sessdata[ind:ind+nfeatures, 31]
+                    for gfind in range(nfeatures):
+                        gf = features[gfind]
+                        startcol = gfind * nsamples
+                        endcol = startcol + nsamples
+                        inputs[row, startcol:endcol] = (
+                            sessdata[ind:ind+nsamples, gf])
                     row += 1
         assert row == nrows
-        return features, targets
+        return inputs, targets
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -149,19 +162,24 @@ class BCI(Dataset):
 
         rootdir = os.path.join(self.repo_path,
                                self.__class__.__name__)
-        datadict = self.read_data(rootdir, 'train')
-        subs = datadict.keys()
-        targetdict = self.read_targets(rootdir, subs)
+        inputdict = self.read_data(rootdir, 'train')
+        subs = inputdict.keys()
+        sessions = inputdict[subs[0]].keys()
+        targetdict = self.read_targets(rootdir, subs, sessions)
 
+        subs = SUBS
         split = int(len(subs) * 0.6)
         np.random.seed(0)
         np.random.shuffle(subs)
         trainsubs = subs[:split]
         valsubs = subs[split:]
 
-        traininputs, traintargets = self.prep_data(datadict, targetdict,
-                                                   trainsubs)
-        valinputs, valtargets = self.prep_data(datadict, targetdict, valsubs)
+        traininputs, traintargets = self.prep_data(
+            inputdict, targetdict, trainsubs,
+            SESSIONS, NSAMPLES, FEATURES)
+        valinputs, valtargets = self.prep_data(
+            inputdict, targetdict, valsubs,
+            SESSIONS, NSAMPLES, FEATURES)
 
         traininds = np.arange(traininputs.shape[0])
         np.random.shuffle(traininds)
