@@ -50,18 +50,21 @@ class Hurricane(Dataset):
         # [DEBUG] some debug settings
         # which variables to pick
         v = self.variables if 'variables' in self.__dict__ else range(8)
+        cr = self.crop/2 if 'crop' in self.__dict__ else 32/2  # crop center
         tr = self.training_size
         te = self.test_size
+        rng = slice(16-cr, 16+cr)  # thanks scott!
 
         # take equal number of hurricanes and non-hurricanes
-        self.inputs['train'] = np.vstack((one[:tr, v], zero[:tr, v]))
+        self.inputs['train'] = np.vstack((one[:tr, v, rng, rng],
+                                          zero[:tr, v, rng, rng]))
 
         # one hot encoding required for MLP
         self.targets['train'] = np.vstack(([[1, 0]] * tr, [[0, 1]] * tr))
 
         # same with validation set
-        self.inputs['validation'] = np.vstack((one[tr:tr+te, v],
-                                              zero[tr:tr+te, v]))
+        self.inputs['validation'] = np.vstack((one[tr:tr+te, v, rng, rng],
+                                              zero[tr:tr+te, v, rng, rng]))
         self.targets['validation'] = np.vstack(([[1, 0]] * te, [[0, 1]] * te))
 
         f.close()

@@ -1,22 +1,22 @@
-# Small convolutional net for hurricane patches.
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Small convolutional net for hurricane patches. FC layers written as conv.
+# Pretraining step for localization experiment.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitPredictErrorExperiment {
 
-  dataset: !obj:neon.datasets.hurricane.Hurricane {
-      backend: *be,
-      repo_path: '/mnt/data/nersc/hurricane/',
+  dataset: !obj:datasets.Hurricane {
+      repo_path: '/usr/local/data/',
       hdf5_file: 'hurricanes.h5',
-      variables: [0],
-      training_size: 1000,
-      test_size: 1000
+      # variables: [0],  # used in singlevar case
+      crop: 16,  # train on a smaller center region.
+      training_size: 10000,
+      test_size: 10000,
   },
 
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
-      backend: *be,
       low: -0.1,
       high: 0.1,
     },
@@ -27,7 +27,6 @@
         type: gradient_descent_momentum,
         lr_params: {
           learning_rate: 0.01,
-          backend: *be,
           momentum_params: {
             type: constant, # linear_monotone, nesterov
             coef: 0.90,
@@ -37,35 +36,35 @@
   ],
 
   # CNN model specification
-  # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLPL {
-    backend: *be,
+  # MLPL inherits everything from MLPB, but later on we will use extra
+  # localization features from this subclass.
+  model: !obj:models.MLPL {
     num_epochs: 5,
     batch_size: &bs 100,
-    # serialized_path: './cnn-small.pkl',
+    serialized_path: './hurr16features.pkl',  # check util/persist for overwrite_param
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 1, # Must match the number of variables.
-        ofmshape: [32, 32],
+        nofm: 8, # Must match the number of variables.
+        ofmshape: [16, 16],
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer1,
         nofm: 10,
-        ifmshape: [32, 32],
+        #ifmshape: [16, 16],  # No longer needed? -UK
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
         nofm: 10,
         fshape: [5, 5],
@@ -73,30 +72,36 @@
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.ConvLayer { # was FCLayer
         name: layer5,
-        nout: 10,
+        #nout: 10,
+        nofm: 10,
+        fshape: [1, 1],
+        stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.ConvLayer { # was FCLayer
         name: output,
-        nout: 2,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        #nout: 2,
+        nofm: 2,
+        fshape: [1, 1],
+        stride: 1,
+        activation: !obj:transforms.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },

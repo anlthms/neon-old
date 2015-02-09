@@ -1,21 +1,16 @@
 # Small convolutional net for hurricane patches.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.cpu.CPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitPredictErrorExperiment {
 
-  dataset: !obj:neon.datasets.hurricane.Hurricane {
-      backend: *be,
+  dataset: !obj:datasets.Hurricane {
       repo_path: '/mnt/data/nersc/hurricane/',
       hdf5_file: 'hurricanes.h5',
       training_size: 10000,
       test_size: 10000
   },
-  
+
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
-      backend: *be,
       low: -0.1,
       high: 0.1,
     },
@@ -26,7 +21,6 @@
         type: gradient_descent_momentum,
         lr_params: {
           learning_rate: 0.01,
-          backend: *be,
           momentum_params: {
             type: constant, # linear_monotone, nesterov
             coef: 0.90,
@@ -37,19 +31,18 @@
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
+  model: !obj:models.MLP {
     num_epochs: 5,
     batch_size: &bs 100,
     # serialized_path: './cnn-small.pkl',
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
         nofm: 8, # Must match the number of variables.
         ofmshape: [32, 32],
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer1,
         nofm: 10,
         ifmshape: [32, 32],
@@ -58,13 +51,13 @@
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
         nofm: 10,
         fshape: [5, 5],
@@ -72,34 +65,34 @@
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: layer5,
         nout: 10,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: output,
         nout: 2,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },
-  
+
   # logging options that are passed to logging.basicConfig
   # level value thresholds (set level lower to display them):
   #   CRITICAL 50

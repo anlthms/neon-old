@@ -151,3 +151,73 @@ class MLP(MLP_old):
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
+
+
+class MLPL(MLP):
+    """
+    Localization model. Inherits everythning from MLPB that does the learning
+    of the features. Then runs a forward pass on the larger images and [todo]
+    plots localization maps.
+    """
+
+    def predict_and_localize(self, dataset=None):
+
+        # setting up data
+        if dataset is not None:
+            self.data_layer.init_dataset(dataset)
+        dataset.set_batch_size(self.batch_size)
+        self.data_layer.use_set('validation', predict=True)
+
+        # seting up layers
+        self.layers[0].ofmshape = [32, 32]  # TODO: Move this to yaml
+
+        for l in range(1, len(self.layers)-1):
+            delattr(self.layers[l], 'delta_shape')
+            delattr(self.layers[l], 'out_shape')
+
+        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
+                  "accumulate": self.accumulate, "no_weight_set": True}
+
+        self.link_and_initialize(self.layers, kwargs)  # with no_weight_set
+        self.print_layers()
+        self.fprop()
+        self.visualize()
+
+    def visualize(self):
+        """
+        Rudimentary visualization code for localization experiments:
+        """
+
+        # look at the data
+        mapp = self.layers[6].output.asnumpyarray()  # 50 is 2 x (5x5)
+        mapp0 = mapp[0:25, :].reshape(5, 5, -1)
+        mapp1 = mapp[25:50, :].reshape(5, 5, -1)
+        databatch = self.layers[0].output.asnumpyarray()
+        data0 = databatch[0*1024:1*1024, :].reshape(32, 32, -1)
+        data1 = databatch[1*1024:2*1024, :].reshape(32, 32, -1)
+
+        self.myplot(mapp0, title='positive class label strength',
+                    span=(0, 1), fig = 0)
+        self.myplot(mapp1, title='negative class label strength',
+                    span=(0, 1), fig = 1)
+        self.myplot(data0, title='data variable 0',
+                    span=(-1, 1.5), fig = 2)
+        self.myplot(data1, title='data variable 1', span=(-2, 2), fig = 3)
+
+        print "setting trace to keep plots open..."
+        trace()
+
+    @staticmethod
+    def myplot(data, title, span, fig):
+        """
+        I don't know what a staticmethod does so it may not make sense to
+        use that here
+        """
+        plt.figure(fig)
+        plt.clf()
+        for i in range(100):
+            plt.subplot(10, 10, i+1)
+            plt.imshow(data[:, :, i], interpolation='none',
+                       vmin=span[0], vmax=span[1])
+        plt.subplot(10, 10, 5)
+        plt.title(title)
