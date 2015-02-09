@@ -3,7 +3,7 @@ Our in-house developed python machine learning library.
 ## Installation ##
 
     # get the latest source
-    git clone git@gitlab.localdomain:algorithms/neon.git neon
+    git clone https://github.com/NervanaSystems/neon.git
     cd neon
     
     # build the package, install in your python package path via either:
@@ -45,27 +45,31 @@ These provide additional functionality, and assist developers
 
     # neon <path_to.yaml>
     # see the examples directory for sample .yaml files
-    neon examples/mnist_numpy_mlp-784-100-10.yaml
+    neon examples/mlp/mnist-small.yaml
+
+    # for GPU based runs, you need to have a CUDA capable GPU card installed
+    # then run:
+    neon --gpu examples/mlp/mnist-small.yaml
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -np <num_processes> -x <environment_vars> neon <path_to.yaml>
-    # ex: 4 process cnn example from top-level neon dir:
-    mpirun -n 4 -x PYTHONPATH bin/neon \
-           examples/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+    # mpirun -np <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
+    # ex: 4 process data parallel cnn example from top-level neon dir:
+    mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
+           examples/convnet/mnist-small.yaml
 
     # In multi-machine MPI environments need hosts file, and full paths should
     # be used:
     /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
-        /<full_path_to_neon>/neon \
-        /<full_path_to_examples>/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+        /<full_path_to_neon>/neon --datapar \
+        /<full_path_to_examples>/convnet/mnist-small.yaml
 
 See docs for full details.
 
 ## Features ##
 * Works with our hardware!  Easy to transition between it and various GPU and
   CPU backends for basic operations
-* Highly configurable via yaml files.  Select backend, learning algorithm
-  architecture, tuning parameters, and so on.
+* Highly configurable via yaml files.  Select learning algorithm, architecture,
+  tuning parameters, and so on.
 * Heavily instrumented for performance profiling, debugging, and visualization
 * Modular design
 * Well documented

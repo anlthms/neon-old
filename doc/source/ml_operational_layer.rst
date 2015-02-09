@@ -189,3 +189,9 @@ v0.7.0
     cleaned up
   * new backend begin() and end() functions to indicate the start and end of
     repeated instructions (as would be present in loops and so forth).
+  * code can be processed to inject the above hints via
+    `neon.util.compiler_hints.py`.  To remove, pass the `-s` flag to the
+    command invocation.
+
+* epsilon removed as a backend parameter (now associated with specific
+  functions being used)

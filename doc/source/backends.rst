@@ -14,6 +14,9 @@ Current Implementations
    neon.backends.cpu.CPU
    neon.backends.gpu.GPU
    neon.backends.flexpoint.Flexpoint
+   neon.backends.par.NoPar
+   neon.backends.par.DataPar
+   neon.backends.par.ModelPar
 
 Adding a new Backend
 --------------------

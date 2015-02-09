@@ -121,7 +121,7 @@ Layers
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer.Layer
+   neon.layers.layer.Layer
 
 Cost Layer
 ----------
@@ -129,7 +129,7 @@ Cost Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.CostLayer
+   neon.layers.layer.CostLayer
 
 Activation Layer
 ----------------
@@ -137,7 +137,7 @@ Activation Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.ActivationLayer
+   neon.layers.layer.ActivationLayer
 
 Data Layer
 ----------
@@ -145,7 +145,7 @@ Data Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.DataLayer
+   neon.layers.layer.DataLayer
 
 Weight Layer
 ------------
@@ -153,7 +153,7 @@ Weight Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.WeightLayer
+   neon.layers.layer.WeightLayer
 
 Fully Connected Layer
 ---------------------
@@ -161,7 +161,7 @@ Fully Connected Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.FCLayer
+   neon.layers.fully_connected.FCLayer
 
 Convolutional Layer
 -------------------
@@ -169,7 +169,7 @@ Convolutional Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.ConvLayer
+   neon.layers.convolutional.ConvLayer
 
 Pooling Layers
 ---------------
@@ -177,8 +177,8 @@ Pooling Layers
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.PoolingLayer
-   neon.models.layer2.CrossMapPoolingLayer
+   neon.layers.pooling.PoolingLayer
+   neon.layers.pooling.CrossMapPoolingLayer
 
 DropOut Layer
 -------------
@@ -186,7 +186,7 @@ DropOut Layer
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.DropOutLayer
+   neon.layers.dropout.DropOutLayer
 
 Composite Layers
 ----------------
@@ -194,9 +194,9 @@ Composite Layers
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.CompositeLayer
-   neon.models.layer2.BranchLayer
-   neon.models.layer2.ListLayer
+   neon.layers.compositional.CompositeLayer
+   neon.layers.compositional.BranchLayer
+   neon.layers.compositional.ListLayer
 
 Normalized Layers
 -----------------
@@ -204,8 +204,8 @@ Normalized Layers
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer2.CrossMapResponseNormLayer
-   neon.models.layer2.LocalContrastNormLayer
+   neon.layers.normalizing.CrossMapResponseNormLayer
+   neon.layers.normalizing.LocalContrastNormLayer
 
 Recurrent Layers
 ----------------
@@ -213,9 +213,11 @@ Recurrent Layers
 .. autosummary::
    :toctree: generated/
 
-   neon.models.layer.RecurrentHiddenLayer
-   neon.models.layer.RecurrentOutputLayer
-   neon.models.layer.RecurrentLSTMLayer
+   neon.layers.recurrent.RecurrentLayer
+   neon.layers.recurrent.RecurrentCostLayer
+   neon.layers.recurrent.RecurrentHiddenLayer
+   neon.layers.recurrent.RecurrentOutputLayer
+   neon.layers.recurrent.RecurrentLSTMLayer
 
 
 Learning Rules
@@ -224,7 +226,7 @@ Learning Rules
 .. autosummary::
    :toctree: generated/
 
-   neon.models.learning_rule.LearningRule
+   neon.optimizers.learning_rule.LearningRule
 
 Gradient Descent
 ----------------
@@ -232,11 +234,11 @@ Gradient Descent
 .. autosummary::
    :toctree: generated/
 
-   neon.models.learning_rule.GradientDescent
-   neon.models.learning_rule.GradientDescentPretrain
-   neon.models.learning_rule.GradientDescentMomentum
-   neon.models.learning_rule.GradientDescentMomentumWeightDecay
-   neon.models.learning_rule.AdaDelta
+   neon.optimizers.gradient_descent.GradientDescent
+   neon.optimizers.gradient_descent.GradientDescentPretrain
+   neon.optimizers.gradient_descent.GradientDescentMomentum
+   neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay
+   neon.optimizers.adadelta.AdaDelta
 
 Parameter Related
 =================
@@ -380,5 +382,4 @@ Miscellaneous
    :toctree: generated/
 
    neon.util.compat.PY3
-   neon.util.compat.CUDA_GPU
-   neon.util.compat.MPI_INSTALLED
+   neon.util.compat.range
