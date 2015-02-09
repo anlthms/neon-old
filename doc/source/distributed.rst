@@ -15,8 +15,8 @@ Available Models
    neon.models.convnet_dist.ConvnetDist
    neon.models.gb_dist.GBDist
 
-Existing Models and Datasets can be parallelized by adding the `--datapar` or
-`--modelpar` command line parameters.
+Existing Models and Datasets can be parallelized by adding the ``--datapar`` or
+``--modelpar`` command line parameters.
 
 We support 3 typical ways in which the dataset can be parallelized to be fed
 into the input layer of a deep neural network (parameter: dist_mode). 
@@ -39,9 +39,9 @@ There is an interaction between the strategy used to parallelize the dataset
 and the corresponding Layer type used.
 
 1. halopar for dataset can be used with:
+
   a. ConvLayerDist as input layer (and MaxPoolingLayerDist as higher-level
      layer)
-
   b. LocalFilteringLayerDist as input layer (and L2PoolingLayerDist and
      LCNLayerDist as higher-level layers)
 

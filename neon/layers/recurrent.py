@@ -136,7 +136,6 @@ class RecurrentOutputLayer(RecurrentLayer):
 
 
 class RecurrentHiddenLayer(RecurrentLayer):
-
     """
     Derived from Layer. In addition to the lists[tau] outlined for
     RecurrentOutputLayer, the fprop is getting input from two weight matrices,
@@ -196,7 +195,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
         [done] remove duplicate code
         [done] remove the loop altogether.
         [todo] If the if statement can't be supported, revert to duplicated
-               code
+        code
         """
 
         if self.prev_layer.is_data:
