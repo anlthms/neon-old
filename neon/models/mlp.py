@@ -138,7 +138,12 @@ class MLP(MLP_old):
             while self.data_layer.has_more_data():
                 self.fprop()
                 probs = self.get_classifier_output()
-                targets = self.data_layer.targets
+                self.cost_layer.set_target()
+                targets = self.cost_layer.targets
+                if self.data_layer.has_labels:
+                    labels = targets
+                else:
+                    self.backend.argmax(targets, axis=0, out=labels)
                 self.backend.argmax(targets, axis=0, out=labels)
                 self.backend.argmax(probs, axis=0, out=predlabels)
                 self.backend.not_equal(predlabels, labels, misclass)

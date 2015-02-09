@@ -9,5 +9,6 @@ try:
     from neon.datasets.sparsenet import SPARSENET  # noqa
     from neon.datasets.synthetic import ToyImages, UniformRandom  # noqa
     from neon.datasets.tfd import TFD  # noqa
+    from neon.datasets.imageset import Imageset  # noqa
 except ImportError:
     pass

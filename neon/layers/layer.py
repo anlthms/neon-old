@@ -212,8 +212,11 @@ class CostLayer(Layer):
         super(CostLayer, self).initialize(kwargs)
         req_param(self, ['cost', 'ref_layer'])
         opt_param(self, ['ref_label'], 'targets')
+        opt_param(self, ['raw_label'], False)
+        opt_param(self, ['category_label'], 'l_id')
         self.targets = None
         self.cost.olayer = self.prev_layer
+        kwargs['raw_label'] = self.raw_label
         self.cost.initialize(kwargs)
         self.deltas = self.cost.get_deltabuf()
 
@@ -225,21 +228,27 @@ class CostLayer(Layer):
                  cost_nm=self.cost.__class__.__name__,
                  be_nm=self.backend.__class__.__name__))
 
+    def set_target(self):
+        if self.ref_layer is not None:
+            tgts = getattr(self.ref_layer, self.ref_label)
+            if isinstance(tgts, dict):
+                self.targets = tgts[self.category_label]
+            else:
+                self.targets = tgts
+
     def fprop(self, inputs):
         pass
 
     def bprop(self, error):
         # Since self.deltas already pointing to destination of act gradient
         # we just have to scale by mini-batch size
-        if self.ref_layer is not None:
-            self.targets = getattr(self.ref_layer, self.ref_label)
+        self.set_target()
         self.cost.apply_derivative(self.targets)
         self.backend.divide(self.deltas, self.backend.actual_batch_size,
                             out=self.deltas)
 
     def get_cost(self):
-        if self.ref_layer is not None:
-            self.targets = getattr(self.ref_layer, self.ref_label)
+        self.set_target()
         result = self.cost.apply_function(self.targets)
         return self.backend.divide(result, self.batch_size, result)
 
@@ -251,6 +260,7 @@ class DataLayer(Layer):
     """
     def __init__(self, **kwargs):
         self.is_data = True
+        opt_param(self, ['has_labels'], False)
         super(DataLayer, self).__init__(**kwargs)
         # req_param(self, ['dataset'])
 
@@ -312,6 +322,16 @@ class DataLayer(Layer):
         # delete helper queues if any
         self.dataset.del_mini_batch_producer()
 
+class ImageDataLayer(DataLayer):
+
+    def __init__(self, **kwargs):
+        self.has_labels = True
+        super(ImageDataLayer, self).__init__(**kwargs)
+
+    def fprop(self, inputs):
+        self.output, self.targets, self.labels = self.dataset.get_mini_batch(
+            self.batch_idx)
+        self.batch_idx += 1
 
 class ActivationLayer(Layer):
     """
