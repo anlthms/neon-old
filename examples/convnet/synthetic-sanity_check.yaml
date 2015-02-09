@@ -4,24 +4,18 @@
 # Configuration for sanity checking.
 
 !obj:experiments.FitPredictErrorExperiment {
-  backend: &be !obj:backends.GPU {
-    rng_seed: 0,
-  },
 
   dataset: &ds !obj:datasets.ToyImages {
-    backend: *be,
     repo_path: '/usr/local/data',
     sample_pct: 100,
   },
 
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
-      backend: *be,
       low: -0.1,
       high: 0.1,
     },
     &wt_initb !obj:params.UniformValGen {
-      backend: *be,
       low: -0.1,
       high: 0.1,
       bias_init: 0.0,
@@ -32,7 +26,6 @@
     type: gradient_descent_momentum,
     lr_params: {
       learning_rate: 0.01,
-      backend: *be,
       momentum_params: {
         type: constant,
         coef: 0.90,
@@ -41,7 +34,6 @@
   },
 
   model: !obj:models.MLP {
-    backend: *be,
     num_epochs: 2,
     batch_size: &bs 32,
     learning_rate: &lr 0.01,
