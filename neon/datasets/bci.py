@@ -10,8 +10,6 @@ import numpy as np
 import os
 import zipfile
 import pylab
-import matplotlib
-import matplotlib.pyplot as plt
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
@@ -23,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 SUBS = [2, 6, 7, 11, 12, 13, 14, 16, 17, 18, 20, 21, 22, 23, 24, 26]
 SESSIONS = range(1, 6)
-FEATURES = [15, 20, 31, 55]
+FEATURES = range(1, 57)
 NSAMPLES = 260
 
 
@@ -121,14 +119,21 @@ class BCI(Dataset):
         serialize(targetdict, pklpath)
         return targetdict
 
+    def normalize(self, data):
+        minval = np.min(data)
+        data -= minval
+        maxval = np.max(data)
+        data /= maxval
+
     def prep_raw_data(self, inputdict, targetdict, subs,
-                  sessions, nsamples, features):
+                      sessions, nsamples, features):
         nfeatures = len(features)
         nrows = 0
         for subid in subs:
             for sessid in sessions:
                 nsessrows = targetdict[subid][sessid].shape[0]
-                assert nsessrows == (inputdict[subid][sessid][:, -1] == 1).sum()
+                assert nsessrows == (
+                    inputdict[subid][sessid][:, -1] == 1).sum()
                 nrows += nsessrows
 
         inputs = np.zeros((nrows, nfeatures*nsamples))
@@ -163,7 +168,7 @@ class BCI(Dataset):
         return sgram[:height, :width]
 
     def prep_sgram_data(self, inputdict, targetdict, subs,
-                           sessions, nsamples, features):
+                        sessions, nsamples, features):
         raw_inputs, targets = self.prep_raw_data(
             inputdict, targetdict, subs, sessions, nsamples, features)
 
@@ -180,18 +185,80 @@ class BCI(Dataset):
                 inputs[row, featind] = sgram
         return inputs.reshape((nrows, nfeatures*height*width)), targets
 
+    def get_chan_locs(self, width):
+        chanfile = os.path.join(self.rootdir, 'ChannelsLocation.csv')
+        locs = np.genfromtxt(chanfile, delimiter=',', dtype='float32',
+                             skip_header=1, usecols=[0, 2, 3])
+        assert locs.shape[1] == 3
+        nchannels = locs.shape[0]
+        assert nchannels == 56
+        cords = np.zeros((nchannels, 3))
+        angs = locs[:, 2] * np.pi / 180
+        rads = locs[:, 1]
+        # X co-ordinate
+        cords[:, 1] = rads * np.cos(angs)
+        # Y co-ordinate
+        cords[:, 2] = rads * np.sin(angs)
+        cords /= np.max(cords)
+        cords += 1
+        cords /= 2
+        cords *= width - 1
+        cords = np.int32(np.round(cords))
+        # The first column is the channel identifier (1-based index).
+        cords[:, 0] = locs[:, 0]
+        return cords
+
+    def anim(self, vid):
+        import matplotlib
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
+
+        fig, ax = plt.subplots()
+        x = plt.imshow(vid[0])
+
+        def inner(i):
+            return plt.imshow(vid[i])
+
+        ani = animation.FuncAnimation(fig, inner, 10, interval=25, blit=False)
+        plt.show()
+
+    def prep_vid_data(self, inputdict, targetdict, subs,
+                      sessions, nsamples, features):
+        raw_inputs, targets = self.prep_raw_data(
+            inputdict, targetdict, subs, sessions, nsamples, features)
+        nfeatures = len(features)
+        nrows = raw_inputs.shape[0]
+        depth, height, width = 16, 16, 16
+        stride = depth / 2
+        vidstream = np.zeros((nrows, nsamples, height, width))
+        raw_inputs = raw_inputs.reshape((nrows, nfeatures, nsamples))
+        chanlocs = self.get_chan_locs(width)
+        featind = 0
+        for featind in range(nfeatures):
+            feat = features[featind]
+            ycord = chanlocs[feat, 2]
+            xcord = chanlocs[feat, 1]
+            vidstream[:, :, ycord, xcord] = raw_inputs[:, featind, :]
+        nclips = (nsamples - depth) / stride
+        curfrm = 0
+        inputs = np.zeros((nrows, nclips, depth, height, width))
+        for clip in range(nclips):
+            inputs[:, clip] = vidstream[:, curfrm:curfrm+depth]
+            curfrm += stride
+        return inputs.reshape((nrows, np.prod(inputs.shape[1:]))), targets
+
     def load(self):
         if self.inputs['train'] is not None:
             return
         if 'repo_path' not in self.__dict__:
             raise AttributeError('repo_path not specified in config')
 
-        rootdir = os.path.join(self.repo_path,
-                               self.__class__.__name__)
-        inputdict = self.read_data(rootdir, 'train')
+        self.rootdir = os.path.join(self.repo_path,
+                                    self.__class__.__name__)
+        inputdict = self.read_data(self.rootdir, 'train')
         subs = inputdict.keys()
         sessions = inputdict[subs[0]].keys()
-        targetdict = self.read_targets(rootdir, subs, sessions)
+        targetdict = self.read_targets(self.rootdir, subs, sessions)
 
         subs = SUBS
         split = int(len(subs) * 0.6)
@@ -204,6 +271,8 @@ class BCI(Dataset):
             self.prep_data = self.prep_raw_data
         elif self.data_type == 'sgram':
             self.prep_data = self.prep_sgram_data
+        elif self.data_type == 'vid':
+            self.prep_data = self.prep_vid_data
         else:
             raise AttributeError('invalid data type specified')
 
