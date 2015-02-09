@@ -390,7 +390,7 @@ class I1K(Dataset):
                 flat_labels = [
                     item for sublist in train_labels for item in sublist]
                 flat_labels = np.unique(flat_labels)
-                print flat_labels
+                print(flat_labels)
                 for i in range(self.max_file_index):
                     for j in range(self.max_tar_file):
                         if label_sample[i][0] == flat_labels[j]:
@@ -887,7 +887,7 @@ Functions below are for multi-threaded image resize, not yet supported
 
 def resize_jpeg(jpeg_file_list, output_image_size, crop_to_square):
     tgt = []
-    print 'called resize_jpeg'
+    print('called resize_jpeg')
     jpeg_strings = [jpeg.read() for jpeg in jpeg_file_list]
     for i, jpeg_string in enumerate(jpeg_strings):
         img = Image.open(StringIO(jpeg_string))
