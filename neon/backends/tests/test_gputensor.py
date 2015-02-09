@@ -7,7 +7,6 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 import numpy as np
 
-from neon.util.compat import CUDA_GPU
 from neon.util.testing import assert_tensor_equal
 
 
@@ -15,9 +14,8 @@ from neon.util.testing import assert_tensor_equal
 class TestGPUTensor(object):
 
     def setup(self):
-        if CUDA_GPU:
-            from neon.backends.gpu import GPUTensor
-            self.gpt = GPUTensor
+        from neon.backends.gpu import GPUTensor
+        self.gpt = GPUTensor
 
     def test_empty_creation(self):
         tns = self.gpt([])

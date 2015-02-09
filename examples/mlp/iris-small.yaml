@@ -1,0 +1,73 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# Iris dataset.  Simple network meant more as a sanity check.
+
+!obj:experiments.FitPredictErrorExperiment {
+
+  dataset: &ds !obj:datasets.Iris {
+    repo_path: '~/data',
+    sample_pct: 100,
+  },
+
+  weight_init: &wt_init !obj:params.UniformValGen {
+    low: -1,
+    high: 1,
+    bias_init: 0.0,
+  },
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    lr_params: {
+      learning_rate: 0.1,
+      momentum_params: {
+        type: constant,
+        coef: 0,
+      },
+    },
+  },
+  # simple MLP model specification
+  model: !obj:models.MLP {
+    num_epochs: 2500,
+    batch_size: &bs 30,
+    layers: [
+      &datalayer !obj:layers.DataLayer {
+        name: d0,
+        nout: 4,
+      },
+      !obj:layers.FCLayer {
+        name: h0,
+        nout: 2,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:transforms.Logistic {},
+      },
+      &lastlayer !obj:layers.FCLayer {
+        name: output,
+        nout: 3,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:transforms.Logistic {},
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:transforms.CrossEntropy {},
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

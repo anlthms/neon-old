@@ -52,7 +52,7 @@ ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+http://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet-0.2'
+    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet-0.2'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -62,7 +62,7 @@ endif
 
 .PHONY: default build develop install uninstall test test_all sanity speed \
 	      grad all clean_pyc clean doc html style lint bench dist publish_doc \
-	      release
+	      insert_compiler_hints strip_compiler_hints release
 
 default: build
 
@@ -102,22 +102,24 @@ test_all:
 sanity: build
 	@echo "Running sanity checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py \
-		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
+		--cpu $(CPU) --gpu $(GPU) --datapar $(DIST) --modelpar $(DIST)
 
 speed: build
 	@echo "Running speed checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/speed_check.py \
-		--cpu $(CPU) --gpu $(GPU) --dist $(DIST)
+		--cpu $(CPU) --gpu $(GPU) --datapar $(DIST) --modelpar $(DIST)
 
 grad: build
 	@echo "Running gradient checks..."
 ifeq ($(CPU), 1)
 	@echo "CPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_cpu.yaml
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad \
+		examples/convnet/synthetic-sanity_check.yaml
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad neon/tests/check_gpu.yaml
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+		examples/convnet/synthetic-sanity_check.yaml
 endif
 
 all: style test sanity grad speed
@@ -129,6 +131,14 @@ clean:
 	-python setup.py clean
 	-rm -f neon/backends/flexpt_dtype.so
 	-rm -f neon/backends/flexpt_cython.so
+
+insert_compiler_hints:
+	@echo "Preprocessing source code to insert compiler hints..."
+	-python neon/util/compiler_hints.py
+
+strip_compiler_hints:
+	@echo "Preprocessing source code to remove compiler hints..."
+	-python neon/util/compiler_hints.py -s
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

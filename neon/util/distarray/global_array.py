@@ -11,14 +11,9 @@ import numpy as np
 
 import gdist_consts as gc
 import local_array as laa
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
-else:
-    logger.error("mpi4py not installed")
 
 
 class GlobalArray():
@@ -94,7 +89,7 @@ class GlobalArray():
         self.filter_size = cur_layer.fwidth
         self.backend = cur_layer.backend
 
-        comm = MPI.COMM_WORLD
+        comm = self.backend.comm
         comm_size = comm.size
         self.comm_size = comm_size
         self.print_debug = False

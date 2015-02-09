@@ -10,7 +10,7 @@ Installation
 .. code-block:: bash
 
     # get the latest source
-    git clone git@gitlab.localdomain:algorithms/neon.git neon
+    git clone https://github.com/NervanaSystems/neon.git
     cd neon
 
     # configure optional backends like GPU, distributed processing by editing

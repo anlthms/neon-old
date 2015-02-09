@@ -33,7 +33,7 @@ class Dataset(object):
     def __getstate__(self):
         """
         Defines what and how we go about serializing an instance of this class.
-        In this case we also want to include and loaded datasets and backend
+        In this case we also want to include any loaded datasets and backend
         references.
 
         Returns:
@@ -85,6 +85,7 @@ class Dataset(object):
         :param repo_path: The local path to write the fetched dataset to
         :type repo_path: str
         """
+        repo_path = os.path.expandvars(os.path.expanduser(repo_path))
         logger.info("fetching: %s, saving to: %s", url, repo_path)
         urllib.urlretrieve(url, os.path.join(repo_path,
                                              os.path.basename(url)))
@@ -191,14 +192,11 @@ class Dataset(object):
         this function also copies the data to the device memory.
         """
         assert self.backend is not None
-        for key in self.inputs:
-            item = self.inputs[key]
-            if item is not None:
-                self.inputs[key] = self.transpose_batches(item)
-        for key in self.targets:
-            item = self.targets[key]
-            if item is not None:
-                self.targets[key] = self.transpose_batches(item)
+        for dataset in (self.inputs, self.targets):
+            for key in dataset:
+                item = dataset[key]
+                if item is not None:
+                    dataset[key] = self.transpose_batches(item)
 
     def get_batch(self, data, batch):
         return data[batch]

@@ -23,11 +23,6 @@ running under python3 and False otherwise.
 CUDA GPU Compatibility
 ----------------------
 
-.. autosummary::
-   :toctree: generated/
-
-   neon.util.compat.CUDA_GPU
-
 To conditionally run code on machines with CUDA compatible GPU's installed, you
 can utilize the :attr:`neon.util.compat.CUDA_GPU`.  It will be set to True if
 such a GPU is installed, and False otherwise.
@@ -35,11 +30,6 @@ such a GPU is installed, and False otherwise.
 
 Distributed System Compatibility
 --------------------------------
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.util.compat.MPI_INSTALLED
 
 To conditionally run code on machines configured to run on multiple
 cores/machines in parallel via OpenMPI and mpi4py, you

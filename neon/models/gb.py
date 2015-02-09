@@ -9,8 +9,8 @@ import logging
 import math
 import os
 
-from neon.models.layer import LocalFilteringLayer
-from neon.models.mlp import MLP
+from neon.layers.deprecated.layer import LocalFilteringLayer
+from neon.models.deprecated.mlp import MLP
 from neon.util.persist import ensure_dirs_exist
 from neon.util.compat import range
 import time

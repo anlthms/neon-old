@@ -15,21 +15,20 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 import numpy as np
 
-from neon.models.layer import RBMLayer
-from neon.models.learning_rule import GradientDescent
+from neon.layers.deprecated.layer import RBMLayer
+from neon.optimizers.gradient_descent import GradientDescent
 from neon.params import GaussianValGen
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
 from neon.util.testing import assert_tensor_near_equal
-from neon.util.compat import CUDA_GPU
 
 
 @attr('cuda')
 class TestCudaRBM:
 
     def setup(self):
-        if CUDA_GPU:
-            from neon.backends.gpu import GPU, GPUTensor
+
+        from neon.backends.gpu import GPU, GPUTensor
 
         # TODO: remove randomness from expected target results
         self.be = GPU(rng_seed=0)

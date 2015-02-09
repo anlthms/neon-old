@@ -3,40 +3,15 @@
 # ----------------------------------------------------------------------------
 """
 Contains various functions and wrappers to make code python 2 and python 3
-compatible, as well as indicate the presence of a CUDA compatible GPU (or at
-least the CUDA SDK).
+compatible
 """
 
-import os
 import sys
 import logging
 
 
 logger = logging.getLogger(__name__)
 PY3 = (sys.version_info[0] >= 3)
-
-CUDA_GPU = False
-if sys.platform.startswith("linux"):
-    CUDA_GPU = (os.system("nvidia-smi > /dev/null 2>&1") == 0)
-elif sys.platform.startswith("darwin"):
-    CUDA_GPU = (os.system("kextstat | grep -i cuda > /dev/null 2>&1") == 0)
-if CUDA_GPU:
-    try:
-        import cudanet
-    except ImportError:
-        logger.warning("cudanet not found, can't set CUDA_GPU")
-        CUDA_GPU = False
-
-MPI_INSTALLED = False
-mpi_size = 1
-mpi_rank = 0
-try:
-    from mpi4py import MPI  # flake8: noqa
-    MPI_INSTALLED = True
-    mpi_size = MPI.COMM_WORLD.size
-    mpi_rank = MPI.COMM_WORLD.rank
-except ImportError:
-    logger.warning('mpi4py not found')
 
 # keep range calls consistent between python 2 and 3
 # note: if you need a list and not an iterator you can do list(range(x))
