@@ -5,10 +5,11 @@
 # and applies them to larger
 
 !obj:experiments.LocalizationExperiment {
-  # manaully specify backend like in the old times, it does not deserialize
-  backend: &be !obj:neon.backends.cpu.CPU {
-    rng_seed: 0,
-  },
+#   # manaully specify backend like in the old times, it does not deserialize
+#   backend: &be !obj:neon.backends.cpu.CPU {
+#     rng_seed: 0,
+#     par: !obj:neon.backend.par.NoPar { *be, },
+#   },
 
   dataset: !obj:datasets.Hurricane {
       repo_path: '/usr/local/data/',

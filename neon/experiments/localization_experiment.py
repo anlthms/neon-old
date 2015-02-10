@@ -19,6 +19,6 @@ class LocalizationExperiment(FitExperiment):
         """
         Calls into the existing model for localization
         """
-
-        # load the data and train the model
+        self.dataset.backend = self.backend
+        self.dataset.load()        # load the data and train the model
         self.model.predict_and_localize(self.dataset)

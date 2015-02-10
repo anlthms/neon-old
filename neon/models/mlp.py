@@ -178,7 +178,9 @@ class MLPL(MLP):
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate, "no_weight_set": True}
 
-        self.link_and_initialize(self.layers, kwargs)  # with no_weight_set
+        #self.link_and_initialize(self.layers, kwargs)  # with no_weight_set
+        self.link()
+        self.initialize(self.backend)
         self.print_layers()
         self.fprop()
         self.visualize()
@@ -187,28 +189,29 @@ class MLPL(MLP):
         """
         Rudimentary visualization code for localization experiments:
         """
-
+        from ipdb import set_trace as trace
+        import matplotlib.pyplot as plt
         # look at the data
         mapp = self.layers[6].output.asnumpyarray()  # 50 is 2 x (5x5)
-        mapp0 = mapp[0:25, :].reshape(5, 5, -1)
-        mapp1 = mapp[25:50, :].reshape(5, 5, -1)
+        mapp0 = mapp[0:25].reshape(5, 5, -1)
+        mapp1 = mapp[25:50].reshape(5, 5, -1)
         databatch = self.layers[0].output.asnumpyarray()
-        data0 = databatch[0*1024:1*1024, :].reshape(32, 32, -1)
-        data1 = databatch[1*1024:2*1024, :].reshape(32, 32, -1)
+        data0 = databatch[0*1024:1*1024].reshape(32, 32, -1)
+        data1 = databatch[1*1024:2*1024].reshape(32, 32, -1)
 
-        self.myplot(mapp0, title='positive class label strength',
+        self.myplot(plt, mapp0, title='positive class label strength',
                     span=(0, 1), fig = 0)
-        self.myplot(mapp1, title='negative class label strength',
+        self.myplot(plt, mapp1, title='negative class label strength',
                     span=(0, 1), fig = 1)
-        self.myplot(data0, title='data variable 0',
+        self.myplot(plt, data0, title='data variable 0',
                     span=(-1, 1.5), fig = 2)
-        self.myplot(data1, title='data variable 1', span=(-2, 2), fig = 3)
+        self.myplot(plt, data1, title='data variable 1', span=(-2, 2), fig = 3)
 
         print "setting trace to keep plots open..."
         trace()
 
     @staticmethod
-    def myplot(data, title, span, fig):
+    def myplot(plt, data, title, span, fig):
         """
         I don't know what a staticmethod does so it may not make sense to
         use that here
@@ -217,7 +220,7 @@ class MLPL(MLP):
         plt.clf()
         for i in range(100):
             plt.subplot(10, 10, i+1)
-            plt.imshow(data[:, :, i], interpolation='none',
+            plt.imshow(data[..., i], interpolation='none',
                        vmin=span[0], vmax=span[1])
         plt.subplot(10, 10, 5)
         plt.title(title)

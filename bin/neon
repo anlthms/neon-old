@@ -111,9 +111,9 @@ def main():
                                   rng_seed=args.rng_seed,
                                   numerr_handling=args.numerr_handling)
         else:
+            backend = experiment.backend
             logger.info("utilizing %s backend from yaml file",
                         backend.__class__.__name__)
-            backend = experiment.backend
         experiment.initialize(backend)
         result = experiment.run()
         if args.profile is not None:
