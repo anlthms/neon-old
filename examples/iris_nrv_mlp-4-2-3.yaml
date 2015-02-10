@@ -22,7 +22,7 @@
       umd: 40,
       compiler: 40,
     },
-    use_flex_dtype: &use_flex_dtype False,
+    compute_engine: &compute_engine 0, # 0 = SIMULATOR_FLOAT, 1 = SIMULATOR_FLEX, 2 = FPGA_T101
     use_compiler: &use_compiler False,
   },
 
