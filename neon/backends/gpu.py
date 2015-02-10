@@ -407,6 +407,7 @@ class GPU(Backend):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        cudanet.set_device_id(2)
         cudanet.cublas_init()
         self.rng_init()
         self.par = None
