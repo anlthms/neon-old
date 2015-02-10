@@ -322,16 +322,18 @@ class DataLayer(Layer):
         # delete helper queues if any
         self.dataset.del_mini_batch_producer()
 
+
 class ImageDataLayer(DataLayer):
 
     def __init__(self, **kwargs):
-        self.has_labels = True
         super(ImageDataLayer, self).__init__(**kwargs)
+        self.has_labels = True
 
     def fprop(self, inputs):
         self.output, self.targets, self.labels = self.dataset.get_mini_batch(
             self.batch_idx)
         self.batch_idx += 1
+
 
 class ActivationLayer(Layer):
     """

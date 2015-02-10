@@ -3,7 +3,7 @@ from neon.layers.compositional import BranchLayer, ListLayer  # noqa
 from neon.layers.convolutional import ConvLayer  # noqa
 from neon.layers.dropout import DropOutLayer  # noqa
 from neon.layers.fully_connected import FCLayer  # noqa
-from neon.layers.layer import (Layer, DataLayer, ImageDataLayer, # noqa
+from neon.layers.layer import (Layer, DataLayer, ImageDataLayer,  # noqa
                                CostLayer, WeightLayer, ActivationLayer)
 from neon.layers.normalizing import (CrossMapResponseNormLayer,  # noqa
                                      LocalContrastNormLayer)

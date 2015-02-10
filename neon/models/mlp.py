@@ -118,20 +118,18 @@ class MLP(MLP_old):
     def predict_and_error(self, dataset=None):
         if dataset is not None:
             self.data_layer.init_dataset(dataset)
-        predlabels = self.backend.empty((1, self.batch_size))
-        labels = self.backend.empty((1, self.batch_size))
-        misclass = self.backend.empty((1, self.batch_size))
-        logloss_sum = self.backend.empty((1, 1))
-        misclass_sum = self.backend.empty((1, 1))
-        batch_sum = self.backend.empty((1, 1))
-
+        predlabels = self.backend.zeros((1, self.batch_size))
+        labels = self.backend.zeros((1, self.batch_size))
+        misclass = self.backend.zeros((1, self.batch_size))
+        logloss_sum = self.backend.zeros((1, 1))
+        misclass_sum = self.backend.zeros((1, 1))
+        batch_sum = self.backend.zeros((1, 1))
         return_err = dict()
 
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
             self.data_layer.use_set(setname, predict=True)
-            self.data_layer.reset_counter()
             misclass_sum.fill(0.0)
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
@@ -144,7 +142,6 @@ class MLP(MLP_old):
                     labels = targets
                 else:
                     self.backend.argmax(targets, axis=0, out=labels)
-                self.backend.argmax(targets, axis=0, out=labels)
                 self.backend.argmax(probs, axis=0, out=predlabels)
                 self.backend.not_equal(predlabels, labels, misclass)
                 self.backend.sum(misclass, axes=None, out=batch_sum)

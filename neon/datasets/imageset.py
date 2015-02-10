@@ -9,13 +9,10 @@ Sign up for an ImageNet account to download the dataset!
 
 import logging
 import numpy as np
-from numpy.random import randint
 import os
-import tarfile
 import cPickle
 from PIL import Image
 from StringIO import StringIO
-from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.backends.gpu import GPU, GPUTensor
@@ -37,8 +34,6 @@ macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
 
-# global vars for multiprocessing access
-GRAYSCALE = False
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
@@ -51,12 +46,6 @@ def my_unpickle(filename):
     fo.close()
     return contents
 
-def decode_jpegstring(jstr):
-    img = Image.open(StringIO(jstr))
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    return np.transpose(np.array(img, dtype='float32')[:, :, 0:3],
-                        axes=[2, 0, 1])
 
 class LoadFile(threading.Thread):
 
@@ -117,23 +106,23 @@ class DecompressImages(threading.Thread):
     def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
         imdim = self.cropped_image_size
-        dsz = self.diff_size
-        # meanimg = self.mean_img
-        # if self.predict:  # during prediction just use center crop & no flips
-        #     csx = self.diff_size / 2
-        #     csy = csx
-        #     crop_mean_img = (meanimg[:, csx:csx + imdim, csy:csy + imdim])
+        meanimg = self.mean_img
+        if self.predict:  # during prediction just use center crop & no flips
+            csx = self.diff_size / 2
+            csy = csx
+            crop_mean_img = (meanimg[:, csx:csx + imdim, csy:csy + imdim])
         for i, jpeg_string in enumerate(self.img_macro[start_id:end_id]):
             img = Image.open(StringIO(jpeg_string))
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            csx = dsz / 2 if self.predict else randint(0, max(dsz, 1))
-            csy = dsz / 2 if self.predict else randint(0, max(dsz, 1))
-            # if not self.predict and self.dotransforms:  # for training
-            #     # horizontal reflections of the image
-            #     flip_horizontal = randint(0, 2)
-            #     if flip_horizontal == 1:
-            #         img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            csx = np.random.randint(0, max(self.diff_size, 1))
+            csy = np.random.randint(0, max(self.diff_size, 1))
+            crop_mean_img = (meanimg[:, csx:csx + imdim, csy:csy + imdim])
+            if not self.predict and self.dotransforms:  # for training
+                # horizontal reflections of the image
+                flip_horizontal = np.random.randint(0, 2)
+                if flip_horizontal == 1:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
 
             img = img.crop((csx, csy, csx + imdim, csy + imdim))
             self.inputs[:, i + offset] = (
@@ -157,8 +146,9 @@ class DecompressImages(threading.Thread):
         if self.tgt_macro is not None:
             targets = self.tgt_macro[:, s_idx:e_idx].copy()
 
-        labels = {k:np.array(self.lbl_macro[k][np.newaxis, s_idx:e_idx].copy(),
-                             dtype=np.float32)
+        labels = {k: np.array(
+                  self.lbl_macro[k][np.newaxis, s_idx:e_idx].copy(),
+                  dtype=np.float32)
                   for k in self.lbl_macro.keys()}
 
         logger.debug('mini-batch decompress end %d', self.mb_id)
@@ -200,11 +190,10 @@ class RingBuffer(object):
         if tmp_targets is not None:
             self.targets_be = [GPUTensor(tmp_targets) for i in range(max_size)]
 
-        self.labels_be = [{lbl:GPUTensor(tmp_labels[lbl])
+        self.labels_be = [{lbl: GPUTensor(tmp_labels[lbl])
                            for lbl in tmp_labels.keys()}
                           for i in range(max_size)]
 
-        # self.targets_be = []
         self.labels_be = []
         for i in range(max_size):
             self.inputs_be.append(GPUTensor(tmp_input))
@@ -277,7 +266,10 @@ class GPUTransfer(threading.Thread):
         if not gpuq.empty():
             gt = gpuq.get()
             gt.start()
-            gpuq.task_done()
+            try:
+                gpuq.task_done()
+            except:
+                pass
         else:
             global gpuq_flag
             gpuq_flag = False
@@ -308,10 +300,8 @@ class Imageset(Dataset):
                   False)
         opt_param(self, ['tdims'], 0)
         opt_param(self, ['label_list'], ['l_id'])
-        opt_param(self, ['mean_norm'], True)
         self.__dict__.update(kwargs)
         req_param(self, ['save_dir'])
-        self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
         req_param(self, ['label_list', 'cropped_image_size'])
         self.idims = (self.cropped_image_size ** 2) * 3
 
@@ -322,13 +312,6 @@ class Imageset(Dataset):
             # num validation batches for this yaml file (<= total available)
             self.n_val_batches = self.end_val - self.start_val + 1
 
-    def initialize(self):
-        # perform additional setup that can't be done at initial construction
-        if self.dist_flag:
-            self.comm = self.backend.comm
-            if self.comm.size not in [1, 4, 16]:
-                raise AttributeError('MPI.COMM_WORLD.size not compatible')
-
     def load(self):
         pass
 
@@ -337,14 +320,19 @@ class Imageset(Dataset):
         logger.info("preprocessing images (computing mean image)")
         self.mean_img = np.zeros((3, self.output_image_size,
                                   self.output_image_size), dtype='float32')
-        pool = mp.Pool(processes=6)
+        t1 = time()
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)
             file_path = os.path.join(self.save_dir, 'data_batch_%d' % (i))
             jpeg_strings = my_unpickle(file_path)
-            jlist = pool.map(decode_jpegstring, jpeg_strings['data'])
-            self.mean_img = reduce(lambda x, y: x+y, jlist, self.mean_img)
-
+            for jpeg_string in jpeg_strings['data']:
+                img = Image.open(StringIO(jpeg_string))
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                self.mean_img += np.transpose(np.array(
+                    img, dtype='float32')[:, :, 0:3],
+                    axes=[2, 0, 1])  # .reshape((-1, 1))
+        logger.info("Time taken %f", time()-t1)
         self.mean_img = (self.mean_img /
                          (self.n_train_batches * self.output_batch_size))
         logger.info("done preprocessing images (computing mean image)")
@@ -356,7 +344,6 @@ class Imageset(Dataset):
         return next_macro_batch_id
 
     def get_macro_batch(self):
-        j = 0
         for i in range(self.num_iter_macro):
             self.macro_batch_onque = self.get_next_macro_batch_id(
                 self.macro_batch_onque)
@@ -394,7 +381,6 @@ class Imageset(Dataset):
         self.batch_size = batch_size
         self.batch_type = setname
         self.predict = predict
-        # self.nclasses = self.max_tar_file
 
         if self.output_batch_size % batch_size != 0:
             raise ValueError('self.output_batch_size % batch_size != 0')
@@ -424,7 +410,7 @@ class Imageset(Dataset):
         self.num_iter_gpu = self.ring_buffer_size
         self.num_iter_macro = self.ring_buffer_size
 
-        if not self.preprocess_done and self.mean_norm:
+        if not self.preprocess_done:
             self.preprocess_images()
             self.preprocess_done = True
 
@@ -451,6 +437,8 @@ class Imageset(Dataset):
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
         # batch_idx is ignored
+        gt_args = {'backend': self.backend, 'ring_buffer': self.ring_buffer,
+                   'gpu_queue': self.gpu_queue}
 
         for i in range(self.num_iter_mini):
             self.mini_batch_onque = self.get_next_mini_batch_id(
@@ -488,6 +476,9 @@ class Imageset(Dataset):
         for i in range(self.num_iter_gpu):
             self.gpu_batch_onque = self.get_next_mini_batch_id(
                 self.gpu_batch_onque)
+            gt_args['mb_id'] = self.gpu_batch_onque
+            gt_args['mini_batch_queue'] = self.mini_batch_queue
+            # gt = GPUTransfer(gt_args)
             gt = GPUTransfer(self.gpu_batch_onque,
                              self.mini_batch_queue, self.gpu_queue,
                              self.backend, self.ring_buffer)
@@ -509,5 +500,3 @@ class Imageset(Dataset):
 
     def has_set(self, setname):
         return True if (setname in ['train', 'validation']) else False
-
-
