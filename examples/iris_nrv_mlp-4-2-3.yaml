@@ -12,8 +12,8 @@
     },
     default_flex_dtype: &def_flex_dtype !obj:neon.backends.flexpoint.flexpt_dtype {
       sign_bit: True,
-      int_bits: 4,
-      frac_bits: 11,
+      int_bits: 5,
+      frac_bits: 10,
       overflow: 0,
       rounding: 0,
     },
