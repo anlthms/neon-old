@@ -27,3 +27,7 @@ Adding a new Dataset
 
 * Subclass :class:`neon.datasets.dataset.Dataset` ensuring to write an
   implementation of :func:`neon.datasets.dataset.Dataset.load`.
+* Datasets should have a single data point per row, and should either be in
+  numpy ndarray format, or batched as such.
+* Datasets are loaded and transformed by the approproate backend via the
+  :func:`neon.datasets.dataset.Dataset.format` call.

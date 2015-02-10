@@ -6,7 +6,6 @@
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 
-from neon.util.compat import CUDA_GPU
 from neon.util.testing import assert_tensor_equal, assert_tensor_near_equal
 
 
@@ -14,11 +13,10 @@ from neon.util.testing import assert_tensor_equal, assert_tensor_near_equal
 class TestGPU(object):
 
     def setup(self):
+        from neon.backends.gpu import GPU, GPUTensor
         # this code gets called prior to each test
-        if CUDA_GPU:
-            from neon.backends.gpu import GPU, GPUTensor
-            self.be = GPU(rng_seed=0)
-            self.gpt = GPUTensor
+        self.be = GPU(rng_seed=0)
+        self.gpt = GPUTensor
 
     def test_empty_creation(self):
         tns = self.be.empty((4, 3))

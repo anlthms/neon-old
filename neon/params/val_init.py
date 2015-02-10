@@ -9,7 +9,7 @@ import logging
 import math
 import numpy as np
 
-from neon.util.param import req_param, opt_param
+from neon.util.param import opt_param
 from neon.util.persist import YAMLable
 
 logger = logging.getLogger(__name__)
@@ -18,19 +18,22 @@ logger = logging.getLogger(__name__)
 class ValGen(YAMLable):
     """
     Base class used to generate new Tensors initialized in a specific manner.
-
-    Arguments:
-        backend (neon.backends.Backend): the backend to utilize in constructing
-                                         new Tensor objects.
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        req_param(self, ['backend'])
+        opt_param(self, ['backend'])
 
     def __str__(self):
         return ("{cl_nm} utilizing {be_nm} backend".format(
                 cl_nm=self.__class__.__name__,
                 be_nm=self.backend.__class__.__name__))
+
+    def initialize(self, backend):
+        """
+        Perform any additional setup (like attaching the backend), required
+        prior to generating values.
+        """
+        self.backend = backend
 
     def generate(self, shape, dtype=None):
         """

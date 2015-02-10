@@ -10,9 +10,9 @@ import argparse
 import logging
 import sys
 
-import neon
-from neon.util.persist import deserialize
+from neon.backends import gen_backend
 from neon.experiments.check_grad import GradientChecker
+from neon.util.persist import deserialize
 
 
 def parse_args():
@@ -22,6 +22,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='run basic tests.')
     parser.add_argument('yaml_file', type=argparse.FileType('r'),
                         help='configuration file settings')
+    parser.add_argument('-g', '--gpu', action='store_true',
+                        help='Attempt to run using a CUDA capable GPU backend')
     return(parser.parse_args())
 
 
@@ -34,7 +36,8 @@ def main():
     # read in yaml configuration and initialize objects
     args = parse_args()
     experiment = deserialize(args.yaml_file)
-    experiment.init_model()
+    backend = gen_backend(model=experiment.model, gpu=args.gpu)
+    experiment.initialize(backend)
 
     if hasattr(experiment, 'logging'):
         logging.basicConfig(**experiment.logging)

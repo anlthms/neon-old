@@ -9,15 +9,10 @@ Local View of the Data
 import numpy as np
 
 import logging
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 from neon.util.distarray import gdist_consts as gc
 
 logger = logging.getLogger(__name__)
-
-if MPI_INSTALLED:
-    from mpi4py import MPI
-else:
-    logger.error("mpi4py not installed")
 
 
 class RecvHalo(object):
@@ -184,7 +179,7 @@ class LocalArray(object):
         return self.local_image
 
     def send_recv_halos(self):
-        comm = MPI.COMM_WORLD
+        comm = self.backend.comm
         comm.barrier()
 
         req = []
@@ -212,7 +207,7 @@ class LocalArray(object):
         comm.barrier()
 
     def send_recv_defiltering_layer_halos(self):
-        comm = MPI.COMM_WORLD
+        comm = self.backend.comm
         comm.barrier()
         # exchange and store neighbor dims
         for k in self.halo_ids:
@@ -324,7 +319,7 @@ class LocalArray(object):
         for n_id in range(9):
             d_ptrs[n_id] = 0
 
-        MPI.COMM_WORLD.barrier()
+        self.backend.comm.barrier()
         for c in range(self.act_channels):
             # top halos
             for r in range(self.hsr_north):
@@ -402,7 +397,7 @@ class LocalArray(object):
                         c_ptr += self.hsc_east
                         d_ptrs[halo] += self.hsc_east
 
-        MPI.COMM_WORLD.barrier()
+        self.backend.comm.barrier()
 
     # this could be useful if we need to sum products in the output feature map
     def make_defiltering_layer_consistent(self):
@@ -418,7 +413,7 @@ class LocalArray(object):
             self.defiltering_local_image[
                 self.send_halos[halo].halo_indices, :] += (
                 self.send_halos[halo].halo_data_defiltering)
-        MPI.COMM_WORLD.barrier()
+        self.backend.comm.barrier()
 
     def set_halo_indices(self, neighbor_direction, neighbor_array_index):
         # todo: the indices extracted here are non-contiguous, will likely need

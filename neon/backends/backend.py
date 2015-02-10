@@ -7,7 +7,6 @@ Houses low-level code for performing underlying data manipulation operations.
 """
 
 from neon.util.persist import YAMLable
-from neon.backends.par import NoPar, ModelPar, DataPar
 
 
 class Backend(YAMLable):
@@ -624,6 +623,32 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def begin(self):
+        """
+        Signal the start of a block of repeated computation (ex. at the start
+        of a loop).  This operation can be used to help the compiler optimize
+        instruction performance, but has no direct effect on calculations.
+        It must be book-ended by a corresponding Backend.end() call.
+        Note that multiple begin calls can appear adjacent in nested loops.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Backend.end`,
+        """
+        pass
+
+    def end(self):
+        """
+        Signal the corresponding end of a block of repeated computation
+        (ex. at the end of a loop).  This operation can be used to help the
+        compiler optimize performance, but has no direct effect on
+        calculations.  It must be preceded by a corresponding Backend.begin()
+        call.
+
+        See Also:
+            :py:func:`~neon.backends.backend.Backend.begin`,
+        """
+        pass
+
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
@@ -1037,28 +1062,6 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    # The functions below can be moved out to a utility class if it is
-    # desirable to leave this class abstract.
-
-    def configure(self, model, datapar, modelpar):
-        # Save the original batch_size value that is specified
-        # in the configuration file.
-        self.actual_batch_size = model.batch_size
-        if datapar and modelpar:
-            raise NotImplementedError('Hybrid parallelization scheme not '
-                                      'implemented yet.')
-        if modelpar:
-            self.par = ModelPar(self, model)
-            self.fprop_fc = self.par.fprop_fc
-            self.bprop_fc = self.par.bprop_fc
-            self.update_fc = self.par.update_fc
-        elif datapar:
-            self.par = DataPar(self, model)
-            self.update_fc = self.par.update_fc
-            self.update_conv = self.par.update_conv
-        else:
-            self.par = NoPar(self, model)
-
     def distribute(self, data):
         return self.par.distribute(data)
 
@@ -1277,3 +1280,10 @@ class Tensor(object):
             NotImplmentedError: Must override in a child Tensor class
         """
         raise NotImplementedError()
+
+    def free(self):
+        """
+        Indicate that this tensor is no longer in use and can be cleaned up.
+        No further attempts can be made to access this tensor.
+        """
+        pass

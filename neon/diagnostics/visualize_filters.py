@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-from numpy.util.compat import range
+from neon.util.compat import range
 
 
 class Visual(object):

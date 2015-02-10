@@ -13,7 +13,6 @@ import numpy as np
 from scipy.io import loadmat
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import MPI_INSTALLED
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +54,20 @@ class TFD(Dataset):
             self.train_input = os.path.join(base_folder, self.train_input_96)
         else:
             raise ValueError('image_size should be 48 or 96.')
+
+    def initialize(self):
+        # perform additional setup that can't be done at initial construction
         if self.dist_flag:
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                self.comm = MPI.COMM_WORLD
-                # for now require that comm.size be square and sqrt() divide 28
-                if (self.dist_mode in ['halopar', 'vecpar'] and
-                        self.comm.size not in [1, 4, 16]):
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-                elif (self.dist_mode == 'datapar' and
-                        self.batch_size % self.comm.size):
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-            else:
-                raise AttributeError("dist_flag set but mpi4py not installed")
+            self.comm = self.backend.comm
+            if ((self.dist_mode in ['halopar', 'vecpar'] and self.comm.size
+                 not in [1, 4, 16]) or
+                (self.dist_mode == 'datapar' and self.batch_size
+                 % self.comm.size)):
+                raise AttributeError('MPI.COMM_WORLD.size not compatible')
 
     def adjust_for_dist(self):
+        if not hasattr(self, 'comm'):
+            self.initialize()
         comm_rank = self.comm.rank
         self.dist_indices = []
         img_width = self.image_size

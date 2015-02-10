@@ -3,16 +3,18 @@ Our in-house developed python machine learning library.
 ## Installation ##
 
     # get the latest source
-    git clone git@gitlab.localdomain:algorithms/neon.git neon
+    git clone https://github.com/NervanaSystems/neon.git
     cd neon
     
     # build the package, install in your python package path via either:
     make install  # sudo make install
     # or:
     pip install .  # sudo pip install .
-    
-    # import neon into your app, and you are good to go
 
+    # run the included command line executable to start launching your
+    # experiments
+    neon --help
+    
 
 ### Required Dependencies ###
 We strive to have as few of these as possible
@@ -28,7 +30,7 @@ These provide additional functionality, and assist developers
 * [flake8](https://flake8.readthedocs.org/) for style checking
   * [pep8-naming](https://pypi.python.org/pypi/pep8-naming) plugin for variable
     name checking
-* [Nervana cuda-convnet2](http://gitlab.localdomain/algorithms/cuda-convnet2/)
+* [Nervana cuda-convnet2](http://github.com/NervanaSystems/cuda-convnet2/)
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
   that powers our GPU backend.
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
@@ -43,27 +45,31 @@ These provide additional functionality, and assist developers
 
     # neon <path_to.yaml>
     # see the examples directory for sample .yaml files
-    neon examples/mnist_numpy_mlp-784-100-10.yaml
+    neon examples/mlp/mnist-small.yaml
+
+    # for GPU based runs, you need to have a CUDA capable GPU card installed
+    # then run:
+    neon --gpu examples/mlp/mnist-small.yaml
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -np <num_processes> -x <environment_vars> neon <path_to.yaml>
-    # ex: 4 process cnn example from top-level neon dir:
-    mpirun -n 4 -x PYTHONPATH bin/neon \
-           examples/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+    # mpirun -np <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
+    # ex: 4 process data parallel cnn example from top-level neon dir:
+    mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
+           examples/convnet/mnist-small.yaml
 
     # In multi-machine MPI environments need hosts file, and full paths should
     # be used:
     /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
-        /<full_path_to_neon>/neon \
-        /<full_path_to_examples>/mnist_distarray_numpy_cnn-20-50-500-10.yaml
+        /<full_path_to_neon>/neon --datapar \
+        /<full_path_to_examples>/convnet/mnist-small.yaml
 
 See docs for full details.
 
 ## Features ##
 * Works with our hardware!  Easy to transition between it and various GPU and
   CPU backends for basic operations
-* Highly configurable via yaml files.  Select backend, learning algorithm
-  architecture, tuning parameters, and so on.
+* Highly configurable via yaml files.  Select learning algorithm, architecture,
+  tuning parameters, and so on.
 * Heavily instrumented for performance profiling, debugging, and visualization
 * Modular design
 * Well documented
@@ -73,7 +79,8 @@ See docs for full details.
 
 
 ## Issue Tracking ##
-* http://nervanasys.atlassian.net/browse/MYL
+* https://github.com/NervanaSystems/neon/issues
+* [internal tracking](http://nervanasys.atlassian.net/browse/MYL)
 
 
 ## Documentation ##
@@ -81,7 +88,7 @@ See docs for full details.
 * [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_neon.html)
 * [API](http://framework.nervanasys.com/docs/latest/api.html)
 * [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
-* [Architecture](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/architecture)
+* [Architecture](https://framework.nervanasys.com/docs/latest/developing_neon.html#architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
 

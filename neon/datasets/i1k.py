@@ -18,7 +18,7 @@ from random import shuffle
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.backends.gpu import GPU, GPUTensor
-from neon.util.compat import MPI_INSTALLED, range
+from neon.util.compat import range
 import sys
 import threading
 import Queue
@@ -283,21 +283,11 @@ class I1K(Dataset):
         self.end_val_batch = -1
         self.preprocess_done = False
         self.__dict__.update(kwargs)
+        self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
 
         if not hasattr(self, 'save_dir'):
             self.save_dir = os.path.join(self.repo_path,
                                          self.__class__.__name__)
-
-        if self.dist_flag:
-            raise NotImplementedError('Dist not implemented for I1K!')
-            if MPI_INSTALLED:
-                from mpi4py import MPI
-                self.comm = MPI.COMM_WORLD
-                # for now require that comm.size is a square and divides 32
-                if self.comm.size not in [1, 4, 16]:
-                    raise AttributeError('MPI.COMM_WORLD.size not compatible')
-            else:
-                raise AttributeError("dist_flag set but mpi4py not installed")
 
         if self.start_train_batch != -1:
             # number of batches to train for this yaml file (<= total
@@ -310,14 +300,25 @@ class I1K(Dataset):
             self.n_val_batches = self.end_val_batch - \
                 self.start_val_batch + 1
 
+    def initialize(self):
+        # perform additional setup that can't be done at initial construction
+        if self.dist_flag:
+            self.comm = self.backend.comm
+            if self.comm.size not in [1, 4, 16]:
+                raise AttributeError('MPI.COMM_WORLD.size not compatible')
+
     def load(self):
         if 'repo_path' in self.__dict__:
             # todo handle dist case
             # if self.dist_flag:
             #    self.adjust_for_dist()
 
+            self.load_path = os.path.expandvars(os.path.expanduser(
+                self.load_path))
             load_dir = os.path.join(self.load_path,
                                     self.__class__.__name__)
+            self.save_dir = os.path.expandvars(os.path.expanduser(
+                self.save_dir))
             save_dir = self.save_dir
             if os.path.exists(os.path.join(save_dir, prefix_macro + str(
                     self.output_image_size))):
@@ -389,7 +390,7 @@ class I1K(Dataset):
                 flat_labels = [
                     item for sublist in train_labels for item in sublist]
                 flat_labels = np.unique(flat_labels)
-                print flat_labels
+                print(flat_labels)
                 for i in range(self.max_file_index):
                     for j in range(self.max_tar_file):
                         if label_sample[i][0] == flat_labels[j]:
@@ -886,7 +887,7 @@ Functions below are for multi-threaded image resize, not yet supported
 
 def resize_jpeg(jpeg_file_list, output_image_size, crop_to_square):
     tgt = []
-    print 'called resize_jpeg'
+    print('called resize_jpeg')
     jpeg_strings = [jpeg.read() for jpeg in jpeg_file_list]
     for i, jpeg_string in enumerate(jpeg_strings):
         img = Image.open(StringIO(jpeg_string))

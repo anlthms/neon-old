@@ -253,8 +253,8 @@ class BCI(Dataset):
         if 'repo_path' not in self.__dict__:
             raise AttributeError('repo_path not specified in config')
 
-        self.rootdir = os.path.join(self.repo_path,
-                                    self.__class__.__name__)
+        self.rootdir = os.path.expanduser(
+            os.path.join(self.repo_path, self.__class__.__name__))
         inputdict = self.read_data(self.rootdir, 'train')
         subs = inputdict.keys()
         sessions = inputdict[subs[0]].keys()

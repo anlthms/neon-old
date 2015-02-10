@@ -9,7 +9,7 @@ import subprocess
 
 
 # Define version information
-VERSION = '0.6.0'
+VERSION = '0.7.0'
 FULLVERSION = VERSION
 write_version = True
 
@@ -58,7 +58,7 @@ class NeonCommand(Command):
                                                    'cython>=0.19.1']
         if self.gpu == "1":
             self.distribution.install_requires += ['cudanet']
-            self.distribution.dependency_links += ['http://github.com/'
+            self.distribution.dependency_links += ['https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'
                                                    'egg=cudanet-0.2']

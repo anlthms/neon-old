@@ -8,9 +8,11 @@ Driver script for running neon model experiments.
 
 import argparse
 import logging
+import yaml
 import sys
 
 import neon
+from neon.backends import gen_backend
 from neon.util.persist import deserialize
 from neon.util.trace import Tracer
 
@@ -19,12 +21,37 @@ def parse_args():
     """
     Sets up and handles command line argument parsing.
     """
-    parser = argparse.ArgumentParser(description='run simple experiment.')
+    parser = argparse.ArgumentParser(description='The Nervana Framework. '
+                                     'This executable allows one to run '
+                                     'experiments using a particular backend '
+                                     '(defaults to single core float32 CPU '
+                                     'unless at least one of -g, -p, -m, or -f '
+                                     'are given).')
     parser.add_argument('yaml_file', type=argparse.FileType('r'),
-                        help='configuration file settings')
+                        help='experiment configuration settings')
     parser.add_argument('-v', '--version', action='version',
                         version=neon.__version__)
-    parser.add_argument('-p', '--profile', action='store',
+    parser.add_argument('-c', '--cloud', action='store_true',
+                        help='Run your experiment in the Nervana Cloud')
+    parser.add_argument('-g', '--gpu', action='store_true',
+                        help='Attempt to run using a CUDA capable GPU backend')
+    parser.add_argument('-p', '--datapar', action='store_true',
+                        help='Use parallelization to partition the data over '
+                             'multiple nodes')
+    parser.add_argument('-m', '--modelpar', action='store_true',
+                        help='Use parallelization to partition the model over '
+                             'multiple nodes')
+    parser.add_argument('-f', '--flexpoint', action='store_true',
+                        help='Attempt to run a Nervana FlexPoint(TM) capable '
+                             'backend')
+    parser.add_argument('-r', '--rng_seed', type=int,
+                        help='Seed the random number generator for the backend'
+                             ' with the specified value.')
+    parser.add_argument('-e', '--numerr_handling', action='store',
+                        type=yaml.load, help='Set how numeric errors are '
+                        'handled.  Python dict syntax, parameters are the same'
+                        ' as for numpy.set_err')
+    parser.add_argument('-s', '--profile', action='store',
                         help=('Collect and write profiling stats to the file '
                               'specified.  Or stdout if empty string.'))
     parser.add_argument('-d', '--debug', action='store_true',
@@ -34,12 +61,6 @@ def parse_args():
                         help='Trace through function calls. Optional '
                              'argument is a regex filter on the name of the '
                              'source files to confine the trace to.')
-    parser.add_argument('--datapar', action='store_true',
-                        help='Use data parallelization to distribute over '
-                             'multiple nodes.')
-    parser.add_argument('--modelpar', action='store_true',
-                        help='Use model parallelization to distribute over '
-                             'multiple nodes.')
     return(parser.parse_args())
 
 
@@ -59,6 +80,11 @@ def main():
                      args.profile if args.profile != "" else "stdout")
     if args.trace is not None:
         tracer = Tracer.setup(args.trace[0], args.trace[1])
+    if args.cloud:
+        # TODO: kick-off cloud job
+        logging.warning('Sorry!  We still need to add hooks for the Nervana '
+                        'cloud. In the meantime your Experiment will be run '
+                        'locally.')
     try:
         experiment = deserialize(args.yaml_file)
         if hasattr(experiment, 'logging'):
@@ -78,8 +104,17 @@ def main():
                              experiment.logging["level"])
                 logger.setLevel(experiment.logging["level"])
         # carry out the experiment
-        experiment.datapar = args.datapar
-        experiment.modelpar = args.modelpar
+        if not hasattr(experiment, 'backend') or experiment.backend is None:
+            backend = gen_backend(model=experiment.model, gpu=args.gpu,
+                                  datapar=args.datapar, modelpar=args.modelpar,
+                                  flexpoint=args.flexpoint,
+                                  rng_seed=args.rng_seed,
+                                  numerr_handling=args.numerr_handling)
+        else:
+            logger.info("utilizing %s backend from yaml file",
+                        backend.__class__.__name__)
+            backend = experiment.backend
+        experiment.initialize(backend)
         result = experiment.run()
         if args.profile is not None:
             if args.profile == "":
