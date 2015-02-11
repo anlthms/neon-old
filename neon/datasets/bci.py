@@ -9,7 +9,12 @@ import logging
 import numpy as np
 import os
 import zipfile
+import matplotlib
 import pylab
+import time
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range
@@ -209,18 +214,66 @@ class BCI(Dataset):
         return cords
 
     def anim(self, vid):
-        import matplotlib
-        import matplotlib.pyplot as plt
-        import matplotlib.animation as animation
-
-        fig, ax = plt.subplots()
-        x = plt.imshow(vid[0])
-
-        def inner(i):
-            return plt.imshow(vid[i])
-
-        ani = animation.FuncAnimation(fig, inner, 10, interval=25, blit=False)
+        im = plt.imshow(vid[0])
+        for frm in range(vid.shape[0]):
+            im.set_data(vid[frm])
+            plt.pause(0.03)
+            raw_input()
         plt.show()
+
+    def convolve(self, vids, filtw):
+        result = np.empty(vids.shape)
+        nfrms = vids[0].shape[0]
+        nrows = vids[0].shape[1]
+        ncols = vids[0].shape[2]
+
+        for samp in range(vids.shape[0]):
+            for frm in range(nfrms):
+                frm1 = frm - filtw
+                frm1 = 0 if frm1 < 0 else frm1
+                frm2 = frm + filtw
+                frm2 = nfrms if frm2 > nfrms else frm2
+                for row in range(nrows):
+                    row1 = row - filtw
+                    row1 = 0 if row1 < 0 else row1
+                    row2 = row + filtw
+                    row2 = nrows if row2 > nrows else row2
+                    for col in range(ncols):
+                        col1 = col - filtw
+                        col1 = 0 if col1 < 0 else col1
+                        col2 = col + filtw
+                        col2 = ncols if col2 > ncols else col2
+                        result[samp, frm, row, col] = vids[samp,
+                                                           frm1:frm2,
+                                                           row1:row2,
+                                                           col1:col2].mean()
+        vids[:] = result
+
+    def convolve2(self, vids, filtw):
+        result = np.empty(vids.shape)
+        nfrms = vids[0].shape[0]
+        nrows = vids[0].shape[1]
+        ncols = vids[0].shape[2]
+
+        for frm in range(nfrms):
+            frm1 = frm - filtw
+            frm1 = 0 if frm1 < 0 else frm1
+            frm2 = frm + filtw + 1
+            frm2 = nfrms if frm2 > nfrms else frm2
+            for row in range(nrows):
+                row1 = row - filtw
+                row1 = 0 if row1 < 0 else row1
+                row2 = row + filtw + 1
+                row2 = nrows if row2 > nrows else row2
+                for col in range(ncols):
+                    col1 = col - filtw
+                    col1 = 0 if col1 < 0 else col1
+                    col2 = col + filtw + 1
+                    col2 = ncols if col2 > ncols else col2
+                    result[:, frm, row, col] = (
+                        vids[:, frm1:frm2, row1:row2,
+                             col1:col2].mean(axis=3).mean(axis=2).mean(axis=1))
+        vids[:] = result
 
     def prep_vid_data(self, inputdict, targetdict, subs,
                       sessions, nsamples, features):
@@ -235,15 +288,18 @@ class BCI(Dataset):
         chanlocs = self.get_chan_locs(width)
         featind = 0
         for featind in range(nfeatures):
-            feat = features[featind]
-            ycord = chanlocs[feat, 2]
-            xcord = chanlocs[feat, 1]
-            vidstream[:, :, ycord, xcord] = raw_inputs[:, featind, :]
+            ycord = chanlocs[featind, 2]
+            xcord = chanlocs[featind, 1]
+            vidstream[:, :, ycord, xcord] = raw_inputs[:, featind]
         nclips = (nsamples - depth) / stride
         curfrm = 0
         inputs = np.zeros((nrows, nclips, depth, height, width))
         for clip in range(nclips):
+            print 'clip', clip
             inputs[:, clip] = vidstream[:, curfrm:curfrm+depth]
+            self.convolve(inputs[:, clip], 1)
+            self.convolve(inputs[:, clip], 2)
+            #self.anim(inputs[0, clip])
             curfrm += stride
         return inputs.reshape((nrows, np.prod(inputs.shape[1:]))), targets
 
