@@ -295,11 +295,11 @@ class BCI(Dataset):
         curfrm = 0
         inputs = np.zeros((nrows, nclips, depth, height, width))
         for clip in range(nclips):
-            print 'clip', clip
             inputs[:, clip] = vidstream[:, curfrm:curfrm+depth]
             self.convolve(inputs[:, clip], 1)
             self.convolve(inputs[:, clip], 2)
-            #self.anim(inputs[0, clip])
+            if False:
+                self.anim(inputs[0, clip])
             curfrm += stride
         return inputs.reshape((nrows, np.prod(inputs.shape[1:]))), targets
 
