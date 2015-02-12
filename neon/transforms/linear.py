@@ -2,16 +2,15 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Rectified linear (ReLU) transform functions and classes.
+Linear transform functions and classes.
 """
 
 from neon.transforms.activation import Activation
 
 
-class RectLin(Activation):
-
+class Linear(Activation):
     """
-    Embodiment of a rectified linear activation function.
+    Embodiment of a linear activation function.
     """
 
     def __init__(self, **kwargs):
@@ -19,25 +18,25 @@ class RectLin(Activation):
 
     def apply_function(self, backend, inputs, outputs):
         """
-        Apply the rectified linear activation function.
+        Linear activation function. (no-op)
 
         Arguments:
             backend (Backend): The backend class to use for computation.
             inputs (array_like): Input data to be transformed
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin(inputs, outputs)
+        return
 
     def apply_derivative(self, backend, inputs, outputs):
         """
-        Apply the rectified linear activation function derivative.
+        Linear activation function derivative (no-op).
 
         Arguments:
             backend (Backend): The backend class to use for computation.
             inputs (array_like): Input data to be transformed
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin_derivative(inputs, outputs)
+        return
 
     def fprop_func(self, backend, inputs, outputs):
         """
@@ -50,7 +49,7 @@ class RectLin(Activation):
                                  function.
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin(inputs, outputs)
+        return
 
     def pre_act_buffer(self, backend, output, dtype):
         """
@@ -73,5 +72,4 @@ class RectLin(Activation):
             error (array_like): error buffer
             skip_act (Boolean): whether to skip the multiplication
         """
-        backend.greater(pre_act, 0, out=pre_act)
-        super(RectLin, self).bprop_func(backend, pre_act, error, skip_act)
+        return

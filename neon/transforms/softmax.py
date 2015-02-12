@@ -44,7 +44,7 @@ class Softmax(Activation):
 
         backend.softmax_gradient(outputs, err=self.tmp, out=outputs)
 
-    def apply_both(self, backend, inputs, outputs):
+    def fprop_func(self, backend, inputs, outputs):
         """
         Apply the softmax activation function and its derivative.
         """

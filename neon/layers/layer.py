@@ -19,6 +19,7 @@ from neon.optimizers.adadelta import AdaDelta
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
+from neon.transforms.linear import Linear
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ class Layer(YAMLable):
 
         opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype'])
         opt_param(self, ['weight_dtype', 'updates_dtype'])
-        opt_param(self, ['prev_layer', 'activation'])
+        opt_param(self, ['prev_layer'])
+        opt_param(self, ['activation'], Linear())
 
         opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
         opt_param(self, ['skip_act'], False)
@@ -111,8 +113,7 @@ class Layer(YAMLable):
             ionumstr = '{} inputs, {} nodes'.format(self.nin, self.nout)
 
         ret = '{} {}: {}'.format(self.__class__.__name__, self.name, ionumstr)
-        if self.activation is not None:
-            ret += ', {} act_fn'.format(self.activation.__class__.__name__)
+        ret += ', {} act_fn'.format(self.activation.__class__.__name__)
         return ret
 
     def format_tuple(self, tup):
@@ -128,10 +129,9 @@ class Layer(YAMLable):
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
 
-        if self.activation is not None:
-            self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
-        else:
-            self.pre_act = self.output
+        self.pre_act = self.activation.pre_act_buffer(self.backend,
+                                                      self.output,
+                                                      self.pre_act_dtype)
 
         self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
@@ -335,11 +335,11 @@ class ActivationLayer(Layer):
 
     def fprop(self, inputs):
         self.pre_act[:] = inputs
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
-        if self.skip_act is False:
-            self.backend.multiply(error, self.pre_act, out=error)
+        self.activation.bprop_func(self.backend, self.pre_act, error,
+                                   self.skip_act)
         if self.deltas is not None:
             self.deltas[:] = error
 
