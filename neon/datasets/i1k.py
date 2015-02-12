@@ -7,23 +7,23 @@ More information at: http://www.image-net.org/download-imageurls
 Sign up for an ImageNet account to download the dataset!
 """
 
-import logging
-import numpy as np
-import os
-import tarfile
 import cPickle
-from PIL import Image
-from StringIO import StringIO
-from random import shuffle
-from time import time
-from neon.datasets.dataset import Dataset
-from neon.backends.gpu import GPU, GPUTensor
-from neon.util.compat import range
-import sys
-import threading
-import Queue
+import logging
 import multiprocessing as mp
-# importing scipy.io breaks multiprocessing! don't do it here!
+import os
+import Queue
+from random import shuffle
+from StringIO import StringIO
+import sys
+import tarfile
+import threading
+from time import time
+
+import numpy as np
+
+from neon.datasets.dataset import Dataset
+from neon.util.compat import range
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +86,10 @@ class DecompressImages(threading.Thread):
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
                  num_processes, mean_img, predict):
+        from PIL import Image
         threading.Thread.__init__(self)
         self.mb_id = mb_id
+        self.image = Image
         # mini-batch queue
         self.mini_batch_queue = mini_batch_queue
         self.batch_size = batch_size
@@ -117,7 +119,7 @@ class DecompressImages(threading.Thread):
                               csy:csy + self.cropped_image_size])
         for i, jpeg_string in enumerate(
                 self.jpeg_strings['data'][start_id:end_id]):
-            img = Image.open(StringIO(jpeg_string))
+            img = self.image.open(StringIO(jpeg_string))
             if not self.predict:  # for training
                 # translations of image
                 csx = np.random.randint(0, self.diff_size)
@@ -125,7 +127,7 @@ class DecompressImages(threading.Thread):
                 # horizontal reflections of the image
                 flip_horizontal = np.random.randint(0, 2)
                 if flip_horizontal == 1:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    img = img.transpose(self.image.FLIP_LEFT_RIGHT)
                 crop_mean_img = (
                     self.mean_img[:, csx:csx + self.cropped_image_size,
                                   csy:csy + self.cropped_image_size])
@@ -184,6 +186,7 @@ class RingBuffer(object):
     '''
 
     def __init__(self, max_size, batch_size, num_targets, num_input_dims):
+        from neon.backends.gpu import GPUTensor
         self.max_size = max_size
         self.id = 0
         self.prev_id = 0
@@ -228,6 +231,7 @@ class GPUTransfer(threading.Thread):
         self.ring_buffer = ring_buffer
 
     def run(self):
+        from neon.backends.gpu import GPU
         logger.debug('backend mini-batch transfer start %d', self.mb_id)
         # threaded conversion of jpeg strings to numpy array
         # if no item in queue, wait
@@ -276,6 +280,8 @@ class I1K(Dataset):
     url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
+        from PIL import Image
+        self.image = Image
         self.dist_flag = False
         self.start_train_batch = -1
         self.end_train_batch = -1
@@ -295,7 +301,7 @@ class I1K(Dataset):
             self.n_train_batches = self.end_train_batch - \
                 self.start_train_batch + 1
         if self.start_val_batch != -1:
-            # number of batches to validation for this yaml file (<= total
+            # number of batches to validate for this yaml file (<= total
             # available)
             self.n_val_batches = self.end_val_batch - \
                 self.start_val_batch + 1
@@ -446,7 +452,7 @@ class I1K(Dataset):
                 (len(jpeg_strings), (self.output_image_size ** 2) * 3),
                 dtype='float32')
         for i, jpeg_string in enumerate(jpeg_strings):
-            img = Image.open(StringIO(jpeg_string))
+            img = self.image.open(StringIO(jpeg_string))
 
             # resize
             min_dim = np.min(img.size)
@@ -497,7 +503,7 @@ class I1K(Dataset):
                 'training', i, j / self.output_batch_size))
             jpeg_strings = my_unpickle(file_path)
             for jpeg_string in jpeg_strings['data']:
-                img = Image.open(StringIO(jpeg_string))
+                img = self.image.open(StringIO(jpeg_string))
                 if(img.mode != 'RGB'):
                     img = img.convert('RGB')
                 self.mean_img += np.transpose(np.array(
@@ -545,6 +551,7 @@ class I1K(Dataset):
         return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
+        from neon.backends.gpu import GPU
         sn = 'val' if (setname == 'validation') else setname
         self.endb = getattr(self, 'end_' + sn + '_batch')
         self.startb = getattr(self, 'start_' + sn + '_batch')
@@ -617,6 +624,7 @@ class I1K(Dataset):
         del self.mini_batch_queue, self.gpu_queue
 
     def get_mini_batch2(self, batch_idx):
+        from neon.backends.gpu import GPUTensor
         # non threaded version of get_mini_batch for debugging
         self.mini_batch_onque2 = self.get_next_mini_batch_id(
             self.mini_batch_onque2)
@@ -728,7 +736,7 @@ class I1K(Dataset):
             # use predict for training vs testing performance
             for i, jpeg_string in enumerate(
                     self.jpeg_strings2['data'][start_id:end_id]):
-                img = Image.open(StringIO(jpeg_string))
+                img = self.image.open(StringIO(jpeg_string))
                 # translations of image
                 csx = np.random.randint(0, self.diff_size)
                 csy = np.random.randint(0, self.diff_size)
@@ -738,7 +746,7 @@ class I1K(Dataset):
                 # horizontal reflections of the image
                 flip_horizontal = np.random.randint(0, 2)
                 if flip_horizontal == 1:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    img = img.transpose(self.image.FLIP_LEFT_RIGHT)
                 if(img.mode != 'RGB'):
                     img = img.convert('RGB')
                 crop_mean_img = (
@@ -756,7 +764,7 @@ class I1K(Dataset):
                               csy:csy + self.cropped_image_size])
             for i, jpeg_string in enumerate(
                     self.jpeg_strings2['data'][start_id:end_id]):
-                img = Image.open(StringIO(jpeg_string))
+                img = self.image.open(StringIO(jpeg_string))
                 # center crop of image
                 img = img.crop((csx, csy,
                                 csx + self.cropped_image_size,
@@ -886,6 +894,7 @@ Functions below are for multi-threaded image resize, not yet supported
 
 
 def resize_jpeg(jpeg_file_list, output_image_size, crop_to_square):
+    from PIL import Image
     tgt = []
     print('called resize_jpeg')
     jpeg_strings = [jpeg.read() for jpeg in jpeg_file_list]

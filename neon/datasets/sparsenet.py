@@ -10,7 +10,6 @@ import logging
 import os
 
 import numpy
-import scipy.io
 import pickle
 
 from neon.util.compat import PY3, range
@@ -66,6 +65,7 @@ class SPARSENET(Dataset):
         """
         main function
         """
+        import scipy.io
         if 'repo_path' in self.__dict__:
             self.repo_path = os.path.expandvars(os.path.expanduser(
                                                 self.repo_path))
