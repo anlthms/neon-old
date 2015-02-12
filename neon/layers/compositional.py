@@ -48,12 +48,12 @@ class BranchLayer(CompositeLayer):
 
     def __init__(self, **kwargs):
         super(BranchLayer, self).__init__(**kwargs)
-        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
 
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
             l.set_previous_layer(pl)
+        self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
 
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
@@ -82,26 +82,24 @@ class BranchLayer(CompositeLayer):
                 self.backend.add(self.deltas, subl.deltas, out=self.deltas)
 
 
-class ListLayer(Layer):
+class ListLayer(CompositeLayer):
     """
     List layer is composed of a list of other layers stacked on top of one
     another.
 
-    During fprop, it simply fprops along the chain.
-    During bprop, it splits the backward errors into the components and
-    accumulates into common deltas
+    During fprop and bprop, it simply operates along the chain.
     """
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
         for l in self.sublayers:
             l.set_previous_layer(pl)
             pl = l
+        self.nout = self.sublayers[-1].nout
 
     def initialize(self, kwargs):
         super(ListLayer, self).initialize(kwargs)
         self.output = self.sublayers[-1].output
         self.deltas = self.sublayers[0].deltas
-        self.nout = self.sublayers[-1].nout
         if self.sublayers[-1].is_local is True:
             self.nofm = self.sublayers[-1].nofm
             self.ofmshape = self.sublayers[-1].ofmshape
@@ -113,6 +111,6 @@ class ListLayer(Layer):
             y = l.output
 
     def bprop(self, error):
-        error = None
         for l in reversed(self.sublayers):
             l.bprop(error)
+            error = l.deltas
