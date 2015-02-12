@@ -71,6 +71,7 @@ class NeonCommand(Command):
 # use cython to compile extension to .c if installed
 use_cython = True
 suffix = "pyx"
+include_dirs = []
 try:
     from Cython.Build import cythonize
 except ImportError:
@@ -78,15 +79,15 @@ except ImportError:
     suffix = "c"
 try:
     import numpy
-    np_include_dir = numpy.get_include()
+    include_dirs = [numpy.get_include()]
 except ImportError:
-    np_include_dir = ''
+    pass
 extensions = [Extension('neon.backends.flexpt_dtype',
                         sources=['neon/backends/flexpt_dtype.c'],
-                        include_dirs=[np_include_dir]),
+                        include_dirs=include_dirs),
               Extension('neon.backends.flexpt_cython',
                         ['neon/backends/flexpt_cython.' + suffix],
-                        include_dirs=[np_include_dir])]
+                        include_dirs=include_dirs)]
 if use_cython:
     extensions = cythonize(extensions)
 
