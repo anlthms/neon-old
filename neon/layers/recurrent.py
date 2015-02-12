@@ -394,7 +394,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         be.fprop_fc(self.temp_h[tau], yy, wh)
         be.add(self.temp_x[tau], self.temp_h[tau], netl[tau])
         be.add(netl[tau], b, netl[tau])
-        actfunc.apply_both(be, netl[tau], tl[tau])
+        actfunc.fprop_func(be, netl[tau], tl[tau])
 
     def fprop(self, y, cell, inputs, tau):
         """

@@ -335,11 +335,11 @@ class ActivationLayer(Layer):
 
     def fprop(self, inputs):
         self.pre_act[:] = inputs
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
-        if self.skip_act is False:
-            self.backend.multiply(error, self.pre_act, out=error)
+        self.activation.bprop_func(self.backend, self.pre_act, error,
+                                   self.skip_act)
         if self.deltas is not None:
             self.deltas[:] = error
 
