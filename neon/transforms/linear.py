@@ -63,7 +63,7 @@ class Linear(Activation):
         """
         return output
 
-    def bprop_func(self, pre_act, error):
+    def bprop_func(self, backend, pre_act, error):
         """
         Function to perform during the bprop
 

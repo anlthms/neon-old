@@ -93,7 +93,7 @@
         nofm: 64,
         fshape: [3, 3],
         pad: 1,
-        activation: !obj:transforms.RectLin {},
+        #activation: !obj:transforms.RectLin {},
       },
       !obj:layers.ConvLayer {
         name: conv1_2,
