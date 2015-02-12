@@ -54,16 +54,16 @@ class Activation(object):
         raise NotImplementedError("apply_derivative should be" +
                                   "overridden in child class.")
 
-    def pre_act_buffer(self, make_zbuf, output, dtype):
+    def pre_act_buffer(self, backend, output, dtype):
         """
         Creates the pre_act_buffer
 
         Arguments:
-            make_zbuf (backend.zeros): Function to initialize pre_act_buffer.
+            backend (Backend): The backend class to use for computation.
             output (array_like): Output data buffer.
             dtype: dtype for pre_act_buffer
         """
-        return make_zbuf(output.shape, dtype)
+        return backend.zeros(output.shape, dtype)
 
     def fprop_func(self, backend, inputs, outputs):
         """

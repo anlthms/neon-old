@@ -18,7 +18,7 @@ class Linear(Activation):
 
     def apply_function(self, backend, inputs, outputs):
         """
-        Apply the rectified linear activation function.
+        Linear activation function. (no-op)
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -29,7 +29,7 @@ class Linear(Activation):
 
     def apply_derivative(self, backend, inputs, outputs):
         """
-        Apply the rectified linear activation function derivative.
+        Linear activation function derivative (no-op).
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -51,12 +51,12 @@ class Linear(Activation):
         """
         return
 
-    def pre_act_buffer(self, make_zbuf, output, dtype):
+    def pre_act_buffer(self, backend, output, dtype):
         """
         overrides the pre_act_buffer with output to save memory
 
         Arguments:
-            make_zbuf (backend.zeros): Function to initialize pre_act_buffer.
+            backend (Backend): The backend class to use for computation.
             output (array_like): Output data buffer.
             dtype: dtype for pre_act_buffer
         """

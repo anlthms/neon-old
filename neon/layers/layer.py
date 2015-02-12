@@ -129,7 +129,7 @@ class Layer(YAMLable):
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
 
-        self.pre_act = self.activation.pre_act_buffer(make_zbuf,
+        self.pre_act = self.activation.pre_act_buffer(self.backend,
                                                       self.output,
                                                       self.pre_act_dtype)
 

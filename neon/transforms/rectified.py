@@ -52,12 +52,12 @@ class RectLin(Activation):
         """
         backend.rectlin(inputs, outputs)
 
-    def pre_act_buffer(self, make_zbuf, output, dtype):
+    def pre_act_buffer(self, backend, output, dtype):
         """
         overrides the pre_act_buffer with output to save memory
 
         Arguments:
-            make_zbuf (backend.zeros): Function to initialize pre_act_buffer.
+            backend (Backend): The backend class to use for computation.
             output (array_like): Output data buffer.
             dtype: dtype for pre_act_buffer
         """
