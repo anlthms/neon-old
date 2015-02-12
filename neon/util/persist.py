@@ -32,7 +32,7 @@ def ensure_dirs_exist(path):
         str: The unmodified path value.
     """
     outdir = os.path.dirname(path)
-    if outdir is not '' and not os.path.isdir(outdir):
+    if outdir != '' and not os.path.isdir(outdir):
         os.makedirs(outdir)
     return path
 
