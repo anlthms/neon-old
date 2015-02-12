@@ -946,6 +946,7 @@ class GPU(Backend):
         cudanet.tanh(x._tensor, out._tensor)
 
     def rectlin(self, x, out):
+        # x and out are the same buffer
         cudanet.maximum_scalar(x._tensor, 0., out._tensor)
 
     def rectlin_derivative(self, x, out):
