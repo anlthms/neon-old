@@ -7,7 +7,6 @@ import os
 from setuptools import setup, Extension, find_packages, Command
 import subprocess
 
-
 # Define version information
 VERSION = '0.7.0'
 FULLVERSION = VERSION
@@ -57,11 +56,11 @@ class NeonCommand(Command):
             self.distribution.install_requires += ['nose>=1.3.0',
                                                    'cython>=0.19.1']
         if self.gpu == "1":
-            self.distribution.install_requires += ['cudanet']
-            self.distribution.dependency_links += ['https://github.com/'
+            self.distribution.install_requires += ['cudanet>=0.2']
+            self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'
-                                                   'egg=cudanet-0.2']
+                                                   'egg=cudanet']
         if self.dist == "1":
             self.distribution.install_requires += ['mpi4py>=1.3.1']
 
