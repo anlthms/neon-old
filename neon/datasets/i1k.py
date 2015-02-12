@@ -11,7 +11,6 @@ import logging
 import multiprocessing as mp
 import os
 from random import shuffle
-from StringIO import StringIO
 import sys
 import tarfile
 import threading
@@ -20,7 +19,7 @@ from time import time
 import numpy as np
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import range, pickle, queue
+from neon.util.compat import range, pickle, queue, StringIO
 
 logger = logging.getLogger(__name__)
 

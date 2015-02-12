@@ -383,3 +383,4 @@ Miscellaneous
 
    neon.util.compat.PY3
    neon.util.compat.range
+   neon.util.compat.StringIO

@@ -13,6 +13,7 @@ Python 2 and 3 Compatibility
 
    neon.util.compat.PY3
    neon.util.compat.range
+   neon.util.compat.StringIO
 
 To ensure code runs under python2 and 3, you can utilize the definitions
 in :mod:`neon.util.compat`
@@ -33,3 +34,6 @@ equivalent where available).
 
 The :attr:`neon.util.compat.queue` should be used whenever the python2 Queue
 module is needed.  In python3 this was renamed to queue.
+
+The :attr:`neon.util.compat.StringIO` should be used whenever you need to read
+and write strings as files.
