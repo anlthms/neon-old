@@ -39,12 +39,12 @@ class MLP(MLP_old):
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate}
         # trace memory explosion
-        #import ipdb          
+        #import ipdb
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
-            print ll.name
-            #ipdb.set_trace()
+            # print ll.name
+            # ipdb.set_trace()
             ll.initialize(kwargs)
-            #sleep(2.)
+            # sleep(2.)
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):

@@ -38,10 +38,9 @@ class Linear(Activation):
         """
         return
 
-    def apply_both(self, backend, inputs, outputs):
+    def fprop_func(self, backend, inputs, outputs):
         """
-        Applies the rectified linear transform and its derivative to the
-        dataset passed.
+        Function to apply during fprop
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -63,13 +62,14 @@ class Linear(Activation):
         """
         return output
 
-    def bprop_func(self, backend, pre_act, error):
+    def bprop_func(self, backend, pre_act, error, skip_act=False):
         """
         Function to perform during the bprop
 
         Arguments:
+            backend (Backend): The backend class to use for computation.
             pre_act (array_like): pre_activation buffer
             error (array_like): error buffer
+            skip_act (Boolean): whether to skip the multiplication
         """
         return
-

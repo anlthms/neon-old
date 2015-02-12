@@ -9,13 +9,13 @@ from neon.transforms.activation import Activation
 
 
 class RectLin(Activation):
+
     """
     Embodiment of a rectified linear activation function.
     """
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.gain = 1.4142136
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -39,10 +39,9 @@ class RectLin(Activation):
         """
         backend.rectlin_derivative(inputs, outputs)
 
-    def apply_both(self, backend, inputs, outputs):
+    def fprop_func(self, backend, inputs, outputs):
         """
-        Applies the rectified linear transform and its derivative to the
-        dataset passed.
+        Function to apply during fprop
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -52,7 +51,7 @@ class RectLin(Activation):
             outputs (array_like): Storage for the transformed output.
         """
         backend.rectlin(inputs, outputs)
-        
+
     def pre_act_buffer(self, make_zbuf, output, dtype):
         """
         overrides the pre_act_buffer with output to save memory
@@ -64,14 +63,15 @@ class RectLin(Activation):
         """
         return output
 
-    def bprop_func(self, backend, pre_act, error):
+    def bprop_func(self, backend, pre_act, error, skip_act=False):
         """
         Function to perform during the bprop
 
         Arguments:
+            backend (Backend): The backend class to use for computation.
             pre_act (array_like): pre_activation buffer
             error (array_like): error buffer
+            skip_act (Boolean): whether to skip the multiplication
         """
         backend.greater(pre_act, 0, out=pre_act)
-        backend.multiply(error, pre_act, out=error)
-
+        super(RectLin, self).bprop_func(backend, pre_act, error, skip_act)

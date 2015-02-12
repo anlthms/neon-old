@@ -9,15 +9,16 @@ import logging
 from neon.backends.cpu import CPU
 from neon.layers.layer import WeightLayer
 from neon.util.param import opt_param
-from neon.transforms.rectified import RectLin
 
 logger = logging.getLogger(__name__)
 
 
 class ConvLayer(WeightLayer):
+
     """
     Convolutional layer.
     """
+
     def __init__(self, **kwargs):
         self.is_local = True
         super(ConvLayer, self).__init__(**kwargs)
@@ -57,18 +58,11 @@ class ConvLayer(WeightLayer):
                                 local=self.local_conv)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
-        # rename this to activation.fprop_func?
-        self.activation.apply_both(self.backend, self.pre_act, self.output)
+        self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
         self.activation.bprop_func(self.backend, self.pre_act, error)
-
-        # this would've been the old way without a Linear activation
-        # if isinstance(self.activation, RectLin):
-        #     self.backend.greater(self.pre_act, 0, out=self.pre_act)
-        # if self.activation is not None:
-        #     self.backend.multiply(error, self.pre_act, out=error)
         if self.deltas is not None:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,

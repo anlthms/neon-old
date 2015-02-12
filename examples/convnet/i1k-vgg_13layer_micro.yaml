@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------
 # Copyright 2015 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# VGG model: 13 layer
+# VGG model: 13 layer, abridged version of following link
 # https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-readme-md
 
 !obj:experiments.FitPredictErrorExperiment {
@@ -20,9 +20,9 @@
     num_processes: 4, #not impl yet
     # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 1, #416,
+    end_train_batch: 1, #24,
     start_val_batch: 0,
-    end_val_batch: 1, #15,
+    end_val_batch: 1, #4,
   },
 
   weight_inits: [
@@ -93,7 +93,7 @@
         nofm: 64,
         fshape: [3, 3],
         pad: 1,
-        #activation: !obj:transforms.RectLin {},
+        activation: !obj:transforms.RectLin {},
       },
       !obj:layers.ConvLayer {
         name: conv1_2,
@@ -220,7 +220,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 4096,
+        nout: 100, #4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
@@ -232,7 +232,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 4096,
+        nout: 100, #4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {

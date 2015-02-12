@@ -54,10 +54,23 @@ class Activation(object):
         raise NotImplementedError("apply_derivative should be" +
                                   "overridden in child class.")
 
-    def apply_both(self, backend, inputs, outputs):
+    def pre_act_buffer(self, make_zbuf, output, dtype):
         """
-        Computes the activation function and its derivative by applying it to
-        each element of the dataset passed.
+        Creates the pre_act_buffer
+
+        Arguments:
+            make_zbuf (backend.zeros): Function to initialize pre_act_buffer.
+            output (array_like): Output data buffer.
+            dtype: dtype for pre_act_buffer
+        """
+        return make_zbuf(output.shape, dtype)
+
+    def fprop_func(self, backend, inputs, outputs):
+        """
+        Function to apply during fprop
+        Typically computes the activation function and its derivative by
+        applying it to each element of the dataset passed, but there are
+        exceptions (RectLin).
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -72,13 +85,17 @@ class Activation(object):
         raise NotImplementedError("apply_both should be" +
                                   "overridden in child class.")
 
-    def pre_act_buffer(self, make_zbuf, output, dtype):
+    def bprop_func(self, backend, pre_act, error, skip_act=False):
         """
-        Creates the pre_act_buffer
+        Function to apply during bprop
+        Typically empty, but can be used to compute derivative during bprop
+        instead of storing it during fprop (used in RectLin).
 
         Arguments:
-            make_zbuf (backend.zeros): Function to initialize pre_act_buffer.
-            output (array_like): Output data buffer.
-            dtype: dtype for pre_act_buffer
+            backend (Backend): The backend class to use for computation.
+            pre_act (array_like): pre_activation buffer
+            error (array_like): error buffer
+            skip_act (Boolean): whether to skip the multiplication
         """
-        return make_zbuf(output.shape, dtype)
+        if skip_act is False:
+            backend.multiply(error, pre_act, out=error)
