@@ -52,11 +52,11 @@ class BCI(Dataset):
         self.data_type = 'raw'
         self.__dict__.update(kwargs)
 
-    def fetch_dataset(self, rootdir, setname, datadir):
+    def fetch_dataset(self, setname, datadir):
         if os.path.exists(datadir):
             return True
 
-        repofile = os.path.join(rootdir, setname + '.zip')
+        repofile = os.path.join(self.rootdir, setname + '.zip')
         if not os.path.exists(repofile):
             logger.warning('Could not find %s', repofile)
             return False
@@ -69,13 +69,13 @@ class BCI(Dataset):
         infile.close()
         return True
 
-    def read_data(self, rootdir, setname):
-        pklpath = os.path.join(rootdir, 'inputdict.pkl')
+    def read_data(self, setname):
+        pklpath = os.path.join(self.rootdir, 'inputdict.pkl')
         if os.path.exists(pklpath):
             return deserialize(pklpath)
 
-        datadir = os.path.join(rootdir, setname)
-        if self.fetch_dataset(rootdir, setname, datadir) is False:
+        datadir = os.path.join(self.rootdir, setname)
+        if self.fetch_dataset(setname, datadir) is False:
             return None
 
         logger.info('Reading data from %s', datadir)
@@ -95,11 +95,11 @@ class BCI(Dataset):
         serialize(inputdict, pklpath)
         return inputdict
 
-    def read_targets(self, rootdir, subs, sessions):
-        pklpath = os.path.join(rootdir, 'targetdict.pkl')
+    def read_targets(self, subs, sessions):
+        pklpath = os.path.join(self.rootdir, 'targetdict.pkl')
         if os.path.exists(pklpath):
             return deserialize(pklpath)
-        targetfile = os.path.join(rootdir, 'TrainLabels.csv')
+        targetfile = os.path.join(self.rootdir, 'TrainLabels.csv')
         rawtargets = np.genfromtxt(targetfile, dtype='S16,int',
                                    delimiter=',', skip_header=1)
 
@@ -279,6 +279,12 @@ class BCI(Dataset):
                       sessions, nsamples, features):
         raw_inputs, targets = self.prep_raw_data(
             inputdict, targetdict, subs, sessions, nsamples, features)
+        pklpath = os.path.join(self.rootdir, 'viddata.npy')
+        if os.path.exists(pklpath):
+            infile = open(pklpath)
+            rinputs = np.load(infile) 
+            infile.close()
+            return rinputs, targets
         nfeatures = len(features)
         nrows = raw_inputs.shape[0]
         depth, height, width = 16, 16, 16
@@ -301,7 +307,11 @@ class BCI(Dataset):
             if False:
                 self.anim(inputs[0, clip])
             curfrm += stride
-        return inputs.reshape((nrows, np.prod(inputs.shape[1:]))), targets
+        rinputs = inputs.reshape((nrows, np.prod(inputs.shape[1:])))
+        outfile = open(pklpath, 'w')
+        np.save(outfile, rinputs)
+        outfile.close()
+        return rinputs, targets
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -311,10 +321,10 @@ class BCI(Dataset):
 
         self.rootdir = os.path.expanduser(
             os.path.join(self.repo_path, self.__class__.__name__))
-        inputdict = self.read_data(self.rootdir, 'train')
+        inputdict = self.read_data('train')
         subs = inputdict.keys()
         sessions = inputdict[subs[0]].keys()
-        targetdict = self.read_targets(self.rootdir, subs, sessions)
+        targetdict = self.read_targets(subs, sessions)
 
         subs = SUBS
         split = int(len(subs) * 0.6)
