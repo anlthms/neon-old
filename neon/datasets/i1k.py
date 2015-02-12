@@ -7,11 +7,9 @@ More information at: http://www.image-net.org/download-imageurls
 Sign up for an ImageNet account to download the dataset!
 """
 
-import cPickle
 import logging
 import multiprocessing as mp
 import os
-import Queue
 from random import shuffle
 from StringIO import StringIO
 import sys
@@ -22,17 +20,16 @@ from time import time
 import numpy as np
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import range
-
+from neon.util.compat import range, pickle, queue
 
 logger = logging.getLogger(__name__)
 
 # prefix for directory name where macro_batches are stored
 prefix_macro = 'macro_batches_'
 # global queues to start threads
-macroq = Queue.Queue()
-miniq = Queue.Queue()
-gpuq = Queue.Queue()
+macroq = queue.Queue()
+miniq = queue.Queue()
+gpuq = queue.Queue()
 macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
@@ -40,12 +37,12 @@ gpuq_flag = False
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
-        cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickle.dump(data, fo, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def my_unpickle(filename):
     fo = open(filename, 'r')
-    contents = cPickle.load(fo)
+    contents = pickle.load(fo)
     fo.close()
     return contents
 
@@ -577,14 +574,14 @@ class I1K(Dataset):
                                           num_input_dims=(
                                               self.cropped_image_size ** 2)
                                           * 3)
-        self.file_name_queue = Queue.Queue()
-        self.macro_batch_queue = Queue.Queue()
-        self.mini_batch_queue = Queue.Queue()
-        self.gpu_queue = Queue.Queue()
+        self.file_name_queue = queue.Queue()
+        self.macro_batch_queue = queue.Queue()
+        self.mini_batch_queue = queue.Queue()
+        self.gpu_queue = queue.Queue()
         global macroq, miniq, gpuq, macroq_flag, miniq_flag, gpuq_flag
-        macroq = Queue.Queue()
-        miniq = Queue.Queue()
-        gpuq = Queue.Queue()
+        macroq = queue.Queue()
+        miniq = queue.Queue()
+        gpuq = queue.Queue()
         macroq_flag = False
         miniq_flag = False
         gpuq_flag = False

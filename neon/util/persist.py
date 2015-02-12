@@ -9,12 +9,8 @@ import logging
 import os
 import yaml
 
-from neon.util.compat import PY3
+from neon.util.compat import pickle
 
-if PY3:
-    import pickle
-else:
-    import cPickle as pickle
 
 logger = logging.getLogger(__name__)
 
