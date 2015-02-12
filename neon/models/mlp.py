@@ -8,6 +8,7 @@ Simple multi-layer perceptron model.
 import logging
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,13 @@ class MLP(MLP_old):
         self.backend = backend
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate}
+        # trace memory explosion
+        #import ipdb          
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
+            print ll.name
+            #ipdb.set_trace()
             ll.initialize(kwargs)
+            #sleep(2.)
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):

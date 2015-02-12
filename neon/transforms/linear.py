@@ -2,20 +2,19 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-Rectified linear (ReLU) transform functions and classes.
+Linear transform functions and classes.
 """
 
 from neon.transforms.activation import Activation
 
 
-class RectLin(Activation):
+class Linear(Activation):
     """
-    Embodiment of a rectified linear activation function.
+    Embodiment of a linear activation function.
     """
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.gain = 1.4142136
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -26,7 +25,7 @@ class RectLin(Activation):
             inputs (array_like): Input data to be transformed
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin(inputs, outputs)
+        return
 
     def apply_derivative(self, backend, inputs, outputs):
         """
@@ -37,7 +36,7 @@ class RectLin(Activation):
             inputs (array_like): Input data to be transformed
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin_derivative(inputs, outputs)
+        return
 
     def apply_both(self, backend, inputs, outputs):
         """
@@ -51,8 +50,8 @@ class RectLin(Activation):
                                  function.
             outputs (array_like): Storage for the transformed output.
         """
-        backend.rectlin(inputs, outputs)
-        
+        return
+
     def pre_act_buffer(self, make_zbuf, output, dtype):
         """
         overrides the pre_act_buffer with output to save memory
@@ -64,7 +63,7 @@ class RectLin(Activation):
         """
         return output
 
-    def bprop_func(self, backend, pre_act, error):
+    def bprop_func(self, pre_act, error):
         """
         Function to perform during the bprop
 
@@ -72,6 +71,5 @@ class RectLin(Activation):
             pre_act (array_like): pre_activation buffer
             error (array_like): error buffer
         """
-        backend.greater(pre_act, 0, out=pre_act)
-        backend.multiply(error, pre_act, out=error)
+        return
 

@@ -8,7 +8,7 @@
 
   dataset: &ds !obj:datasets.I1K {
     load_path: '/usr/local/data', #directory where .tar files are stored
-    repo_path: 'usr/local/data', #directory to use for writing files
+    repo_path: '/usr/local/data', #directory to use for writing files
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     max_tar_file: &mtf 1000,
@@ -20,9 +20,9 @@
     num_processes: 4, #not impl yet
     # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 416,
+    end_train_batch: 1, #416,
     start_val_batch: 0,
-    end_val_batch: 15,
+    end_val_batch: 1, #15,
   },
 
   weight_inits: [
@@ -75,8 +75,8 @@
 
   model: !obj:models.MLP {
     num_epochs: 1, ##74
-    batch_size: &bs 256,
-    step_print: 24,
+    batch_size: &bs 32, #256 with data parallel on 4 gpus
+    step_print: 1, #24,
     #serialized_path: '~/data/I1K/I1K_vgg_model.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
