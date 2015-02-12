@@ -55,7 +55,7 @@ class SPARSENET(Dataset):
         """
         Carries out the actual reading of Sparsenet image files.
         """
-        print "in read_image_file reading", fname
+        logger.info("in read_image_file, reading: %s", fname)
         with open(fname, 'rb') as infile:
             array = pickle.load(infile)
             infile.close()
@@ -95,13 +95,12 @@ class SPARSENET(Dataset):
                         patches = data.reshape(512/16, 16, 512/16, 16, 10)
                         patches = patches.transpose(1, 3, 0, 2, 4)
                         patches = patches.reshape(16, 16, 1024*10)
-                        print "Caching to pickle file: ", outfile
+                        logger.info("Caching to pickle file: %s", outfile)
                         pickle.dump(patches, outfile)
                         outfile.close()
                 logger.info('loading: %s', name)
                 # load existing data
                 if 'IMAGES' in repo_file:
-                    print "test2"
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
                     indat = indat.reshape((256, 10240)).transpose()[train_idcs]
