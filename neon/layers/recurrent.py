@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class RecurrentLayer(WeightLayer):
+
     """
     This inherits generously from WeightLayer, in particular
 
@@ -23,10 +24,10 @@ class RecurrentLayer(WeightLayer):
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
-        if self.activation is not None:
-            self.pre_act = make_zbuf(self.out_shape, self.pre_act_dtype)
-        else:
-            self.pre_act = self.output
+
+        self.pre_act = self.activation.pre_act_buffer(self.backend,
+                                                      self.output,
+                                                      self.pre_act_dtype)
 
         # TODO: Get rid of output and pre_act. But they seem to be used in the
         # cost to set a buffer size.
@@ -47,6 +48,7 @@ class RecurrentLayer(WeightLayer):
 
 
 class RecurrentCostLayer(CostLayer):
+
     '''CostLayer adapted for RNN. Somewhere it must define a buffer where the
     cost looks for the predictions. '''
 
@@ -98,6 +100,7 @@ class RecurrentOutputLayer(RecurrentLayer):
     Derived from Layer. pre_act becomes pre_act_list, output becomes
     output_list, which are indexed by [tau], the unrolling step.
     """
+
     def initialize(self, kwargs):
         req_param(self, ['nout', 'nin', 'unrolls', 'activation'])
         super(RecurrentOutputLayer, self).initialize(kwargs)
@@ -116,7 +119,7 @@ class RecurrentOutputLayer(RecurrentLayer):
 
     def fprop(self, inputs, tau):
         self.backend.fprop_fc(self.pre_act_list[tau], inputs, self.weights)
-        self.activation.apply_both(self.backend,
+        self.activation.fprop_func(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
@@ -136,11 +139,13 @@ class RecurrentOutputLayer(RecurrentLayer):
 
 
 class RecurrentHiddenLayer(RecurrentLayer):
+
     """
     Derived from Layer. In addition to the lists[tau] outlined for
     RecurrentOutputLayer, the fprop is getting input from two weight matrices,
     one connected to the input and one connected to the previous hidden state.
     """
+
     def initialize(self, kwargs):
         req_param(self, ['weight_init_rec'])
         self.weight_rec_shape = (self.nout, self.nout)
@@ -185,7 +190,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
         self.backend.fprop_fc(self.z[0], y, self.weights_rec)
         self.backend.fprop_fc(self.z[1], inputs, self.weights)
         self.backend.add(self.z[0], self.z[1], self.pre_act_list[tau])
-        self.activation.apply_both(self.backend,
+        self.activation.fprop_func(self.backend,
                                    self.pre_act_list[tau],
                                    self.output_list[tau])
 
@@ -389,7 +394,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         be.fprop_fc(self.temp_h[tau], yy, wh)
         be.add(self.temp_x[tau], self.temp_h[tau], netl[tau])
         be.add(netl[tau], b, netl[tau])
-        actfunc.apply_both(be, netl[tau], tl[tau])
+        actfunc.fprop_func(be, netl[tau], tl[tau])
 
     def fprop(self, y, cell, inputs, tau):
         """
@@ -426,11 +431,11 @@ class RecurrentLSTMLayer(RecurrentLayer):
 
         # input gate
         self.cell_fprop(inputs, y, tau, 'i', self.gate_activation)
-        # # forget gate
+        # forget gate
         self.cell_fprop(inputs, y, tau, 'f', self.gate_activation)
-        # # output gate
+        # output gate
         self.cell_fprop(inputs, y, tau, 'o', self.gate_activation)
-        # # classic RNN cell
+        # classic RNN cell
         self.cell_fprop(inputs, y, tau, 'c', self.activation)
 
         # combine the parts and compute output.
@@ -441,7 +446,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         # Hack to avoid creating a new copy for c_phip, just want assign vals
         be.add(self.c_t[tau], 0.0, self.c_phip[tau])
 
-        self.activation.apply_both(be, self.c_phip[tau], self.c_phi[tau])
+        self.activation.fprop_func(be, self.c_phip[tau], self.c_phi[tau])
         be.multiply(self.o_t[tau], self.c_phi[tau], self.output_list[tau])
 
     def bprop(self, error_h, error_c, tau, numgrad=False):
@@ -495,7 +500,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         numtemp = {}
         for ifoc in ['i', 'f', 'o', 'c']:
             for hx in ['h', 'x']:
-                numtemp[ifoc+hx] = np.zeros((2, 1), dtype=np.float32)
+                numtemp[ifoc + hx] = np.zeros((2, 1), dtype=np.float32)
 
         """--------------------------
         PART 1: original dh2/dh1 terms
@@ -518,7 +523,8 @@ class RecurrentLSTMLayer(RecurrentLayer):
         #                  * self.i_t[tau] * self.net_g[tau]
 
         deltargs = {'i': [self.eh_ot_cphip, self.g_t[tau], self.net_i[tau]],
-                    'f': [self.eh_ot_cphip, self.c_t[tau-1], self.net_f[tau]],
+                    'f': [self.eh_ot_cphip,
+                          self.c_t[tau - 1], self.net_f[tau]],
                     'o': [error_h, self.c_phi[tau], self.net_o[tau]],
                     'c': [self.eh_ot_cphip, self.i_t[tau], self.net_g[tau]]}
 
@@ -526,8 +532,8 @@ class RecurrentLSTMLayer(RecurrentLayer):
             self.list_product(self.delta_buf, deltargs[ifoc])
             self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
                             ifoc, self.d_dh1[ifoc])
-            numtemp[ifoc+'h'][0] = self.dh_dwh_buf[12, 55].asnumpyarray()
-            numtemp[ifoc+'x'][0] = self.dh_dwx_buf[12, 110].asnumpyarray()
+            numtemp[ifoc + 'h'][0] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifoc + 'x'][0] = self.dh_dwx_buf[12, 110].asnumpyarray()
 
         # e. collect terms
         self.list_sum(self.errs['hh'], self.d_dh1.values())
@@ -542,15 +548,15 @@ class RecurrentLSTMLayer(RecurrentLayer):
         # c. cell
         # self.delta_buf = error_c * self.i_t[tau] * self.net_g[tau]
         deltargs = {'i': [error_c, self.g_t[tau], self.net_i[tau]],
-                    'f': [error_c, self.c_t[tau-1], self.net_f[tau]],
+                    'f': [error_c, self.c_t[tau - 1], self.net_f[tau]],
                     'c': [error_c, self.i_t[tau], self.net_g[tau]]}
 
         for ifc in ['i', 'f', 'c']:
             self.list_product(self.delta_buf, deltargs[ifc])
             self.cell_bprop(self.delta_buf, cur_input, cur_output, tau,
                             ifc, self.dc_d_dh1[ifc])
-            numtemp[ifc+'h'][1] = self.dh_dwh_buf[12, 55].asnumpyarray()
-            numtemp[ifc+'x'][1] = self.dh_dwx_buf[12, 110].asnumpyarray()
+            numtemp[ifc + 'h'][1] = self.dh_dwh_buf[12, 55].asnumpyarray()
+            numtemp[ifc + 'x'][1] = self.dh_dwx_buf[12, 110].asnumpyarray()
 
         # errs['ch'] = sum of dc_d{i,f,g}_dh1 terms
         # errs['hc'] = error_h * self.o_t * self.c_phip * self.f_t @ tau
