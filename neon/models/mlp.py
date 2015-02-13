@@ -171,26 +171,26 @@ class MLP(MLP_old):
         self.data_layer.cleanup()
         return outputs, targets
 
-    def report(self, outputs, targets, metric):
+    def report(self, targets, outputs, metric):
         nrecs = outputs.shape[1]
         if metric == 'misclass rate':
             retval = self.backend.empty((1, 1))
             labels = self.backend.empty((1, nrecs))
             preds = self.backend.empty(labels.shape)
             misclass = self.backend.empty(labels.shape)
-            ms.misclass_sum(self.backend, outputs, targets,
+            ms.misclass_sum(self.backend, targets, outputs,
                             preds, labels, misclass, retval)
             misclassval = retval.asnumpyarray() / nrecs
             return misclassval * 100
 
         if metric == 'auc':
-            return ms.auc(self.backend, outputs[0], targets[0])
+            return ms.auc(self.backend, targets[0], outputs[0])
 
         if metric == 'log loss':
             retval = self.backend.empty((1, 1))
             sums = self.backend.empty((1, outputs.shape[1]))
             temp = self.backend.empty(outputs.shape)
-            ms.logloss(self.backend, outputs, targets, sums, temp, retval)
+            ms.logloss(self.backend, targets, outputs, sums, temp, retval)
             self.backend.multiply(retval, -1, out=retval)
             self.backend.divide(retval, nrecs, out=retval)
             return retval.asnumpyarray()

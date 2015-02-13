@@ -282,7 +282,7 @@ class BCI(Dataset):
         pklpath = os.path.join(self.rootdir, 'viddata.npy')
         if os.path.exists(pklpath):
             infile = open(pklpath)
-            rinputs = np.load(infile) 
+            rinputs = np.load(infile)
             infile.close()
             return rinputs, targets
         nfeatures = len(features)

@@ -246,7 +246,8 @@ def serialize(obj, save_path):
     See Also:
         deserialize
     """
-    logger.warn("serializing %s to: %s", str(obj), save_path)
+    save_path = os.path.expandvars(os.path.expanduser(save_path))
+    logger.warn("serializing object to: %s", save_path)
     ensure_dirs_exist(save_path)
     pickle.dump(obj, open(save_path, 'wb'), -1)
 

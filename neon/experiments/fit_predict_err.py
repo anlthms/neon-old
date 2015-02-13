@@ -7,7 +7,9 @@ is evaluated on the predictions made.
 """
 
 import logging
+import os
 
+from neon.util.persist import serialize
 from neon.experiments.fit import FitExperiment
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,11 @@ class FitPredictErrorExperiment(FitExperiment):
         self.metrics = []
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
 
+    def save_results(self, dataset, setname, data, dataname):
+        filename = os.path.join(dataset.repo_path, dataset.__class__.__name__,
+                                '{}-{}.pkl'.format(setname, dataname))
+        serialize(data.asnumpyarray().T, filename)
+
     def run(self):
         """
         Actually carry out each of the experiment steps.
@@ -46,7 +53,10 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Report error metrics.
         for setname in self.report_sets:
-            res = self.model.predict_fullset(self.dataset, setname)
+            outputs, targets = self.model.predict_fullset(self.dataset,
+                                                          setname)
+            self.save_results(self.dataset, setname, outputs, 'predictions')
+            self.save_results(self.dataset, setname, targets, 'targets')
             for metric in self.metrics:
-                val = self.model.report(*res, metric=metric)
+                val = self.model.report(targets, outputs, metric=metric)
                 logger.info('%s set %s %.5f', setname, metric, val)
