@@ -713,8 +713,8 @@ class CPU(Backend):
         return out
 
     def rectlin(self, x, out):
-        self.greater(x, 0, out=out)
-        self.multiply(x, out, out=out)
+        # x and out are the same buffer
+        np.maximum(x._tensor, 0., out._tensor)
         return out
 
     def rectlin_derivative(self, x, out):
