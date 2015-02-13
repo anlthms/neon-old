@@ -130,28 +130,9 @@ class BCI(Dataset):
         maxval = np.max(data)
         data /= maxval
 
-    def prep_raw_data(self, inputdict, targetdict, subs,
-                      sessions, nsamples, features):
+    def prep_raw_data(self, inputdict, nrows, subs, sessions, nsamples, features):
         nfeatures = len(features)
-        nrows = 0
-        for subid in subs:
-            for sessid in sessions:
-                nsessrows = targetdict[subid][sessid].shape[0]
-                assert nsessrows == (
-                    inputdict[subid][sessid][:, -1] == 1).sum()
-                nrows += nsessrows
-
         inputs = np.zeros((nrows, nfeatures*nsamples))
-        targets = np.zeros((nrows, 2))
-        row = 0
-        for subid in subs:
-            for sessid in sessions:
-                nsessrows = targetdict[subid][sessid].shape[0]
-                for col in range(2):
-                    tview = targets[row:row+nsessrows, col]
-                    tview[targetdict[subid][sessid] == col] = 1
-                row += nsessrows
-        assert row == nrows
         row = 0
         rinputs = inputs.reshape((nrows, nfeatures, nsamples))
         for subid in subs:
@@ -165,17 +146,16 @@ class BCI(Dataset):
                             sessdata[ind:ind+nsamples, feat])
                     row += 1
         assert row == nrows
-        return inputs, targets
+        return inputs
 
     def sgram(self, signal, height, width):
         sgram = pylab.specgram(signal, NFFT=128, Fs=2, noverlap=120,
                                cmap=matplotlib.cm.gist_heat)[0]
         return sgram[:height, :width]
 
-    def prep_sgram_data(self, inputdict, targetdict, subs,
-                        sessions, nsamples, features):
-        raw_inputs, targets = self.prep_raw_data(
-            inputdict, targetdict, subs, sessions, nsamples, features)
+    def prep_sgram_data(self, inputdict, nrows, subs, sessions, nsamples, features):
+        raw_inputs = self.prep_raw_data(
+            inputdict, nrows, subs, sessions, nsamples, features)
 
         nfeatures = len(features)
         nrows = raw_inputs.shape[0]
@@ -188,7 +168,7 @@ class BCI(Dataset):
                 fvector = raw_inputs[row, featind]
                 sgram = self.sgram(fvector, height, width)
                 inputs[row, featind] = sgram
-        return inputs.reshape((nrows, nfeatures*height*width)), targets
+        return inputs.reshape((nrows, nfeatures*height*width))
 
     def get_chan_locs(self, width):
         chanfile = os.path.join(self.rootdir, 'ChannelsLocation.csv')
@@ -275,16 +255,9 @@ class BCI(Dataset):
                              col1:col2].mean(axis=3).mean(axis=2).mean(axis=1))
         vids[:] = result
 
-    def prep_vid_data(self, inputdict, targetdict, subs,
-                      sessions, nsamples, features):
-        raw_inputs, targets = self.prep_raw_data(
-            inputdict, targetdict, subs, sessions, nsamples, features)
-        pklpath = os.path.join(self.rootdir, 'viddata.npy')
-        if os.path.exists(pklpath):
-            infile = open(pklpath)
-            rinputs = np.load(infile)
-            infile.close()
-            return rinputs, targets
+    def prep_vid_data(self, inputdict, nrows, subs, sessions, nsamples, features):
+        raw_inputs = self.prep_raw_data(
+            inputdict, nrows, subs, sessions, nsamples, features)
         nfeatures = len(features)
         nrows = raw_inputs.shape[0]
         depth, height, width = 16, 16, 16
@@ -308,10 +281,41 @@ class BCI(Dataset):
                 self.anim(inputs[0, clip])
             curfrm += stride
         rinputs = inputs.reshape((nrows, np.prod(inputs.shape[1:])))
-        outfile = open(pklpath, 'w')
-        np.save(outfile, rinputs)
+        return rinputs
+
+    def load_set(self, inputdict, nrows, subs, name):
+        savepath = os.path.join(self.rootdir, name + '.npy')
+        if os.path.exists(savepath):
+            logger.info('loading from %s', savepath)
+            infile = open(savepath)
+            inputs = np.load(infile)
+            infile.close()
+            return inputs
+        inputs = self.prep_data(inputdict, nrows, subs, SESSIONS, NSAMPLES, FEATURES)
+        outfile = open(savepath, 'w')
+        logger.info('saving to %s', savepath)
+        np.save(outfile, inputs)
         outfile.close()
-        return rinputs, targets
+        return inputs
+
+    def load_targets(self, targetdict, subs, sessions):
+        nrows = 0
+        for subid in subs:
+            for sessid in sessions:
+                nsessrows = targetdict[subid][sessid].shape[0]
+                nrows += nsessrows
+
+        targets = np.zeros((nrows, 2))
+        row = 0
+        for subid in subs:
+            for sessid in sessions:
+                nsessrows = targetdict[subid][sessid].shape[0]
+                for col in range(2):
+                    tview = targets[row:row+nsessrows, col]
+                    tview[targetdict[subid][sessid] == col] = 1
+                row += nsessrows
+        assert row == nrows
+        return targets
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -342,12 +346,12 @@ class BCI(Dataset):
         else:
             raise AttributeError('invalid data type specified')
 
-        traininputs, traintargets = self.prep_data(
-            inputdict, targetdict, trainsubs,
-            SESSIONS, NSAMPLES, FEATURES)
-        valinputs, valtargets = self.prep_data(
-            inputdict, targetdict, valsubs,
-            SESSIONS, NSAMPLES, FEATURES)
+        traintargets = self.load_targets(targetdict, trainsubs, SESSIONS)
+        traininputs = self.load_set(inputdict, traintargets.shape[0], trainsubs,
+                                    'train-' + self.data_type)
+        valtargets = self.load_targets(targetdict, valsubs, SESSIONS)
+        valinputs = self.load_set(inputdict, valtargets.shape[0], valsubs,
+                                  'validation-' + self.data_type)
 
         traininds = np.arange(traininputs.shape[0])
         np.random.shuffle(traininds)
