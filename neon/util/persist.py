@@ -179,10 +179,12 @@ def obj_multi_constructor(loader, tag_suffix, node,
                 child_vals[param] = child_vals[param].format(
                     rank=str(MPI.COMM_WORLD.rank),
                     size=str(MPI.COMM_WORLD.size))
-    if (child_vals[deserialize_param] is not None and
-            os.path.exists(child_vals[deserialize_param])):
-        # deserialization attempt should be made
-        res = deserialize(child_vals[deserialize_param])
+    if child_vals[deserialize_param] is not None:
+        des_path = child_vals[deserialize_param]
+        des_path = os.path.expandvars(os.path.expanduser(des_path))
+        if os.path.exists(des_path):
+            # deserialization attempt should be made
+            res = deserialize(des_path)
     if res is None:
         # need to create a new object
         try:
@@ -269,6 +271,7 @@ def serialize(obj, save_path):
     """
     if save_path is None or len(save_path) == 0:
         return
+    save_path = os.path.expandvars(os.path.expanduser(save_path))
     logger.warn("serializing %s to: %s", str(obj), save_path)
     ensure_dirs_exist(save_path)
     pickle.dump(obj, open(save_path, 'wb'), -1)
