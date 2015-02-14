@@ -42,7 +42,7 @@
     batch_size: &bs 100,
     serialized_path: './inet96features.pkl',  # check util/persist for overwrite_param
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
         nofm: 3, # Must match the number of variables.
