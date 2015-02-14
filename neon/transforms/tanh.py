@@ -48,7 +48,7 @@ class Tanh(Activation):
         backend.multiply(outputs, outputs, outputs)
         backend.subtract(1.0, outputs, outputs)
 
-    def apply_both(self, backend, inputs, outputs):
+    def fprop_func(self, backend, inputs, outputs):
         backend.clip(inputs, -10, 10, out=inputs)
         backend.tanh(inputs, outputs)
         backend.multiply(outputs, outputs, inputs)

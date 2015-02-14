@@ -15,7 +15,6 @@ class Logistic(Activation):
     """
     def __init__(self):
         self.tmp = None
-        self.gain = 1.0
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -44,7 +43,7 @@ class Logistic(Activation):
         backend.subtract(1.0, outputs, out=self.tmp)
         backend.multiply(outputs, self.tmp, outputs)
 
-    def apply_both(self, backend, inputs, outputs):
+    def fprop_func(self, backend, inputs, outputs):
         """
         Applies logistic function and its derivative to the dataset passed.
 

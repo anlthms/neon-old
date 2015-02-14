@@ -37,13 +37,12 @@ class FCLayer(WeightLayer):
                               weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
-        if self.activation is not None:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
+        self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        if self.activation is not None and self.skip_act is False:
-            self.backend.multiply(error, self.pre_act, out=error)
+        self.activation.bprop_func(self.backend, self.pre_act, error,
+                                   self.skip_act)
 
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
