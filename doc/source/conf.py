@@ -26,8 +26,8 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
-# turn off source code view by default
-#    'sphinx.ext.viewcode',
+    # turn off source code view by default
+    #    'sphinx.ext.viewcode',
 ]
 
 # Autodoc settings
