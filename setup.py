@@ -7,7 +7,6 @@ import os
 from setuptools import setup, Extension, find_packages, Command
 import subprocess
 
-
 # Define version information
 VERSION = '0.7.0'
 FULLVERSION = VERSION
@@ -57,11 +56,11 @@ class NeonCommand(Command):
             self.distribution.install_requires += ['nose>=1.3.0',
                                                    'cython>=0.19.1']
         if self.gpu == "1":
-            self.distribution.install_requires += ['cudanet']
-            self.distribution.dependency_links += ['https://github.com/'
+            self.distribution.install_requires += ['cudanet>=0.2.1']
+            self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'
-                                                   'egg=cudanet-0.2.1']
+                                                   'egg=cudanet']
         if self.dist == "1":
             self.distribution.install_requires += ['mpi4py>=1.3.1']
 
@@ -71,6 +70,7 @@ class NeonCommand(Command):
 # use cython to compile extension to .c if installed
 use_cython = True
 suffix = "pyx"
+include_dirs = []
 try:
     from Cython.Build import cythonize
 except ImportError:
@@ -78,15 +78,15 @@ except ImportError:
     suffix = "c"
 try:
     import numpy
-    np_include_dir = numpy.get_include()
+    include_dirs = [numpy.get_include()]
 except ImportError:
-    np_include_dir = ''
+    pass
 extensions = [Extension('neon.backends.flexpt_dtype',
                         sources=['neon/backends/flexpt_dtype.c'],
-                        include_dirs=[np_include_dir]),
+                        include_dirs=include_dirs),
               Extension('neon.backends.flexpt_cython',
                         ['neon/backends/flexpt_cython.' + suffix],
-                        include_dirs=[np_include_dir])]
+                        include_dirs=include_dirs)]
 if use_cython:
     extensions = cythonize(extensions)
 

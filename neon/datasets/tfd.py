@@ -10,7 +10,6 @@ http://aclab.ca/users/josh/TFD.html
 import logging
 import os
 import numpy as np
-from scipy.io import loadmat
 
 from neon.datasets.dataset import Dataset
 
@@ -116,6 +115,7 @@ class TFD(Dataset):
     def load(self):
         if self.inputs['train'] is not None:
             return
+        from scipy.io import loadmat
         logger.info('loading: %s' % self.train_input)
         data = loadmat(self.train_input)
         for key in self.set_map.keys():
