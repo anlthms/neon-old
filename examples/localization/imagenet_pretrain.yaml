@@ -1,0 +1,128 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Small convolutional net for hurricane patches. FC layers written as conv.
+# Pretraining step for localization experiment.
+
+!obj:experiments.FitPredictErrorExperiment {
+
+  dataset: !obj:datasets.ImagenetLocalize {
+      #repo_path: '/usr/local/data/',
+      # variables: [0],  # used in singlevar case
+      use_classes: &cl 16,
+      training_size: 2000,
+      test_size: 500,
+  },
+
+  weight_inits: [
+    &wt_init !obj:params.UniformValGen {
+      low: -0.1,
+      high: 0.1,
+    },
+  ],
+
+  lrules: [
+      &gdm {
+        type: gradient_descent_momentum,
+        lr_params: {
+          learning_rate: 0.001,
+          momentum_params: {
+            type: constant, # linear_monotone, nesterov
+            coef: 0.90,
+          },
+        },
+      },
+  ],
+
+  # CNN model specification
+  # MLPL inherits everything from MLPB, but later on we will use extra
+  # localization features from this subclass.
+  model: !obj:models.MLPL {
+    num_epochs: 5,
+    batch_size: &bs 100,
+    serialized_path: './inet96features.pkl',  # check util/persist for overwrite_param
+    layers: [
+      &datalayer !obj:neon.models.layer2.DataLayer {
+        name: d0,
+        is_local: True,
+        nofm: 3, # Must match the number of variables.
+        ofmshape: [96, 96],
+      },
+      !obj:layers.ConvLayer {
+        name: layer1,
+        nofm: 16,
+        #ifmshape: [16, 16],  # No longer needed? -UK
+        fshape: [5, 5],  # to 92
+        stride: 1,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      !obj:layers.PoolingLayer {
+        name: layer2,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2, # to 46
+      },
+      !obj:layers.ConvLayer {
+        name: layer3,
+        nofm: 16,
+        fshape: [5, 5],  # to 42
+        stride: 1,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      !obj:layers.PoolingLayer {
+        name: layer4,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,  # to 21
+      },
+      !obj:layers.ConvLayer {  # to make size fit
+        name: layer3,
+        nofm: 16,
+        fshape: [21, 21],  # to 1x1
+        stride: 1,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      !obj:layers.ConvLayer { # was FCLayer
+        name: layer5,
+        #nout: 10,
+        nofm: 1024,
+        fshape: [1, 1],
+        stride: 1,
+        activation: !obj:neon.transforms.rectified.RectLin {},
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      !obj:layers.ConvLayer { # was FCLayer
+        name: output,
+        #nout: 2,
+        nofm: *cl,
+        fshape: [1, 1],
+        stride: 1,
+        activation: !obj:transforms.Logistic {},
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:transforms.CrossEntropy {},
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
