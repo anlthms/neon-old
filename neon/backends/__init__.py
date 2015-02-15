@@ -126,6 +126,32 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         from neon.backends.gpu import GPU
         logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
+        if datapar or modelpar:
+            # determine device_id based on local rank (assumes OpenMPI)
+            try:
+                local_rank = np.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+                local_size = np.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+            except:
+                raise RuntimeError("OpenMPI variable "
+                                   "OMPI_COMM_WORLD_LOCAL_RANK or "
+                                   "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
+                                   "Are you using: mpirun -n <#procs> neon "
+                                   "--gpu <example.yaml>?")
+            num_devices = cudanet.get_num_devices()
+
+            if (local_size > num_devices):
+                logger.warning('Node %s: requested device: %d;'
+                               ' max devices: %d',
+                               MPI.Get_processor_name(), local_size,
+                               num_devices)
+                raise AttributeError("Asking for more gpu devices than are "
+                                     "available on node")
+
+            cudanet.set_device_id(local_rank)
+            logger.info('Setting Device on %s to %d',
+                        MPI.Get_processor_name(), local_rank)
+            device_id = local_rank
+
         if device_id is None:
             device_id = 0
         be = GPU(rng_seed=rng_seed, device_id=device_id)
