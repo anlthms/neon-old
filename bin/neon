@@ -24,9 +24,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description='The Nervana Framework. '
                                      'This executable allows one to run '
                                      'experiments using a particular backend '
-                                     '(defaults to single core float32 CPU '
-                                     'unless at least one of -g, -p, -m, -n, or -f '
-                                     'are given).')
+                                     '(defaults to single process [possibly '
+                                     'multicore via BLAS multithreading] '
+                                     'float32 CPU unless at least one of -g, '
+                                     '-p, -m, -n, or -f are given).')
     parser.add_argument('yaml_file', type=argparse.FileType('r'),
                         help='experiment configuration settings')
     parser.add_argument('-v', '--version', action='version',
