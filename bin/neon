@@ -49,6 +49,8 @@ def parse_args():
     parser.add_argument('-r', '--rng_seed', type=int,
                         help='Seed the random number generator for the backend'
                              ' with the specified value.')
+    parser.add_argument('-i', '--device_id', type=int,
+                        help='Select GPU device id to run process on')
     parser.add_argument('-e', '--numerr_handling', action='store',
                         type=yaml.load, help='Set how numeric errors are '
                         'handled.  Python dict syntax, parameters are the same'
@@ -112,7 +114,8 @@ def main():
                                   modelpar=args.modelpar,
                                   flexpoint=args.flexpoint,
                                   rng_seed=args.rng_seed,
-                                  numerr_handling=args.numerr_handling)
+                                  numerr_handling=args.numerr_handling,
+                                  device_id=args.device_id)
         else:
             backend = experiment.backend
             logger.info("utilizing %s backend from yaml file",

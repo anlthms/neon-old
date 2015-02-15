@@ -406,7 +406,9 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
+        self.device_id = 0
         self.__dict__.update(kwargs)
+        cudanet.set_device_id(self.device_id)
         cudanet.cublas_init()
         self.rng_init()
         self.par = None

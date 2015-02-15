@@ -24,7 +24,8 @@ np.typeDict['flexpt'] = np.dtype(flexpt)
 
 
 def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
-                flexpoint=False, rng_seed=None, numerr_handling=None):
+                flexpoint=False, rng_seed=None, numerr_handling=None,
+                device_id=0):
     """
     Construct and return a backend instance of the appropriate type based on
     the arguments given.  With no parameters, a single CPU core, float32
@@ -67,6 +68,9 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                           If set to None (the default),
                                           behavior is equivalent to
                                           {'all': 'warn'}
+        device_id (numeric, optional): Set this to a numeric value which can be
+                                      used to select which GPU to run the
+                                      process on
 
     Returns:
         Backend: newly constructed backend instance of the specifed type.
@@ -122,7 +126,9 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         from neon.backends.gpu import GPU
         logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
-        be = GPU(rng_seed=rng_seed)
+        if device_id is None:
+            device_id = 0
+        be = GPU(rng_seed=rng_seed, device_id=device_id)
     elif nrv:
         logger.info("NRV HW backend, RNG seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
