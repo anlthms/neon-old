@@ -9,8 +9,8 @@
   dataset: !obj:datasets.ImagenetLocalize {
       #repo_path: '/usr/local/data/',
       # variables: [0],  # used in singlevar case
-      use_classes: &cl 16,
-      training_size: 2000,
+      use_classes: &cl 32,
+      training_size: 4000,
       test_size: 500,
   },
 
@@ -25,7 +25,7 @@
       &gdm {
         type: gradient_descent_momentum,
         lr_params: {
-          learning_rate: 0.001,
+          learning_rate: 0.01,
           momentum_params: {
             type: constant, # linear_monotone, nesterov
             coef: 0.90,
@@ -39,7 +39,7 @@
   # localization features from this subclass.
   model: !obj:models.MLPL {
     num_epochs: 5,
-    batch_size: &bs 100,
+    batch_size: &bs 128,
     serialized_path: './inet96features.pkl',  # check util/persist for overwrite_param
     layers: [
       &datalayer !obj:layers.DataLayer {

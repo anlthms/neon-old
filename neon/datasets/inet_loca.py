@@ -78,6 +78,7 @@ class ImagenetLocalize(Dataset):
         # and columns as features
         tr = self.training_size # from the yaml
         te = self.test_size
+        print "tr+te", tr+te, "datasize", datasize
         assert tr+te < datasize
 
         self.inputs['train'] = inputs[:tr]
