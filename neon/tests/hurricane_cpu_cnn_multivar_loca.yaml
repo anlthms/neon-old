@@ -1,0 +1,120 @@
+# Localization experiment for
+
+!obj:neon.experiments.localization_experiment.LocalizationExperiment {
+  backend: &be !obj:neon.backends.cpu.CPU {
+    rng_seed: 0,
+  },
+
+  dataset: !obj:neon.datasets.hurricane.Hurricane {
+      backend: *be,
+      repo_path: '/usr/local/data/',
+      hdf5_file: 'hurricanes.h5',
+      # variables: [0],  # used in singlevar case
+      crop: 32,  # train on 16 run on 32
+      training_size: 10000,
+      test_size: 10000
+  },
+
+  weight_inits: [
+    &wt_init !obj:params.UniformValGen {
+      backend: *be,
+      low: -0.1,
+      high: 0.1,
+    },
+  ],
+
+  lrules: [
+      &gdm {
+        type: gradient_descent_momentum,
+        lr_params: {
+          learning_rate: 0.01,
+          backend: *be,
+          momentum_params: {
+            type: constant, # linear_monotone, nesterov
+            coef: 0.90,
+          },
+        },
+      },
+  ],
+
+  # CNN model specification
+  # essentially a multi-layer perceptron with convolutional and pooling layers
+  # can we cheat and use MLPL here?
+  model: !obj:neon.models.mlp.MLPL {
+    backend: *be,
+    num_epochs: 5,
+    batch_size: &bs 100,
+    deserialized_path: './hurr16features.pkl',  # no learning, read filters
+    # overwrite_list: [layers],  # default is to deserialize everything. this is a list of things to specify in the yaml
+    # layers: [
+    #   &datalayer !obj:neon.models.layer2.DataLayer {
+    #     name: d0,
+    #     is_local: True,
+    #     nofm: 8, # Must match the number of variables.
+    #     ofmshape: [32, 32],
+    #   },
+    #   !obj:neon.models.layer2.ConvLayer {
+    #     name: layer1,
+    #     nofm: 10,
+    #     #ifmshape: [16, 16],  # No longer needed? -UK
+    #     fshape: [5, 5],
+    #     stride: 1,
+    #     lrule_init: *gdm,
+    #     weight_init: *wt_init,
+    #   },
+    #   !obj:neon.models.layer2.PoolingLayer {
+    #     name: layer2,
+    #     op: 'max',
+    #     fshape: [2, 2],
+    #     stride: 2,
+    #   },
+    #   !obj:neon.models.layer2.ConvLayer {
+    #     name: layer3,
+    #     nofm: 10,
+    #     fshape: [5, 5],
+    #     stride: 1,
+    #     lrule_init: *gdm,
+    #     weight_init: *wt_init,
+    #   },
+    #   !obj:neon.models.layer2.PoolingLayer {
+    #     name: layer4,
+    #     op: 'max',
+    #     fshape: [2, 2],
+    #     stride: 2,
+    #   },
+    #   !obj:neon.models.layer2.ConvLayer {
+    #     name: layer5,  # FC layer becomes convolutional!
+    #     nofm: 10,
+    #     fshape: [1, 1], # cover the output from a 16x16 region.
+    #     activation: !obj:neon.transforms.rectified.RectLin {},
+    #     lrule_init: *gdm,
+    #     weight_init: *wt_init,
+    #   },
+    #   !obj:neon.models.layer2.FCLayer {
+    #     name: output, # subsequent FCs become 1x1 convolutions!
+    #     nout: 2,
+    #     activation: !obj:neon.transforms.logistic.Logistic {},
+    #     lrule_init: *gdm,
+    #     weight_init: *wt_init,
+    #   },
+    #   # &costlayer !obj:neon.models.layer2.CostLayer {
+    #   #   name: cost,
+    #   #   ref_layer: *datalayer,
+    #   #   cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+    #   # },
+    # ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
