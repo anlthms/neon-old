@@ -7,8 +7,6 @@ Visualization for recurrent neural networks
 
 import numpy as np
 from neon.util.compat import range
-import matplotlib.pyplot as plt
-plt.interactive(1)
 
 
 class VisualizeRNN(object):
