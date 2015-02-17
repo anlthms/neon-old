@@ -176,10 +176,6 @@ class MLPL(MLP):
             delattr(self.layers[l], 'delta_shape')
             delattr(self.layers[l], 'out_shape')
 
-        kwargs = {"backend": self.backend, "batch_size": self.batch_size,
-                  "accumulate": self.accumulate, "no_weight_set": True}
-
-        #self.link_and_initialize(self.layers, kwargs)  # with no_weight_set
         self.link()
         self.initialize(self.backend)
         self.print_layers()
@@ -201,12 +197,12 @@ class MLPL(MLP):
         data1 = databatch[1*1024:2*1024].reshape(32, 32, -1)
 
         self.myplot(plt, mapp0, title='positive class label strength',
-                    span=(0, 1), fig = 0)
+                    span=(0, 1), fig=0)
         self.myplot(plt, mapp1, title='negative class label strength',
-                    span=(0, 1), fig = 1)
+                    span=(0, 1), fig=1)
         self.myplot(plt, data0, title='data variable 0',
-                    span=(-1, 1.5), fig = 2)
-        self.myplot(plt, data1, title='data variable 1', span=(-2, 2), fig = 3)
+                    span=(-1, 1.5), fig=2)
+        self.myplot(plt, data1, title='data variable 1', span=(-2, 2), fig=3)
 
         print "setting trace to keep plots open..."
         trace()

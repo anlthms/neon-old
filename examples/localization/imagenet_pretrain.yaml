@@ -10,6 +10,7 @@
       #repo_path: '/usr/local/data/',
       # variables: [0],  # used in singlevar case
       use_classes: &cl 32,
+      window_size: &ws 96,
       training_size: 4000,
       test_size: 500,
   },
@@ -46,7 +47,7 @@
         name: d0,
         is_local: True,
         nofm: 3, # Must match the number of variables.
-        ofmshape: [96, 96],
+        ofmshape: [*ws, *ws],
       },
       !obj:layers.ConvLayer {
         name: layer1,
