@@ -109,7 +109,6 @@ class MLP(MLP_old):
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
-                print "error", error
                 self.update(self.epochs_complete)
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
