@@ -3,6 +3,48 @@
 ## (unreleased)
 
 
+## v0.7.1 (2015-02-13)
+
+### Modifications
+
+* v0.7.1 release bump. [Scott Leishman]
+
+* Merge branch 'misc_fixes' into 'master' [Arjun Bansal]
+
+    Miscellaneous fixes  Corrects various issues introduced in 0.7.0
+    including: * automatic import of certain optional dependencies where
+    not required * rough-in support for Nervana hardware backend command
+    line parameter * python3 compatibility fixes * removal of extra -I
+    argument to extension compilation where numpy not installed * support
+    non-path filenames for serialization and deserialization * cudanet
+    version support (skip re-install if version already installed) *
+    remove source code links from published documentation * fix
+    deserialization of models and layers, re-support checkpointing via
+    overwrite_list parameter.  See merge request !106
+
+* Merge branch 'vgg' into 'master' [Alex Park]
+
+    MYL-174 Implemented VGG/ reduced memory footprint  Implemented a
+    barebones VGG model.  RectLin function in gpu.py was modified to use a
+    new function in cudaconvnet2 backend called maximum_scalar (Returns
+    maximum of a tensor and a scalar), so it wouldnt need an extra buffer.
+    For code cleanliness I eliminated the need for 'activation is not
+    None' by defining a default Linear activation function, assigned in
+    layer.py (have made these changes for pooling.py, recurrent.py, and
+    fully_connected.py also). @urs can you please confirm that the
+    recurrent changes are ok?  I have changed activations to just have a
+    activation.fprop_func() and activation.bprop_func(), so we can decide
+    what to compute during fprop and bprop for each activation in the most
+    computationally and memory efficient way. I got rid of apply_both()
+    (mostly replaced with fprop_func instead).  There is still overhead
+    despite these changes. We need a way to consolidate the delta buffers
+    across layers by allocating a large pool and then sub-indexing the
+    chunk used for each layer. Not sure how easy this will be on the gpu
+    or if there is some other smarter way of doing this.  Ran make test
+    and sanity, and some MLP and convnet MNIST examples which all seemed
+    to run fine.  Ran autopep8 and make style  See merge request !105
+
+
 ## v0.7.0 (2015-02-09)
 
 ### Modifications

@@ -23,7 +23,7 @@ np.flexpt = flexpt
 np.typeDict['flexpt'] = np.dtype(flexpt)
 
 
-def gen_backend(model, gpu=False, datapar=False, modelpar=False,
+def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                 flexpoint=False, rng_seed=None, numerr_handling=None):
     """
     Construct and return a backend instance of the appropriate type based on
@@ -36,6 +36,10 @@ def gen_backend(model, gpu=False, datapar=False, modelpar=False,
         gpu (bool, optional): If True, attempt to utilize a CUDA capable GPU if
                               installed in the system.  Defaults to False which
                               implies a CPU based backend.
+        nrv (bool, optional): If True, attempt to utilize the Nervana Engine
+                              for computation (must be installed on the
+                              system).  Defaults to False which implies a CPU
+                              based backend.
         datapar (bool, optional): Set to True to ensure that data is
                                   partitioned and each chunk is processed in
                                   parallel on different compute cores. Requires
@@ -94,6 +98,13 @@ def gen_backend(model, gpu=False, datapar=False, modelpar=False,
                 gpu = False
         else:
             logger.warning("Can't find CUDA capable GPU")
+    elif nrv:
+        nrv = False
+        try:
+            from umd.nrv_backend import NRVBackend
+            nrv = True
+        except ImportError:
+            logger.warning("Nervana Engine system software not found")
 
     if datapar or modelpar:
         try:
@@ -112,6 +123,10 @@ def gen_backend(model, gpu=False, datapar=False, modelpar=False,
         logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
         be = GPU(rng_seed=rng_seed)
+    elif nrv:
+        logger.info("NRV HW backend, RNG seed: {}, numerr: {}".format
+                    (rng_seed, numerr_handling))
+        be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling)
     else:
         logger.info("CPU backend, RNG Seed: {}, numerr: {}".format
                     (rng_seed, numerr_handling))
