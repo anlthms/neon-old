@@ -208,14 +208,14 @@ class MLPL(MLP):
                     span=(-1, 1.5), fig=2)
         self.myplot(plt, data1, title='data variable 1', span=(-2, 2), fig=3)
 
-        print "setting trace to keep plots open..."
+        print("setting trace to keep plots open...")
         trace()
 
     @staticmethod
     def myplot(plt, data, title, span, fig):
         """
-        I don't know what a staticmethod does so it may not make sense to
-        use that here
+        wrapper for imshow that goes through 100 examples and makes subplots.
+        TODO: Move this and visualize() to diagnostics.
         """
         plt.figure(fig)
         plt.clf()
