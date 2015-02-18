@@ -45,7 +45,7 @@
       },
       !obj:layers.ConvLayer {
         name: layer1,
-        nofm: 10,
+        nofm: 16,
         ifmshape: [32, 32],
         fshape: [5, 5],
         stride: 1,
@@ -60,7 +60,7 @@
       },
       !obj:layers.ConvLayer {
         name: layer3,
-        nofm: 10,
+        nofm: 16,
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,

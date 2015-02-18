@@ -6,10 +6,10 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.NDSB {
-      repo_path: '/usr/local/data',
+      repo_path: '~/data',
       sample_pct: 100,
       image_width: 64,
-      serialized_path: '/usr/local/data/NDSB/ndsb.pkl',
+      #serialized_path: '~/data/NDSB/ndsb.pkl',
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
@@ -35,7 +35,6 @@
   model: !obj:models.MLP {
     num_epochs: 20,
     batch_size: &bs 128,
-    serialized_path: '/usr/local/data/NDSB/ndsb-model.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

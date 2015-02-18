@@ -127,8 +127,6 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     if par.device_id is not None:
         if device_id is not None:
             logger.warn('Ignoring device id specified in command line.')
-        logger.info('Setting device on node %d to %d',
-                    par.rank(), par.device_id)
         device_id = par.device_id
 
     if gpu:
