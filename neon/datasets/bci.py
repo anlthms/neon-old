@@ -47,10 +47,9 @@ class BCI(Dataset):
     """
 
     def __init__(self, **kwargs):
+        super(BCI, self).__init__(**kwargs)
         self.dist_flag = False
         self.macro_batched = False
-        self.data_type = 'raw'
-        self.__dict__.update(kwargs)
 
     def fetch_dataset(self, setname, datadir):
         if os.path.exists(datadir):
@@ -130,7 +129,8 @@ class BCI(Dataset):
         maxval = np.max(data)
         data /= maxval
 
-    def prep_raw_data(self, inputdict, nrows, subs, sessions, nsamples, features):
+    def prep_raw_data(self, inputdict, nrows, subs, sessions,
+                      nsamples, features):
         nfeatures = len(features)
         inputs = np.zeros((nrows, nfeatures*nsamples))
         row = 0
@@ -151,24 +151,39 @@ class BCI(Dataset):
     def sgram(self, signal, height, width):
         sgram = pylab.specgram(signal, NFFT=128, Fs=2, noverlap=120,
                                cmap=matplotlib.cm.gist_heat)[0]
-        return sgram[:height, :width]
+        return sgram[height, :width]
 
-    def prep_sgram_data(self, inputdict, nrows, subs, sessions, nsamples, features):
-        raw_inputs = self.prep_raw_data(
+    def prep_sgram_data(self, inputdict, nrows, subs, sessions,
+                        nsamples, features):
+        rawinputs = self.prep_raw_data(
             inputdict, nrows, subs, sessions, nsamples, features)
 
         nfeatures = len(features)
-        nrows = raw_inputs.shape[0]
+        nrows = rawinputs.shape[0]
         height, width = 16, 16
         inputs = np.zeros((nrows, nfeatures, height, width))
 
-        raw_inputs = raw_inputs.reshape((nrows, nfeatures, nsamples))
+        rawinputs = rawinputs.reshape((nrows, nfeatures, nsamples))
         for row in range(nrows):
             for featind in range(nfeatures):
-                fvector = raw_inputs[row, featind]
+                fvector = rawinputs[row, featind]
                 sgram = self.sgram(fvector, height, width)
                 inputs[row, featind] = sgram
         return inputs.reshape((nrows, nfeatures*height*width))
+
+    def fft(self, data):
+        return np.log10(np.absolute(np.fft.rfft(data, axis=-1)[..., 0:48]))
+
+    def prep_eng_data(self, inputdict, nrows, subs, sessions,
+                      nsamples, features):
+        rawinputs = self.prep_raw_data(inputdict, nrows, subs, sessions,
+                                       nsamples, features)
+        nfeatures = len(features)
+        nrows = rawinputs.shape[0]
+
+        rawinputs = rawinputs.reshape((nrows, nfeatures, nsamples))
+        fftres = self.fft(rawinputs)
+        return fftres.reshape((nrows, np.prod(fftres.shape[1:])))
 
     def get_chan_locs(self, width):
         chanfile = os.path.join(self.rootdir, 'ChannelsLocation.csv')
@@ -197,8 +212,7 @@ class BCI(Dataset):
         im = plt.imshow(vid[0])
         for frm in range(vid.shape[0]):
             im.set_data(vid[frm])
-            plt.pause(0.03)
-            raw_input()
+            plt.pause(0.08)
         plt.show()
 
     def convolve(self, vids, filtw):
@@ -255,21 +269,22 @@ class BCI(Dataset):
                              col1:col2].mean(axis=3).mean(axis=2).mean(axis=1))
         vids[:] = result
 
-    def prep_vid_data(self, inputdict, nrows, subs, sessions, nsamples, features):
-        raw_inputs = self.prep_raw_data(
-            inputdict, nrows, subs, sessions, nsamples, features)
+    def prep_vid_data(self, inputdict, nrows, subs, sessions,
+                      nsamples, features):
+        rawinputs = self.prep_raw_data(inputdict, nrows, subs, sessions,
+                                       nsamples, features)
         nfeatures = len(features)
-        nrows = raw_inputs.shape[0]
+        nrows = rawinputs.shape[0]
         depth, height, width = 16, 16, 16
         stride = depth / 2
         vidstream = np.zeros((nrows, nsamples, height, width))
-        raw_inputs = raw_inputs.reshape((nrows, nfeatures, nsamples))
+        rawinputs = rawinputs.reshape((nrows, nfeatures, nsamples))
         chanlocs = self.get_chan_locs(width)
         featind = 0
         for featind in range(nfeatures):
             ycord = chanlocs[featind, 2]
             xcord = chanlocs[featind, 1]
-            vidstream[:, :, ycord, xcord] = raw_inputs[:, featind]
+            vidstream[:, :, ycord, xcord] = rawinputs[:, featind]
         nclips = (nsamples - depth) / stride
         curfrm = 0
         inputs = np.zeros((nrows, nclips, depth, height, width))
@@ -291,7 +306,8 @@ class BCI(Dataset):
             inputs = np.load(infile)
             infile.close()
             return inputs
-        inputs = self.prep_data(inputdict, nrows, subs, SESSIONS, NSAMPLES, FEATURES)
+        inputs = self.prep_data(inputdict, nrows, subs, SESSIONS,
+                                NSAMPLES, FEATURES)
         outfile = open(savepath, 'w')
         logger.info('saving to %s', savepath)
         np.save(outfile, inputs)
@@ -316,6 +332,25 @@ class BCI(Dataset):
                 row += nsessrows
         assert row == nrows
         return targets
+
+    def rf(self, tinputs, ttargets, vinputs, vtargets):
+        from sklearn.ensemble import RandomForestClassifier as rfc
+        from sklearn import metrics
+        model = rfc(n_estimators=200, verbose=0, n_jobs=8, random_state=1)
+        model.fit(tinputs, ttargets)
+        imp = np.array(model.feature_importances_)
+        frank = np.zeros((len(imp), 2))
+
+        frank[:, 0] = range(len(imp))
+        frank[:, 1] = imp
+        ord = np.argsort(imp)
+        fsel = ord[::-1]
+        frank = frank[fsel, :]
+        print 'feature imp:', frank
+
+        pred = model.predict_proba(vinputs)
+        print 'rf auc:', metrics.roc_auc_score(vtargets[:, 0],
+                                            pred[1][:, 0])
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -343,12 +378,14 @@ class BCI(Dataset):
             self.prep_data = self.prep_sgram_data
         elif self.data_type == 'vid':
             self.prep_data = self.prep_vid_data
+        elif self.data_type == 'eng':
+            self.prep_data = self.prep_eng_data
         else:
             raise AttributeError('invalid data type specified')
 
         traintargets = self.load_targets(targetdict, trainsubs, SESSIONS)
-        traininputs = self.load_set(inputdict, traintargets.shape[0], trainsubs,
-                                    'train-' + self.data_type)
+        traininputs = self.load_set(inputdict, traintargets.shape[0],
+                                    trainsubs, 'train-' + self.data_type)
         valtargets = self.load_targets(targetdict, valsubs, SESSIONS)
         valinputs = self.load_set(inputdict, valtargets.shape[0], valsubs,
                                   'validation-' + self.data_type)
@@ -359,6 +396,9 @@ class BCI(Dataset):
         self.targets['train'] = traintargets[traininds]
         self.inputs['validation'] = valinputs
         self.targets['validation'] = valtargets
+
+        self.rf(traininputs[traininds], traintargets[traininds],
+                valinputs, valtargets)
 
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()

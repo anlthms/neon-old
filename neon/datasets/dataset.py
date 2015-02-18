@@ -27,8 +27,11 @@ class Dataset(object):
     """
 
     backend = None
-    inputs = {'train': None, 'test': None, 'validation': None}
     targets = {'train': None, 'test': None, 'validation': None}
+
+    def __init__(self, **kwargs):
+        self.inputs = {'train': None, 'test': None, 'validation': None}
+        self.__dict__.update(kwargs)
 
     def __getstate__(self):
         """

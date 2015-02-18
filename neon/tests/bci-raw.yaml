@@ -6,7 +6,7 @@
   report_sets: ['validation'],
   metrics: ['auc'],
 
-  dataset: &ds !obj:datasets.BCI {
+  dataset: &dsraw !obj:datasets.BCI {
       repo_path: '~/data',
       sample_pct: 100,
       data_type: 'raw',
@@ -38,12 +38,13 @@
   ],
 
   model: !obj:models.MLP {
-    num_epochs: 500,
+    num_epochs: 50,
     batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 14560,
+        dataset: *dsraw,
       },
       !obj:layers.FCLayer {
         name: layer5,

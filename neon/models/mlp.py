@@ -55,8 +55,10 @@ class MLP(MLP_old):
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
+        netdesc = 'Layers:\n'
         for layer in self.layers:
-            printfunc("%s", str(layer))
+            netdesc += '\t' + str(layer) + '\n'
+        printfunc("%s", netdesc)
 
     def update(self, epoch):
         for layer in self.layers:

@@ -27,6 +27,14 @@ class CompositeLayer(Layer):
         for l in self.sublayers:
             l.initialize(kwargs)
 
+    def __str__(self):
+        ret = '{} {}: {} nodes'.format(self.__class__.__name__,
+                                       self.name, self.nout)
+        ret += ':\n'
+        for l in self.sublayers:
+            ret += '\t' + str(l) + '\n'
+        return ret
+
     def update(self, epoch):
         for l in self.sublayers:
             l.update(epoch)
@@ -54,6 +62,8 @@ class BranchLayer(CompositeLayer):
         for l in self.sublayers:
             l.set_previous_layer(pl)
         self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
+        if pl is not None:
+            self.nin = reduce(lambda x, y: x + y.nin, self.sublayers, 0)
 
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
@@ -67,10 +77,34 @@ class BranchLayer(CompositeLayer):
 
         self.allocate_output_bufs()
 
+    def init_dataset(self, dataset):
+        for layer in self.sublayers:
+            layer.init_dataset(dataset)
+
+    def use_set(self, setname, predict=False):
+        for layer in self.sublayers:
+            layer.use_set(setname, predict)
+        self.num_batches = self.sublayers[0].num_batches
+
+    def reset_counter(self):
+        for layer in self.sublayers:
+            layer.reset_counter()
+
+    def has_more_data(self):
+        return self.sublayers[0].has_more_data()
+
+    def has_set(self, setname):
+        return self.sublayers[0].has_set(setname)
+
+    def cleanup(self):
+        for layer in self.sublayers:
+            layer.cleanup()
+
     def fprop(self, inputs):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
             s_l.fprop(inputs)
             self.output[si:ei] = s_l.output
+        self.targets = self.sublayers[0].targets
 
     def bprop(self, error):
         for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
@@ -104,11 +138,31 @@ class ListLayer(CompositeLayer):
             self.nofm = self.sublayers[-1].nofm
             self.ofmshape = self.sublayers[-1].ofmshape
 
+    def init_dataset(self, dataset):
+        self.sublayers[0].init_dataset(dataset)
+
+    def use_set(self, setname, predict=False):
+        self.sublayers[0].use_set(setname, predict)
+        self.num_batches = self.sublayers[0].num_batches
+
+    def reset_counter(self):
+        self.sublayers[0].reset_counter()
+
+    def has_more_data(self):
+        return self.sublayers[0].has_more_data()
+
+    def has_set(self, setname):
+        return self.sublayers[0].has_set(setname)
+
+    def cleanup(self):
+        self.sublayers[0].cleanup()
+
     def fprop(self, inputs):
         y = inputs
         for l in self.sublayers:
             l.fprop(y)
             y = l.output
+        self.targets = self.sublayers[0].targets
 
     def bprop(self, error):
         for l in reversed(self.sublayers):

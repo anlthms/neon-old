@@ -6,7 +6,7 @@
   report_sets: ['validation'],
   metrics: ['auc'],
 
-  dataset: &ds !obj:datasets.BCI {
+  dataset: &dssgram !obj:datasets.BCI {
       repo_path: '~/data',
       sample_pct: 100,
       data_type: 'sgram',
@@ -39,6 +39,7 @@
         is_local: True,
         nofm: 56,
         ofmshape: [16, 16],
+        dataset: *dssgram,
       },
       !obj:layers.ConvLayer {
         name: layer1,
