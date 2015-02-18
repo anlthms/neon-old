@@ -3,13 +3,9 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test a CNN on NDSB.
 
-!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
-  backend: &be !obj:neon.backends.gpu.GPU {
-    rng_seed: 0,
-  },
+!obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:neon.datasets.ndsb.NDSB {
-      backend: *be,
+  dataset: &ds !obj:datasets.NDSB {
       repo_path: '/usr/local/data',
       sample_pct: 100,
       image_width: 64,
@@ -17,7 +13,6 @@
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
-    backend: *be,
     low: -0.1,
     high: 0.1,
   },
@@ -27,7 +22,6 @@
         type: gradient_descent_momentum,
         lr_params: {
           learning_rate: 0.01,
-          backend: *be,
           momentum_params: {
             type: constant, # linear_monotone, nesterov
             coef: 0.90,
@@ -38,94 +32,93 @@
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:neon.models.mlp.MLPB {
-    backend: *be,
+  model: !obj:models.MLP {
     num_epochs: 20,
     batch_size: &bs 128,
     serialized_path: '/usr/local/data/NDSB/ndsb-model.pkl',
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         nout: 4096,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer1,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         nofm: 64,
         fshape: [4, 4],
         stride: 2,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         nofm: 128,
         fshape: [3, 3],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.ConvLayer {
+      !obj:layers.ConvLayer {
         name: layer3,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         nofm: 256,
         fshape: [2, 2],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.PoolingLayer {
+      !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: layer5,
         nout: 1024,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.DropOutLayer {
+      !obj:layers.DropOutLayer {
         name: dropout,
         keep: 0.5,
       },
-      !obj:neon.models.layer2.FCLayer {
+      !obj:layers.FCLayer {
         name: layer5,
         nout: 512,
-        activation: !obj:neon.transforms.rectified.RectLin {},
+        activation: !obj:transforms.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:neon.models.layer2.DropOutLayer {
+      !obj:layers.DropOutLayer {
         name: dropout,
         keep: 0.5,
       },
-      &lastlayer !obj:neon.models.layer2.FCLayer {
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 121,
-        activation: !obj:neon.transforms.logistic.Logistic {},
+        activation: !obj:transforms.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      &costlayer !obj:neon.models.layer2.CostLayer {
+      &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {},
       },
     ],
   },
