@@ -3,7 +3,6 @@ Provides neon.datasets.Dataset class for hurricane patches data
 """
 import logging
 import numpy as np
-import h5py
 import os
 
 from neon.datasets.dataset import Dataset
@@ -42,6 +41,7 @@ class Hurricane(Dataset):
         Create training and validation datasets from 1 or more
         prognostic variables.
         """
+        import h5py
         f = h5py.File(os.path.join(self.rootdir, self.hdf5_file), 'r')
 
         one = f['1']
