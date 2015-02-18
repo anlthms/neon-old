@@ -8,8 +8,15 @@ Requires model to specify prev layers at each layer to build the layer graph
 """
 
 import logging
+import sys
+import numpy
 from neon.models.mlp import MLP
 from neon.util.param import req_param
+import cPickle
+
+def my_pickle(filename, data):
+    with open(filename, "w") as fo:
+        cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +52,87 @@ class Balance(MLP):
             for ll, nl in zip(reversed(path), reversed(path[1:] + [None])):
                 error = None if nl is None else nl.deltas
                 ll.bprop(error)
+
+    def get_reconstruction_output(self):
+        return self.out_layer.output
+
+    def generate_output(self, inputs):
+        y = inputs
+        for layer in self.layers[1:]:
+            layer.fprop(y)
+            y = layer.output
+            if layer is self.branch_layer:
+                y[self.zidx:] = self.zparam
+
+class BalanceMP(MLP):
+    def __init__(self, **kwargs):
+        self.accumulate = True
+        super(BalanceMP, self).__init__(**kwargs)
+        req_param(self, ['costpaths'])
+        # Append the prefix to the costpaths
+        for ckey in self.costpaths.keys():
+            self.costpaths[ckey] = self.prefixlayers + self.costpaths[ckey]
+
+        self.cost_layer = self.costpaths['subject'][-1]
+        self.branch_layer = self.costpaths['z'][-2]
+        self.out_layer = self.layers[-2]
+
+        softmaxlabels = filter(lambda x: x != 'z', self.costpaths.keys())
+        self.softlayers = [self.costpaths[ck][-2] for ck in softmaxlabels]
+
+        self.pathways = [self.layers, self.costpaths['z']] + [self.costpaths[ck]
+                             for ck in softmaxlabels]
+        self.path_skip_act = [False, False] + [True for ck in softmaxlabels]
+        self.kwargs = kwargs
+
+
+    def initialize(self, backend, initlayer=None):
+        super(BalanceMP, self).initialize(backend, initlayer)
+        self.kwargs['backend'] = self.backend
+        for ckey in self.costpaths.keys():
+            lp = self.costpaths[ckey]
+            lp[-1].set_previous_layer(lp[-2])
+            lp[-1].initialize(self.kwargs)
+
+    def fprop(self):
+        super(BalanceMP, self).fprop()
+        for ll in self.layers[:-1]:
+            myarray = ll.output.asnumpyarray()
+            if numpy.isnan(myarray).any():
+                print ll.name
+                print ll.prev_layer.output.asnumpyarray()
+                print myarray
+                print ll.weights.asnumpyarray()
+                my_pickle('ff.wts', {'wt': ll.weights.asnumpyarray(), 'in': ll.prev_layer.output.asnumpyarray(), 'out': myarray})
+                sys.exit()
+
+        for ckey in self.costpaths.keys():
+            ll = self.costpaths[ckey][-1]
+            ll.fprop(ll.prev_layer.output)
+            myarray = ll.prev_layer.output.asnumpyarray()
+            if numpy.isnan(myarray).any():
+                print ll.name, myarray
+                sys.exit()
+
+    def bprop(self):
+        for path, skip_act in zip(self.pathways, self.path_skip_act):
+            for cl in self.softlayers:
+                cl.skip_act = skip_act
+            for ll, nl in zip(reversed(path), reversed(path[1:] + [None])):
+                error = None if nl is None else nl.deltas
+                ll.bprop(error)
+        for ll in self.layers:
+            if ll.name == 'slice':
+                my_pickle('bb.wts', {'de': ll.deltas.asnumpyarray(), 'in': ll.prev_layer.output.asnumpyarray(), 'out': ll.output.asnumpyarray()})
+
+            # if hasattr(ll, 'weights'):
+            #     myarray = ll.weights.asnumpyarray()
+
+
+            #     if numpy.isnan(myarray).any():
+            #         print ll.name, myarray
+            #         print ll.weight_updates.asnumpyarray()
+            #         sys.exit()
 
     def get_reconstruction_output(self):
         return self.out_layer.output

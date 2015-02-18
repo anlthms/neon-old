@@ -366,6 +366,48 @@ class ActivationLayer(Layer):
             self.deltas[:] = error
 
 
+class SliceLayer(ActivationLayer):
+    """
+    Just takes a portion of the inputs and passes it on
+    Useful for limitations of the GPU convolutional layer
+    for a local layer, takes 0:end_idx feature maps
+    for a flat layer, takes 0:end_idx inputs
+    """
+    def __init__(self, **kwargs):
+        super(SliceLayer, self).__init__(**kwargs)
+        req_param(self, ['end_idx'])
+
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            self.is_local = True
+            self.ifmshape = pl.ofmshape
+            self.ofmshape = pl.ofmshape
+            self.nifm = pl.nofm
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
+            self.nofm = self.end_idx
+        else:
+            self.nin = pl.nout
+        self.prev_layer = pl
+
+    def initialize(self, kwargs):
+        self.__dict__.update(kwargs)
+        req_param(self, ['backend', 'batch_size'])
+        self.output = None
+        self.deltas = None
+        if self.is_local:
+            self.nofm = self.end_idx
+            self.end_idx = np.prod(self.ifmshape) * self.end_idx
+        self.nout = self.end_idx
+        self.allocate_output_bufs()
+
+    def fprop(self, inputs):
+        self.output[:] = inputs[:self.end_idx]
+
+    def bprop(self, error):
+        self.deltas.fill(0.0)
+        self.deltas[:self.end_idx] = error
+
+
 class WeightLayer(Layer):
     """
     Typical hidden layer with weight parameters to be learned.
