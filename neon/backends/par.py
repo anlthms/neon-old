@@ -16,7 +16,7 @@ class NoPar(object):
     def distribute(self, batchdata):
         return self.backend.array(batchdata)
 
-    def reduce_cost(self, tensor):
+    def reduce_tensor(self, tensor):
         return tensor.asnumpyarray()
 
     def rank(self):
@@ -49,7 +49,7 @@ class BasePar(object):
     def distribute(self, batchdata):
         raise NotImplementedError()
 
-    def reduce_cost(self, tensor):
+    def reduce_tensor(self, tensor):
         raise NotImplementedError()
 
     def distributable(self, layer):
@@ -111,7 +111,7 @@ class ModelPar(BasePar):
     def distribute(self, batchdata):
         return self.backend.array(batchdata)
 
-    def reduce_cost(self, tensor):
+    def reduce_tensor(self, tensor):
         return tensor.asnumpyarray()
 
     def fprop_fc(self, out, inputs, weights, layer):
@@ -172,7 +172,7 @@ class DataPar(BasePar):
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
 
-    def reduce_cost(self, tensor):
+    def reduce_tensor(self, tensor):
         self.comm.Reduce([tensor.asnumpyarray(), self.mpi.FLOAT],
                          [self.reducebuf, self.mpi.FLOAT], op=self.mpi.SUM)
         if self.mpi_rank == 0:

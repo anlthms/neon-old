@@ -68,7 +68,7 @@ class MLP(MLP_old):
         return self.class_layer.output
 
     def print_training_error(self, error, num_batches, partial=False):
-        rederr = self.backend.reduce_cost(error)
+        rederr = self.backend.reduce_tensor(error)
         if self.backend.rank() != 0:
             return
 
@@ -82,8 +82,8 @@ class MLP(MLP_old):
                         self.epochs_complete, errorval)
 
     def print_test_error(self, setname, misclass, logloss, nrecs):
-        redmisclass = self.backend.reduce_cost(misclass)
-        redlogloss = self.backend.reduce_cost(logloss)
+        redmisclass = self.backend.reduce_tensor(misclass)
+        redlogloss = self.backend.reduce_tensor(logloss)
         if self.backend.rank() != 0:
             return
 
