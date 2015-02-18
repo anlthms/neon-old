@@ -407,9 +407,11 @@ class GPU(Backend):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.par = None
+        self.device_id = None
 
     def init_device(self):
-        assert self.device_id is not None
+        if self.device_id is None:
+            self.device_id = 0
         num_devices = cudanet.get_num_devices()
         if self.device_id >= num_devices:
             raise ValueError('Requested device (%d) is unavailable.' %

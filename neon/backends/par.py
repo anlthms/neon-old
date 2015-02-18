@@ -46,11 +46,10 @@ class BasePar(object):
                 "OpenMPI variable OMPI_COMM_WORLD_LOCAL_RANK or "
                 "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
                 "Are you using: mpirun -n <#procs> neon <example.yaml>?")
-        if backend.device_id != 0:
+        if backend.device_id is not None:
             logger.warn('Ignoring device id specified in command line.')
-        logger.info('Setting device on %s node %d to %d',
-                    self.mpi.Get_processor_name(), self.mpi_rank,
-                    self.mpi_local_rank)
+        logger.info('Setting device on node %d to %d',
+                    self.mpi_rank, self.mpi_local_rank)
         backend.device_id = self.mpi_local_rank
 
     def distribute(self, batchdata):

@@ -129,7 +129,7 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     # save the original batch_size value that is specified in the configuration
     # file
     be.actual_batch_size = model.batch_size
-    be.device_id = 0 if device_id is None else device_id
+    be.device_id = device_id
 
     if datapar and modelpar:
         raise NotImplementedError('Hybrid parallelization scheme not '
