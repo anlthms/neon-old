@@ -1,4 +1,5 @@
 import logging
+import os
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -12,31 +13,64 @@ class NoPar(object):
     def init_model(self, model, backend):
         pass
 
+    def distribute(self, batchdata):
+        return self.backend.array(batchdata)
+
+    def reduce_cost(self, tensor):
+        return tensor.asnumpyarray()
+
+    def rank(self):
+        return 0
+
+
+class BasePar(object):
+
+    def __init__(self, backend):
+        self.backend = backend
+        try:
+            from mpi4py import MPI
+            self.mpi = MPI
+            self.comm = self.mpi.COMM_WORLD
+            self.mpi_size = self.comm.size
+            self.mpi_rank = self.comm.rank
+        except ImportError:
+            raise RuntimeError(
+                "mpi4py not found, can't run in datapar or modelpar")
+
+        try:
+            self.mpi_local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+            self.mpi_local_size = int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+        except:
+            raise RuntimeError(
+                "OpenMPI variable OMPI_COMM_WORLD_LOCAL_RANK or "
+                "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
+                "Are you using: mpirun -n <#procs> neon <example.yaml>?")
+
+    def distribute(self, batchdata):
+        raise NotImplementedError()
+
+    def reduce_cost(self, tensor):
+        raise NotImplementedError()
+
     def distributable(self, layer):
         if hasattr(layer, 'distributable'):
             return layer.distributable
         return False
 
-    def distribute(self, batchdata):
-        return self.backend.array(batchdata)
-
     def rank(self):
-        return self.backend.mpi_rank
-
-    def reduce_cost(self, tensor):
-        return tensor.asnumpyarray()
+        return self.mpi_rank
 
 
-class ModelPar(NoPar):
+class ModelPar(BasePar):
 
     class Config(object):
         pass
 
     def __init__(self, backend):
         super(ModelPar, self).__init__(backend)
-        if backend.mpi_rank == 0:
+        if self.mpi_rank == 0:
             logger.info('Model-parallel mode. Number of nodes = %d.',
-                        backend.mpi_size)
+                        self.mpi_size)
         self.orig_fprop_fc = backend.fprop_fc
         self.orig_bprop_fc = backend.bprop_fc
         self.orig_update_fc = backend.update_fc
@@ -50,9 +84,9 @@ class ModelPar(NoPar):
             conf = ModelPar.Config()
             nout = layer.nout
             realnin = layer.nin
-            nin = realnin / backend.mpi_size
-            conf.start = backend.mpi_rank * nin
-            if backend.mpi_rank == (backend.mpi_size - 1):
+            nin = realnin / self.mpi_size
+            conf.start = self.mpi_rank * nin
+            if self.mpi_rank == (self.mpi_size - 1):
                 # If the weights cannot be evenly partitioned, let the last
                 # MPI node handle the extra weights.
                 conf.end = realnin
@@ -63,10 +97,10 @@ class ModelPar(NoPar):
             conf.fpropbuf = np.empty(bufshape, dtype=np.float32)
             bufshape = (layer.nin, bs)
             conf.bpropbuf = np.empty(bufshape, dtype=np.float32)
-            conf.rcount = np.empty(backend.mpi_size, dtype=np.int32)
+            conf.rcount = np.empty(self.mpi_size, dtype=np.int32)
             conf.rcount.fill(nin)
             conf.scount = conf.end - conf.start
-            conf.rcount[-1] = realnin - nin * (backend.mpi_size - 1)
+            conf.rcount[-1] = realnin - nin * (self.mpi_size - 1)
             conf.displ = np.arange(0, realnin - nin + 1, nin)
             conf.scount *= bs
             conf.rcount *= bs
@@ -74,23 +108,29 @@ class ModelPar(NoPar):
             layer.weight_shape = (nout, conf.end - conf.start)
             layer.parconf = conf
 
+    def distribute(self, batchdata):
+        return self.backend.array(batchdata)
+
+    def reduce_cost(self, tensor):
+        return tensor.asnumpyarray()
+
     def fprop_fc(self, out, inputs, weights, layer):
         conf = layer.parconf
         self.orig_fprop_fc(out, inputs[conf.start:conf.end], weights)
-        sendbuf = [out.asnumpyarray(), self.backend.mpi.FLOAT]
-        recvbuf = [conf.fpropbuf, self.backend.mpi.FLOAT]
-        self.backend.comm.Reduce(sendbuf, recvbuf, op=self.backend.mpi.SUM)
-        self.backend.comm.Bcast(buf=[conf.fpropbuf, self.backend.mpi.FLOAT])
+        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
+        recvbuf = [conf.fpropbuf, self.mpi.FLOAT]
+        self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
+        self.comm.Bcast(buf=[conf.fpropbuf, self.mpi.FLOAT])
         out.copy_from(conf.fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
         conf = layer.parconf
         self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
         outbuf = out.asnumpyarray()[conf.start:conf.end]
-        sendbuf = [outbuf, conf.scount, self.backend.mpi.FLOAT]
+        sendbuf = [outbuf, conf.scount, self.mpi.FLOAT]
         recvbuf = [conf.bpropbuf, conf.rcount,
-                   conf.displ, self.backend.mpi.FLOAT]
-        self.backend.comm.Allgatherv(sendbuf, recvbuf)
+                   conf.displ, self.mpi.FLOAT]
+        self.comm.Allgatherv(sendbuf, recvbuf)
         out.copy_from(conf.bpropbuf)
 
     def update_fc(self, out, inputs, deltas, layer):
@@ -98,24 +138,24 @@ class ModelPar(NoPar):
         self.orig_update_fc(out, inputs[conf.start:conf.end], deltas)
 
 
-class DataPar(NoPar):
+class DataPar(BasePar):
 
     class Config(object):
         pass
 
     def __init__(self, backend):
         super(DataPar, self).__init__(backend)
-        if backend.mpi_rank == 0:
+        if self.mpi_rank == 0:
             logger.info('Data-parallel mode. Number of nodes = %d.',
-                        backend.mpi_size)
+                        self.mpi_size)
         self.orig_update_fc = backend.update_fc
         self.orig_update_conv = backend.update_conv
         self.reducebuf = np.empty((1, 1), dtype=np.float32)
 
     def init_model(self, model, backend):
-        self.batch_size = backend.actual_batch_size / backend.mpi_size
-        self.start = backend.mpi_rank * self.batch_size
-        if backend.mpi_rank == (backend.mpi_size - 1):
+        self.batch_size = backend.actual_batch_size / self.mpi_size
+        self.start = self.mpi_rank * self.batch_size
+        if self.mpi_rank == (self.mpi_size - 1):
             self.batch_size = backend.actual_batch_size - self.start
         self.end = self.start + self.batch_size
         model.batch_size = self.batch_size
@@ -133,12 +173,10 @@ class DataPar(NoPar):
         return self.backend.array(batchdata[:, self.start:self.end])
 
     def reduce_cost(self, tensor):
-        self.backend.comm.Reduce([tensor.asnumpyarray(),
-                                  self.backend.mpi.FLOAT],
-                                 [self.reducebuf, self.backend.mpi.FLOAT],
-                                 op=self.backend.mpi.SUM)
-        if self.backend.mpi_rank == 0:
-            return self.reducebuf / self.backend.mpi_size
+        self.comm.Reduce([tensor.asnumpyarray(), self.mpi.FLOAT],
+                         [self.reducebuf, self.mpi.FLOAT], op=self.mpi.SUM)
+        if self.mpi_rank == 0:
+            return self.reducebuf / self.mpi_size
         return 0
 
     def update(self, out, conf):
@@ -147,10 +185,10 @@ class DataPar(NoPar):
         # until the updates are to be applied to the weights (the
         # weights are updated after the gradients are propagated
         # all the way back).
-        sendbuf = [out.asnumpyarray(), self.backend.mpi.FLOAT]
-        recvbuf = [conf.updatebuf, self.backend.mpi.FLOAT]
-        self.backend.comm.Reduce(sendbuf, recvbuf, op=self.backend.mpi.SUM)
-        self.backend.comm.Bcast(buf=[conf.updatebuf, self.backend.mpi.FLOAT])
+        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
+        recvbuf = [conf.updatebuf, self.mpi.FLOAT]
+        self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
+        self.comm.Bcast(buf=[conf.updatebuf, self.mpi.FLOAT])
         out.copy_from(conf.updatebuf)
 
     def update_fc(self, out, inputs, deltas, layer):

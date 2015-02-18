@@ -168,28 +168,19 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     # file
     be.actual_batch_size = model.batch_size
 
-    # setup parameters controlling distributed processing.
-    be.mpi_size = 1
-    be.mpi_rank = 0
-
     if datapar and modelpar:
         raise NotImplementedError('Hybrid parallelization scheme not '
                                   'implemented yet.  Try with at most one of'
                                   'datapar or modelpar')
-    if modelpar or datapar:
-        be.mpi = MPI
-        be.comm = be.mpi.COMM_WORLD
-        be.mpi_size = be.comm.size
-        be.mpi_rank = be.comm.rank
-        if modelpar:
-            be.par = ModelPar(be)
-            be.fprop_fc = be.par.fprop_fc
-            be.bprop_fc = be.par.bprop_fc
-            be.update_fc = be.par.update_fc
-        elif datapar:
-            be.par = DataPar(be)
-            be.update_fc = be.par.update_fc
-            be.update_conv = be.par.update_conv
+    if modelpar:
+        be.par = ModelPar(be)
+        be.fprop_fc = be.par.fprop_fc
+        be.bprop_fc = be.par.bprop_fc
+        be.update_fc = be.par.update_fc
+    elif datapar:
+        be.par = DataPar(be)
+        be.update_fc = be.par.update_fc
+        be.update_conv = be.par.update_conv
     else:
         be.par = NoPar(be)
 
