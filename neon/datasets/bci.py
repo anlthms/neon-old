@@ -349,8 +349,7 @@ class BCI(Dataset):
         print 'feature imp:', frank
 
         pred = model.predict_proba(vinputs)
-        print 'rf auc:', metrics.roc_auc_score(vtargets[:, 0],
-                                            pred[1][:, 0])
+        print 'rf auc:', metrics.roc_auc_score(vtargets[:, 0], pred[1][:, 0])
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -397,8 +396,9 @@ class BCI(Dataset):
         self.inputs['validation'] = valinputs
         self.targets['validation'] = valtargets
 
-        self.rf(traininputs[traininds], traintargets[traininds],
-                valinputs, valtargets)
+        if 0:
+            self.rf(traininputs[traininds], traintargets[traininds],
+                    valinputs, valtargets)
 
         if 'sample_pct' in self.__dict__:
             self.sample_training_data()
