@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -9,8 +8,9 @@ class Visual(object):
     """
     Visualizations from the Google Brain model
     """
-    def __init__():
-        pass
+    def __init__(self):
+        import matplotlib.pyplot
+        self.plt = matplotlib.pyplot
 
     def visualize_pretraining(self, ind, layer, output):
         """
@@ -18,19 +18,19 @@ class Visual(object):
         pretraining and showing the filters as well as the reconstucted digits.
         """
 
-        plt.figure(1)
-        plt.clf()
-        plt.plot(self.cost_list)
-        plt.legend(('recon', 'sparse', 'both'))
-        plt.draw()
+        self.plt.figure(1)
+        self.plt.clf()
+        self.plt.plot(self.cost_list)
+        self.plt.legend(('recon', 'sparse', 'both'))
+        self.plt.draw()
 
-        plt.figure(2)
-        plt.clf()
+        self.plt.figure(2)
+        self.plt.clf()
         self.visual_filters(os.path.join('recon', 'filters'), ind, layer.nifm)
-        plt.draw()
+        self.plt.draw()
 
-        plt.figure(3)
-        plt.clf()
+        self.plt.figure(3)
+        self.plt.clf()
         self.save_figs_all(layer.nifm, layer.ifmshape,
                            [output, layer.defilter.output],
                            [os.path.join('recon', 'input'),
@@ -71,14 +71,14 @@ class Visual(object):
 
             if nfm == 3:
                 # Plot in color.
-                plt.imshow(np.transpose(img/5.+.5, [2, 1, 0]))
+                self.plt.imshow(np.transpose(img/5.+.5, [2, 1, 0]))
             else:
                 # Save the first feature map.
-                plt.imshow(img[0].reshape(((win+1)*grd, (win+1)*grd)),
-                           interpolation='nearest', cmap='gray',
-                           vmin=-1.1, vmax=1.1)
-            plt.show()
-            plt.savefig(ensure_dirs_exist(names[i] + str(ind)))
+                self.plt.imshow(img[0].reshape(((win+1)*grd, (win+1)*grd)),
+                                interpolation='nearest', cmap='gray',
+                                vmin=-1.1, vmax=1.1)
+            self.plt.show()
+            self.plt.savefig(ensure_dirs_exist(names[i] + str(ind)))
 
     def visual_filters(self, names, ind, nifm):
         """
@@ -94,7 +94,7 @@ class Visual(object):
             Plots a figure, imsaves to png.
         """
 
-        plt.clf()
+        self.plt.clf()
         w = self.layers[0].weights.asnumpyarray()  # (576, 25)
         k = np.sqrt(self.layers[0].nofm).astype(np.int)  # output feature maps
         n = np.sqrt(w.shape[0]).astype(np.int) / k
@@ -111,12 +111,12 @@ class Visual(object):
                                (n+m)*j+0:(n+m)*j+n+m-1] = 0
                         canvas[(n+m)*i+i:(n+m)*i+i+m,
                                (n+m)*j+j:(n+m)*j+j+m] = block
-                plt.imshow(canvas, interpolation='nearest', vmin=-0.5,
-                           vmax=0.5, cmap=plt.cm.gray)
-                plt.show()
-                plt.imsave(ensure_dirs_exist(names + 'grayscale' +
-                           str(ind) + str(k)), canvas,
-                           vmin=-0.5, vmax=0.5, cmap=plt.cm.gray)
+                self.plt.imshow(canvas, interpolation='nearest', vmin=-0.5,
+                                vmax=0.5, cmap=self.plt.cm.gray)
+                self.plt.show()
+                self.plt.imsave(ensure_dirs_exist(names + 'grayscale' +
+                                                  str(ind) + str(k)), canvas,
+                                vmin=-0.5, vmax=0.5, cmap=self.plt.cm.gray)
             "this plots the filters as an RGB color image"
             if nifm == 3:
                 canvas = np.zeros((n*(n+m), n*(n+m), 3))+1
@@ -127,10 +127,10 @@ class Visual(object):
                                (n+m)*j+0:(n+m)*j+n+m-1, :] = 0
                         canvas[(n+m)*i+i:(n+m)*i+i+m,
                                (n+m)*j+j:(n+m)*j+j+m, :] = block
-                plt.imshow(canvas*2.+.5, interpolation='nearest')
-                plt.show()
-                plt.imsave(ensure_dirs_exist(names + 'color' + str(ind)
-                                             + str(k)), canvas*2.+.5)
+                self.plt.imshow(canvas*2.+.5, interpolation='nearest')
+                self.plt.show()
+                self.plt.imsave(ensure_dirs_exist(names + 'color' + str(ind)
+                                                  + str(k)), canvas*2.+.5)
 
         def showme_dense(w, n, m, k, nifm):
             "this places the individual filters on a canvas and plots it"
@@ -140,20 +140,20 @@ class Visual(object):
                     for j in range(n):
                         canvas[(m+1)*i:(m+1)*i+m,
                                (m+1)*j:(m+1)*j+m] = w[n*i+j, :].reshape(m, m)
-                plt.imshow(canvas, interpolation='nearest',
-                           vmin=-0.5, vmax=0.5, cmap=plt.cm.gray)
-                plt.show()
+                self.plt.imshow(canvas, interpolation='nearest',
+                                vmin=-0.5, vmax=0.5, cmap=self.plt.cm.gray)
+                self.plt.show()
             if nifm == 3:
                 canvas = np.zeros((n*(m+1), n*(m+1), 3))
                 for i in range(n):
                     for j in range(n):
                         block = w[n*i+j, :].reshape(3, m, m).transpose(1, 2, 0)
                         canvas[(m+1)*i:(m+1)*i+m, (m+1)*j:(m+1)*j+m, :] = block
-                plt.imshow(canvas*2.+.5)
-                plt.show()
+                self.plt.imshow(canvas*2.+.5)
+                self.plt.show()
 
         for i in range(k**2):
-            plt.subplot(k, k, i)
+            self.plt.subplot(k, k, i)
             showme_sparse(w[i*n**2:(i+1)*n**2], n, m, i, nifm)
             showme_dense(w[i*n**2:(i+1)*n**2], n, m, i, nifm)
 

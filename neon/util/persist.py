@@ -9,12 +9,8 @@ import logging
 import os
 import yaml
 
-from neon.util.compat import PY3
+from neon.util.compat import pickle
 
-if PY3:
-    import pickle
-else:
-    import cPickle as pickle
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +32,31 @@ def ensure_dirs_exist(path):
         str: The unmodified path value.
     """
     outdir = os.path.dirname(path)
-    if outdir is not '' and not os.path.isdir(outdir):
+    if outdir != '' and not os.path.isdir(outdir):
         os.makedirs(outdir)
     return path
+
+
+def convert_scalar_node(val):
+    """
+    Helper to extract and return the appropriately types value of a ScalarNode
+    object.
+
+    Arguments:
+        val: (yaml.nodes.ScalarNode): object to extract value from
+
+    Returns:
+        float, int, string: the actual value
+    """
+    if not isinstance(val, yaml.nodes.ScalarNode):
+        return val
+    if val.tag.endswith("int"):
+        return int(val.value)
+    elif val.tag.endswith("float"):
+        return float(val.value)
+    else:
+        # assume a string
+        return val.value
 
 
 def extract_child_node_vals(node, keys):
@@ -47,7 +65,7 @@ def extract_child_node_vals(node, keys):
     passed, looking for the key values specified.
 
     Arguments:
-        node (yaml.nodes.Node): the parent node upon which to being the search
+        node (yaml.nodes.Node): the parent node upon which to begin the search
         keys (list): set of strings indicating the child keys we want to
                      extract corresponding values for.
 
@@ -61,13 +79,13 @@ def extract_child_node_vals(node, keys):
         # node, and the second can be other types of nodes.
         tag = child[0].value
         if isinstance(child[1], yaml.nodes.ScalarNode):
-            val = child[1].value
+            val = convert_scalar_node(child[1])
         elif isinstance(child[1], yaml.nodes.SequenceNode):
-            val = [x.value for x in child[1].value]
+            val = [convert_scalar_node(x) for x in child[1].value]
         elif isinstance(child[1], yaml.nodes.MappingNode):
             val = dict()
             for item in child[1].value:
-                val[item[0].value] = item[1].value
+                val[item[0].value] = convert_scalar_node(item[1])
         else:
             logger.warning("unknown node type: %s, ignoring tag %s",
                            str(type(child[1])), tag)
@@ -161,10 +179,12 @@ def obj_multi_constructor(loader, tag_suffix, node,
                 child_vals[param] = child_vals[param].format(
                     rank=str(MPI.COMM_WORLD.rank),
                     size=str(MPI.COMM_WORLD.size))
-    if (child_vals[deserialize_param] is not None and
-            os.path.exists(child_vals[deserialize_param])):
-        # deserialization attempt should be made
-        res = deserialize(child_vals[deserialize_param])
+    if child_vals[deserialize_param] is not None:
+        des_path = child_vals[deserialize_param]
+        des_path = os.path.expandvars(os.path.expanduser(des_path))
+        if os.path.exists(des_path):
+            # deserialization attempt should be made
+            res = deserialize(des_path)
     if res is None:
         # need to create a new object
         try:
@@ -173,11 +193,14 @@ def obj_multi_constructor(loader, tag_suffix, node,
             logger.warning("Unable to construct '%s' instance.  Error: %s",
                            cls.__name__, e.message)
             res = None
-    if res is not None:
-        # overwrite any parameters needing updated from original yaml file
-        for param in child_vals[overwrite_param]:
-            if child_vals[param] is not None:
-                res.__dict__[param] = child_vals[param]
+    if res is not None and child_vals[overwrite_param] is not None:
+        # overwrite parameters needing updates from original yaml file
+        overwrite_vals = extract_child_node_vals(node, child_vals[
+                                                 overwrite_param])
+        for param in overwrite_vals:
+            logger.info("overwriting: %s, with YAML val: %s", param,
+                        str(overwrite_vals[param]))
+            res.__dict__[param] = overwrite_vals[param]
     return res
 
 
@@ -246,6 +269,8 @@ def serialize(obj, save_path):
     See Also:
         deserialize
     """
+    if save_path is None or len(save_path) == 0:
+        return
     save_path = os.path.expandvars(os.path.expanduser(save_path))
     logger.warn("serializing object to: %s", save_path)
     ensure_dirs_exist(save_path)

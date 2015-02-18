@@ -33,6 +33,7 @@ class Layer(YAMLable):
         name (string): Name identifying this layer (in logs, etc.)
     """
     def __init__(self, **kwargs):
+        self.initialized = False
         self.__dict__.update(kwargs)
         req_param(self, ['name'])
 
@@ -66,10 +67,13 @@ class Layer(YAMLable):
         self.set_weight_shape()
 
     def initialize(self, kwargs):
+        if self.initialized:
+            return
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
         self.output = None
         self.deltas = None
+        self.initialized = True
 
     def set_weight_shape(self):
         pass

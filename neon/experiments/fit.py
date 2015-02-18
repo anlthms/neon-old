@@ -32,19 +32,22 @@ class FitExperiment(Experiment):
     """
 
     def __init__(self, **kwargs):
-        # default dist_flag to False
         self.dist_flag = False
         self.datapar = False
         self.modelpar = False
+        self.initialized = False
         self.__dict__.update(kwargs)
         req_param(self, ['dataset', 'model'])
         opt_param(self, ['backend'])
 
     def initialize(self, backend):
+        if self.initialized:
+            return
         self.backend = backend
         self.model.link()
         self.backend.par.init_model(self.model, self.backend)
         self.model.initialize(backend)
+        self.initialized = True
 
     def run(self):
         """
