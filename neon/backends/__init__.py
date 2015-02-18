@@ -113,39 +113,37 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     if flexpoint:
         logger.warning("Flexpoint(TM) backend not currently available")
 
+    if datapar and modelpar:
+        raise NotImplementedError('Hybrid parallelization scheme not '
+                                  'implemented yet.  Try with at most one of'
+                                  'datapar or modelpar')
+    if modelpar:
+        par = ModelPar()
+    elif datapar:
+        par = DataPar()
+    else:
+        par = NoPar()
+
+    if par.device_id is not None:
+        if device_id is not None:
+            logger.warn('Ignoring device id specified in command line.')
+        logger.info('Setting device on node %d to %d',
+                    par.rank(), par.device_id)
+        device_id = par.device_id
+
     if gpu:
         from neon.backends.gpu import GPU
         be_name = 'GPU'
-        be = GPU(rng_seed=rng_seed)
+        be = GPU(rng_seed=rng_seed, device_id=device_id)
     elif nrv:
         be_name = 'NRV'
-        be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling)
+        be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,
+                        device_id=device_id)
     else:
         be_name = 'CPU'
         be = CPU(rng_seed=rng_seed, seterr_handling=numerr_handling)
     logger.info("{} backend, RNG seed: {}, numerr: {}".format
                 (be_name, rng_seed, numerr_handling))
 
-    # save the original batch_size value that is specified in the configuration
-    # file
-    be.actual_batch_size = model.batch_size
-    be.device_id = device_id
-
-    if datapar and modelpar:
-        raise NotImplementedError('Hybrid parallelization scheme not '
-                                  'implemented yet.  Try with at most one of'
-                                  'datapar or modelpar')
-    if modelpar:
-        be.par = ModelPar(be)
-        be.fprop_fc = be.par.fprop_fc
-        be.bprop_fc = be.par.bprop_fc
-        be.update_fc = be.par.update_fc
-    elif datapar:
-        be.par = DataPar(be)
-        be.update_fc = be.par.update_fc
-        be.update_conv = be.par.update_conv
-    else:
-        be.par = NoPar(be)
-
-    be.init_device()
+    par.associate(be)
     return be

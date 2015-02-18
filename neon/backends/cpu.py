@@ -219,8 +219,6 @@ class CPU(Backend):
         self.__dict__.update(kwargs)
         self.err_init()
         self.par = None
-
-    def init_device(self):
         self.rng_init()
 
     def default_dtype_if_missing(self, in_dtype):

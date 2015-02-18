@@ -46,7 +46,6 @@ def test_xcov_gputensor():
 
     from neon.backends.gpu import GPU, GPUTensor
     be = GPU(rng_seed=0)  # to ensure cublas_init() is called.
-    be.init_device()
     outputs = GPUTensor(a.copy())
     tempbuf1 = be.empty((k1, n))
     tempbuf2 = be.empty((k2, n))
@@ -87,7 +86,6 @@ def test_xcov_derivative_cputensor():
 def test_xcov_derivative_gputensor():
     from neon.backends.gpu import GPU, GPUTensor
     be = GPU(rng_seed=0)
-    be.init_device()
     np.random.seed(0)
     n = 10
     k = 8

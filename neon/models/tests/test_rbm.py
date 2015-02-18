@@ -32,7 +32,6 @@ class TestCudaRBM:
 
         # TODO: remove randomness from expected target results
         self.be = GPU(rng_seed=0)
-        self.be.init_device()
 
         # reusable fake data
         self.inputs = GPUTensor(np.ones((2, 100)))

@@ -1071,9 +1071,6 @@ class Backend(YAMLable):
     def reduce_tensor(self, tensor):
         return self.par.reduce_tensor(tensor)
 
-    def init_device(self):
-        raise NotImplementedError()
-
 
 class Tensor(object):
     """

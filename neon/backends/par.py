@@ -7,11 +7,16 @@ logger = logging.getLogger(__name__)
 
 class NoPar(object):
 
-    def __init__(self, backend):
-        self.backend = backend
+    def __init__(self):
+        self.backend = None
+        self.device_id = None
 
     def init_model(self, model, backend):
-        pass
+        backend.actual_batch_size = model.batch_size
+
+    def associate(self, backend):
+        backend.par = self
+        self.backend = backend
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata)
@@ -25,8 +30,9 @@ class NoPar(object):
 
 class BasePar(object):
 
-    def __init__(self, backend):
-        self.backend = backend
+    def __init__(self):
+        self.backend = None
+        self.device_id = None
         try:
             from mpi4py import MPI
             self.mpi = MPI
@@ -38,7 +44,7 @@ class BasePar(object):
                 "mpi4py not found, can't run in datapar or modelpar")
 
         try:
-            # Determine device_id based on local rank (assumes OpenMPI).
+            # Determine local rank (assumes OpenMPI).
             self.mpi_local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
             self.mpi_local_size = int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
         except:
@@ -46,11 +52,16 @@ class BasePar(object):
                 "OpenMPI variable OMPI_COMM_WORLD_LOCAL_RANK or "
                 "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
                 "Are you using: mpirun -n <#procs> neon <example.yaml>?")
-        if backend.device_id is not None:
-            logger.warn('Ignoring device id specified in command line.')
-        logger.info('Setting device on node %d to %d',
-                    self.mpi_rank, self.mpi_local_rank)
-        backend.device_id = self.mpi_local_rank
+        self.device_id = self.mpi_local_rank
+
+    def init_model(self, model, backend):
+        # save the original batch_size value that is specified in
+        # the configuration file
+        backend.actual_batch_size = model.batch_size
+
+    def associate(self, backend):
+        backend.par = self
+        self.backend = backend
 
     def distribute(self, batchdata):
         raise NotImplementedError()
@@ -72,16 +83,14 @@ class ModelPar(BasePar):
     class Config(object):
         pass
 
-    def __init__(self, backend):
-        super(ModelPar, self).__init__(backend)
+    def __init__(self):
+        super(ModelPar, self).__init__()
         if self.mpi_rank == 0:
             logger.info('Model-parallel mode. Number of nodes = %d.',
                         self.mpi_size)
-        self.orig_fprop_fc = backend.fprop_fc
-        self.orig_bprop_fc = backend.bprop_fc
-        self.orig_update_fc = backend.update_fc
 
     def init_model(self, model, backend):
+        super(ModelPar, self).init_model(model, backend)
         for layer in model.layers:
             if not self.distributable(layer):
                 continue
@@ -113,6 +122,15 @@ class ModelPar(BasePar):
             conf.displ *= bs
             layer.weight_shape = (nout, conf.end - conf.start)
             layer.parconf = conf
+
+    def associate(self, backend):
+        super(ModelPar, self).associate(backend)
+        self.orig_fprop_fc = backend.fprop_fc
+        self.orig_bprop_fc = backend.bprop_fc
+        self.orig_update_fc = backend.update_fc
+        backend.fprop_fc = self.fprop_fc
+        backend.bprop_fc = self.bprop_fc
+        backend.update_fc = self.update_fc
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata)
@@ -149,16 +167,15 @@ class DataPar(BasePar):
     class Config(object):
         pass
 
-    def __init__(self, backend):
-        super(DataPar, self).__init__(backend)
+    def __init__(self):
+        super(DataPar, self).__init__()
         if self.mpi_rank == 0:
             logger.info('Data-parallel mode. Number of nodes = %d.',
                         self.mpi_size)
-        self.orig_update_fc = backend.update_fc
-        self.orig_update_conv = backend.update_conv
         self.reducebuf = np.empty((1, 1), dtype=np.float32)
 
     def init_model(self, model, backend):
+        super(DataPar, self).init_model(model, backend)
         self.batch_size = backend.actual_batch_size / self.mpi_size
         self.start = self.mpi_rank * self.batch_size
         if self.mpi_rank == (self.mpi_size - 1):
@@ -174,6 +191,13 @@ class DataPar(BasePar):
             conf = DataPar.Config()
             conf.updatebuf = np.empty(layer.weight_shape, dtype=np.float32)
             layer.parconf = conf
+
+    def associate(self, backend):
+        super(DataPar, self).associate(backend)
+        self.orig_update_fc = backend.update_fc
+        self.orig_update_conv = backend.update_conv
+        backend.update_fc = self.update_fc
+        backend.update_conv = self.update_conv
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])

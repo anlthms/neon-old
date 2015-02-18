@@ -24,7 +24,6 @@ class TestMNIST(object):
     def test_get_inputs(self):
         d = MNIST(repo_path=self.tmp_repo)
         d.backend = CPU(rng_seed=0)
-        d.backend.init_device()
         d.backend.actual_batch_size = 128
         d.backend.par = NoPar(d.backend)
         inputs = d.get_inputs(train=True)
