@@ -25,7 +25,7 @@ np.typeDict['flexpt'] = np.dtype(flexpt)
 
 def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                 flexpoint=False, rng_seed=None, numerr_handling=None,
-                device_id=0):
+                device_id=None):
     """
     Construct and return a backend instance of the appropriate type based on
     the arguments given.  With no parameters, a single CPU core, float32
@@ -69,8 +69,8 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                           behavior is equivalent to
                                           {'all': 'warn'}
         device_id (numeric, optional): Set this to a numeric value which can be
-                                      used to select which GPU to run the
-                                      process on
+                                       used to select which device to run the
+                                       process on
 
     Returns:
         Backend: newly constructed backend instance of the specifed type.
@@ -110,63 +110,26 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         except ImportError:
             logger.warning("Nervana Engine system software not found")
 
-    if datapar or modelpar:
-        try:
-            from mpi4py import MPI
-        except ImportError:
-            logger.warning("mpi4py not found, can't run in datapar or "
-                           "modelpar")
-            datapar = False
-            modelpar = False
-
     if flexpoint:
         logger.warning("Flexpoint(TM) backend not currently available")
 
     if gpu:
         from neon.backends.gpu import GPU
-        logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
-                    (rng_seed, numerr_handling))
-        if datapar or modelpar:
-            # determine device_id based on local rank (assumes OpenMPI)
-            try:
-                local_rank = np.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
-                local_size = np.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
-            except:
-                raise RuntimeError("OpenMPI variable "
-                                   "OMPI_COMM_WORLD_LOCAL_RANK or "
-                                   "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
-                                   "Are you using: mpirun -n <#procs> neon "
-                                   "--gpu <example.yaml>?")
-            num_devices = cudanet.get_num_devices()
-
-            if (local_size > num_devices):
-                logger.warning('Node %s: requested device: %d;'
-                               ' max devices: %d',
-                               MPI.Get_processor_name(), local_size,
-                               num_devices)
-                raise AttributeError("Asking for more gpu devices than are "
-                                     "available on node")
-
-            cudanet.set_device_id(local_rank)
-            logger.info('Setting Device on %s to %d',
-                        MPI.Get_processor_name(), local_rank)
-            device_id = local_rank
-
-        if device_id is None:
-            device_id = 0
-        be = GPU(rng_seed=rng_seed, device_id=device_id)
+        be_name = 'GPU'
+        be = GPU(rng_seed=rng_seed)
     elif nrv:
-        logger.info("NRV HW backend, RNG seed: {}, numerr: {}".format
-                    (rng_seed, numerr_handling))
+        be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling)
     else:
-        logger.info("CPU backend, RNG Seed: {}, numerr: {}".format
-                    (rng_seed, numerr_handling))
+        be_name = 'CPU'
         be = CPU(rng_seed=rng_seed, seterr_handling=numerr_handling)
+    logger.info("{} backend, RNG seed: {}, numerr: {}".format
+                (be_name, rng_seed, numerr_handling))
 
     # save the original batch_size value that is specified in the configuration
     # file
     be.actual_batch_size = model.batch_size
+    be.device_id = 0 if device_id is None else device_id
 
     if datapar and modelpar:
         raise NotImplementedError('Hybrid parallelization scheme not '
@@ -184,4 +147,5 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     else:
         be.par = NoPar(be)
 
+    be.init_device()
     return be

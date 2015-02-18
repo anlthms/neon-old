@@ -38,6 +38,7 @@ class BasePar(object):
                 "mpi4py not found, can't run in datapar or modelpar")
 
         try:
+            # Determine device_id based on local rank (assumes OpenMPI).
             self.mpi_local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
             self.mpi_local_size = int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
         except:
@@ -45,6 +46,12 @@ class BasePar(object):
                 "OpenMPI variable OMPI_COMM_WORLD_LOCAL_RANK or "
                 "OMPI_COMM_WORLD_LOCAL_SIZE not found.\n"
                 "Are you using: mpirun -n <#procs> neon <example.yaml>?")
+        if backend.device_id != 0:
+            logger.warn('Ignoring device id specified in command line.')
+        logger.info('Setting device on %s node %d to %d',
+                    self.mpi.Get_processor_name(), self.mpi_rank,
+                    self.mpi_local_rank)
+        backend.device_id = self.mpi_local_rank
 
     def distribute(self, batchdata):
         raise NotImplementedError()

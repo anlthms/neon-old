@@ -406,12 +406,18 @@ class GPU(Backend):
     tensor_cls = GPUTensor
 
     def __init__(self, **kwargs):
-        self.device_id = 0
         self.__dict__.update(kwargs)
+        self.par = None
+
+    def init_device(self):
+        assert self.device_id is not None
+        num_devices = cudanet.get_num_devices()
+        if self.device_id >= num_devices:
+            raise ValueError('Requested device (%d) is unavailable.' %
+                             self.device_id)
         cudanet.set_device_id(self.device_id)
         cudanet.cublas_init()
         self.rng_init()
-        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
