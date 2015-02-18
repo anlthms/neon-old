@@ -55,8 +55,8 @@ if __name__ == '__main__':
                 be_args[be] = 1
             if be == "datapar":
                 # temporary hack because we are not running via mpirun.
-                os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0' 
-                os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'] = '1' 
+                os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0'
+                os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'] = '1'
             print('{} time: '.format(be)),
             sys.stdout.flush()
             res_time = speed_check(check_file, num_epochs, **be_args)
