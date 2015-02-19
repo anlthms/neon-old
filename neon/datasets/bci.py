@@ -209,7 +209,10 @@ class BCI(Dataset):
         return cords
 
     def anim(self, vid):
-        im = plt.imshow(vid[0])
+        if 0:
+            im = plt.imshow(vid[0], interpolation='nearest', cmap='gray')
+        else:
+            im = plt.imshow(vid[0])
         for frm in range(vid.shape[0]):
             im.set_data(vid[frm])
             plt.pause(0.1)
@@ -269,6 +272,7 @@ class BCI(Dataset):
         inputs = np.zeros((nrows, nclips, depth, height, width))
         for clip in range(nclips):
             inputs[:, clip] = vidstream[:, curfrm:curfrm+depth].copy()
+            inputs[:, clip] = inputs[:, clip].sum(axis=(1, 2, 3), keepdims=True) / (depth * nfeatures)
             for filtw in [4, 3, 2, 1]:
                 self.convolve(inputs, clip, filtw, nfeatures, chanlocs, rawinputs,
                               curfrm, depth)
