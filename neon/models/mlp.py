@@ -6,6 +6,7 @@ Simple multi-layer perceptron model.
 """
 
 import logging
+import neon.util.metrics as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
@@ -33,6 +34,7 @@ class MLP(MLP_old):
     def link(self, initlayer=None):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
+        self.print_layers()
 
     def initialize(self, backend, initlayer=None):
         if self.initialized:
@@ -57,8 +59,10 @@ class MLP(MLP_old):
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
+        netdesc = 'Layers:\n'
         for layer in self.layers:
-            printfunc("%s", str(layer))
+            netdesc += '\t' + str(layer) + '\n'
+        printfunc("%s", netdesc)
 
     def update(self, epoch):
         for layer in self.layers:
@@ -98,7 +102,6 @@ class MLP(MLP_old):
         Learn model weights on the given datasets.
         """
         error = self.backend.zeros((1, 1))
-        self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
@@ -119,7 +122,7 @@ class MLP(MLP_old):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         if dataset is not None:
             self.data_layer.init_dataset(dataset)
         predlabels = self.backend.empty((1, self.batch_size))
@@ -143,10 +146,8 @@ class MLP(MLP_old):
                 self.fprop()
                 probs = self.get_classifier_output()
                 targets = self.data_layer.targets
-                self.backend.argmax(targets, axis=0, out=labels)
-                self.backend.argmax(probs, axis=0, out=predlabels)
-                self.backend.not_equal(predlabels, labels, misclass)
-                self.backend.sum(misclass, axes=None, out=batch_sum)
+                ms.misclass_sum(self.backend, probs, targets, predlabels,
+                                labels, misclass, batch_sum)
                 self.backend.add(misclass_sum, batch_sum, misclass_sum)
                 self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
                                  axes=None, out=batch_sum)
@@ -155,3 +156,49 @@ class MLP(MLP_old):
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
+
+    def predict_fullset(self, dataset, setname):
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * self.data_layer.num_batches
+        outputs = self.backend.empty((self.class_layer.nout, nrecs))
+        targets = self.backend.empty(outputs.shape)
+        batch = 0
+        while self.data_layer.has_more_data():
+            self.fprop()
+            start = batch * self.batch_size
+            end = start + self.batch_size
+            outputs[:, start:end] = self.get_classifier_output()
+            targets[:, start:end] = self.data_layer.targets
+            batch += 1
+
+        self.data_layer.cleanup()
+        return outputs, targets
+
+    def report(self, targets, outputs, metric):
+        nrecs = outputs.shape[1]
+        if metric == 'misclass rate':
+            retval = self.backend.empty((1, 1))
+            labels = self.backend.empty((1, nrecs))
+            preds = self.backend.empty(labels.shape)
+            misclass = self.backend.empty(labels.shape)
+            ms.misclass_sum(self.backend, targets, outputs,
+                            preds, labels, misclass, retval)
+            misclassval = retval.asnumpyarray() / nrecs
+            return misclassval * 100
+
+        if metric == 'auc':
+            return ms.auc(self.backend, targets[0], outputs[0])
+
+        if metric == 'log loss':
+            retval = self.backend.empty((1, 1))
+            sums = self.backend.empty((1, outputs.shape[1]))
+            temp = self.backend.empty(outputs.shape)
+            ms.logloss(self.backend, targets, outputs, sums, temp, retval)
+            self.backend.multiply(retval, -1, out=retval)
+            self.backend.divide(retval, nrecs, out=retval)
+            return retval.asnumpyarray()
+
+        raise NotImplementedError('metric not implemented:', metric)
