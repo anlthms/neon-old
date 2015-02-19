@@ -11,7 +11,6 @@ import os
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range, pickle, queue, StringIO
-from neon.backends.gpu import GPU, GPUTensor
 from neon.util.param import opt_param, req_param
 import threading
 # importing scipy.io breaks multiprocessing! don't do it here!
@@ -165,6 +164,8 @@ class RingBuffer(object):
 
     def __init__(self, max_size, batch_size, num_input_dims, num_tgt_dims,
                  label_list):
+        from neon.backends.gpu import GPUTensor
+
         self.max_size = max_size
         self.id = self.prev_id = 0
 
@@ -218,6 +219,7 @@ class GPUTransfer(threading.Thread):
         logger.debug('GT %d created', self.mb_id)
 
     def run(self):
+        from neon.backends.gpu import GPU
         logger.debug('backend mini-batch transfer start %d', self.mb_id)
         # threaded conversion of jpeg strings to numpy array
         # if no item in queue, wait
@@ -348,6 +350,7 @@ class Imageset(Dataset):
         return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
+        from neon.backends.gpu import GPU
         sn = 'val' if (setname == 'validation') else setname
         self.endb = getattr(self, 'end_' + sn)
         self.startb = getattr(self, 'start_' + sn)
