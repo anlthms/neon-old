@@ -28,11 +28,3 @@ Adding a new Model type
     parameters from a training dataset
   * :func:`neon.models.model.Model.predict` to apply learned parameters
     to make predictions about another dataset.
-
-Adding a new Layer type
------------------------
-
-Neural network models are typically composed of several of these objects.
-
-* Create a new subclass of :class:`neon.models.layer.Layer` to suit your
-  needs.
