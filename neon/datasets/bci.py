@@ -212,38 +212,17 @@ class BCI(Dataset):
         im = plt.imshow(vid[0])
         for frm in range(vid.shape[0]):
             im.set_data(vid[frm])
-            plt.pause(0.08)
+            plt.pause(0.1)
         plt.show()
 
-    def convolve(self, vids, filtw):
-        result = np.empty(vids.shape)
-        nfrms = vids[0].shape[0]
-        nrows = vids[0].shape[1]
-        ncols = vids[0].shape[2]
-
-        for samp in range(vids.shape[0]):
-            for frm in range(nfrms):
-                frm1 = frm - filtw
-                frm1 = 0 if frm1 < 0 else frm1
-                frm2 = frm + filtw
-                frm2 = nfrms if frm2 > nfrms else frm2
-                for row in range(nrows):
-                    row1 = row - filtw
-                    row1 = 0 if row1 < 0 else row1
-                    row2 = row + filtw
-                    row2 = nrows if row2 > nrows else row2
-                    for col in range(ncols):
-                        col1 = col - filtw
-                        col1 = 0 if col1 < 0 else col1
-                        col2 = col + filtw
-                        col2 = ncols if col2 > ncols else col2
-                        result[samp, frm, row, col] = vids[samp,
-                                                           frm1:frm2,
-                                                           row1:row2,
-                                                           col1:col2].mean()
-        vids[:] = result
-
-    def convolve2(self, vids, filtw):
+    def convolve(self, inputs, clip, filtw, nfeatures, chanlocs, rawinputs,
+                 curfrm, depth):
+        for featind in range(nfeatures):
+            ycord = chanlocs[featind, 2]
+            xcord = chanlocs[featind, 1]
+            inputs[:, clip, :, ycord, xcord] = (
+                rawinputs[:, featind, curfrm:curfrm+depth])
+        vids = inputs[:, clip]
         result = np.empty(vids.shape)
         nfrms = vids[0].shape[0]
         nrows = vids[0].shape[1]
@@ -266,7 +245,7 @@ class BCI(Dataset):
                     col2 = ncols if col2 > ncols else col2
                     result[:, frm, row, col] = (
                         vids[:, frm1:frm2, row1:row2,
-                             col1:col2].mean(axis=3).mean(axis=2).mean(axis=1))
+                             col1:col2].mean(axis=(1, 2, 3)))
         vids[:] = result
 
     def prep_vid_data(self, inputdict, nrows, subs, sessions,
@@ -289,10 +268,11 @@ class BCI(Dataset):
         curfrm = 0
         inputs = np.zeros((nrows, nclips, depth, height, width))
         for clip in range(nclips):
-            inputs[:, clip] = vidstream[:, curfrm:curfrm+depth]
-            self.convolve(inputs[:, clip], 1)
-            self.convolve(inputs[:, clip], 2)
-            if False:
+            inputs[:, clip] = vidstream[:, curfrm:curfrm+depth].copy()
+            for filtw in [4, 3, 2, 1]:
+                self.convolve(inputs, clip, filtw, nfeatures, chanlocs, rawinputs,
+                              curfrm, depth)
+            if 0:
                 self.anim(inputs[0, clip])
             curfrm += stride
         rinputs = inputs.reshape((nrows, np.prod(inputs.shape[1:])))

@@ -3,8 +3,8 @@
 # ----------------------------------------------------------------------------
 
 !obj:experiments.FitPredictErrorExperiment {
-  report_sets: ['validation'],
-  metrics: ['auc'],
+  inference_sets: ['validation'],
+  inference_metrics: ['auc'],
 
   dataset: &dseng !obj:datasets.BCI {
       repo_path: '~/data',

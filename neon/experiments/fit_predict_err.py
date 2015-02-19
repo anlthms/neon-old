@@ -33,8 +33,8 @@ class FitPredictErrorExperiment(FitExperiment):
         add other params
     """
     def __init__(self, **kwargs):
-        self.report_sets = []
-        self.metrics = []
+        self.inference_sets = []
+        self.inference_metrics = []
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
 
     def save_results(self, dataset, setname, data, dataname):
@@ -52,11 +52,11 @@ class FitPredictErrorExperiment(FitExperiment):
         self.model.predict_and_report(self.dataset)
 
         # Report error metrics.
-        for setname in self.report_sets:
+        for setname in self.inference_sets:
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           setname)
-            self.save_results(self.dataset, setname, outputs, 'predictions')
+            self.save_results(self.dataset, setname, outputs, 'inference')
             self.save_results(self.dataset, setname, targets, 'targets')
-            for metric in self.metrics:
+            for metric in self.inference_metrics:
                 val = self.model.report(targets, outputs, metric=metric)
                 logger.info('%s set %s %.5f', setname, metric, val)

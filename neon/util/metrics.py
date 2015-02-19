@@ -6,8 +6,6 @@
 Contains functions for computing error metrics.
 """
 
-from sklearn import metrics
-
 
 def misclass_sum(backend, targets, outputs, predlabels, labels,
                  misclass, retval):
@@ -18,6 +16,7 @@ def misclass_sum(backend, targets, outputs, predlabels, labels,
 
 
 def auc(backend, targets, outputs):
+    from sklearn import metrics
     return metrics.roc_auc_score(targets.asnumpyarray().ravel(),
                                  outputs.asnumpyarray().ravel())
 
