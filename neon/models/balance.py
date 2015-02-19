@@ -14,6 +14,7 @@ from neon.models.mlp import MLP
 from neon.util.param import req_param
 import cPickle
 
+
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
         cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
@@ -64,6 +65,7 @@ class Balance(MLP):
             if layer is self.branch_layer:
                 y[self.zidx:] = self.zparam
 
+
 class BalanceMP(MLP):
     def __init__(self, **kwargs):
         self.accumulate = True
@@ -80,11 +82,10 @@ class BalanceMP(MLP):
         softmaxlabels = filter(lambda x: x != 'z', self.costpaths.keys())
         self.softlayers = [self.costpaths[ck][-2] for ck in softmaxlabels]
 
-        self.pathways = [self.layers, self.costpaths['z']] + [self.costpaths[ck]
-                             for ck in softmaxlabels]
+        self.pathways = [self.layers, self.costpaths['z']]
+        self.pathways += [self.costpaths[ck] for ck in softmaxlabels]
         self.path_skip_act = [False, False] + [True for ck in softmaxlabels]
         self.kwargs = kwargs
-
 
     def initialize(self, backend, initlayer=None):
         super(BalanceMP, self).initialize(backend, initlayer)
@@ -103,7 +104,10 @@ class BalanceMP(MLP):
                 print ll.prev_layer.output.asnumpyarray()
                 print myarray
                 print ll.weights.asnumpyarray()
-                my_pickle('ff.wts', {'wt': ll.weights.asnumpyarray(), 'in': ll.prev_layer.output.asnumpyarray(), 'out': myarray})
+                my_pickle('ff.wts',
+                          {'wt': ll.weights.asnumpyarray(),
+                           'in': ll.prev_layer.output.asnumpyarray(),
+                           'out': myarray})
                 sys.exit()
 
         for ckey in self.costpaths.keys():
@@ -123,16 +127,10 @@ class BalanceMP(MLP):
                 ll.bprop(error)
         for ll in self.layers:
             if ll.name == 'slice':
-                my_pickle('bb.wts', {'de': ll.deltas.asnumpyarray(), 'in': ll.prev_layer.output.asnumpyarray(), 'out': ll.output.asnumpyarray()})
-
-            # if hasattr(ll, 'weights'):
-            #     myarray = ll.weights.asnumpyarray()
-
-
-            #     if numpy.isnan(myarray).any():
-            #         print ll.name, myarray
-            #         print ll.weight_updates.asnumpyarray()
-            #         sys.exit()
+                my_pickle('bb.wts',
+                          {'de': ll.deltas.asnumpyarray(),
+                           'in': ll.prev_layer.output.asnumpyarray(),
+                           'out': ll.output.asnumpyarray()})
 
     def get_reconstruction_output(self):
         return self.out_layer.output

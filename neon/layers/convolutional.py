@@ -116,7 +116,7 @@ class SubConvLayer(ConvLayer):
         self.output = self.bigoutput
         super(SubConvLayer, self).fprop(inputs)
         self.suboutput.fill(0.0)
-        self.suboutput[:] = self.output[:self.rowendidx,:]
+        self.suboutput[:] = self.output[:self.rowendidx, :]
         self.output = self.suboutput
 
     def bprop(self, error):

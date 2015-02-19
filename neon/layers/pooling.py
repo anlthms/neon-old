@@ -57,6 +57,7 @@ class PoolingLayer(Layer):
                                     stride=self.stride,
                                     bpropbuf=self.deltasbuf)
 
+
 class UnPoolingLayer(PoolingLayer):
     """
     Attributes:
@@ -111,6 +112,7 @@ class UnPoolingLayer(PoolingLayer):
         self.nout = self.nofm * self.ofmsize
         logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
                      self.name, self.nifm, self.ifmshape, self.ofmshape)
+
 
 class CrossMapPoolingLayer(WeightLayer):
     """

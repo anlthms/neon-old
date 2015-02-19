@@ -3,18 +3,22 @@ import cPickle
 import numpy as np
 import os
 import pandas as pd
-import sys
 import yaml
 from multiprocessing import Pool
 from PIL import Image
 from StringIO import StringIO
 from time import time
 
+TARGET_SIZE = None
+SQUARE_CROP = True
+
+
 def pickle(filename, data):
     with open(filename, "w") as fo:
         cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
 
-# NOTE: We have to leave this helper function out of the class and use the 
+
+# NOTE: We have to leave this helper function out of the class and use the
 #       global variable hack so that we can use multiprocess pool.map
 def proc_img(imgfile):
     tgt_size = TARGET_SIZE
@@ -34,8 +38,9 @@ def proc_img(imgfile):
         im = im.crop((cx, cy, tgt_size, tgt_size))
 
     buf = StringIO()
-    im.save(buf, format= 'JPEG')
+    im.save(buf, format='JPEG')
     return buf.getvalue()
+
 
 class BatchWriter(object):
 
@@ -47,8 +52,8 @@ class BatchWriter(object):
 
     def __str__(self):
         pairs = map(lambda a: a[0] + ': ' + a[1],
-                     zip(self.__dict__.keys(),
-                         map(str, self.__dict__.values())))
+                    zip(self.__dict__.keys(),
+                        map(str, self.__dict__.values())))
         return "\n".join(pairs)
 
     def parse_file_list(self, infile, doshuffle):
@@ -70,12 +75,12 @@ class BatchWriter(object):
         psz = self.batch_size
         nparts = (len(imfiles) + psz - 1) / psz
 
-        imfiles = [imfiles[i*psz:(i+1)*psz] for i in xrange(nparts)]
+        imfiles = [imfiles[i*psz: (i+1)*psz] for i in xrange(nparts)]
 
         if targets is not None:
-            targets = [targets[i*psz:(i+1)*psz] for i in xrange(nparts)]
+            targets = [targets[i*psz: (i+1)*psz] for i in xrange(nparts)]
 
-        labels = [{k:v[i*psz:(i+1)*psz] for k,v in labels.iteritems()}
+        labels = [{k: v[i*psz: (i+1)*psz] for k, v in labels.iteritems()}
                   for i in xrange(nparts)]
 
         if not os.path.exists(self.output_dir):
@@ -100,12 +105,15 @@ class BatchWriter(object):
 
     def run(self):
         idx = 0
+        filelist = [self.train_file, self.validation_file, self.test_file]
         for setname, t_or_v in zip(['train', 'validation', 'test'],
-                     [self.train_file, self.validation_file, self.test_file]):
+                                   filelist):
             if t_or_v is not None and os.path.exists(t_or_v):
                 doshuffle = True if setname == 'train' else False
-                imfiles, labels, targets = self.parse_file_list(t_or_v, doshuffle)
-                idx = self.write_batches(setname, idx, labels, imfiles, targets)
+                imfiles, labels, targets = self.parse_file_list(
+                    t_or_v, doshuffle)
+                idx = self.write_batches(setname, idx,
+                                         labels, imfiles, targets)
             else:
                 print 'Skipping {}, file missing'.format(setname)
 
