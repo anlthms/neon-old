@@ -86,7 +86,7 @@ class MLP(MLP_old):
                         self.epochs_complete, errorval)
 
     def print_test_error(self, setname, misclass, nrecs):
-        redmisclass = self.backend.reduce_cost(misclass)
+        redmisclass = self.backend.reduce_tensor(misclass)
         if self.backend.rank() != 0:
             return
 
