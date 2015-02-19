@@ -37,6 +37,9 @@ class FitPredictErrorExperiment(FitExperiment):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
         opt_param(self, ['inference_sets'], [])
         opt_param(self, ['inference_metrics'], [])
+        if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
+            raise AttributeError('inference_metrics specified without '
+                                 'inference_sets')
 
     def save_results(self, dataset, setname, data, dataname):
         filename = os.path.join(dataset.repo_path, dataset.__class__.__name__,
