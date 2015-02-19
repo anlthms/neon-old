@@ -72,7 +72,7 @@ class MLP(MLP_old):
         return self.class_layer.output
 
     def print_training_error(self, error, num_batches, partial=False):
-        rederr = self.backend.reduce_cost(error)
+        rederr = self.backend.reduce_tensor(error)
         if self.backend.rank() != 0:
             return
 
