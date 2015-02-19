@@ -80,7 +80,6 @@ class SumSquaredDiffs(Cost):
         Apply the derivative of the sum of squared differences cost function
         to the datasets passed.
         """
-        print self.outputbuf.shape, targets.shape
         return sum_squared_diffs_derivative(self.backend,
                                             self.outputbuf, targets,
                                             self.temp, self.scale)
