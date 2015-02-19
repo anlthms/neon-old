@@ -85,17 +85,15 @@ class MLP(MLP_old):
             logger.info('epoch: %d, training error: %0.5f',
                         self.epochs_complete, errorval)
 
-    def print_test_error(self, setname, misclass, logloss, nrecs):
+    def print_test_error(self, setname, misclass, nrecs):
         redmisclass = self.backend.reduce_cost(misclass)
-        redlogloss = self.backend.reduce_cost(logloss)
         if self.backend.rank() != 0:
             return
 
         misclassval = redmisclass / nrecs
-        loglossval = redlogloss / nrecs
         self.result = misclassval
-        logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                     setname, 100 * misclassval, loglossval)
+        logging.info("%s set misclass rate: %0.5f%%",
+                     setname, 100 * misclassval)
 
     def fit(self, dataset):
         """
@@ -128,7 +126,6 @@ class MLP(MLP_old):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        logloss_sum = self.backend.empty((1, 1))
         misclass_sum = self.backend.empty((1, 1))
         batch_sum = self.backend.empty((1, 1))
 
@@ -140,7 +137,6 @@ class MLP(MLP_old):
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
             misclass_sum.fill(0.0)
-            logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
                 self.fprop()
@@ -149,10 +145,7 @@ class MLP(MLP_old):
                 ms.misclass_sum(self.backend, probs, targets, predlabels,
                                 labels, misclass, batch_sum)
                 self.backend.add(misclass_sum, batch_sum, misclass_sum)
-                self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
-                                 axes=None, out=batch_sum)
-                self.backend.add(logloss_sum, batch_sum, logloss_sum)
-            self.print_test_error(setname, misclass_sum, logloss_sum, nrecs)
+            self.print_test_error(setname, misclass_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
