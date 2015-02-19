@@ -3,6 +3,178 @@
 ## (unreleased)
 
 
+## v0.7.1 (2015-02-13)
+
+### Modifications
+
+* v0.7.1 release bump. [Scott Leishman]
+
+* Merge branch 'misc_fixes' into 'master' [Arjun Bansal]
+
+    Miscellaneous fixes  Corrects various issues introduced in 0.7.0
+    including: * automatic import of certain optional dependencies where
+    not required * rough-in support for Nervana hardware backend command
+    line parameter * python3 compatibility fixes * removal of extra -I
+    argument to extension compilation where numpy not installed * support
+    non-path filenames for serialization and deserialization * cudanet
+    version support (skip re-install if version already installed) *
+    remove source code links from published documentation * fix
+    deserialization of models and layers, re-support checkpointing via
+    overwrite_list parameter.  See merge request !106
+
+* Merge branch 'vgg' into 'master' [Alex Park]
+
+    MYL-174 Implemented VGG/ reduced memory footprint  Implemented a
+    barebones VGG model.  RectLin function in gpu.py was modified to use a
+    new function in cudaconvnet2 backend called maximum_scalar (Returns
+    maximum of a tensor and a scalar), so it wouldnt need an extra buffer.
+    For code cleanliness I eliminated the need for 'activation is not
+    None' by defining a default Linear activation function, assigned in
+    layer.py (have made these changes for pooling.py, recurrent.py, and
+    fully_connected.py also). @urs can you please confirm that the
+    recurrent changes are ok?  I have changed activations to just have a
+    activation.fprop_func() and activation.bprop_func(), so we can decide
+    what to compute during fprop and bprop for each activation in the most
+    computationally and memory efficient way. I got rid of apply_both()
+    (mostly replaced with fprop_func instead).  There is still overhead
+    despite these changes. We need a way to consolidate the delta buffers
+    across layers by allocating a large pool and then sub-indexing the
+    chunk used for each layer. Not sure how easy this will be on the gpu
+    or if there is some other smarter way of doing this.  Ran make test
+    and sanity, and some MLP and convnet MNIST examples which all seemed
+    to run fine.  Ran autopep8 and make style  See merge request !105
+
+
+## v0.7.0 (2015-02-09)
+
+### Modifications
+
+* v0.7.0 release bump. [Scott Leishman]
+
+* additional documentation cleanup. [Scott Leishman]
+
+* Merge branch 'refactor_updates' into 'master' [Anil Thomas]
+
+    Various refactor updates  * removed epsilon from backend * added new
+    utility script to inject/strip compiler hints (begin/end/free calls) *
+    new shortcut import notation for import models, layers, datasets, etc.
+    * re-organized layer code into separate directory and files. * added
+    support for environment variable and home directory parsing in YAML
+    files * re-factored backend loading and initialization.  Now specified
+    on command-line and no longer needed in YAML files. * re-organized
+    example directories, deprecated several redundant examples. *
+    documentation audit and updates.  See merge request !104
+
+* Merge branch 'par' into 'master' [Scott Leishman]
+
+    Par  Add new command line parameters --datapar and --modelpar.  See
+    merge request !103
+
+* Merge branch 'rnn' into 'master' [Scott Leishman]
+
+    Rnn  RNN and LSTM have been updated to the new layer2 format.
+    Following pieces are now deprecated and can be moved:  - the RNN class
+    in rnn.py, (the RNNB class can be renamed to RNN and the yamls
+    updated)  - the Recurrent layer classes in layer.py can be deprecated
+    with the rest of the file  - the yaml files
+    `mobydick_cpu_lstm-128-64-5.yaml` and `mobydick_cpu_rnn-128-64-5.yaml`
+    can be deleted or moved.  An additional change not related to layer2
+    is that the RNN now supports full backprop through time in addition to
+    the standard truncated BPTT. The prediction code has also been greatly
+    simplified, following the layer2 MLP example.  See merge request !102
+
+* Merge branch 'par' into 'master' [Alex Park]
+
+    Par  See merge request !101
+
+* Minor bug fix in step_print in mlp.py. [Arjun Bansal]
+
+* Merge branch 'systems' into 'master' [Scott Leishman]
+
+    Systems  - modified nrv backend yaml files to have logging and flex
+    support - propagated the broadcast work-around to cross_entropy.py
+    See merge request !99
+
+* test error down to 1.88% [Arjun Bansal]
+
+* matching learning rate to mlp1.py ref example. [Arjun Bansal]
+
+* Merge branch 'AccumFix' into 'master' [Scott Leishman]
+
+    Accum fix  See merge request !97
+
+* Merge branch 'hyperopt_reverted' into 'master' [Scott Leishman]
+
+    Hyperopt reverted  new merge request! Passes sanity and test, also
+    passes  PYTHONPATH='.' bin/hyperopt init PYTHONPATH='.' bin/hyperopt
+    run PYTHONPATH='.' bin/hyperopt reset  and produces output at
+    http://localhost:5000 on my machine.  See merge request !96
+
+* Merge branch '3dconv' into 'master' [Arjun Bansal]
+
+    3dconv  See merge request !95
+
+* Merge branch 'systems' into 'master' [Scott Leishman]
+
+    Systems  fix for the broadcast workaround in mlp.py  See merge request
+    !93
+
+* Merge branch 'mop_updates' into 'master' [Arjun Bansal]
+
+    deserialization and weight initialization improvements  *
+    Deserialization has been re-written to work with various distributed
+    and non-  distributed datasets. * new deserialization_path parameter
+    to support separate files to read from vs write to during
+    serialization * weight initialization code has been refactored and
+    split out into separate classes (removed backend specific code
+    duplication). * new shortcut parameter initialization approach allows
+    yaml specifications like `!params.UniformValGen` to work correctly. *
+    epochs_complete parameter allows restoration of partially complete
+    training during serialization/deserialization * ability to overwrite
+    specified deserialized attributes with yaml values based on list in
+    overwrite_list * all examples updated to reflect new weight
+    initialization scheme * various style and bug fixes.  See merge
+    request !92
+
+* Merge branch '3dconv' into 'master' [Alex Park]
+
+    3dconv  See merge request !91
+
+* Merge branch 'DatasetFix' into 'master' [Scott Leishman]
+
+    Dataset fix  Changed default behaviour for the experiment to determine
+    the dataset for both training and prediction.  Updated yaml files to
+    remove the dataset from the DataLayer and have it set when calling
+    model.fit or model.predict_and_error  See merge request !90
+
+* Merge branch 'SanityFix' into 'master' [Scott Leishman]
+
+    Sanity fix  More changes than I had anticipated.  Some style changes
+    (mostly spacing) corrections to the dataset interface in mlp.MLP and
+    to the way the experiment results are unwrapped by the sanity checker.
+    Not sure if this the way we want to go about this.  See merge request
+    !89
+
+* Merge branch 'distarray' into 'master' [Alex Park]
+
+    ImageNet support (with multithreading)  Merged in ImageNet changes
+    with queues, with new Layer2.py style implementation. Added bias for
+    ConvLayer, learning rate schedule, Weight decay, separate learning
+    rules for biases &amp; weights to new layer2.py style implementation.
+    Perf: Around 7.5s/macrobatch for AlexNet on 980 and ~64% training and
+    88% validation error (top-1) after 20 epochs on micro set (25 train
+    epochs, 5 val epochs). Takes around an hour for a run of
+    i1k_gpu_small.yaml.
+    todo: dist support
+    todo: multiprocessing decompression of jpegs  See merge request !85
+
+* Reverting prior two rnn commits. [Scott Leishman]
+
+* RNN created a yaml file with a standard RNN (not LSTM) layer. [Urs]
+
+* RNN bugfix to logger info missing asnumpyarray. [Urs]
+
+
 ## v0.6.0 (2015-01-14)
 
 ### Modifications

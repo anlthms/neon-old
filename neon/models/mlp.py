@@ -19,6 +19,7 @@ class MLP(MLP_old):
     """
 
     def __init__(self, **kwargs):
+        self.initialized = False
         self.dist_mode = None
         self.__dict__.update(kwargs)
         req_param(self, ['layers', 'batch_size'])
@@ -34,11 +35,14 @@ class MLP(MLP_old):
             ll.set_previous_layer(pl)
 
     def initialize(self, backend, initlayer=None):
+        if self.initialized:
+            return
         self.backend = backend
         kwargs = {"backend": self.backend, "batch_size": self.batch_size,
                   "accumulate": self.accumulate}
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
+        self.initialized = True
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
@@ -64,7 +68,7 @@ class MLP(MLP_old):
         return self.class_layer.output
 
     def print_training_error(self, error, num_batches, partial=False):
-        rederr = self.backend.reduce_cost(error)
+        rederr = self.backend.reduce_tensor(error)
         if self.backend.rank() != 0:
             return
 
@@ -78,8 +82,8 @@ class MLP(MLP_old):
                         self.epochs_complete, errorval)
 
     def print_test_error(self, setname, misclass, logloss, nrecs):
-        redmisclass = self.backend.reduce_cost(misclass)
-        redlogloss = self.backend.reduce_cost(logloss)
+        redmisclass = self.backend.reduce_tensor(misclass)
+        redlogloss = self.backend.reduce_tensor(logloss)
         if self.backend.rank() != 0:
             return
 

@@ -12,12 +12,12 @@ import sys
 import numpy
 from neon.models.mlp import MLP
 from neon.util.param import req_param
-import cPickle
+from neon.util.compat import pickle
 
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
-        cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickle.dump(data, fo, protocol=pickle.HIGHEST_PROTOCOL)
 
 logger = logging.getLogger(__name__)
 

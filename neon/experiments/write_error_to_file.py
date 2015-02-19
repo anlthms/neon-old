@@ -25,13 +25,12 @@ class WriteErrorToFile(FitExperiment):
     parameters (rather than learning from scratch).  The same may also apply to
     the datasets specified.
 
-    Kwargs:
+    Attributes:
         backend (neon.backends.Backend): The backend to associate with the
                                          datasets to use in this experiment
         filename: name of the text file where the result should be stored
         item: one of 'test', 'train', 'validation', specifies which error
               should be written to file.
-
     """
     def run(self):
         """

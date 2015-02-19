@@ -172,6 +172,11 @@ CrossMap Neural Network Layer
 MOP API Changes
 ***************
 
+v0.8.0
+======
+
+* rename axes parameter to axis in summarization operations (planned)
+
 v0.7.0
 ======
 
@@ -191,7 +196,8 @@ v0.7.0
     repeated instructions (as would be present in loops and so forth).
   * code can be processed to inject the above hints via
     `neon.util.compiler_hints.py`.  To remove, pass the `-s` flag to the
-    command invocation.
+    command invocation.  Alternatively from the top level of the project, one
+    can call `make insert_compiler_hints` or `make strip_compiler_hints`
 
 * epsilon removed as a backend parameter (now associated with specific
   functions being used)

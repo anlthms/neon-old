@@ -143,13 +143,11 @@ class CrossMapPoolingLayer(WeightLayer):
         self.backend.fprop_cmpool(out=self.pre_act, inputs=inputs,
                                   weights=self.weights, ifmshape=self.ifmshape,
                                   ifmsize=self.ifmsize)
-        if self.activation is not None:
-            self.activation.apply_both(self.backend, self.pre_act, self.output)
+        self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        if self.activation is not None:
-            self.backend.multiply(error, self.pre_act, out=error)
+        self.activation.bprop_func(self.backend, self.pre_act, error)
         if self.deltas is not None:
             self.backend.bprop_cmpool(out=self.deltas, weights=self.weights,
                                       deltas=error, ifmshape=self.ifmshape,

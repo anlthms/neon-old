@@ -104,8 +104,8 @@ It has been tested with
     make all
     sudo make install
 
-Make sure that PATH includes /<path_to_openmpi>/bin and LD_LIBRARY_PATH
-includes /<path_to_openmpi>/lib
+Make sure that ``PATH`` includes ``/<path_to_openmpi>/bin`` and
+``LD_LIBRARY_PATH`` includes ``/<path_to_openmpi>/lib``
 
 2. Install mpi4py:
 
@@ -119,7 +119,7 @@ includes /<path_to_openmpi>/lib
   cd <mpi4py_source_dir>
 	sudo python setup.py build --configure install
 
-3. Setup /etc/hosts with IPs of the nodes.
+3. Setup ``/etc/hosts`` with IPs of the nodes.
 e.g.:
 
 .. code-block:: bash
@@ -127,8 +127,8 @@ e.g.:
 	192.168.1.1 titan
 	192.168.1.2 wimp
 
-4. Setup a hosts file to use with MPI -hostfile option.
-For additional info refer `here <http://cs.calvin.edu/curriculum/cs/374/homework/MPI/01/multicoreHostFiles.html>`_.
+4. Setup a hosts file to use with MPI ``-hostfile`` option.
+For additional info refer to `this document <http://cs.calvin.edu/curriculum/cs/374/homework/MPI/01/multicoreHostFiles.html>`_.
 e.g.:
 
 .. code-block:: bash
@@ -147,7 +147,7 @@ For MPI based distributed implementations, on a single node:
     mpirun -np 4 -x PYTHONPATH bin/neon examples/mnist_distarray_cpu_cnn-20-50-500-10.yaml
 
 In distributed environments with multiple nodes full paths might be needed
-for mpirun and neon, for e.g.:
+for ``mpirun`` and ``neon``, for e.g.:
 
 .. code-block:: bash
 
@@ -155,8 +155,8 @@ for mpirun and neon, for e.g.:
         /<full_path_to_neon>/neon
         /<full_path_to_examples>/mnist_distarray_cpu_cnn-20-50-500-10.yaml
 
-LD_LIBRARY_PATH should point to /<path_to_openmpi>/lib. A common file system
-is assumed.
+``LD_LIBRARY_PATH`` should point to ``/<path_to_openmpi>/lib``. A common file
+system is assumed.
 
 Hyperparameter optimization
 ---------------------------
@@ -164,13 +164,13 @@ Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
 with neon. We currently offer support for Spearmint, available as a fork 
-at `https://github.com/ursk/spearmint/`. The package depends on google
+at https://github.com/ursk/spearmint/. The package depends on google
 protobuf and uses the flask webserver for visualizing results.
 
-To perform a serach over a set of hyperparameters specified in a neon yaml
-file, create a new yaml file with the top level experiment type
-`neon.experiments.write_error_to_file.WriteErrorToFile`. This takes two
-additional arguments:
+To perform a search over a set of hyperparameters specified in a neon yaml
+file, create a new yaml file with the top level experiment of type
+:py:class:`neon.experiments.write_error_to_file.WriteErrorToFile`. This takes
+two additional arguments:
 
 .. code-block:: bash
 
@@ -178,10 +178,10 @@ additional arguments:
       filename: neon_result_validation.txt,
       item: test,
 
-The first, `filename` specifies the name of the file the result of the run
-should be written to, and the second, `item`, specifies which error
-(i.e. for the `test`, `training` or `validation` set) should be used as the
-objective function for the hyperparameter optimization.
+The first, ``filename`` specifies the name of the file the result of the run
+should be written to, and the second, ``item``, specifies which error
+(i.e. for the ``test``, ``training`` or ``validation`` set) should be used as
+the objective function for the hyperparameter optimization.
 
 Then in the model specifications of the yaml simply replace a hyper-parameter
 
@@ -197,37 +197,39 @@ with a range over which to search
     # specifying a range from 0.01 to 0.1 for the learning rate
     learning_rate: !hyperopt lr FLOAT 0.01 0.1,
 
-where the !hyperopt flag signals that this is a parameter to be optimized,
+where the ``!hyperopt`` flag signals that this is a parameter to be optimized,
 followed by a name used to keep track of the parameter, and the type of
-variable. Currently, FLOAT and INT are supported. The last two parameters
-indicate the start and end of the range. An arbitrary number of parameters
-can be replaced by ranges. Only scalar, numerical parameters are supported.
+variable. Currently, ``FLOAT`` and ``INT`` are supported. The last two
+parameters indicate the start and end of the range. An arbitrary number of
+parameters can be replaced by ranges. Only scalar, numerical parameters are
+supported.
 
-To run a hyperoptimization experiment, call the `bin/hyperopt` executable.
-To initialize a new exeriment, use the `init` flag and pass the `-y` argument
-to specify the yaml file containing the hyperparameter ranges, for example
+To run a hyperoptimization experiment, call the ``bin/hyperopt`` executable.
+To initialize a new exeriment, use the ``init`` flag and pass the ``-y``
+argument to specify the yaml file containing the hyperparameter ranges, for
+example:
 
 .. code-block:: bash
 
     PYTHONPATH='`pwd`' bin/hyperopt init -y examples/hyper_iris_small.yaml
 
-this creates a speramint configuration file in proptobuf format in the
-`neon/hyperopt/expt` directory. Then run the experiment by calling with the
-`run` flag and specifying a port with the `-p` argument where outputs will be
-generated, for example
+this creates a spearmint configuration file in proptobuf format in the
+``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
+``run`` flag and specifying a port with the ``-p`` argument where outputs will
+be generated, for example:
 
 .. code-block:: bash
 
     PYTHONPATH='`pwd`' bin/hyperopt run -p 50000
 
-The output can be viewed in the browser at `http://localhost:50000`, or by
-directly inspecting the files in the `neon/hyperopt/expt` directory. The
-experiment will keep running indefinitely. It can be interrupted with `Ctrl+C`
-and continued by calling the `hyperopt run` command again. To start a new
-experiment, reset the previous one first by running
+The output can be viewed in the browser at http://localhost:50000, or by
+directly inspecting the files in the ``neon/hyperopt/expt`` directory. The
+experiment will keep running indefinitely. It can be interrupted with
+``Ctrl+C`` and continued by calling the ``hyperopt run`` command again. To
+start a new experiment, reset the previous one first by running:
 
 .. code-block:: bash
 
     PYTHONPATH='`pwd`' bin/hyperopt reset
 
-or manually deleting the contents of the `neon/hyperopt/expt` directory.
+or manually deleting the contents of the ``neon/hyperopt/expt`` directory.

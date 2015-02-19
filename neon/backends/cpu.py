@@ -218,8 +218,8 @@ class CPU(Backend):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.err_init()
-        self.rng_init()
         self.par = None
+        self.rng_init()
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -713,8 +713,8 @@ class CPU(Backend):
         return out
 
     def rectlin(self, x, out):
-        self.greater(x, 0, out=out)
-        self.multiply(x, out, out=out)
+        # x and out are the same buffer
+        np.maximum(x._tensor, 0., out._tensor)
         return out
 
     def rectlin_derivative(self, x, out):
@@ -1503,38 +1503,3 @@ class CPU(Backend):
         copies the host_weights into dev_weights
         """
         dev_weights[:] = host_weights
-
-
-# template for CPUDist
-class CPUDist(CPU):
-
-    def bcast(self, buf, rank=0):
-        buf._tensor = self.comm.bcast(buf._tensor, rank)
-
-
-# once CPUDist is implemented inherit from CPUDist
-class CPUDataDist(CPU):
-    """
-    helper sub-class for data parallel implementations
-    """
-
-    def update_fc(self, out, inputs, deltas):
-        super(CPUDataDist, self).update_fc(out, inputs, deltas)
-        # trivial implementation below
-        # could optimize by making each proc responsible for #params/comm.size
-        # of the params
-        out._tensor = self.comm.reduce(out.asnumpyarray(), op=self.mpi.SUM,
-                                       root=0)
-        out._tensor = self.comm.bcast(out.asnumpyarray())
-
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
-                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf):
-        super(CPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmsize, ofmlocs,
-                                             ifmshape, links, nifm, padding,
-                                             stride, ngroups, fwidth,
-                                             updatebuf)
-        out._tensor = self.comm.reduce(out.asnumpyarray(), op=self.mpi.SUM,
-                                       root=0)
-        out._tensor = self.comm.bcast(out.asnumpyarray())
