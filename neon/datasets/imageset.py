@@ -8,24 +8,20 @@
 import logging
 import numpy as np
 import os
-import cPickle
-from PIL import Image
-from StringIO import StringIO
 from time import time
 from neon.datasets.dataset import Dataset
+from neon.util.compat import range, pickle, queue, StringIO
 from neon.backends.gpu import GPU, GPUTensor
-from neon.util.compat import range
 from neon.util.param import opt_param, req_param
 import threading
-import Queue
 # importing scipy.io breaks multiprocessing! don't do it here!
 
 logger = logging.getLogger(__name__)
 
 # global queues to start threads
-macroq = Queue.Queue()
-miniq = Queue.Queue()
-gpuq = Queue.Queue()
+macroq = queue.Queue()
+miniq = queue.Queue()
+gpuq = queue.Queue()
 macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
@@ -33,12 +29,12 @@ gpuq_flag = False
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
-        cPickle.dump(data, fo, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickle.dump(data, fo, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def my_unpickle(filename):
     fo = open(filename, 'r')
-    contents = cPickle.load(fo)
+    contents = pickle.load(fo)
     fo.close()
     return contents
 
@@ -77,6 +73,8 @@ class DecompressImages(threading.Thread):
                  cropped_image_size, macro_data, backend,
                  num_processes, mean_img, predict, dotransforms=False):
         threading.Thread.__init__(self)
+        from PIL import Image
+        self.imlib = Image
         self.mb_id = mb_id
         # mini-batch queue
         self.mini_batch_queue = mini_batch_queue
@@ -109,7 +107,7 @@ class DecompressImages(threading.Thread):
         # Uncomment if using mean subtraction
         # crop_mean_img = (self.mean_img[:, csx:csx + imdim, csy:csy + imdim])
         for i, jpeg_string in enumerate(self.img_macro[start_id:end_id]):
-            img = Image.open(StringIO(jpeg_string))
+            img = self.imlib.open(StringIO(jpeg_string))
             if img.mode != 'RGB':
                 img = img.convert('RGB')
 
@@ -117,7 +115,7 @@ class DecompressImages(threading.Thread):
                 # horizontal reflections of the image
                 flip_horizontal = np.random.randint(0, 2)
                 if flip_horizontal == 1:
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    img = img.transpose(self.imlib.FLIP_LEFT_RIGHT)
 
             img = img.crop((csx, csy, csx + imdim, csy + imdim))
             self.inputs[:, i + offset] = (
@@ -282,8 +280,10 @@ class Imageset(Dataset):
         self.__dict__.update(kwargs)
         req_param(self, ['save_dir'])
         req_param(self, ['label_list', 'cropped_image_size'])
-        self.idims = (self.cropped_image_size ** 2) * 3
+        from PIL import Image
+        self.imlib = Image
 
+        self.idims = (self.cropped_image_size ** 2) * 3
         if self.start_train != -1:
             # num train batches for this yaml file (<= total available)
             self.n_train_batches = self.end_train - self.start_train + 1
@@ -306,7 +306,7 @@ class Imageset(Dataset):
             file_path = os.path.join(self.save_dir, 'data_batch_%d' % (i))
             jpeg_strings = my_unpickle(file_path)
             for jpeg_string in jpeg_strings['data']:
-                img = Image.open(StringIO(jpeg_string))
+                img = self.imlib.open(StringIO(jpeg_string))
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 self.mean_img += np.transpose(np.array(
@@ -372,14 +372,14 @@ class Imageset(Dataset):
                                           num_tgt_dims=self.tdims,
                                           num_input_dims=self.idims,
                                           label_list=self.label_list)
-        self.file_name_queue = Queue.Queue()
-        self.macro_batch_queue = Queue.Queue()
-        self.mini_batch_queue = Queue.Queue()
-        self.gpu_queue = Queue.Queue()
+        self.file_name_queue = queue.Queue()
+        self.macro_batch_queue = queue.Queue()
+        self.mini_batch_queue = queue.Queue()
+        self.gpu_queue = queue.Queue()
         global macroq, miniq, gpuq, macroq_flag, miniq_flag, gpuq_flag
-        macroq = Queue.Queue()
-        miniq = Queue.Queue()
-        gpuq = Queue.Queue()
+        macroq = queue.Queue()
+        miniq = queue.Queue()
+        gpuq = queue.Queue()
         macroq_flag = False
         miniq_flag = False
         gpuq_flag = False
