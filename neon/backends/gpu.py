@@ -9,7 +9,6 @@ is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 import cudanet
 import logging
 import numpy
-import os
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.compat import range
@@ -407,9 +406,16 @@ class GPU(Backend):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.par = None
+        if hasattr(self, 'device_id') is False or self.device_id is None:
+            self.device_id = 0
+        num_devices = cudanet.get_num_devices()
+        if self.device_id >= num_devices:
+            raise ValueError('Requested device (%d) is unavailable.' %
+                             self.device_id)
+        cudanet.set_device_id(self.device_id)
         cudanet.cublas_init()
         self.rng_init()
-        self.par = None
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -1566,52 +1572,3 @@ class GPU(Backend):
         sets the GPUTensor dev_weights to the values in host_weights
         """
         dev_weights[:] = GPUTensor(numpy.array(host_weights, 'float32'))
-
-
-class GPUDataDist(GPU):
-
-    """
-    helper sub-class for data parallel implementations
-    """
-
-    def __init__(self, **kwargs):
-        local_rank = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
-        local_size = numpy.int32(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
-        num_devices = cudanet.get_num_devices()
-
-        if (local_size > num_devices):
-            logger.warning('Node %s: requested device: %d  max devices: %d',
-                           self.mpi.Get_processor_name(), local_size,
-                           num_devices)
-            raise AttributeError("Asking for more gpu devices than are "
-                                 "available on node")
-
-        cudanet.set_device_id(local_rank)
-        logger.info('Setting Device on %s to %d',
-                    self.mpi.Get_processor_name(), local_rank)
-        super(GPUDataDist, self).__init__(**kwargs)
-
-    def update_fc(self, out, inputs, deltas):
-        super(GPUDataDist, self).update_fc(out, inputs, deltas)
-        # trivial implementation below
-        # could optimize by making each proc responsible for #params/comm.size
-        # of the params
-        out._tensor.numpy_array[:] = self.comm.reduce(out.asnumpyarray(),
-                                                      op=self.mpi.SUM, root=0)
-        out._tensor.numpy_array[:] = self.comm.bcast(out._tensor.numpy_array)
-        out.copy_to_device()
-
-    def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
-                    ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf):
-        super(GPUDataDist, self).update_conv(out, inputs, weights, deltas,
-                                             ofmshape, ofmsize, ofmlocs,
-                                             ifmshape, links, nifm, padding,
-                                             stride, ngroups, fwidth,
-                                             updatebuf)
-
-        out._tensor.numpy_array[:] = self.comm.reduce(out.asnumpyarray(),
-                                                      op=self.mpi.SUM, root=0)
-        out._tensor.numpy_array[:] = self.comm.bcast(out._tensor.numpy_array)
-
-        out.copy_to_device()
