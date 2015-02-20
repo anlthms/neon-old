@@ -184,7 +184,9 @@ class GradientDescentMomentum(GradientDescent):
 
 
 class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
-
+    """
+    Adds weight decay regularization
+    """
     def apply_rule(self, params, updates, epoch):
         """
         Steps for momentum:

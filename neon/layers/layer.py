@@ -225,12 +225,9 @@ class CostLayer(Layer):
         self.deltas = self.cost.get_deltabuf()
 
     def __str__(self):
-        return ("{lyr_tp} {lyr_nm}: {nin} nodes, {cost_nm} cost_fn, "
-                "utilizing {be_nm} backend\n\t".format
-                (lyr_tp=self.__class__.__name__,
-                 lyr_nm=self.name, nin=self.nin,
-                 cost_nm=self.cost.__class__.__name__,
-                 be_nm=self.backend.__class__.__name__))
+        return ('{} {}: {} nodes, {} cost_fn'. format(
+                self.__class__.__name__, self.name, self.nin,
+                self.cost.__class__.__name__))
 
     def set_target(self):
         if self.ref_layer is not None:

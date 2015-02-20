@@ -34,9 +34,9 @@ These provide additional functionality, and assist developers
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
   that powers our GPU backend.
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
-* [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
+* [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
   calculations
-* [matplotlib](http://matplotlib.org) for Google Brain feature visualization
+* [matplotlib](http://matplotlib.org) for RNN feature visualization
 * [openmpi](http://www.open-mpi.org), [mpi4py](http://mpi4py.scipy.org) for
   distributed tensors.
 

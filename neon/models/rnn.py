@@ -309,7 +309,7 @@ class RNN(MLP):
         logger.debug("---------------------------------------------")
 
     # adapted from MLP, added time unrolling
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         """
         todo: take the outputs[idx, :] = letters
         stuff from predict_set and use it to descramble the predictions

@@ -54,7 +54,14 @@ class NeonCommand(Command):
     def run(self):
         if self.dev == "1":
             self.distribution.install_requires += ['nose>=1.3.0',
-                                                   'cython>=0.19.1']
+                                                   'cython>=0.19.1',
+                                                   'flake8>=2.2.2',
+                                                   'pep8-naming>=0.2.2',
+                                                   'sphinx>=1.2.2',
+                                                   'sphinxcontrib-napoleon' +
+                                                   '>=0.2.8',
+                                                   'scikit-learn>=0.15.2',
+                                                   'matplotlib>=1.4.0']
         if self.gpu == "1":
             self.distribution.install_requires += ['cudanet>=0.2.1']
             self.distribution.dependency_links += ['git+https://github.com/'
