@@ -38,7 +38,8 @@
 # -----------------
 # FitExperiment - train a model to learn a set of parameters
 # FitPredictErrorExperiment - as above, but also generate predictions and
-#                             evaluate performance
+#                             evaluate performance on those, potentially
+#                             saving predictions to file.
 # GradientChecker - Use finite differences to check the gradients of an
 #                   experiment.  Currently this can be carried out using
 #                   the separately provided ``grad`` executable
@@ -94,7 +95,25 @@
   #         ConvnetDist - Halo parallel distributed convolutional network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
-  
+  #
+  # FitPredictErrorExperiment specific parameters:
+  # ----------------------------------------------
+  # inference_sets - which data types to compute predictions/error metrics on.
+  #                  Should be a list of strings, where each string should be
+  #                  one of 'train', 'test', or 'validation'.  Saved
+  #                  predictions will be written to disk in the same directory
+  #                  as the associated input dataset, and are written as python
+  #                  serialized object (.pkl) files.
+  # inference_metrics - The performance measurements to compute for each
+  #                     inference_set.  Should be a list of strings.  Current
+  #                     implemented choices are:
+  #                     'auc' - Area under the ROC curve
+  #                     'misclass rate' - Proportion of instances where the
+  #                                       output class predicted by the model
+  #                                       does not match the expected value.
+  #                     'log loss' - The negative log likelihood of the true
+  #                                  labels given the predicted probabilities
+  #                                  from the model.
   dataset: &ds !obj:datasets.Iris {
     # Iris dataset parameters
     # -----------------------
