@@ -46,7 +46,7 @@ class LoadFile(threading.Thread):
 
     def __init__(self, file_name, macro_batch_queue):
         threading.Thread.__init__(self)
-        self.file_name = file_name
+        self.file_name = os.path.expanduser(file_name)
         # queue with file contents
         self.macro_batch_queue = macro_batch_queue
 

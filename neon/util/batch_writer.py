@@ -46,6 +46,7 @@ class BatchWriter(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.output_dir = os.path.expanduser(self.output_dir)
         global TARGET_SIZE, SQUARE_CROP
         TARGET_SIZE = self.tgt_size
         SQUARE_CROP = self.square_crop
@@ -106,6 +107,7 @@ class BatchWriter(object):
     def run(self):
         idx = 0
         filelist = [self.train_file, self.validation_file, self.test_file]
+        filelist = map(os.path.expanduser, filelist)
         for setname, t_or_v in zip(['train', 'validation', 'test'],
                                    filelist):
             if t_or_v is not None and os.path.exists(t_or_v):
