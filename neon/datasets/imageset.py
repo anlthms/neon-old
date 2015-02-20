@@ -191,6 +191,8 @@ class RingBuffer(object):
         # self.inputs_be[self.id].copy_to_device()
 
         if targets is not None:
+            # XXX: temporary hack to format the targets.
+            targets = targets.transpose().copy()
             self.targets_be[self.id].copy_from(targets)
             # self.targets_be[self.id].copy_to_device()
 
