@@ -435,8 +435,8 @@ class Imageset(Dataset):
                     # allow for the first get from macro_batch_queue
                     pass
                 self.jpeg_strings = self.macro_batch_queue.get(block=True)
-            if 'target' in self.jpeg_strings:
-                self.targets_macro = self.jpeg_strings['target']
+            if 'targets' in self.jpeg_strings:
+                self.targets_macro = self.jpeg_strings['targets']
             else:
                 self.targets_macro = None
             self.labels_macro = {k: self.jpeg_strings['labels'][k]
