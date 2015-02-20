@@ -40,7 +40,7 @@ class WriteErrorToFile(FitExperiment):
         # load the data and train the model
         super(WriteErrorToFile, self).run()
         if self.dataset.inputs[self.item] is not None:
-            prediction = self.model.predict_and_error(self.dataset)
+            prediction = self.model.predict_and_report(self.dataset)
             with open(self.filename, 'w') as f:
                 f.write(str(prediction[self.item]))
             logger.info("Writing '%s' error to %s" % (self.item,

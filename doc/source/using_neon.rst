@@ -17,7 +17,7 @@ Installation
     # setup.cfg (set items to 1 to enable):
     vi setup.cfg
 
-    # to install system wide:
+    # to install system wide (we recommend first setting up a virtualenv):
     make install  # sudo make install on Linux
 
     # or to build for working locally in the source tree
