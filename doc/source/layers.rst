@@ -3,17 +3,17 @@
 .. ---------------------------------------------------------------------------
 
 Layers
-==========
+======
 
 Neural network models are typically composed of a data layer, several weight
 layers and a cost layer. Data layers are associated with a
 :doc:`data set <datasets>`, and cost layers with a
 :doc:`cost function<transforms>`. In addition to standard weight layers, there
-is a variety of model specific weight, pooling and normaliation layers.
+is a variety of model specific weight, pooling and normalization layers.
 
 
 Available Layers
---------------------
+----------------
 
 .. autosummary::
    :toctree: generated/

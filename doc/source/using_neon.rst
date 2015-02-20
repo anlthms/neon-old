@@ -235,12 +235,12 @@ start a new experiment, reset the previous one first by running:
 or manually deleting the contents of the ``neon/hyperopt/expt`` directory.
 
 Regularization
----------------------------
+--------------
 To prevent overfitting of the model parameters to limited training data, neon
 supports several forms of network reguarization. Direct weight regularization
 is supported using weight decay, which is specified in the learning rule. Using
-:class:`GradientDescentMomentumWeightDecay<neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay>` learning rule, weight decay on individual
-layers can be implemented.
+:class:`GradientDescentMomentumWeightDecay<neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay>`
+learning rule, weight decay on individual layers can be implemented.
 
 DropOut regularization is supported with the
 :class:`DropOutLayer<neon.layers.dropout.DropOutLayer>` layer type.
