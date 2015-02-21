@@ -28,6 +28,8 @@ SUBS = [2, 6, 7, 11, 12, 13, 14, 16, 17, 18, 20, 21, 22, 23, 24, 26]
 SESSIONS = range(1, 6)
 FEATURES = range(1, 57)
 NSAMPLES = 260
+SGRAMHEIGHT = 40
+SGRAMWIDTH = 16
 
 
 class BCI(Dataset):
@@ -123,11 +125,17 @@ class BCI(Dataset):
         serialize(targetdict, pklpath)
         return targetdict
 
-    def normalize(self, data):
+    def normalize2(self, data):
         minval = np.min(data)
         data -= minval
         maxval = np.max(data)
         data /= maxval
+
+    def normalize(self, data):
+        meanval = np.mean(data)
+        data -= meanval
+        stdval = np.std(data)
+        data /= stdval
 
     def prep_raw_data(self, inputdict, nrows, subs, sessions,
                       nsamples, features):
@@ -151,7 +159,7 @@ class BCI(Dataset):
     def sgram(self, signal, height, width):
         sgram = pylab.specgram(signal, NFFT=128, Fs=2, noverlap=120,
                                cmap=matplotlib.cm.gist_heat)[0]
-        return sgram[height, :width]
+        return sgram[2:height+2, :width]
 
     def prep_sgram_data(self, inputdict, nrows, subs, sessions,
                         nsamples, features):
@@ -160,7 +168,7 @@ class BCI(Dataset):
 
         nfeatures = len(features)
         nrows = rawinputs.shape[0]
-        height, width = 16, 16
+        height, width = SGRAMHEIGHT, SGRAMWIDTH
         inputs = np.zeros((nrows, nfeatures, height, width))
 
         rawinputs = rawinputs.reshape((nrows, nfeatures, nsamples))
@@ -262,7 +270,6 @@ class BCI(Dataset):
         vidstream = np.zeros((nrows, nsamples, height, width))
         rawinputs = rawinputs.reshape((nrows, nfeatures, nsamples))
         chanlocs = self.get_chan_locs(width)
-        featind = 0
         for featind in range(nfeatures):
             ycord = chanlocs[featind, 2]
             xcord = chanlocs[featind, 1]
@@ -281,6 +288,70 @@ class BCI(Dataset):
             curfrm += stride
         rinputs = inputs.reshape((nrows, np.prod(inputs.shape[1:])))
         return rinputs
+
+    def pre_proc_4d(self, vids, filtw, nfeatures, chanlocs, sgrams, depth):
+        for featind in range(nfeatures):
+            ycord = chanlocs[featind, 2]
+            xcord = chanlocs[featind, 1]
+            vids[:, :, :, ycord, xcord] = sgrams[:, featind]
+
+        # self.anim(vids[0, 0])
+        result = np.empty(vids.shape)
+        nfrms = vids.shape[2]
+        nrows = vids.shape[3]
+        ncols = vids.shape[4]
+
+        for frm in range(nfrms):
+            frm1 = frm - filtw
+            frm1 = 0 if frm1 < 0 else frm1
+            frm2 = frm + filtw + 1
+            frm2 = nfrms if frm2 > nfrms else frm2
+            for row in range(nrows):
+                row1 = row - filtw
+                row1 = 0 if row1 < 0 else row1
+                row2 = row + filtw + 1
+                row2 = nrows if row2 > nrows else row2
+                for col in range(ncols):
+                    col1 = col - filtw
+                    col1 = 0 if col1 < 0 else col1
+                    col2 = col + filtw + 1
+                    col2 = ncols if col2 > ncols else col2
+                    result[:, :, frm, row, col] = (
+                        vids[:, :, frm1:frm2, row1:row2,
+                             col1:col2].mean(axis=(2, 3, 4)))
+        vids[:] = result
+
+    def prep_4d_data(self, inputdict, nrows, subs, sessions,
+                     nsamples, features):
+        if self.mode == 0:
+            savepath = os.path.join(self.rootdir, 'train-sgram.npy')
+        elif self.mode == 1:
+            savepath = os.path.join(self.rootdir, 'validation-sgram.npy')
+        assert os.path.exists(savepath)
+        infile = open(savepath)
+        sgrams = np.load(infile)
+        infile.close()
+
+        nfeatures = len(features)
+        nfreqs =  SGRAMHEIGHT
+        nrows = sgrams.shape[0]
+        depth, height, width = 16, 16, 16
+        vidstream = np.zeros((nrows, nfreqs, depth, height, width))
+        chanlocs = self.get_chan_locs(width)
+
+        sgrams = sgrams.reshape((nrows, nfeatures, SGRAMHEIGHT, SGRAMWIDTH))
+        for featind in range(nfeatures):
+            ycord = chanlocs[featind, 2]
+            xcord = chanlocs[featind, 1]
+            vidstream[:, :, :, ycord, xcord] = sgrams[:, featind]
+
+        for freq in range(nfreqs):
+            vidstream[:, freq] = vidstream[:, freq].mean(axis=(-1, -2, -3), keepdims=True)
+
+        self.pre_proc_4d(vidstream, 3, nfeatures, chanlocs, sgrams, depth)
+        # self.anim(vidstream[0, 0])
+        self.pre_proc_4d(vidstream, 2, nfeatures, chanlocs, sgrams, depth)
+        return vidstream.reshape((nrows, np.prod(vidstream.shape[1:])))
 
     def load_set(self, inputdict, nrows, subs, name):
         savepath = os.path.join(self.rootdir, name + '.npy')
@@ -363,12 +434,16 @@ class BCI(Dataset):
             self.prep_data = self.prep_vid_data
         elif self.data_type == 'eng':
             self.prep_data = self.prep_eng_data
+        elif self.data_type == '4d':
+            self.prep_data = self.prep_4d_data
         else:
             raise AttributeError('invalid data type specified')
 
+        self.mode = 0
         traintargets = self.load_targets(targetdict, trainsubs, SESSIONS)
         traininputs = self.load_set(inputdict, traintargets.shape[0],
                                     trainsubs, 'train-' + self.data_type)
+        self.mode = 1
         valtargets = self.load_targets(targetdict, valsubs, SESSIONS)
         valinputs = self.load_set(inputdict, valtargets.shape[0], valsubs,
                                   'validation-' + self.data_type)

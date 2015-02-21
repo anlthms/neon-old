@@ -6,15 +6,16 @@
   inference_sets: ['validation'],
   inference_metrics: ['auc'],
 
-  dataset: &dssgram !obj:datasets.BCI {
+  dataset: &ds4d !obj:datasets.BCI {
       repo_path: '~/data',
+      #serialized_path: '~/data/bci.pkl',
       sample_pct: 100,
-      data_type: 'sgram',
+      data_type: '4d',
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
-    low: -0.01,
-    high: 0.01,
+    low: -0.1,
+    high: 0.1,
   },
 
   lrules: [
@@ -37,15 +38,15 @@
       &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 12,
-        ofmshape: [40, 16],
-        dataset: *dssgram,
+        nofm: 1,
+        ofmshape: [40, 16, 16, 16],
+        dataset: *ds4d,
       },
       !obj:layers.ConvLayer {
         name: layer1,
         activation: !obj:transforms.RectLin {},
-        nofm: 256,
-        fshape: [2, 2],
+        nofm: 16,
+        fshape: [2, 2, 2, 2],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -53,14 +54,14 @@
       !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
-        fshape: [2, 2],
+        fshape: [2, 2, 2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: layer3,
         activation: !obj:transforms.RectLin {},
-        nofm: 512,
-        fshape: [2, 2],
+        nofm: 32,
+        fshape: [2, 2, 2, 2],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -68,15 +69,8 @@
       !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
-        fshape: [2, 2],
+        fshape: [2, 2, 2, 2],
         stride: 2,
-      },
-      !obj:layers.FCLayer {
-        name: layer5,
-        nout: 2048,
-        activation: !obj:transforms.RectLin {},
-        lrule_init: *gdm,
-        weight_init: *wt_init,
       },
       !obj:layers.FCLayer {
         name: layer5,
