@@ -34,9 +34,9 @@ These provide additional functionality, and assist developers
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
   that powers our GPU backend.
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
-* [scikit-learn](http://scikit-learn.org) for Google Brain AUC performance
+* [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
   calculations
-* [matplotlib](http://matplotlib.org) for Google Brain feature visualization
+* [matplotlib](http://matplotlib.org) for RNN feature visualization
 * [openmpi](http://www.open-mpi.org), [mpi4py](http://mpi4py.scipy.org) for
   distributed tensors.
 
@@ -47,14 +47,21 @@ These provide additional functionality, and assist developers
     # see the examples directory for sample .yaml files
     neon examples/mlp/mnist-small.yaml
 
+    # to see the list of options controlling execution type:
+    neon --help
+
     # for GPU based runs, you need to have a CUDA capable GPU card installed
     # then run:
     neon --gpu examples/mlp/mnist-small.yaml
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -np <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
+    # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
     # ex: 4 process data parallel cnn example from top-level neon dir:
     mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
+           examples/convnet/mnist-small.yaml
+
+    # ex: 2 process model parallel cnn example:
+    mpirun -n 2 -x PYTHONPATH bin/neon --modelpar \
            examples/convnet/mnist-small.yaml
 
     # In multi-machine MPI environments need hosts file, and full paths should
@@ -95,4 +102,4 @@ See docs for full details.
 
 ## License ##
 
-Copyright 2014 Nervana Systems Inc.
+Please see LICENSE file for complete details.

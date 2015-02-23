@@ -47,8 +47,6 @@ class Layer(YAMLable):
         opt_param(self, ['prev_names'], [])
 
     def set_previous_layer(self, pl):
-        if pl is None:
-            return
         if pl.is_local:
             if self.is_local:
                 self.ifmshape = pl.ofmshape
@@ -131,8 +129,7 @@ class Layer(YAMLable):
     def allocate_output_bufs(self):
         make_zbuf = self.backend.zeros
         opt_param(self, ['out_shape'], (self.nout, self.batch_size))
-        if hasattr(self, 'nin'):
-            opt_param(self, ['delta_shape'], (self.nin, self.batch_size))
+        opt_param(self, ['delta_shape'], (self.nin, self.batch_size))
 
         self.output = make_zbuf(self.out_shape, self.output_dtype)
 
@@ -225,9 +222,9 @@ class CostLayer(Layer):
         self.deltas = self.cost.get_deltabuf()
 
     def __str__(self):
-        return ('{} {}: {} nodes, {} cost_fn'.format(
-            self.__class__.__name__, self.name, self.nin,
-            self.cost.__class__.__name__))
+        return ('{} {}: {} nodes, {} cost_fn'. format(
+                self.__class__.__name__, self.name, self.nin,
+                self.cost.__class__.__name__))
 
     def fprop(self, inputs):
         pass
@@ -274,10 +271,7 @@ class DataLayer(Layer):
         training).  No checking is done for input size, so should match the
         dimensions of datasets between changes
         """
-        if hasattr(self, 'dataset') is False:
-            self.dataset = dataset
-        self.dataset.backend = self.backend
-        self.dataset.load()
+        self.dataset = dataset
 
     def __str__(self):
         if self.is_local:

@@ -60,6 +60,7 @@ class FitExperiment(Experiment):
                                                'datapar')):
             self.dataset.set_batch_size(self.model.batch_size)
         self.dataset.backend = self.backend
+        self.dataset.load()
         if hasattr(self.dataset, 'serialized_path'):
             serialize(self.dataset, self.dataset.serialized_path)
 

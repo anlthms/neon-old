@@ -17,7 +17,7 @@ Installation
     # setup.cfg (set items to 1 to enable):
     vi setup.cfg
 
-    # to install system wide:
+    # to install system wide (we recommend first setting up a virtualenv):
     make install  # sudo make install on Linux
 
     # or to build for working locally in the source tree
@@ -163,7 +163,7 @@ Hyperparameter optimization
 Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
-with neon. We currently offer support for Spearmint, available as a fork 
+with neon. We currently offer support for Spearmint, available as a fork
 at https://github.com/ursk/spearmint/. The package depends on google
 protobuf and uses the flask webserver for visualizing results.
 
@@ -233,3 +233,14 @@ start a new experiment, reset the previous one first by running:
     PYTHONPATH='`pwd`' bin/hyperopt reset
 
 or manually deleting the contents of the ``neon/hyperopt/expt`` directory.
+
+Regularization
+--------------
+To prevent overfitting of the model parameters to limited training data, neon
+supports several forms of network reguarization. Direct weight regularization
+is supported using weight decay, which is specified in the learning rule. Using
+:class:`GradientDescentMomentumWeightDecay<neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay>`
+learning rule, weight decay on individual layers can be implemented.
+
+DropOut regularization is supported with the
+:class:`DropOutLayer<neon.layers.dropout.DropOutLayer>` layer type.

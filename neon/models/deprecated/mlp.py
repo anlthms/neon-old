@@ -237,7 +237,7 @@ class MLP(Model):
                          item, 100 * self.result.asnumpyarray(),
                          logloss.asnumpyarray())
 
-    def predict_and_error(self, dataset):
+    def predict_and_report(self, dataset):
         for layer in self.layers:
             layer.set_train_mode(False)
         be = self.backend
