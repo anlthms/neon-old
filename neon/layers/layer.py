@@ -137,9 +137,14 @@ class Layer(YAMLable):
                                                       self.output,
                                                       self.pre_act_dtype)
 
+    def set_deltas_buf(self, delta_pool, offset):
         self.deltas = None
         if (self.prev_layer is not None and not self.prev_layer.is_data):
-            self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
+            if delta_pool is not None:
+                self.deltas = delta_pool[offset:(offset + self.delta_shape[0])]
+            else:
+                self.deltas = self.backend.zeros(self.delta_shape,
+                                                 self.deltas_dtype)
 
     def make_links(self, nifm, ifmsize, ifmshape, ofmshape, fshape, stride):
         # Figure out local connections to the previous layer.
