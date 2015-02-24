@@ -329,14 +329,6 @@ ImageNet
 
    neon.datasets.i1k.I1K
 
-NDSB
-----
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.datasets.ndsb.NDSB
-
 Mobydick
 --------
 
