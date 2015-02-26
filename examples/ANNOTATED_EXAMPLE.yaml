@@ -57,7 +57,6 @@
   #           SPARSENET - small natural image dataset (Olshausen and Field)
   #           Iris - RA Fisher's 3 class flower dataset
   #           MOBYDICK - Content of the book Moby Dick
-  #           NDSB - National Data Science Bowl Image dataset
   #           TFD - Toronto Face image dataset
   #           UniformRandom - synthetic random data
   #           ToyImages - synthetic image classification dataset
