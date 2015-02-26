@@ -3,13 +3,18 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '~/data',
+    repo_path: '/usr/local/data',
     sample_pct: 10,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
     low: -0.1,
     high: 0.1,
+  },
+
+  weight_inits: &wt_init0 !obj:params.GaussianValGen {
+    scale: .01,
+    bias_init: 0.0,
   },
 
   lrule: &gdm {
@@ -37,7 +42,7 @@
       !obj:layers.ConvLayer {
         name: layer1,
         lrule_init: *gdm,
-        weight_init: *wt_init,
+        weight_init: *wt_init0,
         nofm: 16,
         fshape: [5, 5],
       },
@@ -58,7 +63,7 @@
         lrule_init: *gdm,
         nofm: 32,
         fshape: [5, 5],
-        weight_init: *wt_init,
+        weight_init: *wt_init0,
       },
       !obj:layers.PoolingLayer {
         name: layer5,
