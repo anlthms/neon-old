@@ -24,8 +24,7 @@ np.typeDict['flexpt'] = np.dtype(flexpt)
 
 
 def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
-                flexpoint=False, rng_seed=None, numerr_handling=None,
-                device_id=None):
+                flexpoint=False, rng_seed=None, numerr_handling=None):
     """
     Construct and return a backend instance of the appropriate type based on
     the arguments given.  With no parameters, a single CPU core, float32
@@ -68,9 +67,6 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                           If set to None (the default),
                                           behavior is equivalent to
                                           {'all': 'warn'}
-        device_id (numeric, optional): Set this to a numeric value which can be
-                                       used to select which device to run the
-                                       process on
 
     Returns:
         Backend: newly constructed backend instance of the specifed type.
@@ -110,38 +106,59 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         except ImportError:
             logger.warning("Nervana Engine system software not found")
 
+    if datapar or modelpar:
+        try:
+            from mpi4py import MPI
+        except ImportError:
+            logger.warning("mpi4py not found, can't run in datapar or "
+                           "modelpar")
+            datapar = False
+            modelpar = False
+
     if flexpoint:
         logger.warning("Flexpoint(TM) backend not currently available")
+
+    if gpu:
+        from neon.backends.gpu import GPU
+        logger.info("GPU backend, RNG Seed: {}, numerr: {}".format
+                    (rng_seed, numerr_handling))
+        be = GPU(rng_seed=rng_seed)
+    elif nrv:
+        logger.info("NRV HW backend, RNG seed: {}, numerr: {}".format
+                    (rng_seed, numerr_handling))
+        be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling)
+    else:
+        logger.info("CPU backend, RNG Seed: {}, numerr: {}".format
+                    (rng_seed, numerr_handling))
+        be = CPU(rng_seed=rng_seed, seterr_handling=numerr_handling)
+
+    # save the original batch_size value that is specified in the configuration
+    # file
+    be.actual_batch_size = model.batch_size
+
+    # setup parameters controlling distributed processing.
+    be.mpi_size = 1
+    be.mpi_rank = 0
 
     if datapar and modelpar:
         raise NotImplementedError('Hybrid parallelization scheme not '
                                   'implemented yet.  Try with at most one of'
                                   'datapar or modelpar')
-    if modelpar:
-        par = ModelPar()
-    elif datapar:
-        par = DataPar()
+    if modelpar or datapar:
+        be.mpi = MPI
+        be.comm = be.mpi.COMM_WORLD
+        be.mpi_size = be.comm.size
+        be.mpi_rank = be.comm.rank
+        if modelpar:
+            be.par = ModelPar(be)
+            be.fprop_fc = be.par.fprop_fc
+            be.bprop_fc = be.par.bprop_fc
+            be.update_fc = be.par.update_fc
+        elif datapar:
+            be.par = DataPar(be)
+            be.update_fc = be.par.update_fc
+            be.update_conv = be.par.update_conv
     else:
-        par = NoPar()
+        be.par = NoPar(be)
 
-    if par.device_id is not None:
-        if device_id is not None:
-            logger.warn('Ignoring device id specified in command line.')
-        device_id = par.device_id
-
-    if gpu:
-        from neon.backends.gpu import GPU
-        be_name = 'GPU'
-        be = GPU(rng_seed=rng_seed, device_id=device_id)
-    elif nrv:
-        be_name = 'NRV'
-        be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,
-                        device_id=device_id)
-    else:
-        be_name = 'CPU'
-        be = CPU(rng_seed=rng_seed, seterr_handling=numerr_handling)
-    logger.info("{} backend, RNG seed: {}, numerr: {}".format
-                (be_name, rng_seed, numerr_handling))
-
-    par.associate(be)
     return be

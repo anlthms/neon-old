@@ -1,8 +1,12 @@
 # Small convolutional net for hurricane patches.
 
-!obj:experiments.FitPredictErrorExperiment {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.cpu.CPU {
+    rng_seed: 0,
+  },
 
-  dataset: !obj:datasets.Hurricane {
+  dataset: !obj:neon.datasets.hurricane.Hurricane {
+      backend: *be,
       repo_path: '/mnt/data/nersc/hurricane/',
       hdf5_file: 'hurricanes.h5',
       variables: [0],
@@ -12,6 +16,7 @@
   
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
+      backend: *be,
       low: -0.1,
       high: 0.1,
     },
@@ -22,6 +27,7 @@
         type: gradient_descent_momentum,
         lr_params: {
           learning_rate: 0.01,
+          backend: *be,
           momentum_params: {
             type: constant, # linear_monotone, nesterov
             coef: 0.90,
@@ -32,64 +38,65 @@
 
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
-  model: !obj:models.MLP {
+  model: !obj:neon.models.mlp.MLPB {
+    backend: *be,
     num_epochs: 5,
     batch_size: &bs 100,
     # serialized_path: './cnn-small.pkl',
     layers: [
-      &datalayer !obj:layers.DataLayer {
+      &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,
         is_local: True,
         nofm: 1, # Must match the number of variables.
         ofmshape: [32, 32],
       },
-      !obj:layers.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer1,
-        nofm: 16,
+        nofm: 10,
         ifmshape: [32, 32],
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:layers.PoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer2,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:layers.ConvLayer {
+      !obj:neon.models.layer2.ConvLayer {
         name: layer3,
-        nofm: 16,
+        nofm: 10,
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:layers.PoolingLayer {
+      !obj:neon.models.layer2.PoolingLayer {
         name: layer4,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:layers.FCLayer {
+      !obj:neon.models.layer2.FCLayer {
         name: layer5,
         nout: 10,
-        activation: !obj:transforms.RectLin {},
+        activation: !obj:neon.transforms.rectified.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      !obj:layers.FCLayer {
+      !obj:neon.models.layer2.FCLayer {
         name: output,
         nout: 2,
-        activation: !obj:transforms.Logistic {},
+        activation: !obj:neon.transforms.logistic.Logistic {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
-      &costlayer !obj:layers.CostLayer {
+      &costlayer !obj:neon.models.layer2.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:transforms.CrossEntropy {},
+        cost: !obj:neon.transforms.cross_entropy.CrossEntropy {},
       },
     ],
   },

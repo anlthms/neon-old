@@ -52,10 +52,6 @@ if __name__ == '__main__':
             if be != "cpu":
                 be_args[be] = 1
             print('{} check '.format(be)),
-            if be == "datapar":
-                # temporary hack because we are not running via mpirun.
-                os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0'
-                os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'] = '1'
             sanity_check(check_file, expected_result, **be_args)
             print('OK')
     sys.exit(res)

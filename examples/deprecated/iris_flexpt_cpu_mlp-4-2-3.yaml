@@ -1,0 +1,109 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# Iris dataset, using flexpoint instead of float.
+# Simple network meant more as a sanity check.
+
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
+  backend: &be !obj:neon.backends.flexpoint.Flexpoint {
+    rng_seed: 0,
+    seterr_handling: {
+      all: 'warn',
+    },
+    default_dtype: &def_dtype !obj:neon.backends.flexpoint.flexpt_dtype {
+      sign_bit: True,
+      int_bits: 4,
+      frac_bits: 24,
+      overflow: 0,
+      rounding: 0,
+    },
+  },
+
+  dataset: &ds !obj:neon.datasets.iris.Iris {
+    backend: *be,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
+  },
+
+  # simple MLP model specification
+  model: !obj:neon.models.mlp.MLP {
+    backend: *be,
+    batch_size: 30,
+    num_epochs: 2500,
+    temp_dtype: *def_dtype,
+    serialized_path: './iris-fixpt-mlp-simple.pkl',
+    layers: [
+      !obj:neon.models.layer.Layer {
+        name: h0,
+        backend: *be,
+        batch_size: 30,
+        pos: 0,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: h0lr,
+          lr_params: {
+            learning_rate: &lr 0.1,
+            backend: *be,
+            momentum_params: &mm {
+              type: constant,
+              coef: 0,
+            },
+          },
+          param_dtype: *def_dtype,
+        },
+        nin: 4,
+        nout: 2,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: &wt_init !obj:params.UniformValGen {
+          backend: *be,
+          low: -1,
+          high: 1,
+          bias_init: 0.0,
+        },
+        weight_dtype: *def_dtype,
+        updates_dtype: *def_dtype,
+        pre_act_dtype: *def_dtype,
+        output_dtype: *def_dtype,
+      },
+      &lastlayer !obj:neon.models.layer.Layer {
+        name: output,
+        backend: *be,
+        batch_size: 30,
+        pos: 1,
+        learning_rule: !obj:neon.models.learning_rule.GradientDescentMomentum {
+          name: outputlr,
+          lr_params: {
+            learning_rate: *lr,
+            backend: *be,
+            momentum_params: *mm,
+          },
+        },
+        nin: 2, # previous nout
+        nout: 3,
+        activation: !obj:neon.transforms.logistic.Logistic {},
+        weight_init: *wt_init,
+        weight_dtype: *def_dtype,
+        updates_dtype: *def_dtype,
+        pre_act_dtype: *def_dtype,
+        output_dtype: *def_dtype,
+        deltas_dtype: *def_dtype,
+      },
+    ],
+    cost: !obj:neon.transforms.cross_entropy.CrossEntropy {
+      olayer: *lastlayer
+    },
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

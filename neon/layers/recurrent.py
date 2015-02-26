@@ -7,9 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 class RecurrentLayer(WeightLayer):
+
     """
-    WeightLayer baseclass for recurrent networks. Provides buffer allocation
-    for pre-activations and outputs at different time steps.
+    This inherits generously from WeightLayer, in particular
+
+    def set_previous_layer(self, pl):
+    def allocate_param_bufs(self):
+    def init_learning_rule(self, lrule_init):
+    def update(self, epoch):
+
+    and from Layer, it takes __init__ (which just checks parameters)
     """
 
     def allocate_output_bufs(self):
@@ -41,10 +48,9 @@ class RecurrentLayer(WeightLayer):
 
 
 class RecurrentCostLayer(CostLayer):
-    """
-    CostLayer for RNN. get_cost is adapted to use the last time step of
-    targets.
-    """
+
+    '''CostLayer adapted for RNN. Somewhere it must define a buffer where the
+    cost looks for the predictions. '''
 
     def __init__(self, **kwargs):
         self.is_cost = True
@@ -89,9 +95,10 @@ class RecurrentCostLayer(CostLayer):
 
 
 class RecurrentOutputLayer(RecurrentLayer):
+
     """
-    Connects to a RecurrentHiddenLayer and computes output at time step tau.
-    It stores outputs and preactivations in a list indexed by tau.
+    Derived from Layer. pre_act becomes pre_act_list, output becomes
+    output_list, which are indexed by [tau], the unrolling step.
     """
 
     def initialize(self, kwargs):
@@ -132,9 +139,11 @@ class RecurrentOutputLayer(RecurrentLayer):
 
 
 class RecurrentHiddenLayer(RecurrentLayer):
+
     """
-    RecurrentHiddenLayer has two sets of weights, the connections received from
-    the input `weights` and the recurrent connections `weights_rec`.
+    Derived from Layer. In addition to the lists[tau] outlined for
+    RecurrentOutputLayer, the fprop is getting input from two weight matrices,
+    one connected to the input and one connected to the previous hidden state.
     """
 
     def initialize(self, kwargs):
@@ -228,9 +237,10 @@ class RecurrentHiddenLayer(RecurrentLayer):
 
 
 class RecurrentLSTMLayer(RecurrentLayer):
+
     """
-    Hidden layer with LSTM gates. Has the same interface as
-    RecurrentHiddenLayer.
+    Hidden layer with LSTM gates.
+    This is a plug in replacement for RecurrentHiddenLayer()
     """
 
     def initialize(self, kwargs):

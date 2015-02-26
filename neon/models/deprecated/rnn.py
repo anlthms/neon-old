@@ -472,6 +472,6 @@ class RNN(Model):
             from ipdb import set_trace as trace
             trace()  # just used to keep figures open
 
-    def predict_and_report(self, dataset):
+    def predict_and_error(self, dataset):
         predictions = self.predict()
         self.error_metrics(dataset, predictions)

@@ -26,9 +26,7 @@ Contents
    ml_operational_layer
    backends
    models
-   layers
    transforms
-   learning_rules
    datasets
    experiments
    distributed

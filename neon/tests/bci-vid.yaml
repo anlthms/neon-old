@@ -1,52 +1,52 @@
-# Small convolutional net for hurricane patches.
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
 
 !obj:experiments.FitPredictErrorExperiment {
+  inference_sets: ['validation'],
+  inference_metrics: ['auc'],
 
-  dataset: !obj:datasets.Hurricane {
-      repo_path: '/mnt/data/nersc/hurricane/',
-      hdf5_file: 'hurricanes.h5',
-      training_size: 10000,
-      test_size: 10000
+  dataset: &dsvid !obj:datasets.BCI {
+      repo_path: '~/data',
+      #serialized_path: '~/data/bci.pkl',
+      sample_pct: 100,
+      data_type: 'vid',
   },
-  
-  weight_inits: [
-    &wt_init !obj:params.UniformValGen {
-      low: -0.1,
-      high: 0.1,
-    },
-  ],
+
+  weight_init: &wt_init !obj:params.UniformValGen {
+    low: -0.1,
+    high: 0.1,
+  },
 
   lrules: [
       &gdm {
         type: gradient_descent_momentum,
         lr_params: {
-          learning_rate: 0.01,
+          learning_rate: 0.0001,
           momentum_params: {
-            type: constant, # linear_monotone, nesterov
+            type: constant,
             coef: 0.90,
           },
         },
       },
   ],
 
-  # CNN model specification
-  # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 5,
-    batch_size: &bs 100,
-    # serialized_path: './cnn-small.pkl',
+    num_epochs: 50,
+    batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 8, # Must match the number of variables.
-        ofmshape: [32, 32],
+        nofm: 30,
+        ofmshape: [16, 16, 16],
+        dataset: *dsvid,
       },
       !obj:layers.ConvLayer {
         name: layer1,
-        nofm: 16,
-        ifmshape: [32, 32],
-        fshape: [5, 5],
+        activation: !obj:transforms.RectLin {},
+        nofm: 32,
+        fshape: [2, 2, 2],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -54,13 +54,14 @@
       !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
-        fshape: [2, 2],
+        fshape: [2, 2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: layer3,
-        nofm: 16,
-        fshape: [5, 5],
+        activation: !obj:transforms.RectLin {},
+        nofm: 64,
+        fshape: [2, 2, 2],
         stride: 1,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -68,17 +69,32 @@
       !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
-        fshape: [2, 2],
+        fshape: [2, 2, 2],
         stride: 2,
       },
       !obj:layers.FCLayer {
         name: layer5,
-        nout: 10,
+        nout: 512,
         activation: !obj:transforms.RectLin {},
         lrule_init: *gdm,
         weight_init: *wt_init,
       },
+      !obj:layers.DropOutLayer {
+        name: dropout,
+        keep: 0.5,
+      },
       !obj:layers.FCLayer {
+        name: layer5,
+        nout: 128,
+        activation: !obj:transforms.RectLin {},
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout,
+        keep: 0.5,
+      },
+      &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 2,
         activation: !obj:transforms.Logistic {},
@@ -92,15 +108,7 @@
       },
     ],
   },
-  
-  # logging options that are passed to logging.basicConfig
-  # level value thresholds (set level lower to display them):
-  #   CRITICAL 50
-  #   ERROR    40
-  #   WARNING  30
-  #   INFO     20
-  #   DEBUG    10
-  #   NOTSET    0
+
   logging: {
     level: 20,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
