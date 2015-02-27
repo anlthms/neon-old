@@ -6,9 +6,10 @@
 So far this is a stripped down cudanet to check which functions are needed
 """
 
-import cudanet
+# import cudanet
+from nervana_lib import NervanaLib as nl
 import logging
-import numpy
+import numpy as np
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.compat import range

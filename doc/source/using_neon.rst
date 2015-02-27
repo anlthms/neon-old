@@ -164,8 +164,9 @@ Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
 with neon. We currently offer support for Spearmint, available as a fork
-at https://github.com/ursk/spearmint/. The package depends on google
-protobuf and uses the flask webserver for visualizing results.
+at https://github.com/ursk/spearmint/.
+Dependencies: The package depends on the Google prototype buffers package and
+scipy, and uses the flask webserver for visualizing results.
 
 To perform a search over a set of hyperparameters specified in a neon yaml
 file, create a new yaml file with the top level experiment of type
@@ -211,7 +212,7 @@ example:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt init -y examples/hyper_iris_small.yaml
+    PYTHONPATH='`pwd`' bin/hyperopt init -y examples/mlp/hyper_iris_small.yaml
 
 this creates a spearmint configuration file in proptobuf format in the
 ``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
