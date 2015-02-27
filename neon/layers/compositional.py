@@ -111,26 +111,38 @@ class ListLayer(CompositeLayer):
     """
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
-        for l in self.sublayers:
-            l.set_previous_layer(pl)
-            pl = l
+        for subl in self.sublayers:
+            subl.set_previous_layer(pl)
+            pl = subl
         self.nout = self.sublayers[-1].nout
 
     def initialize(self, kwargs):
         super(ListLayer, self).initialize(kwargs)
         self.output = self.sublayers[-1].output
-        self.deltas = self.sublayers[0].deltas
         if self.sublayers[-1].is_local is True:
             self.nofm = self.sublayers[-1].nofm
             self.ofmshape = self.sublayers[-1].ofmshape
 
+    def set_deltas_buf(self, delta_pool, offset):
+        if self.prev_layer is None:
+            return
+        if self.prev_layer.is_data:
+            return
+
+        self.ninmax = max(map(lambda x: x.nin, self.sublayers))
+        assert len(self.sublayers) > 1
+        self.delta_pool = self.backend.zeros(
+            (2 * self.ninmax, self.batch_size), self.sublayers[1].deltas_dtype)
+        for idx, subl in enumerate(self.sublayers):
+            subl.set_deltas_buf(self.delta_pool, offset=((idx % 2) * self.ninmax))
+        self.deltas = self.sublayers[0].deltas
+
     def fprop(self, inputs):
-        y = inputs
-        for l in self.sublayers:
-            l.fprop(y)
-            y = l.output
+        for subl in self.sublayers:
+            subl.fprop(inputs)
+            inputs = subl.output
 
     def bprop(self, error):
-        for l in reversed(self.sublayers):
-            l.bprop(error)
-            error = l.deltas
+        for subl in reversed(self.sublayers):
+            subl.bprop(error)
+            error = subl.deltas
