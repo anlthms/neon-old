@@ -26,7 +26,7 @@ class MLP(MLP_old):
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
-        opt_param(self, ['reuse_deltas'], False)
+        opt_param(self, ['reuse_deltas'], True)
         self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
