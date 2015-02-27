@@ -24,24 +24,24 @@ class CompositeLayer(Layer):
     def initialize(self, kwargs):
         super(CompositeLayer, self).initialize(kwargs)
         req_param(self, ['sublayers'])
-        for l in self.sublayers:
-            l.initialize(kwargs)
+        for subl in self.sublayers:
+            subl.initialize(kwargs)
 
     def __str__(self):
         ret = '{} {}: {} nodes'.format(self.__class__.__name__,
                                        self.name, self.nout)
         ret += ':\n'
-        for l in self.sublayers:
-            ret += '\t' + str(l) + '\n'
+        for subl in self.sublayers:
+            ret += '\t' + str(subl) + '\n'
         return ret
 
     def update(self, epoch):
-        for l in self.sublayers:
-            l.update(epoch)
+        for subl in self.sublayers:
+            subl.update(epoch)
 
     def set_train_mode(self, mode):
-        for sublayer in self.sublayers:
-            sublayer.set_train_mode(mode)
+        for subl in self.sublayers:
+            subl.set_train_mode(mode)
 
 
 class BranchLayer(CompositeLayer):
@@ -59,8 +59,8 @@ class BranchLayer(CompositeLayer):
 
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
-        for l in self.sublayers:
-            l.set_previous_layer(pl)
+        for subl in self.sublayers:
+            subl.set_previous_layer(pl)
         self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
         if pl is not None:
             self.nin = pl.nout
@@ -85,13 +85,13 @@ class BranchLayer(CompositeLayer):
             return
 
         self.deltas = self.backend.zeros(self.delta_shape, self.deltas_dtype)
-        for sublayer in self.sublayers:
-            sublayer.set_deltas_buf(delta_pool, offset)
+        for subl in self.sublayers:
+            subl.set_deltas_buf(delta_pool, offset)
 
     def fprop(self, inputs):
-        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
-            s_l.fprop(inputs)
-            self.output[si:ei] = s_l.output
+        for (subl, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            subl.fprop(inputs)
+            self.output[si:ei] = subl.output
 
     def bprop(self, error):
         if self.deltas is not None:
@@ -130,11 +130,13 @@ class ListLayer(CompositeLayer):
             return
 
         self.ninmax = max(map(lambda x: x.nin, self.sublayers))
+        delta_shape = (2 * self.ninmax, self.batch_size)
         assert len(self.sublayers) > 1
-        self.delta_pool = self.backend.zeros(
-            (2 * self.ninmax, self.batch_size), self.sublayers[1].deltas_dtype)
+        delta_type = self.sublayers[1].deltas_dtype
+        self.delta_pool = self.backend.zeros(delta_shape, delta_type)
         for idx, subl in enumerate(self.sublayers):
-            subl.set_deltas_buf(self.delta_pool, offset=((idx % 2) * self.ninmax))
+            offset = (idx % 2) * self.ninmax
+            subl.set_deltas_buf(self.delta_pool, offset)
         self.deltas = self.sublayers[0].deltas
 
     def fprop(self, inputs):
