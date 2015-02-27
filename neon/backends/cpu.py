@@ -721,6 +721,15 @@ class CPU(Backend):
         self.greater(x, 0, out=out)
         return out
 
+    def rectleaky(self, x, slope, out):
+        out._tensor = np.where(x._tensor > 0, x._tensor, x._tensor * slope)
+        return out
+
+    def rectleaky_derivative(self, x, slope, out):
+        # slope is float64 otherwise
+        out._tensor = np.asarray(np.where(x._tensor > 0, 1, slope), dtype='float32')
+        return out
+
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
