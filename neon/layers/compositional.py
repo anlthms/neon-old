@@ -80,7 +80,6 @@ class BranchLayer(CompositeLayer):
     def set_deltas_buf(self, delta_pool, offset):
         if self.prev_layer is None:
             return
-
         if self.prev_layer.is_data:
             return
 
@@ -124,11 +123,6 @@ class ListLayer(CompositeLayer):
             self.ofmshape = self.sublayers[-1].ofmshape
 
     def set_deltas_buf(self, delta_pool, offset):
-        if self.prev_layer is None:
-            return
-        if self.prev_layer.is_data:
-            return
-
         self.ninmax = max(map(lambda x: x.nin, self.sublayers))
         delta_shape = (2 * self.ninmax, self.batch_size)
         assert len(self.sublayers) > 1
@@ -137,6 +131,11 @@ class ListLayer(CompositeLayer):
         for idx, subl in enumerate(self.sublayers):
             offset = (idx % 2) * self.ninmax
             subl.set_deltas_buf(self.delta_pool, offset)
+
+        if self.prev_layer is None:
+            return
+        if self.prev_layer.is_data:
+            return
         self.deltas = self.sublayers[0].deltas
 
     def fprop(self, inputs):
