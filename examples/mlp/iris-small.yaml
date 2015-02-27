@@ -29,7 +29,7 @@
   },
   # simple MLP model specification
   model: !obj:models.MLP {
-    num_epochs: 2500,
+    num_epochs: 25,
     batch_size: &bs 30,
     layers: [
       &datalayer !obj:layers.DataLayer {
@@ -41,7 +41,7 @@
         nout: 2,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:transforms.Logistic {},
+        activation: !obj:transforms.RectLin {},
       },
       &lastlayer !obj:layers.FCLayer {
         name: output,

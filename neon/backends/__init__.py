@@ -25,7 +25,7 @@ np.typeDict['flexpt'] = np.dtype(flexpt)
 
 def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                 flexpoint=False, rng_seed=None, numerr_handling=None,
-                device_id=None):
+                half=False, device_id=None):
     """
     Construct and return a backend instance of the appropriate type based on
     the arguments given.  With no parameters, a single CPU core, float32
@@ -133,6 +133,10 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         from neon.backends.gpu import GPU
         be_name = 'GPU'
         be = GPU(rng_seed=rng_seed, device_id=device_id)
+    elif half:
+        from neon.backends.max_fp16 import MAX_FP16
+        be_name = 'MAX_FP16'
+        be = MAX_FP16(rng_seed=rng_seed, device_id=device_id)
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,
