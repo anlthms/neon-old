@@ -8,6 +8,7 @@ backend.
 
 import logging
 from neon.layers.layer import WeightLayer
+from neon.transforms.batch_norm import BatchNorm
 from neon.util.param import req_param, opt_param
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,14 @@ class FCLayer(WeightLayer):
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
+
+        if self.batch_norm:
+            self.bn = BatchNorm()
+            kwargs['in_shape'] = (self.nin, self.batch_size)
+            kwargs['param_list'] = self.params
+            kwargs['update_list'] = self.updates
+            self.bn.initialize(kwargs)
+
         self.allocate_param_bufs()
 
     def set_weight_shape(self):
@@ -37,12 +46,20 @@ class FCLayer(WeightLayer):
                               weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+
+        if self.batch_norm:
+            self.bn.fprop_func(self.backend, self.pre_act, self.pre_act)
+
         self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
         self.activation.bprop_func(self.backend, self.pre_act, error,
                                    self.skip_act)
+
+        if self.batch_norm:
+            self.bn.bprop_func(self.backend, self.pre_act, error,
+                               self.skip_act)
 
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
