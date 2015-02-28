@@ -25,6 +25,15 @@ class RNN(MLP):
         req_param(self, ['unrolls'])
         self.rec_layer = self.layers[1]
 
+    def link(self, initlayer=None):
+        """
+        link function for the RNN differs from the MLP in that it does not
+        print the layers
+        """
+        for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
+            ll.set_previous_layer(pl)
+        # self.print_layers()
+
     def fit(self, dataset):
         viz = VisualizeRNN()
         error = self.backend.empty((1, 1))
