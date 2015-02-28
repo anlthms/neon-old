@@ -144,6 +144,9 @@ class MLP(MLP_old):
 
         return_err = dict()
 
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
@@ -172,6 +175,10 @@ class MLP(MLP_old):
         outputs = self.backend.empty((self.class_layer.nout, nrecs))
         targets = self.backend.empty(outputs.shape)
         batch = 0
+
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
         while self.data_layer.has_more_data():
             self.fprop()
             start = batch * self.batch_size
