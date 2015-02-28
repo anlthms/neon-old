@@ -19,12 +19,13 @@ Available Models
    neon.models.rbm.RBM
    neon.models.dbn.DBN
 
-Adding a new Model type
------------------------
+.. _extending_model:
 
-* Create a new subclass of :class:`neon.models.model.Model`
+Adding a new type of Model
+--------------------------
 
-  * At a minimum implements :func:`neon.models.model.Model.fit` to learn
-    parameters from a training dataset
-  * :func:`neon.models.model.Model.predict` to apply learned parameters
-    to make predictions about another dataset.
+#. Create a new subclass of :class:`neon.models.model.Model`
+#. At a minimum implement :func:`neon.models.model.Model.fit` to learn
+   parameters from a training dataset
+#. Write :func:`neon.models.model.Model.predict` to apply learned parameters
+   to make predictions about another dataset.

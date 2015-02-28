@@ -5,9 +5,9 @@
 Quick start
 ===========
 
-Currently, neon implements and provides examples for the following models
-(the name before the colon indicates how the model is referred to in the source
-code):
+Currently, the Nervana Framework implements and provides examples for the
+following models (the name before the colon indicates how the model is referred
+to in the source code):
 
 * convnet: Convolutional neural networks
 * mlp: Multilayer Perceptrons (Deep neural networks)
@@ -17,16 +17,17 @@ code):
 * rbm: Restricted Boltzmann Machines
 * dbn: Deep Belief Networks (forthcoming)
 
-A key feature of neon is the ease with which CPU and GPU accelerated backends
-can be swapped. In a future release, Flexpoint™ and Nervana HW specific
-backends will be added. The GPU based backend wraps and extends Alex
+A key feature of the framework is the ease with which CPU and GPU accelerated
+backends can be swapped. In a future release, Flexpoint™ and Nervana HW
+specific backends will be added. The GPU based backend wraps and extends Alex
 Krizhevsky's cuda-convnet2 backend.
 
-In addition, neon provides distributed implementations and examples using MPI for:
+In addition, the framework provides distributed implementations and examples
+using MPI for:
 
-* Convolutional neural networks
-* Multilayer Perceptrons (Deep neural networks)
-* Sparse autoencoders ("Google Brain" style)
+* Convolutional neural networks: data parallel
+* Multilayer Perceptrons (Deep neural networks): data and model parallel
+* Sparse autoencoders ("Google Brain" style): data parallel
 
 For feature requests and suggestions, email info@nervanasys.com.
 

@@ -2,8 +2,8 @@
 .. Copyright 2014 Nervana Systems Inc.  All rights reserved.
 .. ---------------------------------------------------------------------------
 
-Using Neon
-==========
+Using the Nervana Framework
+===========================
 
 Installation
 ------------
@@ -89,8 +89,8 @@ process to train and run inference on a toy network:
 
 Installing MPI on an Ubuntu cluster (for distributed models)
 ------------------------------------------------------------
-Neon provides distributed implementations of convnets and sparse autoencoders
-in addition to the non-distributed implementations.
+The Nervana Framework provides distributed implementations of convnets and
+sparse autoencoders in addition to the non-distributed implementations.
 It has been tested with
 `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1.8/>`_ and
 `mpi4py <https://bitbucket.org/mpi4py/mpi4py>`_.
@@ -144,7 +144,7 @@ For MPI based distributed implementations, on a single node:
 
     # mpirun -np <number_of_processes> -x <env_vars_to_export> neon examples/<path_to.yaml>
     # where PYTHONPATH includes ./
-    mpirun -np 4 -x PYTHONPATH bin/neon examples/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+    mpirun -np 4 -x PYTHONPATH bin/neon --datapar examples/convnet/mnist-small.yaml
 
 In distributed environments with multiple nodes full paths might be needed
 for ``mpirun`` and ``neon``, for e.g.:
@@ -152,8 +152,8 @@ for ``mpirun`` and ``neon``, for e.g.:
 .. code-block:: bash
 
     /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts
-        /<full_path_to_neon>/neon
-        /<full_path_to_examples>/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+        /<full_path_to_neon>/neon --datapar
+        /<full_path_to_examples>/convnet/mnsist-small.yaml
 
 ``LD_LIBRARY_PATH`` should point to ``/<path_to_openmpi>/lib``. A common file
 system is assumed.
@@ -163,7 +163,7 @@ Hyperparameter optimization
 Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
-with neon. We currently offer support for Spearmint, available as a fork
+with our framework. We currently offer support for Spearmint, available as a fork
 at https://github.com/ursk/spearmint/. The package depends on google
 protobuf and scipy and uses the flask webserver for visualizing results.
 
@@ -174,7 +174,7 @@ two additional arguments:
 
 .. code-block:: bash
 
-    !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
+    !obj:experiments.WriteErrorToFile {
       filename: neon_result_validation.txt,
       item: test,
 
