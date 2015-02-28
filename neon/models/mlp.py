@@ -131,6 +131,9 @@ class MLP(MLP_old):
 
         return_err = dict()
 
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue

@@ -31,9 +31,7 @@ class FCLayer(WeightLayer):
 
         if self.batch_norm:
             self.bn = BatchNorm()
-            kwargs['in_shape'] = (self.nin, self.batch_size)
-            kwargs['param_list'] = self.params
-            kwargs['update_list'] = self.updates
+            kwargs['layer'] = self
             self.bn.initialize(kwargs)
 
         self.allocate_param_bufs()
@@ -57,15 +55,16 @@ class FCLayer(WeightLayer):
         self.activation.bprop_func(self.backend, self.pre_act, error,
                                    self.skip_act)
 
+        upm = self.utemp if self.accumulate else self.updates
+
         if self.batch_norm:
             self.bn.bprop_func(self.backend, self.pre_act, error,
                                self.skip_act)
+            upm = upm[2:]
 
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
                                   deltas=error, layer=self)
-
-        upm = self.utemp if self.accumulate else self.updates
 
         self.backend.update_fc(out=upm[0], inputs=inputs,
                                deltas=error, layer=self)

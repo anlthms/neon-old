@@ -18,10 +18,13 @@ class BatchNorm(Activation):
         self.__dict__.update(kwargs)
         opt_param(self, ['_iscale', 'ishift'])
         opt_param(self, ['_eps'], 1e-6)
-        req_param(self, ['in_shape', 'update_list', 'param_list'])
+        req_param(self, ['layer'])
+        self.in_shape = self.layer.output.shape
+        self.backend = self.layer.backend
+
         self.nin = self.in_shape[0]
-        self._eps = 1e-6
         self.train_mode = True
+        self.nbatches = 0
 
         self._xhat = self.backend.zeros(self.in_shape, dtype='float32')
 
@@ -37,20 +40,24 @@ class BatchNorm(Activation):
         # learned params and their update buffers
         self._beta = self.backend.zeros((self.nin, 1), dtype='float32')
         self._gamma = self.backend.ones((self.nin, 1), dtype='float32')
-        self.param_list.extend([self._beta, self._gamma])
+        self.layer.params.extend([self._beta, self._gamma])
 
         self._beta_updates = self.backend.zeros((self.nin, 1), dtype='float32')
         self._gamma_updates = self.backend.zeros((self.nin, 1), dtype='float32')
-        self.update_list.extend([self._beta_updates, self._gamma_updates])
+        self.layer.updates.extend([self._beta_updates, self._gamma_updates])
 
     def set_inference_mode(self):
         self.train_mode = False
         if self._iscale is None:
+            self.backend.divide(self._gvars, self.nbatches, self._gvars)
+            unbiaser = self.layer.batch_size / (self.layer.batch_size - 1.)
+            self.backend.multiply(self._gvars, unbiaser, self._gvars)
             self.backend.add(self._gvars, self._eps, self._gvars)
             self.backend.sqrt(self._gvars, out=self._gvars)
             self.backend.divide(self._gamma, self._gvars, self._gvars)
             self._iscale = self._gvars
 
+            self.backend.divide(self._gmean, self.nbatches, self._gmean)
             self.backend.multiply(self._gmean, self._gvars, self._gmean)
             self.backend.subtract(self._beta, self._gmean, self._gmean)
             self._ishift = self._gmean
@@ -74,13 +81,13 @@ class BatchNorm(Activation):
         """
         if self.train_mode:
             # Calc batch statistics
-            print inputs.shape, self._mean.shape
             backend.mean(inputs, axes=1, out=self._mean)
             backend.var(inputs, axes=1, out=self._vars)
 
-            # adjust the global estimates
+            # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)
             backend.add(self._gmean, self._vars, self._gmean)
+            self.nbatches += 1
 
             # Just store sqrt(vars + eps) since it's used as a unit
             backend.add(self._vars, self._eps, self._vars)
