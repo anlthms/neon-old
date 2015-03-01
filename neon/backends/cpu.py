@@ -722,6 +722,7 @@ class CPU(Backend):
         return out
 
     def rectleaky(self, x, slope, out):
+        # where doesn't take an output arg in 1.8 but does in 1.9
         out._tensor = np.where(x._tensor > 0, x._tensor, x._tensor * slope)
         return out
 

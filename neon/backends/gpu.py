@@ -958,6 +958,12 @@ class GPU(Backend):
     def rectlin_derivative(self, x, out):
         self.greater(x, 0, out=out)
 
+    def rectleaky(self, x, slope, out):
+        cudanet.where(x._tensor > 0, x._tensor, x._tensor * slope, out._tensor)
+
+    def rectleaky_derivative(self, x, slope, out):
+        cudanet.where(x._tensor > 0, 1, slope, out._tensor)
+
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
