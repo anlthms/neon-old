@@ -6,16 +6,15 @@
   inference_sets: ['validation', 'train'],
   inference_metrics: ['auc'],
 
-  dataset: &ds4d !obj:datasets.BCI {
+  dataset: &dssgram !obj:datasets.BCI {
       repo_path: '~/data',
-      #serialized_path: '~/data/bci.pkl',
       sample_pct: 100,
-      data_type: '4d',
+      data_type: 'sgram',
   },
 
   weight_init: &wt_init !obj:params.UniformValGen {
-    low: -0.1,
-    high: 0.1,
+    low: -0.01,
+    high: 0.01,
   },
 
   lrules: [
@@ -45,45 +44,52 @@
       &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 1,
-        ofmshape: [16, 16, 16, 16],
-        dataset: *ds4d,
+        nofm: 56,
+        ofmshape: [16, 16],
+        dataset: *dssgram,
       },
       !obj:layers.ConvLayer {
         name: layer1,
         activation: !obj:transforms.RectLin {},
-        nofm: 16,
-        fshape: [2, 2, 2, 2],
+        nofm: 256,
+        fshape: [2, 2],
         stride: 1,
-        lrule_init: *ada,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:layers.PoolingLayer {
         name: layer2,
         op: 'max',
-        fshape: [2, 2, 2, 2],
+        fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: layer3,
         activation: !obj:transforms.RectLin {},
-        nofm: 32,
-        fshape: [2, 2, 2, 2],
+        nofm: 512,
+        fshape: [2, 2],
         stride: 1,
-        lrule_init: *ada,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:layers.PoolingLayer {
         name: layer4,
         op: 'max',
-        fshape: [2, 2, 2, 2],
+        fshape: [2, 2],
         stride: 2,
+      },
+      !obj:layers.FCLayer {
+        name: layer5,
+        nout: 2048,
+        activation: !obj:transforms.RectLin {},
+        lrule_init: *gdm,
+        weight_init: *wt_init,
       },
       !obj:layers.FCLayer {
         name: layer5,
         nout: 512,
         activation: !obj:transforms.RectLin {},
-        lrule_init: *ada,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:layers.DropOutLayer {
@@ -94,7 +100,7 @@
         name: layer5,
         nout: 128,
         activation: !obj:transforms.RectLin {},
-        lrule_init: *ada,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       !obj:layers.DropOutLayer {
@@ -105,7 +111,7 @@
         name: output,
         nout: 2,
         activation: !obj:transforms.Logistic {},
-        lrule_init: *ada,
+        lrule_init: *gdm,
         weight_init: *wt_init,
       },
       &costlayer !obj:layers.CostLayer {

@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 SUBS = [2, 6, 7, 11, 12, 13, 14, 16, 17, 18, 20, 21, 22, 23, 24, 26]
 SESSIONS = range(1, 6)
 FEATURES = range(1, 57)
-NSAMPLES = 260
-SGRAMHEIGHT = 40
+NSAMPLES = 80
+STARTSAMPLE = 50
+SGRAMHEIGHT = 16
 SGRAMWIDTH = 16
 
 
@@ -137,6 +138,13 @@ class BCI(Dataset):
         stdval = np.std(data)
         data /= stdval
 
+    def decorr_vec(self, xx, yy):
+        from sklearn import linear_model
+        regr = linear_model.LinearRegression()
+        #print xx.shape, yy.shape
+        regr.fit(xx, yy)
+        yy[:] -= regr.predict(xx)
+
     def prep_raw_data(self, inputdict, nrows, subs, sessions,
                       nsamples, features):
         nfeatures = len(features)
@@ -148,18 +156,21 @@ class BCI(Dataset):
                 fbinds = np.nonzero(inputdict[subid][sessid][:, -1])[0]
                 sessdata = inputdict[subid][sessid]
                 for ind in fbinds:
+                    ind += STARTSAMPLE
+                    eog = sessdata[ind:ind+nsamples, 57:58]
                     for featind in range(nfeatures):
                         feat = features[featind]
-                        rinputs[row, featind] = (
-                            sessdata[ind:ind+nsamples, feat])
+                        seldata = sessdata[ind:ind+nsamples, feat:feat+1].copy()
+                        self.decorr_vec(eog, seldata)
+                        rinputs[row, featind] = seldata.ravel()
                     row += 1
         assert row == nrows
         return inputs
 
     def sgram(self, signal, height, width):
-        sgram = pylab.specgram(signal, NFFT=128, Fs=2, noverlap=120,
+        sgram = pylab.specgram(signal, NFFT=32, Fs=2, noverlap=29,
                                cmap=matplotlib.cm.gist_heat)[0]
-        return sgram[2:height+2, :width]
+        return sgram[:height, :width]
 
     def prep_sgram_data(self, inputdict, nrows, subs, sessions,
                         nsamples, features):
@@ -280,11 +291,11 @@ class BCI(Dataset):
         for clip in range(nclips):
             inputs[:, clip] = vidstream[:, curfrm:curfrm+depth].copy()
             inputs[:, clip] = inputs[:, clip].sum(axis=(1, 2, 3), keepdims=True) / (depth * nfeatures)
-            for filtw in [4, 3, 2, 1]:
+            for filtw in [4, 3, 2]:
                 self.convolve(inputs, clip, filtw, nfeatures, chanlocs, rawinputs,
                               curfrm, depth)
-            if 0:
-                self.anim(inputs[0, clip])
+                if 0:
+                    self.anim(inputs[0, clip])
             curfrm += stride
         rinputs = inputs.reshape((nrows, np.prod(inputs.shape[1:])))
         return rinputs
@@ -421,7 +432,6 @@ class BCI(Dataset):
 
         subs = SUBS
         split = int(len(subs) * 0.6)
-        np.random.seed(0)
         np.random.shuffle(subs)
         trainsubs = subs[:split]
         valsubs = subs[split:]

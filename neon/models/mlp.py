@@ -142,6 +142,9 @@ class MLP(MLP_old):
             misclass_sum.fill(0.0)
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
+            for ll in self.layers:
+                ll.set_train_mode(False)
+
             while self.data_layer.has_more_data():
                 self.fprop()
                 probs = self.get_classifier_output()
@@ -166,6 +169,8 @@ class MLP(MLP_old):
         outputs = self.backend.empty((self.class_layer.nout, nrecs))
         targets = self.backend.empty(outputs.shape)
         batch = 0
+        for ll in self.layers:
+            ll.set_train_mode(False)
         while self.data_layer.has_more_data():
             self.fprop()
             start = batch * self.batch_size

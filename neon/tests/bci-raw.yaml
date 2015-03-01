@@ -38,19 +38,19 @@
   ],
 
   model: !obj:models.MLP {
-    num_epochs: 50,
+    num_epochs: 20,
     batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
-        nout: 14560,
+        nout: 4480,
         dataset: *dsraw,
       },
       !obj:layers.FCLayer {
         name: layer5,
         nout: 512,
         activation: !obj:transforms.RectLin {},
-        lrule_init: *gdm,
+        lrule_init: *ada,
         weight_init: *wt_init,
       },
       !obj:layers.DropOutLayer {
@@ -61,7 +61,7 @@
         name: layer5,
         nout: 128,
         activation: !obj:transforms.RectLin {},
-        lrule_init: *gdm,
+        lrule_init: *ada,
         weight_init: *wt_init,
       },
       !obj:layers.DropOutLayer {
@@ -72,7 +72,7 @@
         name: output,
         nout: 2,
         activation: !obj:transforms.Logistic {},
-        lrule_init: *gdm,
+        lrule_init: *ada,
         weight_init: *wt_init,
       },
       &costlayer !obj:layers.CostLayer {
