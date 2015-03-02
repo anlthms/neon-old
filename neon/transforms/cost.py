@@ -24,6 +24,11 @@ class Cost(object):
         self.outputbuf = None
         self.temp = None
 
+        # TODO: Make less hacky
+        if getattr(self, 'temp_dtype') == 'np.float16':
+            import numpy as np
+            setattr(self, 'temp_dtype', np.float16)
+
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
         if not hasattr(self, 'backend'):

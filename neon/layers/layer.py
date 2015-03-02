@@ -35,6 +35,7 @@ class Layer(YAMLable):
     def __init__(self, **kwargs):
         self.initialized = False
         self.__dict__.update(kwargs)
+
         req_param(self, ['name'])
 
         opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype'])
@@ -45,6 +46,12 @@ class Layer(YAMLable):
         opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
         opt_param(self, ['skip_act'], False)
         opt_param(self, ['prev_names'], [])
+
+        # TODO: Make less hacky
+        for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+                          'weight_dtype', 'updates_dtype']:
+            if getattr(self, some_type) == 'np.float16':
+                setattr(self, some_type, np.float16)
 
     def set_previous_layer(self, pl):
         if pl.is_local:
@@ -409,6 +416,7 @@ class WeightLayer(Layer):
         self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
 
     def init_learning_rule(self, lrule_init):
+        dtype = self.weight_dtype  # TODO: Cool to reuse this here?
         lrname = self.name + '_lr'
         if lrule_init['type'] == 'gradient_descent':
             lr = GradientDescent(name=lrname,
@@ -418,7 +426,8 @@ class WeightLayer(Layer):
                 name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum':
             lr = GradientDescentMomentum(
-                name=lrname, lr_params=lrule_init['lr_params'])
+                name=lrname, lr_params=lrule_init['lr_params'],
+                param_dtype=dtype, gradient_dtype=dtype)
         elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
             lr = GradientDescentMomentumWeightDecay(
                 name=lrname, lr_params=lrule_init['lr_params'])

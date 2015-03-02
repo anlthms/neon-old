@@ -6,77 +6,67 @@
 So far this is a stripped down cudanet to check which functions are needed
 """
 
-# import cudanet
-from nervana_lib import NervanaLib as nl
+#import cudanet
 import logging
-import numpy as np
 
 from neon.backends.backend import Backend, Tensor
 from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
 
+
+# SG imports
+import numpy as np
+from struct import unpack, pack, unpack_from, pack_into
+from pytools import memoize, memoize_method
+import pycuda.driver as drv
+import float_ew  # need to find a better way without copying this file
+
+# init pycuda
+import pycuda.autoinit
+
 logger = logging.getLogger(__name__)
 
-
-class GPUTensor(Tensor):
+# insert FloatArray stuff here
+class FP16Tensor(Tensor):
 
     """
-    Our n-dimensional array data structure that can reside on host or on GPU
-    device.  Our implementation is a wrapped `cudanet.CUDAMatrix` tensor, where
-    cudanet is derived from cuda-convnet2.
-
-    Arguments:
-        obj (numpy.ndarray): The actual data values (will be converted
-                             to a 2-d row matrix).  Python built-in types like
-                             lists and tuples are also supported.
-        dtype (None, optional): Underlying data type of the elements.
-                                Ignored for this backend as all values are
-                                stored in cudanet as float32's.
-
-    Notes:
-        This implementation currently has the following limitations:
-        * only 2D shaped Tensors are supported (set in _min_dims)
-        * All element values are stored as float32 (input may be converted if
-          input of a differing type is passed)
-        * Only contiguous rectangular slicing is supported.  Sliced assignment
-          can only be done along a singular subsetted dimension (i.e. only row
-          slice *or* column slice based assignment).
+    Tensor inherits all the not implemented errors.
     """
     _tensor = None
     _min_dims = 2
 
-    def __init__(self, obj, dtype=None, copy_to_device=True):
-        if type(obj) == cudanet.CUDAMatrix:
-            self._tensor = obj
-            self.shape = self._tensor.shape
-        else:
-            if type(obj) == list:
-                obj = numpy.array(obj)
-            if isinstance(obj, numpy.ndarray):
-                # CUDAMatrix only supports ndarrays with exactly 2 dimensions
-                # (though the elements can be tuples/lists to create arbitrary
-                # n dimensions)
-                while obj.ndim < self._min_dims:
-                    obj = obj.reshape(obj.shape + (1, ))
-                if obj.ndim != self._min_dims:
-                    raise ValueError("CUDAMatrix only supports %d-D"
-                                     "matrices.  You specifed %d-D" %
-                                     (self._min_dims, obj.ndim))
-                logger.debug('Copying to GPU')
-                if dtype not in (numpy.float32, numpy.int32, 'float32',
-                                 'int32') or dtype is None:
-                    logger.debug('dtype %s is unsupported in GPU '
-                                 'backend, defaulting to float32', dtype)
-                    obj = numpy.array(obj, dtype='float32')
-                elif obj.dtype != dtype:
-                    logger.debug('object dtype %s mismatch.  '
-                                 'Converting to %s', obj.dtype, dtype)
-                    obj = numpy.array(obj, dtype=dtype)
-                self._tensor = cudanet.CUDAMatrix(obj)
-                self.shape = self._tensor.shape
-            else:
-                self._tensor = obj
-        self.dtype = dtype
+    # def __init__(self, obj, dtype=None, copy_to_device=True):
+    #     if type(obj) == cudanet.CUDAMatrix:
+    #         self._tensor = obj
+    #         self.shape = self._tensor.shape
+    #     else:
+    #         if type(obj) == list:
+    #             obj = numpy.array(obj)
+    #         if isinstance(obj, numpy.ndarray):
+    #             # CUDAMatrix only supports ndarrays with exactly 2 dimensions
+    #             # (though the elements can be tuples/lists to create arbitrary
+    #             # n dimensions)
+    #             while obj.ndim < self._min_dims:
+    #                 obj = obj.reshape(obj.shape + (1, ))
+    #             if obj.ndim != self._min_dims:
+    #                 raise ValueError("CUDAMatrix only supports %d-D"
+    #                                  "matrices.  You specifed %d-D" %
+    #                                  (self._min_dims, obj.ndim))
+    #             logger.debug('Copying to GPU')
+    #             if dtype not in (numpy.float32, numpy.int32, 'float32',
+    #                              'int32') or dtype is None:
+    #                 logger.debug('dtype %s is unsupported in GPU '
+    #                              'backend, defaulting to float32', dtype)
+    #                 obj = numpy.array(obj, dtype='float32')
+    #             elif obj.dtype != dtype:
+    #                 logger.debug('object dtype %s mismatch.  '
+    #                              'Converting to %s', obj.dtype, dtype)
+    #                 obj = numpy.array(obj, dtype=dtype)
+    #             self._tensor = cudanet.CUDAMatrix(obj)
+    #             self.shape = self._tensor.shape
+    #         else:
+    #             self._tensor = obj
+    #     self.dtype = dtype
 
     @property
     def raw(self):
@@ -355,6 +345,7 @@ class GPUTensor(Tensor):
         self._tensor.assign(value)
         return self
 
+    # TODO: CHeck if these can get removed
     def sumsq(self, axis=None):
         """
         Sum of squares of elements of a CudanetTensor. If axis is None,
@@ -382,7 +373,7 @@ class GPUTensor(Tensor):
         return GPUTensor(target)
 
 
-class TransposedGPUTensor(GPUTensor):
+class TransposedFP16Tensor(FP16Tensor):
 
     """
     Transposed CUDAMatrix tensor
@@ -393,27 +384,45 @@ class TransposedGPUTensor(GPUTensor):
         self._tensor = transposed
         self.shape = (obj.shape[1], obj.shape[0])
 
-
+# insert NervanaLib stuff here
 class MAX_FP16(Backend):
 
     """
     Stripped down `cuda-convnet2` based backend.
     """
     default_dtype = 'float32'
-    tensor_cls = GPUTensor
+    tensor_cls = FP16Tensor
 
     def __init__(self, **kwargs):
+        """
+        This is a backend init function, for GPU it:
+        gets the device id,
+        inits cublas and rng.
+
+        """
         self.__dict__.update(kwargs)
         self.par = None
-        if hasattr(self, 'device_id') is False or self.device_id is None:
-            self.device_id = 0
-        num_devices = cudanet.get_num_devices()
-        if self.device_id >= num_devices:
-            raise ValueError('Requested device (%d) is unavailable.' %
-                             self.device_id)
-        cudanet.set_device_id(self.device_id)
-        cudanet.cublas_init()
-        self.rng_init()
+        # if hasattr(self, 'device_id') is False or self.device_id is None:
+        #     self.device_id = 0
+        # num_devices = cudanet.get_num_devices()
+        # if self.device_id >= num_devices:
+        #     raise ValueError('Requested device (%d) is unavailable.' %
+        #                      self.device_id)
+        # cudanet.set_device_id(self.device_id)
+        # cudanet.cublas_init()
+        # self.rng_init()
+        stochastic_round=False  ## These should be in **kwargs, but not sure where to put
+        self.round_mode = 1 if stochastic_round else 0
+
+        self.hgemm_module = drv.module_from_file("/home/users/urs/code/flexgpu/hgemm_kernels/hgemm_128x128.cubin") # smooth!
+        self.hgemm = dict()
+        for vec in ("vec4_",""):
+            for op in ("tn","nn", "nt"):
+                func = self.hgemm_module.get_function("hgemm_128x128_" + vec + op)
+                func.prepare("PPPIIIIIIffI")
+                self.hgemm[vec + op] = func
+
+
 
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
@@ -467,7 +476,7 @@ class MAX_FP16(Backend):
             ndarray = ndarray.reshape((1, ndarray.shape[0]))
         return self.tensor_cls(ndarray, dtype)
 
-    def zeros(self, shape, dtype=None):
+    def _zeros(self, shape, dtype=None):
         """
         Instantiate a new instance of the GPUTensor class setting each element
         value to 0.
@@ -483,8 +492,14 @@ class MAX_FP16(Backend):
         """
         dtype = self.default_dtype_if_missing(dtype)
         return self.tensor_cls(cudanet.CUDAMatrix(numpy.zeros(shape,
-                                                              dtype=dtype)),
-                               dtype)
+                               dtype=dtype)), dtype)
+    def zeros(self, shape, dtype, name=None, allocator=drv.mem_alloc):
+        """
+        Returns an array of the given shape and dtype filled with 0's.
+        """
+        # FloatArray is now FP16Tensor
+        return FP16Tensor(shape, dtype, allocator=allocator, name=name,
+                          rounding=self.round_mode)._assign(0.0)
 
     def ones(self, shape, dtype=None):
         """
@@ -890,3 +905,6 @@ class MAX_FP16(Backend):
         sets the GPUTensor dev_weights to the values in host_weights
         """
         dev_weights[:] = GPUTensor(numpy.array(host_weights, 'float32'))
+
+
+
