@@ -3,7 +3,7 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '/usr/local/data',
+    repo_path: '~/data',
     sample_pct: 10,
   },
 
