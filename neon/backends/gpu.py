@@ -1001,6 +1001,29 @@ class GPU(Backend):
             tsr._tensor.mean(axis=axes, target=out._tensor)
         return out
 
+    def var(self, tsr, mean, axes, out):
+        """
+        Calculates the variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr  (Tensor): the Tensor on which to compute the variance
+            mean (Tensor): the Tensor containing mean of tsr
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for var.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.var(axis=axes, mean=mean._tensor, target=out._tensor)
+        return out
+
     def min(self, tsr, axes, out):
         """
         Calculates the minimal element value along the specified axes.

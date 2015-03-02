@@ -19,31 +19,37 @@ class BatchNorm(Activation):
         opt_param(self, ['_iscale', 'ishift'])
         opt_param(self, ['_eps'], 1e-6)
         req_param(self, ['layer'])
-        self.in_shape = self.layer.output.shape
-        self.backend = self.layer.backend
 
-        self.nin = self.in_shape[0]
+        self.backend = self.layer.backend
+        self.is_local = self.layer.is_local
+
+        if self.is_local:
+            self.in_shape = (self.layer.nofm,
+                             self.layer.ofmsize * self.layer.batch_size)
+            self.in1d = (self.layer.nofm, 1)
+        else:
+            self.in_shape = self.layer.output.shape
+            self.in1d = (self.nin, 1)
+
         self.train_mode = True
         self.nbatches = 0
 
         self._xhat = self.backend.zeros(self.in_shape, dtype='float32')
 
-        self._mean = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._vars = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._beta = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._gamma = self.backend.ones((self.nin, 1), dtype='float32')
+        self._mean = self.backend.zeros(self.in1d, dtype='float32')
+        self._vars = self.backend.zeros(self.in1d, dtype='float32')
 
         # Global mean and var to be used during inference
-        self._gmean = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._gvars = self.backend.zeros((self.nin, 1), dtype='float32')
+        self._gmean = self.backend.zeros(self.in1d, dtype='float32')
+        self._gvars = self.backend.zeros(self.in1d, dtype='float32')
 
         # learned params and their update buffers
-        self._beta = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._gamma = self.backend.ones((self.nin, 1), dtype='float32')
+        self._beta = self.backend.zeros(self.in1d, dtype='float32')
+        self._gamma = self.backend.ones(self.in1d, dtype='float32')
         self.layer.params.extend([self._beta, self._gamma])
 
-        self._beta_updates = self.backend.zeros((self.nin, 1), dtype='float32')
-        self._gamma_updates = self.backend.zeros((self.nin, 1), dtype='float32')
+        self._beta_updates = self.backend.zeros(self.in1d, dtype='float32')
+        self._gamma_updates = self.backend.zeros(self.in1d, dtype='float32')
         self.layer.updates.extend([self._beta_updates, self._gamma_updates])
 
     def set_inference_mode(self):
@@ -82,7 +88,7 @@ class BatchNorm(Activation):
         if self.train_mode:
             # Calc batch statistics
             backend.mean(inputs, axes=1, out=self._mean)
-            backend.var(inputs, axes=1, out=self._vars)
+            backend.var(inputs, self._mean, axes=1, out=self._vars)
 
             # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)
@@ -107,10 +113,10 @@ class BatchNorm(Activation):
         backend.sum(pre_act, axes=1, out=self._gamma_updates)
         backend.sum(error, axes=1, out=self._beta_updates)
 
-        # Compute the backpropagated error into _xhat
+        # Compute the backpropagated error into error
         backend.multiply(self._xhat, self._gamma_updates, out=self._xhat)
         backend.add(self._xhat, self._beta_updates, out=self._xhat)
         backend.divide(self._xhat, self._xhat.shape[1], out=self._xhat)
-        backend.subtract(error, self._xhat, out=self._xhat)
-        backend.multiply(self._xhat, self._gamma, out=self._xhat)
-        backend.multiply(self._xhat, self._vars, out=self._xhat)
+        backend.subtract(error, self._xhat, out=error)
+        backend.multiply(error, self._gamma, out=error)
+        backend.multiply(error, self._vars, out=error)
