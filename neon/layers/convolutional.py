@@ -58,7 +58,7 @@ class ConvLayer(WeightLayer):
                                 ofmsize=self.ofmsize,
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm,
-                                padding=self.pad, stride=self.stride,
+                                padding=self.negpad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf,
                                 local=self.local_conv)
         if self.use_biases is True:
@@ -82,7 +82,7 @@ class ConvLayer(WeightLayer):
                                     ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
-                                    padding=self.pad, stride=self.stride,
+                                    padding=self.negpad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
@@ -95,7 +95,7 @@ class ConvLayer(WeightLayer):
                                  ofmsize=self.ofmsize,
                                  ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
-                                 nifm=self.nifm, padding=self.pad,
+                                 nifm=self.nifm, padding=self.negpad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fshape[-1],
                                  updatebuf=self.updatebuf,
