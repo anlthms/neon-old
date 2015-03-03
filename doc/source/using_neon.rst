@@ -165,7 +165,7 @@ and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
 with neon. We currently offer support for Spearmint, available as a fork
 at https://github.com/ursk/spearmint/. The package depends on google
-protobuf and uses the flask webserver for visualizing results.
+protobuf and scipy and uses the flask webserver for visualizing results.
 
 To perform a search over a set of hyperparameters specified in a neon yaml
 file, create a new yaml file with the top level experiment of type
@@ -211,7 +211,7 @@ example:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt init -y examples/hyper_iris_small.yaml
+    PYTHONPATH=`pwd` bin/hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
 
 this creates a spearmint configuration file in proptobuf format in the
 ``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
@@ -220,7 +220,7 @@ be generated, for example:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt run -p 50000
+    PYTHONPATH=`pwd` bin/hyperopt run -p 50000
 
 The output can be viewed in the browser at http://localhost:50000, or by
 directly inspecting the files in the ``neon/hyperopt/expt`` directory. The
@@ -230,7 +230,7 @@ start a new experiment, reset the previous one first by running:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt reset
+    PYTHONPATH=`pwd` bin/hyperopt reset
 
 or manually deleting the contents of the ``neon/hyperopt/expt`` directory.
 
