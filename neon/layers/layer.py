@@ -19,6 +19,7 @@ from neon.optimizers.adadelta import AdaDelta
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
+from neon.transforms.batch_norm import BatchNorm
 from neon.transforms.linear import Linear
 
 logger = logging.getLogger(__name__)
@@ -355,13 +356,18 @@ class WeightLayer(Layer):
 
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
-        req_param(self, ['weight_init', 'lrule_init'])
+        req_param(self, ['weight_init', 'lrule_init', 'nin', 'nout'])
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['batch_norm'], False)
 
         self.weight_init.initialize(self.backend)
         self.params = []
         self.updates = []
+
+        if self.batch_norm:
+            self.bn = BatchNorm()
+            kwargs['layer'] = self
+            self.bn.initialize(kwargs)
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty

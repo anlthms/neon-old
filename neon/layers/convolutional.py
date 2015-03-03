@@ -58,11 +58,22 @@ class ConvLayer(WeightLayer):
                                 local=self.local_conv)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+        if self.batch_norm:
+            self.bn.fprop_func(self.backend, self.pre_act, self.pre_act)
         self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        self.activation.bprop_func(self.backend, self.pre_act, error)
+        self.activation.bprop_func(self.backend, self.pre_act, error,
+                                   self.skip_act)
+
+        upm = self.utemp if self.accumulate else self.updates
+        u_idx = 0
+        if self.batch_norm:
+            self.bn.bprop_func(self.backend, self.pre_act, error,
+                               self.skip_act)
+            u_idx = 2
+
         if self.deltas is not None:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
@@ -74,9 +85,7 @@ class ConvLayer(WeightLayer):
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
 
-        upm = self.utemp if self.accumulate else self.updates
-
-        self.backend.update_conv(out=upm[0], inputs=inputs,
+        self.backend.update_conv(out=upm[u_idx], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape,
                                  ofmsize=self.ofmsize,
@@ -88,10 +97,12 @@ class ConvLayer(WeightLayer):
                                  updatebuf=self.updatebuf,
                                  local=self.local_conv,
                                  layer=self)
-
         if self.use_biases is True:
-            self.backend.sum(error, axes=1, out=upm[1])
+            self.backend.sum(error, axes=1, out=upm[u_idx+1])
+
         if self.accumulate:
-            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            self.backend.add(upm[u_idx], self.updates[u_idx],
+                             out=self.updates[u_idx])
             if self.use_biases is True:
-                self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+                self.backend.add(upm[u_idx+1], self.updates[u_idx+1],
+                                 out=self.updates[u_idx+1])

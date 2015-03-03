@@ -22,14 +22,15 @@ class BatchNorm(Activation):
 
         self.backend = self.layer.backend
         self.is_local = self.layer.is_local
-
+        self.batch_size = self.layer.batch_size
         if self.is_local:
-            self.in_shape = (self.layer.nofm,
-                             self.layer.ofmsize * self.layer.batch_size)
             self.in1d = (self.layer.nofm, 1)
+            self.ofmsize = self.layer.ofmsize
+            self.orig_shape = (self.layer.nofm * self.ofmsize, self.batch_size)
+            self.in_shape = (self.layer.nofm, self.ofmsize * self.batch_size)
         else:
-            self.in_shape = self.layer.output.shape
-            self.in1d = (self.nin, 1)
+            self.in_shape = (self.layer.nout, self.batch_size)
+            self.in1d = (self.layer.nout, 1)
 
         self.train_mode = True
         self.nbatches = 0
@@ -56,7 +57,10 @@ class BatchNorm(Activation):
         self.train_mode = False
         if self._iscale is None:
             self.backend.divide(self._gvars, self.nbatches, self._gvars)
-            unbiaser = self.layer.batch_size / (self.layer.batch_size - 1.)
+            m = self.batch_size
+            if self.is_local:
+                m *= self.ofmsize
+            unbiaser = m / (m - 1.)
             self.backend.multiply(self._gvars, unbiaser, self._gvars)
             self.backend.add(self._gvars, self._eps, self._gvars)
             self.backend.sqrt(self._gvars, out=self._gvars)
@@ -85,6 +89,10 @@ class BatchNorm(Activation):
                                  derivative function.
             outputs (array_like): Storage for the transformed output.
         """
+        if self.is_local:
+            inputs = inputs.reshape(self.in_shape)
+            outputs = outputs.reshape(self.in_shape)
+
         if self.train_mode:
             # Calc batch statistics
             backend.mean(inputs, axes=1, out=self._mean)
@@ -92,7 +100,7 @@ class BatchNorm(Activation):
 
             # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)
-            backend.add(self._gmean, self._vars, self._gmean)
+            backend.add(self._gmean, self._mean, self._gmean)
             self.nbatches += 1
 
             # Just store sqrt(vars + eps) since it's used as a unit
@@ -108,7 +116,15 @@ class BatchNorm(Activation):
             backend.multiply(inputs, self._iscale, out=outputs)
             backend.add(outputs, self._ishift, out=outputs)
 
+        if self.is_local:
+            inputs = inputs.reshape(self.orig_shape)
+            outputs = outputs.reshape(self.orig_shape)
+
     def bprop_func(self, backend, pre_act, error, skip_act=False):
+        if self.is_local:
+            pre_act = pre_act.reshape(self.in_shape)
+            error = error.reshape(self.in_shape)
+
         backend.multiply(self._xhat, error, out=pre_act)
         backend.sum(pre_act, axes=1, out=self._gamma_updates)
         backend.sum(error, axes=1, out=self._beta_updates)
@@ -120,3 +136,7 @@ class BatchNorm(Activation):
         backend.subtract(error, self._xhat, out=error)
         backend.multiply(error, self._gamma, out=error)
         backend.multiply(error, self._vars, out=error)
+
+        if self.is_local:
+            pre_act = pre_act.reshape(self.orig_shape)
+            error = error.reshape(self.orig_shape)
