@@ -21,6 +21,8 @@ class RNN(MLP):
     """
     def __init__(self, **kwargs):
         self.accumulate = True
+        # Reusing deltas not supported for RNNs yet
+        self.reuse_deltas = False
         super(RNN, self).__init__(**kwargs)
         req_param(self, ['unrolls'])
         self.rec_layer = self.layers[1]
