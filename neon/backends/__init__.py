@@ -134,15 +134,10 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         be_name = 'GPU'
         be = GPU(rng_seed=rng_seed, device_id=device_id)
     elif half:
-        #from neon.backends.max_fp16 import MAX_FP16
-        #be_name = 'MAX_FP16'
-        #be = MAX_FP16(rng_seed=rng_seed, device_id=device_id)
-        import pycuda.autoinit # create the context here?
-        import sys
-        sys.path.append('/home/users/urs/code/flexgpu')
-        from nervana_lib import MAX # NervanaLib + extras
+        import pycuda.autoinit  # create the context
+        from neon.backends.max import MAX
         be_name = 'MAX_FP16'
-        be = MAX(stochastic_round=True)
+        be = MAX(rng_seed=rng_seed, stochastic_round=True)
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,

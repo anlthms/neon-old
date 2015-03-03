@@ -1,8 +1,8 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test a 1 hidden layer Neural Net on full
-# Iris dataset.  Simple network meant more as a sanity check.
+# First test of flexgpu kernel integration into neon on Iris dataset. Tests
+# FC layers, logistic, rectLin, and CrossEntropy cost.
 
 !obj:experiments.FitPredictErrorExperiment {
 
@@ -19,6 +19,7 @@
 
   lrule: &gdm {
     type: gradient_descent_momentum,
+    velocity_dtype: np.float16,  # these are strings, silly workaround
     lr_params: {
       learning_rate: 0.1,
       momentum_params: {
@@ -39,13 +40,22 @@
       !obj:layers.FCLayer {
         name: h0,
         nout: 2,
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
         lrule_init: *gdm,
         weight_init: *wt_init,
-        activation: !obj:transforms.Logistic {},
+        activation: !obj:transforms.RectLin {},
       },
       &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 3,
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
         lrule_init: *gdm,
         weight_init: *wt_init,
         activation: !obj:transforms.Logistic {},
@@ -53,7 +63,9 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:transforms.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {
+          temp_dtype: np.float16,
+          },
       },
     ],
   },
