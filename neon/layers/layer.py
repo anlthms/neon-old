@@ -94,7 +94,7 @@ class Layer(YAMLable):
             num = self.ifmshape[dim] - self.fshape[dim] + 1 + 2 * self.pad
             ofmshape.extend([(num + self.stride - 1) / self.stride])
         self.ofmshape = tuple(ofmshape)
-        self.pad = -self.pad
+        self.negpad = -self.pad
         self.ifmsize = np.prod(self.ifmshape)
         self.ofmsize = np.prod(self.ofmshape)
         self.fpsize = np.prod(self.fshape)
