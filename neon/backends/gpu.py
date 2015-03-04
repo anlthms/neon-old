@@ -1564,7 +1564,7 @@ class GPU(Backend):
                                 epsilon)
         self.add(ps_item, ls_item, out=ps_item)
 
-    def logloss_and_misclass(reference, probs, labellogprob, top1correct,
+    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
                              topkcorrect, topk):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
@@ -1576,7 +1576,7 @@ class GPU(Backend):
                                The sum for each colum should be 1.
                                Each column represents a sample and the
                                values in the column represent the probability
-                               of that class being the correct one as 
+                               of that class being the correct one as
                                hypothesized by the model.
             labellogprob (GPUTensor): (OUTPUT) the logprob of the true
                                       label for each column.
@@ -1587,11 +1587,11 @@ class GPU(Backend):
             topkcorrect (GPUTensor): (OUTPUT) whether the true label occurs
                                      as one of the topk probs
                                      (1 x num_samples)
-            topk (int): Parameter determining which of the top k to use for 
+            topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
         """
 
-        cudanet.multi_way_error(probs=outputs, labels=reference,
+        cudanet.multi_way_error(probs=probs, labels=reference,
                                 labellogprob=labellogprob,
                                 top1probs=top1correct, topkprobs=topkcorrect,
                                 topk=topk)

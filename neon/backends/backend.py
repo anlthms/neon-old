@@ -1062,7 +1062,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def logloss_and_misclass(reference, probs, labellogprob, top1correct,
+    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
                              topkcorrect, topk):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
@@ -1074,7 +1074,7 @@ class Backend(YAMLable):
                             The sum for each colum should be 1.
                             Each column represents a sample and the
                             values in the column represent the probability
-                            of that class being the correct one as 
+                            of that class being the correct one as
                             hypothesized by the model.
             labellogprob (Tensor): (OUTPUT) the logprob of the true
                                    label for each column.
@@ -1085,7 +1085,7 @@ class Backend(YAMLable):
             topkcorrect (Tensor): (OUTPUT) whether the true label occurs
                                   as one of the topk probs
                                   (1 x num_samples)
-            topk (int): Parameter determining which of the top k to use for 
+            topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
         """
         raise NotImplementedError()

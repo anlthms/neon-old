@@ -8,8 +8,6 @@ Requires model to specify prev layers at each layer to build the layer graph
 """
 
 import logging
-import sys
-import numpy
 from neon.models.mlp import MLP
 from neon.util.param import req_param
 from neon.util.compat import pickle
@@ -97,8 +95,8 @@ class BalanceMP(MLP):
 
     def fprop(self):
         super(BalanceMP, self).fprop()
-        for ll in self.layers[:-1]:
-            myarray = ll.output.asnumpyarray()
+        # for ll in self.layers[:-1]:
+        #     myarray = ll.output.asnumpyarray()
             # if numpy.isnan(myarray).any():
             #     print ll.name
             #     print ll.prev_layer.output.asnumpyarray()

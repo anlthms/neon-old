@@ -1498,7 +1498,7 @@ class CPU(Backend):
         # Final update to the params
         self.add(ps_item, ls_item, out=ps_item)
 
-    def logloss_and_misclass(reference, probs, labellogprob, top1correct,
+    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
                              topkcorrect, topk):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
@@ -1510,7 +1510,7 @@ class CPU(Backend):
                                The sum for each colum should be 1.
                                Each column represents a sample and the
                                values in the column represent the probability
-                               of that class being the correct one as 
+                               of that class being the correct one as
                                hypothesized by the model.
             labellogprob (CPUTensor): (OUTPUT) the logprob of the true
                                       label for each column.
@@ -1521,7 +1521,7 @@ class CPU(Backend):
             topkcorrect (CPUTensor): (OUTPUT) whether the true label occurs
                                      as one of the topk probs
                                      (1 x num_samples)
-            topk (int): Parameter determining which of the top k to use for 
+            topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
         """
         ns = reference.shape[1]
@@ -1539,7 +1539,7 @@ class CPU(Backend):
         # topkcorrect now has the rank of correct label (1 is best)
         self.equal(topkcorrect, 1, out=top1correct)
         top1misclass = ns - top1correct._tensor.sum()
-        self.less_equal(topkcorrect, topk, topkcorrect):
+        self.less_equal(topkcorrect, topk, topkcorrect)
         topkmisclass = ns - topkcorrect._tensor.sum()
 
         return (logloss, top1misclass, topkmisclass)

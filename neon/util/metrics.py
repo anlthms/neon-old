@@ -34,7 +34,7 @@ def logloss(backend, reference, outputs, sums, temp, retval, eps=1e-15):
 
 
 def logloss_and_misclass(backend, reference, outputs, labellogprob, top1error,
-                         topkerror, topk):
+                         topkerror, topk, sums, eps=1e-15):
     # TODO Normalize the outputs to get probabilities
     backend.clip(outputs, eps, 1.0 - eps, out=outputs)
     backend.sum(outputs, axes=0, out=sums)
