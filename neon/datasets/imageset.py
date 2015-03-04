@@ -275,24 +275,22 @@ class Imageset(Dataset):
 
     """
     def __init__(self, **kwargs):
-        opt_param(self, ['start_train', 'end_train',
-                         'start_val', 'end_val'], -1)
+        opt_param(self, ['start_train', 'end_train'], -1)
+        opt_param(self, ['start_val', 'end_val'], -1)
         opt_param(self, ['preprocess_done', 'dotransforms', 'dist_flag'],
                   False)
         opt_param(self, ['tdims'], 0)
         opt_param(self, ['label_list'], ['l_id'])
         self.__dict__.update(kwargs)
-        req_param(self, ['save_dir'])
-        req_param(self, ['label_list', 'cropped_image_size'])
+        req_param(self, ['label_list', 'cropped_image_size', 'save_dir'])
         from PIL import Image
         self.imlib = Image
-
         self.idims = (self.cropped_image_size ** 2) * 3
+
+        # num train / val batches for this yaml file (<= total available)
         if self.start_train != -1:
-            # num train batches for this yaml file (<= total available)
             self.n_train_batches = self.end_train - self.start_train + 1
         if self.start_val != -1:
-            # num validation batches for this yaml file (<= total available)
             self.n_val_batches = self.end_val - self.start_val + 1
 
     def load(self):

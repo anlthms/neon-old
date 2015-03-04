@@ -3,7 +3,7 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.Imageset {
-    repo_path: '~/data',
+    repo_path: '/usr/local/data',
     save_dir: '/usr/local/data/CIFAR10/cifar-macro/train',
     cropped_image_size: &cis 32,
     output_image_size: *cis,
@@ -14,8 +14,8 @@
     num_train_macro_batches: 5, #max available train macro_batches
     num_val_macro_batches: 1, #max available val macro batches
     # macro batch start and end indices to use for train and val datasets
-    start_train: 2,
-    end_train: 3,
+    start_train: 1,
+    end_train: 2,
     start_val: 0,
     end_val: 1,
   },
@@ -39,7 +39,7 @@
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 2,
+    num_epochs: 10,
     batch_size: &bs 100,
     layers: [
       &datalayer !obj:layers.ImageDataLayer {

@@ -227,7 +227,7 @@ class CostLayer(Layer):
         opt_param(self, ['ref_label'], 'targets')
         opt_param(self, ['raw_label'], False)
         opt_param(self, ['category_label'], 'l_id')
-        self.targets = None
+        self.reference = None
         self.cost.olayer = self.prev_layer
         kwargs['raw_label'] = self.raw_label
         self.cost.initialize(kwargs)
@@ -238,13 +238,13 @@ class CostLayer(Layer):
                 self.__class__.__name__, self.name, self.nin,
                 self.cost.__class__.__name__))
 
-    def set_target(self):
+    def set_reference(self):
         if self.ref_layer is not None:
-            tgts = getattr(self.ref_layer, self.ref_label)
-            if isinstance(tgts, dict):
-                self.targets = tgts[self.category_label]
+            refs = getattr(self.ref_layer, self.ref_label)
+            if isinstance(refs, dict):
+                self.reference = refs[self.category_label]
             else:
-                self.targets = tgts
+                self.reference = refs
 
     def fprop(self, inputs):
         pass
@@ -252,15 +252,19 @@ class CostLayer(Layer):
     def bprop(self, error):
         # Since self.deltas already pointing to destination of act gradient
         # we just have to scale by mini-batch size
-        self.set_target()
-        self.cost.apply_derivative(self.targets)
+        self.set_reference()
+        self.cost.apply_derivative(self.reference)
         self.backend.divide(self.deltas, self.backend.actual_batch_size,
                             out=self.deltas)
 
     def get_cost(self):
-        self.set_target()
-        result = self.cost.apply_function(self.targets)
+        self.set_reference()
+        result = self.cost.apply_function(self.reference)
         return self.backend.divide(result, self.batch_size, result)
+
+    def get_reference(self):
+        self.set_reference()
+        return self.reference
 
 
 class DataLayer(Layer):

@@ -1498,6 +1498,46 @@ class CPU(Backend):
         # Final update to the params
         self.add(ps_item, ls_item, out=ps_item)
 
+    def logloss_and_misclass(reference, probs, labellogprob, top1correct,
+                             topkcorrect, topk):
+        """
+        Compute the accumulated logloss and number of top1 and topk errors.
+
+        NOTE:  Returns a tuple of python values, not CPUTensors
+        Arguments:
+            reference (CPUTensor): The true labels ( 1 x num_samples)
+            probs (CPUTensor): The normalized output ( num_class x num_samples)
+                               The sum for each colum should be 1.
+                               Each column represents a sample and the
+                               values in the column represent the probability
+                               of that class being the correct one as 
+                               hypothesized by the model.
+            labellogprob (CPUTensor): (OUTPUT) the logprob of the true
+                                      label for each column.
+                                      (1 x num_samples)
+            top1correct (CPUTensor): (OUTPUT) whether the true label occurs
+                                     as the top1 prob
+                                     (1 x num_samples)
+            topkcorrect (CPUTensor): (OUTPUT) whether the true label occurs
+                                     as one of the topk probs
+                                     (1 x num_samples)
+            topk (int): Parameter determining which of the top k to use for 
+                        determining topkcorrect
+        """
+        ns = reference.shape[1]
+        labels = np.array(reference._tensor, dtype=np.int32)
+        labellogprob._tensor[:] = np.log(probs._tensor[labels, range(ns)])
+        logloss = labellogprob._tensor.sum()
+
+        self.argmax(probs, axis=0, out=top1correct)
+        self.equal(top1correct, labels, top1correct)
+        top1misclass = ns - top1correct._tensor.sum()
+
+        #TODO FIX this up
+        topkcorrect[:] = probs._tensor.argpartition(labels, axis=0)
+        topkmisclass = top1misclass
+        return (logloss, top1misclass, topkmisclass)
+
     def set_weights(self, dev_weights, host_weights):
         """
         copies the host_weights into dev_weights
