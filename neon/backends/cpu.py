@@ -1529,13 +1529,19 @@ class CPU(Backend):
         labellogprob._tensor[:] = np.log(probs._tensor[labels, range(ns)])
         logloss = labellogprob._tensor.sum()
 
-        self.argmax(probs, axis=0, out=top1correct)
-        self.equal(top1correct, labels, top1correct)
-        top1misclass = ns - top1correct._tensor.sum()
+        # Compute the top1 and topk misclass in one go
+        topkcorrect._tensor[:] = probs._tensor.argpartition(labels, axis=0)
+        self.equal(topkcorrect, labels, topkcorrect)
+        self.argmax(topkcorrect, axis=0, out=topkcorrect)
+        self.multiply(topkcorrect, -1.0, out=topkcorrect)
+        self.add(topkcorrect, ns, out=topkcorrect)
 
-        #TODO FIX this up
-        topkcorrect[:] = probs._tensor.argpartition(labels, axis=0)
-        topkmisclass = top1misclass
+        # topkcorrect now has the rank of correct label (1 is best)
+        self.equal(topkcorrect, 1, out=top1correct)
+        top1misclass = ns - top1correct._tensor.sum()
+        self.less_equal(topkcorrect, topk, topkcorrect):
+        topkmisclass = ns - topkcorrect._tensor.sum()
+
         return (logloss, top1misclass, topkmisclass)
 
     def set_weights(self, dev_weights, host_weights):
