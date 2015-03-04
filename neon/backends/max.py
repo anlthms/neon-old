@@ -84,14 +84,14 @@ class MAX(Backend):
         """
         self.nl.dot(weights, inputs, out)
 
-    def bprop_fc(self, out, weights, deltas):
+    def bprop_fc(self, out, weights, deltas, layer=None):
         """
         NervanaLib dot call
         """
         self.nl.dot(weights.T, deltas, out)
         return out
 
-    def update_fc(self, out, inputs, deltas):
+    def update_fc(self, out, inputs, deltas, layer=None):
         """
         NervanaLib dot call
         """
