@@ -120,13 +120,7 @@ class MLP(MLP_old):
             self.print_layers(debug=True)
             self.epochs_complete += 1
         self.data_layer.cleanup()
-        self.print_performance_stats()
 
-    def print_performance_stats(self):
-        logger.info("Performed %2.2f GFLOP in %2.2fs (%d fprop_fc calls)",
-                    sum(self.backend.flop_dict['fprop_fc'])/ 1e9,
-                    sum(self.backend.time_dict['fprop_fc']),
-                    len(self.backend.flop_dict['fprop_fc']))
 
     def predict_and_report(self, dataset=None):
         if dataset is not None:
