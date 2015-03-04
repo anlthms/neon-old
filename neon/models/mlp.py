@@ -111,23 +111,7 @@ class MLP(MLP_old):
             while self.data_layer.has_more_data():
                 self.fprop()
                 self.bprop()
-                print "W0 data", self.layers[0].output.asnumpyarray()[0,0:2]         # same for fp16 and CPU.
-                print "W1 pre update", self.layers[1].weights.asnumpyarray()[0,0:2]  # same for fp16 and CPU.
-                print "W1 preact", self.layers[1].pre_act.asnumpyarray()[0,0:2]      # SATURATES
-                #recreate what pre_act is doing.
-                c = self.backend.zeros((2,30))
-                a = self.layers[0].output  # (4, 30)
-                b = self.layers[1].weights  # (2, 4)
-                self.backend.fprop_fc(c,a,b)
-                print "got", c.asnumpyarray()[0,0:2]
-                import pdb; pdb.set_trace()
-                print "W1 data", self.layers[1].output.asnumpyarray()[0,0:2]         # DIFFERENT
-                print "W2 pre update", self.layers[2].weights.asnumpyarray()[0,0:2]  #
-                print "W2 preact", self.layers[2].pre_act.asnumpyarray()[0,0:2]      #
-                print "W2 data", self.layers[2].output.asnumpyarray()[0,0:2]         #
-                print "fprop results in",
                 self.update(self.epochs_complete)
-                print "minibatch", mb_id, "suberror", error.asnumpyarray()
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)
@@ -136,6 +120,13 @@ class MLP(MLP_old):
             self.print_layers(debug=True)
             self.epochs_complete += 1
         self.data_layer.cleanup()
+        self.print_performance_stats()
+
+    def print_performance_stats(self):
+        logger.info("Performed %2.2f GFLOP in %2.2fs (%d fprop_fc calls)",
+                    sum(self.backend.flop_dict['fprop_fc'])/ 1e9,
+                    sum(self.backend.time_dict['fprop_fc']),
+                    len(self.backend.flop_dict['fprop_fc']))
 
     def predict_and_report(self, dataset=None):
         if dataset is not None:

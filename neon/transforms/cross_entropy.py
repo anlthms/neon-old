@@ -43,7 +43,6 @@ def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23):
 
     # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
-
     result = backend.empty((1, 1))
     return backend.sum(temp[0], axes=None, out=result)
 
@@ -138,7 +137,9 @@ class CrossEntropy(Cost):
     """
     Embodiment of a cross entropy cost function.
     """
+
     def __init__(self, **kwargs):
+        opt_param(self, ['epsilon'], 2**-23)  # default float32 machine epsilon
         super(CrossEntropy, self).__init__(**kwargs)
 
     def initialize(self, kwargs):
@@ -208,7 +209,7 @@ class CrossEntropy(Cost):
         Apply the cross entropy cost function to the datasets passed.
         """
         result = self.ce_function(self.backend, self.outputbuf, targets,
-                                  self.temp)
+                                  self.temp, epsilon=self.epsilon)
         self.backend.multiply(result, self.scale, out=result)
         return result
 

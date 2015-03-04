@@ -1,63 +1,79 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# First test of flexgpu kernel integration into neon on Iris dataset. Tests
-# FC layers, logistic, rectLin, and CrossEntropy cost.
+# Experiment settings to train/test a 1 hidden layer Neural Net on full
+# MNIST.  Parameters are optimized for performance.
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:datasets.Iris {
+  dataset: &ds !obj:datasets.MNIST {
     repo_path: '~/data',
     sample_pct: 100,
   },
 
-  weight_init: &wt_init !obj:params.UniformValGen {
-    low: -1,
-    high: 1,
-    bias_init: 0.0,
-  },
+  weight_inits: [
+    &wt_init !obj:params.GaussianValGen {
+      loc: 0.0,
+      scale: 0.01,
+      bias_init: 0.0,
+    },
+    &wt_initb !obj:params.NodeNormalizedValGen {
+      scale: 4.0,
+      bias_init: 0.0,
+    },
+  ],
 
-  lrule: &gdm {
-    type: gradient_descent_momentum,
-    velocity_dtype: np.float16,  # these are strings, silly workaround
-    lr_params: {
-      learning_rate: 0.1,
-      momentum_params: {
-        type: constant,
-        coef: 0,
+  lrule: [
+    &gdm {
+      type: gradient_descent_momentum,
+      velocity_dtype: np.float16,
+      lr_params: {
+        learning_rate: 0.1,
+        momentum_params: {
+          type: constant,
+          coef: 0.0,
+        },
       },
     },
-  },
+    &ada {
+      type: adadelta,
+      lr_params: {
+        rho: &ro 0.95,
+        epsilon: &eps 0.000001,
+      },
+    },
+  ],
   # simple MLP model specification
   model: !obj:models.MLP {
-    num_epochs: 100,
-    batch_size: &bs 30,
+    num_epochs: 6,
+    batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
-        nout: 4,
+        nout: 784,
       },
       !obj:layers.FCLayer {
-        name: h0,
-        nout: 2,
-        pre_act_dtype: np.float16,
-        output_dtype: np.float16,
-        weight_dtype: np.float16,
-        updates_dtype: np.float16,
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-        activation: !obj:transforms.Logistic {},
-      },
-      &lastlayer !obj:layers.FCLayer {
-        name: output,
-        nout: 3,
         pre_act_dtype: np.float16,
         output_dtype: np.float16,
         deltas_dtype: np.float16,
         weight_dtype: np.float16,
         updates_dtype: np.float16,
+        name: h0,
+        nout: 2000,
         lrule_init: *gdm,
         weight_init: *wt_init,
+        activation: !obj:transforms.RectLin {},
+      },
+      &lastlayer !obj:layers.FCLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
+        name: output,
+        nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_initb,
         activation: !obj:transforms.Logistic {},
       },
       &costlayer !obj:layers.CostLayer {
@@ -65,8 +81,8 @@
         ref_layer: *datalayer,
         cost: !obj:transforms.CrossEntropy {
           temp_dtype: np.float16,
-          epsilon: 0.0005,  # 2**-11 for clip. was 23 = 24-1 for 32bit single
-          },
+          epsilon: 0.0005,
+        },
       },
     ],
   },
