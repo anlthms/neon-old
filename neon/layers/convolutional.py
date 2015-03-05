@@ -34,11 +34,21 @@ class ConvLayer(WeightLayer):
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
+
         opt_param(self, ['prodbuf', 'bpropbuf', 'updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
+
+        if hasattr(self.backend, 'nl'):
+            self.conv_params = self.backend.nl.conv_layer(
+                N=self.batch_size, C=self.nifm, K=self.nofm,
+                D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
+                R=self.fshape[0], S=self.fshape[1],
+                pad_d=0, pad_h=self.pad, pad_w=self.pad,
+                str_d=1, str_h=self.stride, str_w=self.stride)
+            self.prodbuf = self.bpropbuf = self.updatebuf = self.conv_params
 
     def set_weight_shape(self):
         if hasattr(self, 'local_conv') and self.local_conv:

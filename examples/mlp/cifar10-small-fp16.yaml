@@ -9,7 +9,7 @@
   timing: [fprop_fp, bprop_fc, update_fc],  # a list of function this experiment should time.
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '~/data',
+    repo_path: '/home/users/urs/data',
     sample_pct: 10,
   },
 
@@ -36,7 +36,22 @@
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
-        nout: 3072,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [32, 32],
+        # nout: 3072,
+      },
+      !obj:layers.ConvLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
+        name: layer1,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        nofm: 16,
+        fshape: [5, 5],
       },
       !obj:layers.FCLayer {
         pre_act_dtype: np.float16,

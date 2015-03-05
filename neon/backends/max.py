@@ -9,7 +9,7 @@ import logging
 
 from neon.backends.backend import Backend
 import sys
-sys.path.append('/home/users/urs/code/flexgpu')
+# sys.path.append('/home/users/urs/code/flexgpu')
 from nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
@@ -96,8 +96,6 @@ class MAX(Backend):
         """
         self.nl.dot(deltas, inputs.T, out)
 
-
-
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
                    local=False):
@@ -132,23 +130,7 @@ class MAX(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
         """
-        import pdb; pdb.set_trace()
-        assert ifmshape[-2] == ifmshape[-1]
-        # convert parameters to SG convention
-        N
-        C = nimf
-        H,W = ifmshape
-        K = nofm
-        R,S = 0,0
 
-        # set up a ConvLayer parameter object
-        conv = self.nl.conv_layer(self,
-            N, C, K,
-            D=1, H=1, W=1,
-            T=1, R=1, S=1,
-            pad_d=0, pad_h=0, pad_w=0,
-            str_d=1, str_h=1, str_w=1,
-            scl_d=1, scl_h=1, scl_w=1)
         '''
         N: Number of images in mini-batch
         C: Number of input feature maps
@@ -162,11 +144,8 @@ class MAX(Backend):
         R: Height of filter kernel
         S: Width  of filter kernel
         '''
-        self.nl.fprop_conv(conv, I, F, O, alpha=1.0, repeat=1)
-        # cudanet.convolution(
-        #     weights._tensor, inputs._tensor, out._tensor,
-        #     ifmshape[-2], ofmshape[-2], ofmshape[-1], padding, stride, nifm,
-        #     ngroups)
+        self.nl.fprop_conv(conv=fpropbuf, I=inputs, F=weights, O=out,
+                           alpha=1.0, repeat=1)
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, padding, stride, nifm, ngroups, bpropbuf,
@@ -174,11 +153,8 @@ class MAX(Backend):
         """
         Backward propagate the error through a convolutional network layer.
         """
-        bprop_conv(conv, F, E, grad_I, alpha=1.0, repeat=1)
-        # cudanet.deconvolve_errors(
-        #     weights._tensor, deltas._tensor,
-        #     out._tensor, ifmshape[-2], ifmshape[-1], ofmshape[-2],
-        #     padding, stride, nifm, ngroups)
+        bprop_conv(conv=bpropbuf, F=weights, E=out, grad_I=deltas,
+                   alpha=1.0, repeat=1)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
@@ -187,15 +163,8 @@ class MAX(Backend):
         Compute the updated gradient for a convolutional network layer.
 
         """
-        self.nl.update_conv(conv, I, E, grad_F, alpha=1.0, repeat=1)
-        # cudanet.deconvolve_wts(
-        #     deltas._tensor, inputs._tensor, out._tensor,
-        #     ifmshape[-2], ofmshape[-2], ofmshape[-1], fwidth,
-        #     padding, stride, nifm, ngroups, ofmshape[-2], local)
-
-
-
-
+        self.nl.update_conv(conv=updatebuf, I=inputs, E=deltas, grad_F=out,
+                            alpha=1.0, repeat=1)
 
     @st.record_flops_ew(mult=4, arg_pos=0, func_name='ew_sig')
     def logistic(self, x, out):
@@ -226,9 +195,9 @@ class MAX(Backend):
 
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.sum_axis(tsr.reshape(sze,1), axis=0, out=out)
+            self.nl.sum(tsr.reshape(sze,1), axis=0, out=out)
         else:
-            self.nl.sum_axis(tsr, axis=axes, out=out)
+            self.nl.sum(tsr, axis=axes, out=out)
         return out
 
     def zeros(self, shape, dtype=np.float16):
