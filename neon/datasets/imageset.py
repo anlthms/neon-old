@@ -6,13 +6,20 @@
 """
 
 import logging
+import gzip
 import numpy as np
 import os
+from glob import glob
 from time import time
 from neon.datasets.dataset import Dataset
 from neon.util.compat import range, pickle, queue, StringIO
 from neon.util.param import opt_param, req_param
 import threading
+import sys
+
+from multiprocessing import Pool
+import pandas as pd
+from PIL import Image
 # importing scipy.io breaks multiprocessing! don't do it here!
 
 logger = logging.getLogger(__name__)
@@ -36,6 +43,141 @@ def my_unpickle(filename):
     contents = pickle.load(fo)
     fo.close()
     return contents
+
+
+def proc_img(imgfile):
+    im = Image.open(imgfile)
+
+    # This part does the processing
+    scale_factor = TARGET_SIZE / np.float32(min(im.size))
+    (wnew, hnew) = map(lambda x: int(round(scale_factor * x)), im.size)
+
+    if scale_factor != 1:
+        filt = Image.BICUBIC if scale_factor > 1 else Image.ANTIALIAS
+        im = im.resize((wnew, hnew), filt)
+
+    if SQUARE_CROP is True:
+        (cx, cy) = map(lambda x: (x - TARGET_SIZE) / 2, (wnew, hnew))
+        im = im.crop((cx, cy, TARGET_SIZE, TARGET_SIZE))
+
+    buf = StringIO()
+    im.save(buf, format='JPEG')
+    return buf.getvalue()
+
+
+class BatchWriter(object):
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.out_dir = os.path.expanduser(self.batch_dir)
+        self.in_dir = os.path.expanduser(self.image_dir)
+        self.batch_size = self.macro_batch_size
+        global TARGET_SIZE, SQUARE_CROP
+        TARGET_SIZE = self.output_image_size
+        SQUARE_CROP = self.square_crop
+        opt_param(self, ['validation_pct'], 0.2)
+        self.train_file = os.path.join(self.out_dir, 'train_file.csv.gz')
+        self.val_file = os.path.join(self.out_dir, 'val_file.csv.gz')
+        self.stats = os.path.join(self.out_dir, 'dataset_cache.pkl')
+
+    def __str__(self):
+        pairs = map(lambda a: a[0] + ': ' + a[1],
+                    zip(self.__dict__.keys(),
+                        map(str, self.__dict__.values())))
+        return "\n".join(pairs)
+
+    def write_csv_files(self):
+        posfiles = glob(os.path.join(self.in_dir, '1', '*.JPEG'))
+        negfiles = glob(os.path.join(self.in_dir, '0', '*.JPEG'))
+
+        poslines = [(filename, 1, 0, 1) for filename in posfiles]
+        neglines = [(filename, 0, 1, 0) for filename in negfiles]
+
+        v_idxp = int(self.validation_pct * len(poslines))
+        v_idxn = int(self.validation_pct * len(neglines))
+
+        np.random.shuffle(poslines)
+        np.random.shuffle(neglines)
+
+        tlines = poslines[v_idxp:] + neglines[v_idxn:]
+        vlines = poslines[:v_idxp] + neglines[:v_idxn]
+
+        np.random.shuffle(tlines)
+        np.random.shuffle(vlines)
+
+        if not os.path.exists(self.out_dir):
+            os.makedirs(self.out_dir)
+
+        for ff, ll in zip([self.train_file, self.val_file], [tlines, vlines]):
+            with gzip.open(ff, 'wb') as f:
+                f.write('filename,l_id,t0,t1\n')
+                for tup in ll:
+                    f.write('{},{},{},{}\n'.format(*tup))
+            f.close()
+
+        # Write out cached stats for this data
+        self.ntrain = (len(tlines) + self.batch_size - 1) / self.batch_size
+        self.nval = (len(vlines) + self.batch_size - 1) / self.batch_size
+        self.train_start = 0
+        self.val_start = 10**int(np.log10(self.ntrain*10))
+
+        my_pickle(self.stats, {'ntrain': self.ntrain,
+                               'nval': self.nval,
+                               'train_start': self.train_start,
+                               'val_start': self.val_start,
+                               'macro_size': self.batch_size})
+
+    def parse_file_list(self, infile):
+        compression = 'gzip' if infile.endswith('.gz') else None
+        df = pd.read_csv(infile, compression=compression)
+
+        lk = filter(lambda x: x.startswith('l'), df.keys())
+        tk = filter(lambda x: x.startswith('t'), df.keys())
+
+        labels = {ll: np.array(df[ll].values, np.int32) for ll in lk}
+        targets = np.array(df[tk].values, np.float32) if len(tk) > 0 else None
+        imfiles = df['filename'].values
+
+        return imfiles, labels, targets
+
+    def write_batches(self, name, start, labels, imfiles, targets=None):
+        psz = self.batch_size
+        nparts = (len(imfiles) + psz - 1) / psz
+
+        imfiles = [imfiles[i*psz: (i+1)*psz] for i in range(nparts)]
+
+        if targets is not None:
+            targets = [targets[i*psz: (i+1)*psz] for i in range(nparts)]
+
+        labels = [{k: v[i*psz: (i+1)*psz] for k, v in labels.iteritems()}
+                  for i in range(nparts)]
+
+        print "Writing %s batches..." % name
+        for i, jpeg_file_batch in enumerate(imfiles):
+            t = time()
+            pool = Pool(processes=self.num_workers)
+            jpeg_strings = pool.map(proc_img, jpeg_file_batch)
+            targets_batch = None if targets is None else targets[i]
+            labels_batch = labels[i]
+            bfile = os.path.join(self.out_dir, 'data_batch_%d' % (start + i))
+            my_pickle(bfile, {'data': jpeg_strings,
+                              'labels': labels_batch,
+                              'targets': targets_batch})
+            print "Wrote to %s (%s batch %d of %d) (%.2f sec)" % (
+                self.out_dir, name, i + 1, len(imfiles), time() - t)
+
+    def run(self):
+        self.write_csv_files()
+        namelist = ['train', 'validation']
+        filelist = [self.train_file, self.val_file]
+        startlist = [self.train_start, self.val_start]
+        for sname, fname, start in zip(namelist, filelist, startlist):
+            print sname, fname, start
+            if fname is not None and os.path.exists(fname):
+                imgs, labels, targets = self.parse_file_list(fname)
+                self.write_batches(sname, start, labels, imgs, targets)
+            else:
+                print 'Skipping {}, file missing'.format(sname)
 
 
 class LoadFile(threading.Thread):
@@ -261,7 +403,7 @@ class Imageset(Dataset):
     """
     Sets up a macro batched imageset dataset.
 
-    Assumes you have the data alreay partitioned and in macrobatch format
+    Assumes you have the data already partitioned and in macrobatch format
 
     Attributes:
         backend (neon.backends.Backend): backend used for this data
@@ -275,26 +417,45 @@ class Imageset(Dataset):
 
     """
     def __init__(self, **kwargs):
-        opt_param(self, ['start_train', 'end_train'], -1)
-        opt_param(self, ['start_val', 'end_val'], -1)
-        opt_param(self, ['preprocess_done', 'dotransforms', 'dist_flag'],
-                  False)
+
+        opt_param(self, ['preprocess_done', 'dist_flag'], False)
+        opt_param(self, ['dotransforms', 'square_crop'], False)
         opt_param(self, ['tdims'], 0)
         opt_param(self, ['label_list'], ['l_id'])
+        opt_param(self, ['num_workers'], 6)
+
         self.__dict__.update(kwargs)
-        req_param(self, ['label_list', 'cropped_image_size', 'save_dir'])
+        req_param(self, ['cropped_image_size', 'output_image_size',
+                         'image_dir', 'batch_dir', 'macro_batch_size'])
+
         from PIL import Image
         self.imlib = Image
         self.idims = (self.cropped_image_size ** 2) * 3
 
-        # num train / val batches for this yaml file (<= total available)
-        if self.start_train != -1:
-            self.n_train_batches = self.end_train - self.start_train + 1
-        if self.start_val != -1:
-            self.n_val_batches = self.end_val - self.start_val + 1
-
     def load(self):
-        pass
+        bdir = os.path.expanduser(self.batch_dir)
+        cachefile = os.path.join(bdir, 'dataset_cache.pkl')
+        if not os.path.exists(cachefile):
+            logger.info("Batch dir cache not found in %s:", cachefile)
+            response = 'Y'
+            # response = raw_input("Press Y to create, otherwise exit: ")
+            if response == 'Y':
+                self.bw = BatchWriter(**self.__dict__)
+                self.bw.run()
+            else:
+                logger.info('Exiting...')
+                sys.exit()
+        cstats = my_unpickle(cachefile)
+        if cstats['macro_batch_size'] != self.macro_batch_size:
+            raise NotImplementedError("Cached macro size %d different from "
+                                      "specified %d, delete batch_dir %s "
+                                      "and try again.",
+                                      cstats['macro_batch_size'],
+                                      self.macro_batch_size,
+                                      self.batch_dir)
+        self.__dict__.update(cstats)
+        req_param(self, ['ntrain', 'nval', 'train_start', 'val_start'])
+        sys.exit()
 
     def preprocess_images(self):
         # compute mean of all the images
@@ -303,9 +464,9 @@ class Imageset(Dataset):
                                   self.output_image_size), dtype='float32')
         return
         t1 = time()
-        for i in range(self.n_train_batches):
+        for i in range(self.train_start, self.ntrain + self.train_start):
             logger.info("preprocessing macro-batch %d :", i)
-            file_path = os.path.join(self.save_dir, 'data_batch_%d' % (i))
+            file_path = os.path.join(self.batch_dir, 'data_batch_%d' % (i))
             jpeg_strings = my_unpickle(file_path)
             for jpeg_string in jpeg_strings['data']:
                 img = self.imlib.open(StringIO(jpeg_string))
@@ -316,7 +477,7 @@ class Imageset(Dataset):
                     axes=[2, 0, 1])  # .reshape((-1, 1))
         logger.info("Time taken %f", time()-t1)
         self.mean_img = (self.mean_img /
-                         (self.n_train_batches * self.output_batch_size))
+                         (self.ntrain * self.macro_batch_size))
         logger.info("done preprocessing images (computing mean image)")
 
     def get_next_macro_batch_id(self, macro_batch_index):
@@ -325,11 +486,17 @@ class Imageset(Dataset):
             next_macro_batch_id = self.startb
         return next_macro_batch_id
 
+    def get_next_mini_batch_id(self, mini_batch_index):
+        next_mini_batch_id = mini_batch_index + 1
+        if next_mini_batch_id >= self.num_minibatches_in_macro:
+            next_mini_batch_id = 0
+        return next_mini_batch_id
+
     def get_macro_batch(self):
         for i in range(self.num_iter_macro):
             self.macro_batch_onque = self.get_next_macro_batch_id(
                 self.macro_batch_onque)
-            fname = os.path.join(self.save_dir, 'data_batch_%d' % (
+            fname = os.path.join(self.batch_dir, 'data_batch_%d' % (
                 self.macro_batch_onque))
             t = LoadFile(fname,  self.macro_batch_queue)
             t.daemon = True
@@ -340,34 +507,23 @@ class Imageset(Dataset):
                 t.start()
                 # if macroq is not empty then set macroq_flag to True
                 macroq_flag = True
-
         self.num_iter_macro = 1
-
-    def get_next_mini_batch_id(self, mini_batch_index):
-        next_mini_batch_id = mini_batch_index + 1
-        if next_mini_batch_id >= self.num_minibatches_in_macro:
-            next_mini_batch_id = 0
-        return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         from neon.backends.gpu import GPU
         sn = 'val' if (setname == 'validation') else setname
-        self.endb = getattr(self, 'end_' + sn)
-        self.startb = getattr(self, 'start_' + sn)
-        self.nmacros = self.endb - self.startb + 1
-        nrecs = self.output_batch_size * self.nmacros
-        if self.startb == -1 or self.endb == -1:
-            raise NotImplementedError("Must specify [start|end]"
-                                      "_[train|val]_batch")
+        self.startb = getattr(self, sn + '_start')
+        self.nmacros = getattr(self, 'n' + sn)
+        self.endb = self.startb + self.nmacros
+        nrecs = self.macro_batch_size * self.nmacros
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
 
         self.batch_size = batch_size
-        self.batch_type = setname
         self.predict = predict
+        self.num_minibatches_in_macro = self.macro_batch_size / batch_size
 
-        self.num_minibatches_in_macro = self.output_batch_size / batch_size
-        if self.output_batch_size % batch_size != 0:
-            raise ValueError('self.output_batch_size % batch_size != 0')
+        if self.macro_batch_size % batch_size != 0:
+            raise ValueError('self.macro_batch_size % batch_size != 0')
 
         if isinstance(self.backend, GPU):
             self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
@@ -375,7 +531,7 @@ class Imageset(Dataset):
                                           num_tgt_dims=self.tdims,
                                           num_input_dims=self.idims,
                                           label_list=self.label_list)
-        self.file_name_queue = queue.Queue()
+
         self.macro_batch_queue = queue.Queue()
         self.mini_batch_queue = queue.Queue()
         self.gpu_queue = queue.Queue()
@@ -406,7 +562,6 @@ class Imageset(Dataset):
 
     def del_mini_batch_producer(self):
         # graceful ending of thread queues
-        self.del_queue(self.file_name_queue)
         self.del_queue(self.macro_batch_queue)
         self.del_queue(self.mini_batch_queue)
         self.del_queue(self.gpu_queue)
@@ -414,8 +569,7 @@ class Imageset(Dataset):
         self.del_queue(macroq)
         self.del_queue(miniq)
         self.del_queue(gpuq)
-        del self.file_name_queue, self.macro_batch_queue
-        del self.mini_batch_queue, self.gpu_queue
+        del self.macro_batch_queue, self.mini_batch_queue, self.gpu_queue
 
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
