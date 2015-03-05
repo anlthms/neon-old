@@ -163,6 +163,7 @@ class Dataset(object):
             train_idcs = np.arange(self.inputs['train'].shape[0])
             ntrain_actual = (self.inputs['train'].shape[0] *
                              int(self.sample_pct) / 100)
+            np.random.seed(self.backend.rng_seed)
             np.random.shuffle(train_idcs)
             train_idcs = train_idcs[0:ntrain_actual]
             self.inputs['train'] = self.inputs['train'][train_idcs]

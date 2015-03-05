@@ -166,15 +166,7 @@ class MNIST(Dataset):
                                     self.__class__.__name__)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
-            self.train_idcs = list(range(60000))
-            if 'sample_pct' in self.__dict__:
-                if self.sample_pct >= 1.0:
-                    logger.info('sampling percentage: %d', self.sample_pct)
-                    self.sample_pct /= 100.0
-                if self.sample_pct < 1.0:
-                    numpy.random.shuffle(self.train_idcs)
-                self.train_idcs = self.train_idcs[0:int(
-                    60000 * self.sample_pct)]
+
             for url in (self.raw_train_input_gz, self.raw_train_target_gz,
                         self.raw_test_input_gz, self.raw_test_target_gz):
                 name = os.path.basename(url).rstrip('.gz')
@@ -190,15 +182,14 @@ class MNIST(Dataset):
                 if 'images' in repo_file and 'train' in repo_file:
                     indat = self.read_image_file(repo_file, 'float32')
                     # flatten to 1D images
-                    indat = indat[self.train_idcs]
                     self.inputs['train'] = indat
                 elif 'images' in repo_file and 't10k' in repo_file:
                     indat = self.read_image_file(repo_file, 'float32')
                     self.inputs['test'] = indat[0:self.num_test_sample]
                 elif 'labels' in repo_file and 'train' in repo_file:
-                    indat = self.read_label_file(repo_file)[self.train_idcs]
+                    indat = self.read_label_file(repo_file)
                     # Prep a 1-hot label encoding
-                    tmp = numpy.zeros((len(self.train_idcs), 10))
+                    tmp = numpy.zeros((indat.shape[0], 10))
                     for col in range(10):
                         tmp[:, col] = indat == col
                     self.targets['train'] = tmp
@@ -213,6 +204,8 @@ class MNIST(Dataset):
                     logger.error('problems loading: %s', name)
             if self.dist_flag and self.dist_mode == 'datapar':
                 self.batch_size = self.split_batch_size
+            if 'sample_pct' in self.__dict__:
+                self.sample_training_data()
             self.format()
         else:
             raise AttributeError('repo_path not specified in config')

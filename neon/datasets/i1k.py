@@ -348,6 +348,7 @@ class I1K(Dataset):
             # pickle the labels dic
             self.labels_dic = labels_dic
 
+            np.random.seed(self.backend.rng_seed)
             with self.open_tar(ilsvrc_train_tar, 'training tar') as tf:
                 synsets = tf.getmembers()
                 synset_tars = [
