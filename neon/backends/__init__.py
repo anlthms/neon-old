@@ -137,7 +137,7 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         import pycuda.autoinit  # create the context
         from neon.backends.max import MAX
         be_name = 'MAX_FP16'
-        be = MAX(rng_seed=rng_seed, stochastic_round=True)
+        be = MAX(rng_seed=rng_seed, stochastic_round=False)
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,

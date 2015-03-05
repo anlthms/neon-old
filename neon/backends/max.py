@@ -14,14 +14,15 @@ from nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
 from time import time
+from collections import defaultdict
+from neon.diagnostics import speed_test as st
 
 from neon.util.compat import range
 
-start  = drv.Event()
-end    = drv.Event()
-
 
 logger = logging.getLogger(__name__)
+
+
 
 class MAX(Backend):
     """
@@ -38,14 +39,9 @@ class MAX(Backend):
         self.rng_seed = rng_seed
         self.rng_init()
 
-        self.time_dict = {
-            'fprop_fc': [],
-            'bprop_fc': []
-        }
-        self.flop_dict = {
-            'fprop_fc': [],
-            'bprop_fc': []
-        }
+        # output dictionaries where the timing diagnostics are stored
+        self.time_dict = defaultdict(list)
+        self.flop_dict = defaultdict(list)
 
 
     def rng_init(self):
@@ -62,10 +58,6 @@ class MAX(Backend):
         If called with dype=None it will probably explode
         """
         ary = np.random.uniform(low, high, shape)
-        # print "-----------------"
-        # print "Hitting uniform val gen, in mnumpy it's", ary
-        # print "and as GPU array it's", FloatArray(ary.shape, dtype, allocator=allocator, name=name, rounding=self.nl.round_mode).set(ary).get()
-        # print "-----------------"
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
 
@@ -78,25 +70,28 @@ class MAX(Backend):
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
 
+    @st.record_flops(mult=2, shape_list=st.shapes['fprop_fc'], func_name='fprop_fc')
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Original dot
         """
         self.nl.dot(weights, inputs, out)
 
+    @st.record_flops(mult=2, shape_list=st.shapes['bprop_fc'], func_name='bprop_fc')
     def bprop_fc(self, out, weights, deltas, layer=None):
         """
         NervanaLib dot call
         """
         self.nl.dot(weights.T, deltas, out)
-        return out
 
+    @st.record_flops(mult=2, shape_list=st.shapes['update_fc'], func_name='update_fc') # noqa
     def update_fc(self, out, inputs, deltas, layer=None):
         """
         NervanaLib dot call
         """
         self.nl.dot(deltas, inputs.T, out)
 
+    @st.record_flops_ew(mult=4, arg_pos=0, func_name='ew')
     def logistic(self, x, out):
         self.nl.sig(x, out=out)
         # self.multiply(x, -1.0, out=out)
@@ -105,17 +100,24 @@ class MAX(Backend):
         # self.reciprocal(out, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def rectlin(self, x, out):
         # x and out are the same buffer
         self.nl.maximum(x, 0., out=out)
         return out
 
-    def rectlin_derivative(self, x, out):
-        self.nl.greater(x, 0., out=out)
-        return out
+    # @st.record_flops(mult=1, shape_list=shapes['rectlin_derivative'], func_name='ew')
+    # def rectlin_derivative(self, x, out):
+    #     print "reclin ew yo!"
+    #     self.nl.greater(x, 0., out=out)
+    #     return out
 
+    #@st.record_flops_ew(mult=1, func_name='sum')
+    #@st.record_flops_ew(mult=1, func_name='sum')
+    # sum done this way breaks add below.
     def sum(self, tsr, axes, out):
         """wrapper to make full reduction possible"""
+
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
             self.nl.sum_axis(tsr.reshape(sze,1), axis=0, out=out)
@@ -142,46 +144,55 @@ class MAX(Backend):
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def add(self, left, right, out):
         """assignment"""
         self.nl.add(left, right, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=1, func_name='ew')
     def subtract(self, left, right, out):
         """assignment"""
         self.nl.subtract(left, right, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def multiply(self, left, right, out):
         """assignment"""
         self.nl.multiply(left, right, out=out)
         return out
 
+    #@st.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
     def divide(self, left, right, out):
         """assignment"""
         self.nl.divide(left, right, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def greater(self, left, right, out):
         """assignment"""
         self.nl.greater(left, right, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def not_equal(self, left, right, out):
         """assignment"""
         self.nl.not_equal(left, right, out=out)
         return out
 
+    @st.record_flops_ew(mult=2, arg_pos=0, func_name='ew')
     def clip(self, a, a_min, a_max, out):
         """assignment"""
         self.nl.clip(a, a_min, a_max, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def log(self, a, out):
         """assignment"""
         self.nl.log(a, out=out)
         return out
 
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
     def argmax(self, a, out, axis=1):
         """assignment"""
         self.nl.argmax(a, out=out, axis=axis)

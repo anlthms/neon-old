@@ -2,6 +2,7 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 # MLP on CIFAR-10
+# ~10M (6M+2M) parameter network to showcase performance of pf16 kernels
 
 !obj:experiments.FitPredictErrorExperiment {
 
@@ -17,6 +18,7 @@
 
   lrule: &gdm {
     type: gradient_descent_momentum,
+    velocity_dtype: np.float16,
     lr_params: {
       learning_rate: 0.01,
       momentum_params: {
@@ -35,13 +37,29 @@
         nout: 3072,
       },
       !obj:layers.FCLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
         name: h0,
         nout: 2048,
         lrule_init: *gdm,
         weight_init: *wt_init,
         activation: !obj:transforms.RectLin {},
       },
+      # !obj:layers.DropOutLayer {  # need fill_uniform_thresh
+      #   output_dtype: np.float16,
+      #   deltas_dtype: np.float16,
+      #   name: dropout1,
+      #   keep: 0.5,
+      # },
       !obj:layers.FCLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
         name: h0,
         nout: 1024,
         lrule_init: *gdm,
@@ -49,6 +67,11 @@
         activation: !obj:transforms.RectLin {},
       },
       &lastlayer !obj:layers.FCLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
         name: output,
         nout: 10,
         lrule_init: *gdm,
@@ -58,7 +81,10 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:transforms.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {
+          temp_dtype: np.float16,
+          epsilon: 0.0005,
+        },
       },
     ],
   },
