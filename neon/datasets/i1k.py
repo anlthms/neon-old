@@ -658,7 +658,7 @@ class I1K(Dataset):
 
         return GPUTensor(self.inputs), GPUTensor(targets)
 
-    def get_mini_batch(self, batch_idx):
+    def get_mini_batch(self, batch_idx, train_mode=True):
         # threaded version of get_mini_batch
         # batch_idx is ignored
         for i in range(self.num_iter_mini):

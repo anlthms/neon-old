@@ -215,7 +215,7 @@ class Dataset(object):
                                          test=True)[setname]
         return len(self.inputs[setname])
 
-    def get_mini_batch(self, batch_idx):
+    def get_mini_batch(self, batch_idx, train_mode=True):
         # this is the implementation for non-macro batched data
         # macro-batched datasets will overwrite this (e.g. ImageNet)
         return self.get_batch(self.cur_inputs, batch_idx), self.get_batch(

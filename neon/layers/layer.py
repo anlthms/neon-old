@@ -262,6 +262,7 @@ class DataLayer(Layer):
     def __init__(self, **kwargs):
         self.is_data = True
         super(DataLayer, self).__init__(**kwargs)
+        self.train_mode = True
         # req_param(self, ['dataset'])
 
     def initialize(self, kwargs):
@@ -302,11 +303,15 @@ class DataLayer(Layer):
         self.batch_idx = 0
 
     def fprop(self, inputs):
-        self.output, self.targets = self.dataset.get_mini_batch(self.batch_idx)
+        self.output, self.targets = (
+            self.dataset.get_mini_batch(self.batch_idx, self.train_mode))
         self.batch_idx += 1
 
     def bprop(self, error):
         pass
+
+    def set_train_mode(self, mode):
+        self.train_mode = mode
 
     def has_set(self, setname):
         return self.dataset.has_set(setname)
