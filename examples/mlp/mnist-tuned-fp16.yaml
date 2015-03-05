@@ -52,6 +52,16 @@
         name: d0,
         nout: 784,
       },
+      !obj:layers.ConvLayer {
+        output_dtype: np.float16,
+        weight_dtype: np.float16,
+        updates_dtype: np.float16,
+        name: layer1,
+        nofm: 16,
+        fshape: [5, 5],
+        weight_init: *wt_init,
+        lrule_init: *gdm,
+      },
       !obj:layers.FCLayer {
         pre_act_dtype: np.float16,
         output_dtype: np.float16,

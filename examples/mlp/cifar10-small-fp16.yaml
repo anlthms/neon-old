@@ -6,6 +6,8 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
+  timing: [fprop_fp, bprop_fc, update_fc],  # a list of function this experiment should time.
+
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '~/data',
     sample_pct: 10,
@@ -29,7 +31,7 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 100,
+    num_epochs: 10,
     batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
