@@ -173,6 +173,7 @@ class DataPar(BasePar):
             logger.info('Data-parallel mode. Number of nodes = %d.',
                         self.mpi_size)
         self.reducebuf = np.empty((1, 1), dtype=np.float32)
+        self.reqs = []
 
     def init_model(self, model, backend):
         super(DataPar, self).init_model(model, backend)
@@ -195,8 +196,10 @@ class DataPar(BasePar):
     def associate(self, backend):
         super(DataPar, self).associate(backend)
         self.orig_update_fc = backend.update_fc
+        self.orig_fprop_fc = backend.fprop_fc
         self.orig_update_conv = backend.update_conv
         backend.update_fc = self.update_fc
+        backend.fprop_fc = self.fprop_fc
         backend.update_conv = self.update_conv
 
     def distribute(self, batchdata):
@@ -217,13 +220,23 @@ class DataPar(BasePar):
         # all the way back).
         sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
         recvbuf = [conf.updatebuf, self.mpi.FLOAT]
-        self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
-        self.comm.Bcast(buf=[conf.updatebuf, self.mpi.FLOAT])
+        req = self.comm.Ireduce(sendbuf, recvbuf, op=self.mpi.SUM)
+        self.reqs.append(req)
+        req = self.comm.Ibcast(buf=[conf.updatebuf, self.mpi.FLOAT])
+        self.reqs.append(req)
         out.copy_from(conf.updatebuf)
 
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)
         self.update(out, layer.parconf)
+
+    def fprop_fc(self, out, inputs, weights, layer):
+        print len(self.reqs)
+        if len(self.reqs) > 0:
+            for ind in range(2):
+                self.reqs[0].Wait()
+                self.reqs.pop(0)
+        self.orig_fprop_fc(out, inputs, weights)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride,
