@@ -38,18 +38,11 @@ class CIFAR10(Dataset):
     url = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
 
     def __init__(self, **kwargs):
-        self.dist_flag = False
         self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def initialize(self):
-        # ensure this gets called for distributed case once a backend has been
-        # setup.
-        if self.dist_flag:
-            self.comm = self.backend.comm
-            # for now require that comm.size is a square and divides 32
-            if self.comm.size not in [1, 4, 16]:
-                raise AttributeError('MPI.COMM_WORLD.size not compatible')
+        pass
 
     def fetch_dataset(self, save_dir):
         save_dir = os.path.expandvars(os.path.expanduser(save_dir))
@@ -67,43 +60,6 @@ class CIFAR10(Dataset):
             infile.extractall(save_dir)
             infile.close()
 
-    def adjust_for_dist(self):
-        # computes the indices to load from input data for the dist case
-        if not hasattr(self, 'comm'):
-            self.initialize()
-        comm_rank = self.comm.rank
-        self.dist_indices = []
-        img_width = 32
-        img_2d_size = img_width ** 2
-        img_size = img_2d_size * 3
-
-        if self.dist_mode == 'halopar':
-            # todo: will change for different x/y dims for comm_per_dim
-            self.comm_per_dim = int(np.sqrt(self.comm.size))
-            px_per_dim = img_width / self.comm_per_dim
-            r_i = []
-            c_i = []
-            # top left corner in 2-D image
-            for row in range(self.comm_per_dim):
-                for col in range(self.comm_per_dim):
-                    r_i.append(row * px_per_dim)
-                    c_i.append(col * px_per_dim)
-            for ch in range(3):
-                for r in range(r_i[comm_rank], r_i[comm_rank] + px_per_dim):
-                    self.dist_indices.extend(
-                        [ch * img_2d_size + r * img_width + x for x in range(
-                            c_i[comm_rank], c_i[comm_rank] + px_per_dim)])
-        elif self.dist_mode == 'vecpar':
-            start_idx = 0
-            for j in range(comm_rank):
-                start_idx += (img_size // self.comm.size +
-                              (img_size % self.comm.size > j))
-            nin = (img_size // self.comm.size +
-                   (img_size % self.comm.size > comm_rank))
-            self.dist_indices.extend(range(start_idx, start_idx + nin))
-        elif self.dist_mode == 'datapar':
-            raise NotImplementedError('support for datapar not implemented')
-
     def load_file(self, filename, nclasses):
         logger.info('loading: %s', filename)
         dict = deserialize(filename)
@@ -111,17 +67,11 @@ class CIFAR10(Dataset):
         full_image = np.float32(dict['data'])
         full_image /= 255.
 
-        if self.dist_flag:
-            # read corresponding 'quad'rant of the image
-            data = full_image[:, self.dist_indices]
-        else:
-            data = full_image
-
         labels = np.array(dict['labels'])
         onehot = np.zeros((len(labels), nclasses), dtype='float32')
         for col in range(nclasses):
             onehot[:, col] = (labels == col)
-        return (data, onehot)
+        return (full_image, onehot)
 
     def load(self):
         if self.inputs['train'] is not None:
@@ -129,11 +79,7 @@ class CIFAR10(Dataset):
         if 'repo_path' in self.__dict__:
             self.repo_path = os.path.expandvars(os.path.expanduser(
                 self.repo_path))
-            if self.dist_flag:
-                self.adjust_for_dist()
-                ncols = len(self.dist_indices)
-            else:
-                ncols = 32 * 32 * 3
+            ncols = 32 * 32 * 3
 
             ntrain_total = 50000
             nclasses = 10

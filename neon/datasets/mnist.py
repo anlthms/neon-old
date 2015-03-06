@@ -52,73 +52,12 @@ class MNIST(Dataset):
     raw_test_target_gz = basejoin(raw_base_url, 't10k-labels-idx1-ubyte.gz')
 
     def __init__(self, **kwargs):
-        self.dist_flag = False
         self.num_test_sample = 10000
         self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def initialize(self):
-        # perform additional setup that can't be done at initial construction
-        if self.dist_flag:
-            self.comm = self.backend.comm
-            if ((self.dist_mode in ['halopar', 'vecpar'] and self.comm.size
-                 not in [1, 4, 16]) or
-                (self.dist_mode == 'datapar' and self.batch_size
-                 % self.comm.size)):
-                raise AttributeError('MPI.COMM_WORLD.size not compatible')
-
-    def adjust_for_dist(self):
-        if not hasattr(self, 'comm'):
-            self.initialize()
-        comm_rank = self.comm.rank
-        self.dist_indices = []
-        img_width = 28
-        img_size = img_width ** 2
-
-        if self.dist_mode == 'halopar':
-            # this requires comm_per_dim to be a square for now
-            self.comm_per_dim = int(np.sqrt(self.comm.size))
-            self.px_per_dim = img_width / self.comm_per_dim
-            r_i = []
-            c_i = []
-            # top left corner in 2-D image
-            for row in range(self.comm_per_dim):
-                for col in range(self.comm_per_dim):
-                    r_i.append(row * self.px_per_dim)
-                    c_i.append(col * self.px_per_dim)
-            for r in range(r_i[comm_rank], r_i[comm_rank] + self.px_per_dim):
-                self.dist_indices.extend(
-                    [r * img_width + x for x in range(
-                        c_i[comm_rank], c_i[comm_rank] + self.px_per_dim)])
-        elif self.dist_mode == 'vecpar':
-            start_idx = 0
-            for j in range(comm_rank):
-                start_idx += (img_size // self.comm.size +
-                              (img_size % self.comm.size > j))
-            nin = (img_size // self.comm.size +
-                   (img_size % self.comm.size > comm_rank))
-            self.dist_indices.extend(range(start_idx, start_idx + nin))
-        elif self.dist_mode == 'datapar':
-            # split into nr_nodes and nr_procs_per_node
-            idcs_split = []
-            self.num_procs = self.comm.size
-            num_batches = len(self.train_idcs) / self.batch_size
-            split_batch_size = self.batch_size / self.num_procs
-            if split_batch_size != np.int(split_batch_size):
-                raise ValueError('Dataset batch size must be Model batch '
-                                 'size * num_procs. Model batch size of %d '
-                                 'might work.' % (self.batch_size /
-                                                  self.num_procs))
-            start_index = self.comm.rank * split_batch_size
-            for j in range(num_batches):
-                idcs_split.extend(self.train_idcs[start_index:start_index +
-                                                  split_batch_size])
-                start_index += self.batch_size
-            self.train_idcs = idcs_split
-            self.dist_indices = range(img_size)
-            self.split_batch_size = split_batch_size
-            if self.num_test_sample % self.batch_size != 0:
-                raise ValueError('num_test_sample mod dataset batch size != 0')
+        pass
 
     def read_image_file(self, fname, dtype=None):
         """
@@ -137,13 +76,7 @@ class MNIST(Dataset):
             full_image = full_image.astype(dtype)
             full_image /= 255.
 
-        if self.dist_flag:
-            self.adjust_for_dist()
-            array = full_image[:, self.dist_indices]
-        else:
-            array = full_image
-
-        return array
+        return full_image
 
     def read_label_file(self, fname):
         """
@@ -202,8 +135,6 @@ class MNIST(Dataset):
                     self.targets['test'] = tmp
                 else:
                     logger.error('problems loading: %s', name)
-            if self.dist_flag and self.dist_mode == 'datapar':
-                self.batch_size = self.split_batch_size
             if 'sample_pct' in self.__dict__:
                 self.sample_training_data()
             self.format()
