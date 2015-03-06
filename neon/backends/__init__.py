@@ -80,7 +80,7 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
           without Nervana's cuda-convnet2 based cudanet package will resort to
           a CPU instance with a warning generated.
         * Attempts to construct a parallel instance without mpi4py installed
-          will cause the program to display an error message and exit. 
+          will cause the program to display an error message and exit.
         * The returned backend will still need to call its par.init_model()
           at some point after the model has been linked, in order for parallel
           training to proceed.

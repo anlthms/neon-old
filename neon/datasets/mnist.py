@@ -8,7 +8,6 @@ More info at: http://yann.lecun.com/exdb/mnist/
 
 import gzip
 import logging
-import numpy
 import os
 import struct
 import numpy as np
@@ -67,12 +66,11 @@ class MNIST(Dataset):
             magic, num_images, rows, cols = struct.unpack('>iiii', f.read(16))
             if magic != 2051:
                 raise ValueError('invalid MNIST image file: ' + fname)
-            full_image = numpy.fromfile(f,
-                                        dtype='uint8').reshape((num_images,
+            full_image = np.fromfile(f, dtype='uint8').reshape((num_images,
                                                                 rows * cols))
 
         if dtype is not None:
-            dtype = numpy.dtype(dtype)
+            dtype = np.dtype(dtype)
             full_image = full_image.astype(dtype)
             full_image /= 255.
 
@@ -86,7 +84,7 @@ class MNIST(Dataset):
             magic, num_labels = struct.unpack('>ii', f.read(8))
             if magic != 2049:
                 raise ValueError('invalid MNIST label file:' + fname)
-            array = numpy.fromfile(f, dtype='uint8')
+            array = np.fromfile(f, dtype='uint8')
         return array
 
     def load(self):
@@ -122,14 +120,14 @@ class MNIST(Dataset):
                 elif 'labels' in repo_file and 'train' in repo_file:
                     indat = self.read_label_file(repo_file)
                     # Prep a 1-hot label encoding
-                    tmp = numpy.zeros((indat.shape[0], 10))
+                    tmp = np.zeros((indat.shape[0], 10))
                     for col in range(10):
                         tmp[:, col] = indat == col
                     self.targets['train'] = tmp
                 elif 'labels' in repo_file and 't10k' in repo_file:
                     indat = self.read_label_file(
                         repo_file)[0:self.num_test_sample]
-                    tmp = numpy.zeros((self.num_test_sample, 10))
+                    tmp = np.zeros((self.num_test_sample, 10))
                     for col in range(10):
                         tmp[:, col] = indat == col
                     self.targets['test'] = tmp
