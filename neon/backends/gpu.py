@@ -543,6 +543,16 @@ class GPU(Backend):
         assert type(tsr) == self.tensor_cls
         return self.tensor_cls(tsr._tensor.copy())
 
+    def copy_from(self, a, src):
+        """
+        Copy contents from src to a
+
+        Arguments:
+            a: GPUTensor
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        a._tensor.copy_from(src)
+
     @st.record_flops_ew(mult=2, arg_pos=0, func_name='ew')
     def clip(self, a, a_min, a_max, out=None):
         if out is None:

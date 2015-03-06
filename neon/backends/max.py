@@ -271,6 +271,16 @@ class MAX(Backend):
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
 
+    def copy_from(self, a, src):
+        """
+        Copy contents from src to a
+
+        Arguments:
+            a: FloatArray
+            src (numpy.ndarray): the host-resident object to copy from
+        """
+        a.set(src)
+
     @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew_add')
     def add(self, left, right, out):
         """assignment"""

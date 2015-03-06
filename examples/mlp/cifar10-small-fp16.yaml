@@ -33,6 +33,7 @@
   model: !obj:models.MLP {
     num_epochs: 10,
     batch_size: &bs 128,
+    half_precision: True,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -72,7 +73,7 @@
         lrule_init: *gdm,
         weight_init: *wt_init,
         nofm: 32,
-        fshape: [3, 3],
+        fshape: [5, 5],
       },
       !obj:layers.PoolingLayer {
         pre_act_dtype: np.float16,

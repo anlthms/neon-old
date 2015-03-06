@@ -77,6 +77,11 @@ class Layer(YAMLable):
             return
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
+        opt_param(self, ['half_precision'], False)
+        # if self.half_precision:
+        #     for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+        #                       'weight_dtype', 'updates_dtype']:
+        #         setattr(self, some_type, np.float16)
         self.output = None
         self.deltas = None
         self.initialized = True
