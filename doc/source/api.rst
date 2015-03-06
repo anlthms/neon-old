@@ -97,15 +97,6 @@ DBN
 
    neon.models.dbn.DBN
 
-GB
---
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.models.gb.GB
-   neon.models.gb_dist.GBDist
-
 Recurrent Neural Network
 ------------------------
 

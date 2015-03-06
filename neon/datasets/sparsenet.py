@@ -78,6 +78,7 @@ class SPARSENET(Dataset):
                 if self.sample_pct > 1.0:
                     self.sample_pct /= 100.0
                 if self.sample_pct < 1.0:
+                    numpy.random.seed(self.backend.rng_seed)
                     numpy.random.shuffle(train_idcs)
                 train_idcs = train_idcs[0:int(10000 * self.sample_pct)]
             for url in (self.raw_train_unwhitened, self.raw_train_whitened):
