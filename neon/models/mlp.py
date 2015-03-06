@@ -46,6 +46,10 @@ class MLP(MLP_old):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
         self.initialized = True
+
+        # Make some scratch space for NL backend:
+        if hasattr(self.backend, 'nl'):
+            self.backend.init_mempool((self.class_layer.nout, 1))
         # check what the weight layer looks like:
 
     def fprop(self):

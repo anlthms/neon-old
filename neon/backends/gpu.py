@@ -14,7 +14,7 @@ from neon.backends.backend import Backend, Tensor
 from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
 from collections import defaultdict
-from neon.diagnostics import speed_test_cudanet as st
+from neon.diagnostics import speed_decorators_cudanet as st
 
 logger = logging.getLogger(__name__)
 

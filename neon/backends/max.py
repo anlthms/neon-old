@@ -15,7 +15,7 @@ import pycuda.driver as drv
 import numpy as np
 from time import time
 from collections import defaultdict
-from neon.diagnostics import speed_test as st
+from neon.diagnostics import speed_decorators as st
 
 from neon.util.compat import range
 
@@ -45,6 +45,8 @@ class MAX(Backend):
         self.flop_dict = defaultdict(list)
         self.paren_dic = defaultdict(list)
 
+    def init_mempool(self, shape):
+        self.mem_pool = self.nl.empty(shape)
 
     def rng_init(self):
         seed = None
@@ -112,10 +114,13 @@ class MAX(Backend):
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        # unfortunately us_item needs to be written out. Ask sgray to avoid this.
-        self.nl.multiply(us_item, learning_rate, out=us_item)
-        # super compounded call
-        self.nl.add(ps_item, self.nl.subtract(self.nl.multiply(vs_item, momentum_coef), us_item), out=ps_item)
+        # unfortunately vs_item needs to be written to. Ask sgray to avoid this.
+        # vs_item[:] = vs_item * momentum_coef - us_item * learning_rate
+        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
+                         self.nl.multiply(us_item, learning_rate),
+                         out=vs_item)
+        # ps_item[:] += vs_item
+        self.nl.add(ps_item, vs_item, out=ps_item)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
@@ -318,4 +323,16 @@ class MAX(Backend):
     def argmax(self, a, out, axis=0):
         """assignment"""
         self.nl.argmax(a, out=out, axis=axis)
+        return out
+
+    def softmax(self, x, out):
+        vecbuf = self.mem_pool
+        self.nl.max(x, axis=0, out=vecbuf)
+        self.nl.exp(x - vecbuf, out=out)
+        self.nl.sum(out, axis=0, out=vecbuf)
+        out[:] = out / vecbuf
+        return out
+
+    def softmax_gradient(self, y, err, out):
+        raise NotImplementedError("Should you really be using softmax here?")
         return out

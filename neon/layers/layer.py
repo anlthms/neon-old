@@ -50,7 +50,7 @@ class Layer(YAMLable):
         # TODO: Make less hacky
         for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
                           'weight_dtype', 'updates_dtype']:
-            print "destringing", some_type
+            logger.info('dstringing %s', some_type)
             if getattr(self, some_type) == 'np.float16':
                 setattr(self, some_type, np.float16)
 
