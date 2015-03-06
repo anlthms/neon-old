@@ -487,6 +487,7 @@ class I1K(Dataset):
         logger.info("preprocessing images (computing mean image)")
         self.mean_img = np.zeros((3, self.output_image_size,
                                   self.output_image_size), dtype=BDTYPE)
+        return
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)
             batch_path = os.path.join(self.save_dir,
@@ -619,44 +620,44 @@ class I1K(Dataset):
         del self.file_name_queue, self.macro_batch_queue
         del self.mini_batch_queue, self.gpu_queue
 
-    def get_mini_batch2(self, batch_idx):
-        from neon.backends.gpu import GPUTensor
-        # non threaded version of get_mini_batch for debugging
-        self.mini_batch_onque2 = self.get_next_mini_batch_id(
-            self.mini_batch_onque2)
-        j = 0
+    # def get_mini_batch2(self, batch_idx):
+    #     # from neon.backends.gpu import GPUTensor
+    #     # non threaded version of get_mini_batch for debugging
+    #     self.mini_batch_onque2 = self.get_next_mini_batch_id(
+    #         self.mini_batch_onque2)
+    #     j = 0
 
-        if self.mini_batch_onque2 == 0:
-            self.macro_batch_onque2 = self.get_next_macro_batch_id(
-                self.macro_batch_onque2)
-            batch_path = os.path.join(
-                self.save_dir, prefix_macro + str(self.output_image_size),
-                '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
-            fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
-                self.batch_type, self.macro_batch_onque2,
-                j / self.output_batch_size))
-            self.jpeg_strings2 = my_unpickle(fname)
+    #     if self.mini_batch_onque2 == 0:
+    #         self.macro_batch_onque2 = self.get_next_macro_batch_id(
+    #             self.macro_batch_onque2)
+    #         batch_path = os.path.join(
+    #             self.save_dir, prefix_macro + str(self.output_image_size),
+    #             '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
+    #         fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
+    #             self.batch_type, self.macro_batch_onque2,
+    #             j / self.output_batch_size))
+    #         self.jpeg_strings2 = my_unpickle(fname)
 
-            labels = self.jpeg_strings2['labels']
-            # flatten the labels list of lists to a single list
-            labels = [item for sublist in labels for item in sublist]
-            labels = np.asarray(labels, dtype=BDTYPE)  # -1.
-            # if not self.raw_targets:
-            self.targets_macro2 = np.zeros(
-                (self.nclasses, self.output_batch_size), dtype=BDTYPE)
-            for col in range(self.nclasses):
-                self.targets_macro2[col] = labels == col
-            # else:
-            #     self.targets_macro2 = labels.reshape((1, -1))
+    #         labels = self.jpeg_strings2['labels']
+    #         # flatten the labels list of lists to a single list
+    #         labels = [item for sublist in labels for item in sublist]
+    #         labels = np.asarray(labels, dtype=BDTYPE)  # -1.
+    #         # if not self.raw_targets:
+    #         self.targets_macro2 = np.zeros(
+    #             (self.nclasses, self.output_batch_size), dtype=BDTYPE)
+    #         for col in range(self.nclasses):
+    #             self.targets_macro2[col] = labels == col
+    #         # else:
+    #         #     self.targets_macro2 = labels.reshape((1, -1))
 
-        # provide mini batch from macro batch
-        start_idx = self.mini_batch_onque2 * self.batch_size
-        end_idx = (self.mini_batch_onque2 + 1) * self.batch_size
+    #     # provide mini batch from macro batch
+    #     start_idx = self.mini_batch_onque2 * self.batch_size
+    #     end_idx = (self.mini_batch_onque2 + 1) * self.batch_size
 
-        targets = self.targets_macro2[:, start_idx:end_idx].copy()
-        self.jpeg_decoder(start_idx, end_idx)
+    #     targets = self.targets_macro2[:, start_idx:end_idx].copy()
+    #     self.jpeg_decoder(start_idx, end_idx)
 
-        return GPUTensor(self.inputs), GPUTensor(targets)
+    #     return GPUTensor(self.inputs), GPUTensor(targets)
 
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch

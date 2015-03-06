@@ -621,6 +621,10 @@ class GPU(Backend):
         # backend based random numbers:
         tsr._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
 
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+        tsr._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
+        self.multiply(tsr, keepthresh, out=tsr)
+
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation
