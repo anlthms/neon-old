@@ -8,9 +8,9 @@ More info at: http://yann.lecun.com/exdb/mnist/
 
 import gzip
 import logging
+import numpy as np
 import os
 import struct
-import numpy as np
 
 from neon.datasets.dataset import Dataset
 from neon.util.compat import PY3, range
