@@ -32,6 +32,14 @@ class PoolingLayer(Layer):
         self.tempbuf = None
         self.initialize_local()
         self.allocate_output_bufs()
+        if hasattr(self.backend, 'nl'):
+            self.pool_params = self.backend.nl.pool_layer(
+                op=self.op, N=self.batch_size, C=self.nifm,
+                D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
+                R=self.fshape[0], S=self.fshape[1],
+                pad_d=0, pad_h=self.pad, pad_w=self.pad,
+                str_d=1, str_h=self.stride, str_w=self.stride)
+            self.outputbuf = self.deltasbuf = self.pool_params
 
     def fprop(self, inputs):
         self.backend.fprop_pool(out=self.output, inputs=inputs, op=self.op,

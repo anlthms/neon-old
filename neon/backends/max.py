@@ -187,6 +187,32 @@ class MAX(Backend):
         self.nl.update_conv(conv=updatebuf, I=inputs, E=deltas, grad_F=out,
                             alpha=1.0, repeat=1)
 
+    def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
+                   ifmshape, links, nifm, padding, stride, fpropbuf):
+        """
+        Forward propagate the inputs of a Pooling network layer to
+        produce output pre-activations (ready for transformation by an
+        activation function).
+        """
+        op = op.lower()
+        if op == "max":
+            self.nl.fprop_pool(pool=fpropbuf, I=inputs, O=out, repeat=1)
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
+
+    def bprop_pool(self, out, fouts, inputs, deltas, op, ofmshape, ofmsize,
+                   ofmlocs, fshape, fpsize, ifmshape, links, nifm, padding,
+                   stride, bpropbuf):
+        """
+        Backward propagate the error through a pooling network layer.
+        """
+        op = op.lower()
+        if op == "max":
+            self.nl.bprop_pool(pool=bpropbuf, I=inputs, E=deltas, grad_I=out,
+                               repeat=1)
+        else:
+            raise AttributeError("unexpected pooling op type: %s", op)
+
     @st.record_flops_ew(mult=4, arg_pos=0, func_name='ew_sig')
     def logistic(self, x, out):
         self.nl.sig(x, out=out)

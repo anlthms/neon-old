@@ -53,6 +53,15 @@
         nofm: 16,
         fshape: [5, 5],
       },
+      !obj:layers.PoolingLayer {
+        pre_act_dtype: np.float16,
+        output_dtype: np.float16,
+        deltas_dtype: np.float16,
+        name: layer2,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
       !obj:layers.ConvLayer {
         pre_act_dtype: np.float16,
         output_dtype: np.float16,
