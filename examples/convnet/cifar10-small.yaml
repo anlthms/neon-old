@@ -3,8 +3,8 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '~/data',
-    sample_pct: 10,
+    repo_path: '/usr/local/data',
+    sample_pct: 100,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
@@ -25,7 +25,7 @@
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 5,
+    num_epochs: 10,
     batch_size: &bs 100,
     layers: [
       &datalayer !obj:layers.DataLayer {
