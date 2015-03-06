@@ -33,7 +33,8 @@ class MAX(Backend):
     Everything in here is a reduction.
     """
     def __init__(self, rng_seed, stochastic_round=False):
-        self.nl = NervanaLib(stochastic_round=stochastic_round)
+        self.nl = NervanaLib(stochastic_round=stochastic_round,
+                             cubin_path="../flexgpu/hgemm_kernels")
         logger.info("Initialized NervanaLib with stochastic_round=%s",
                     stochastic_round)
         self.rng_seed = rng_seed
