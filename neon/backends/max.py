@@ -153,7 +153,7 @@ class MAX(Backend):
         """
         Backward propagate the error through a convolutional network layer.
         """
-        self.nl.bprop_conv(conv=bpropbuf, F=weights, E=out, grad_I=deltas,
+        self.nl.bprop_conv(conv=bpropbuf, F=weights, E=deltas, grad_I=out,
                    alpha=1.0, repeat=1)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
