@@ -107,10 +107,14 @@ class GradientDescentMomentum(GradientDescent):
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
-            self.backend.add(ps_item, vs_item, out=ps_item)
+            if self.backend.__module__ == 'neon.backends.max':
+                # wrapping all calls into a single, lazy-eval kernel
+                self.backend.everything_kernel(ps_item, us_item, vs_item, momentum_coef, learning_rate)
+            else:
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
+                self.backend.add(ps_item, vs_item, out=ps_item)
 
     def get_learning_rate(self, epoch):
         if self.schedule_flag:
@@ -127,7 +131,7 @@ class GradientDescentMomentum(GradientDescent):
 
     def get_momentum_coef(self, epoch):
         """
-        Explanation here what the different momentum parameters mean.
+        Uses the following parameters from self.momentum_params
         initial_coef:   momentum coefficient used from first epoch on
         saturated_coef: momentum after saturate_epoch is reached
         start_epoch:    start increasing momentum at this epoch

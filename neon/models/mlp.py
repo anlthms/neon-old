@@ -110,9 +110,13 @@ class MLP(MLP_old):
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
+                #print "FPROP"
                 self.fprop()
+                #print "BPROP"
                 self.bprop()
+                #print "UPDATEz"
                 self.update(self.epochs_complete)
+                #print "ERROR"
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)

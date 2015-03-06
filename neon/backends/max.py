@@ -42,6 +42,7 @@ class MAX(Backend):
         # output dictionaries where the timing diagnostics are stored
         self.time_dict = defaultdict(list)
         self.flop_dict = defaultdict(list)
+        self.paren_dic = defaultdict(list)
 
 
     def rng_init(self):
@@ -96,7 +97,24 @@ class MAX(Backend):
         """
         self.nl.dot(deltas, inputs.T, out)
 
-
+    def everything_kernel(self, ps_item, us_item, vs_item, momentum_coef, learning_rate):
+        """
+        my first compound call: This wraps
+            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+            self.backend.multiply(us_item, learning_rate, out=us_item)
+            self.backend.subtract(vs_item, us_item, out=vs_item)
+            self.backend.add(ps_item, vs_item, out=ps_item)
+        into a single kernel for maximum efficiency. Inspired by the example
+             nl.sig(nl.dot(inputs, weights1, hidden ))
+        note that outputs need to be written to:
+            ps_item, the updated weights
+            vs_item, the updated velocity.
+        (no evaluation to us_item, the gradient updates)
+        """
+        # unfortunately us_item needs to be written out. Ask sgray to avoid this.
+        self.nl.multiply(us_item, learning_rate, out=us_item)
+        # super compounded call
+        self.nl.add(ps_item, self.nl.subtract(self.nl.multiply(vs_item, momentum_coef), us_item), out=ps_item)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
@@ -226,9 +244,9 @@ class MAX(Backend):
 
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.sum_axis(tsr.reshape(sze,1), axis=0, out=out)
+            self.nl.sum(tsr.reshape(sze,1), axis=0, out=out)
         else:
-            self.nl.sum_axis(tsr, axis=axes, out=out)
+            self.nl.sum(tsr, axis=axes, out=out)
         return out
 
     def zeros(self, shape, dtype=np.float16):
@@ -298,8 +316,8 @@ class MAX(Backend):
         self.nl.log(a, out=out)
         return out
 
-    #@st.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
-    def argmax(self, a, out, axis=1):
+    @st.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
+    def argmax(self, a, out, axis=0):
         """assignment"""
         self.nl.argmax(a, out=out, axis=axis)
         return out

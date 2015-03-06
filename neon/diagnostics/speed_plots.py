@@ -10,7 +10,7 @@ Decorators for measuring FLOPS on backend mop calls.
 from matplotlib import pyplot as plt
 plt.interactive(1)
 import numpy as np
-
+from pdb import set_trace as trace
 
 def print_performance_stats(backend, logger):
 
@@ -36,26 +36,55 @@ def print_performance_stats(backend, logger):
         total_gflop += gflop_array.sum()
         flop_per_s = gflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
-        if time_array.sum() > .2:
+        if time_array.sum() > .4:
             used_call_list.append(call)
             timed_calls.append(flop_per_s)
             timed_times.append(time_array)
-    #import pdb; pdb.set_trace()
+
+
+    #
+    # First plot: speed vs. time
     plt.figure(1)
+    plt.subplot(1,2,2)
     n, bins, patches = plt.hist(timed_calls, num_bins,
-                                weights=timed_times, #flop_array/ 1e9,
-                                range=(0, 5000),
-                                histtype='barstacked',
-                                normed=0, alpha=0.5)
-
-
-    plt.title(r'Time vs. Compute, total %2.2fs %2.2fGF average %2.2fGFLOP/S'  % (total_time, total_gflop, total_gflop/total_time))
+                                weights=timed_times, range=(0, 5000),
+                                histtype='barstacked', normed=0, alpha=0.5)
+    plt.title(r'Time vs. Compute, total %2.2fs %2.2fGF average %2.2fGFLOP/S'
+              % (total_time, total_gflop, total_gflop/total_time))
     plt.xlabel('GFLOP/s')
     plt.ylabel('op count / GFLOP')
     plt.xlim((0, 5000))
     plt.ylabel('time / s')
     plt.legend(used_call_list)
+
+    # compute timing per parent call:
+    bar_stash = dict()
+    col_stash = dict()
+    for call in used_call_list:
+        unique_paren_list = set(backend.paren_dic[call])
+        for paren in unique_paren_list:
+            # add up times for "call" from "paren"
+            time_stats = np.array([backend.time_dict[call][i]
+                                   for i, x
+                                   in enumerate(backend.paren_dic[call])
+                                   if x == paren]).sum()
+            bar_stash[call + " from " + paren] =  time_stats
+
+    col_stash =  ['b' if 'sub' in k else
+                  'g' if 'mul' in k else
+                  'r' if 'fprop_fc' in k else
+                  'c' if 'add' in k else
+                  'm' if 'te_fc' in k else
+                  'k' for k in bar_stash.keys()]
+
+    # Second plot: detailed breakdown of time
+    plt.figure(1)
+    plt.subplot(1,2,1)
+    plt.barh(range(len(bar_stash)), bar_stash.values(),
+             color=col_stash, align='center', alpha=0.5)
+    plt.yticks(range(len(bar_stash)), bar_stash.keys())
+    plt.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.1)
+    plt.title(r'Breakdown of MOP calls by parent')
+    plt.xlabel('time/s')
     plt.show()
-    #
-    # TODO: Within a bin, figure out how many FLOP were performed, or how many seconds were spend.
 

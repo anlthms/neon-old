@@ -6,7 +6,8 @@ Decorators for measuring FLOPS on backend mop calls.
 """
 
 import numpy as np
-import pycuda.driver as drv
+import pycuda.driver as drv  # for timing
+import traceback  # for tracing back where the function was called from
 
 start  = drv.Event()
 end    = drv.Event()
@@ -29,6 +30,8 @@ def record_flops(mult, shape_list, func_name):
     """
     def record_flops_decorator(func):
         def func_wrapper(self, *args, **kwargs):
+            parent_func_name = traceback.extract_stack(limit=2)[-2][2]
+            #print("MOP call: " + func_name + " from parent " + parent_func_name)
             start.record()
             #####################
             func(self, *args, **kwargs)
@@ -42,6 +45,7 @@ def record_flops(mult, shape_list, func_name):
                 flop *= kwargs[matrix].shape[dim]
             self.time_dict[func_name].append(msecs / 1000.)
             self.flop_dict[func_name].append(flop)
+            self.paren_dic[func_name].append(parent_func_name)
         return func_wrapper
     return record_flops_decorator
 
@@ -51,6 +55,8 @@ def record_flops_ew(mult, arg_pos, func_name):
     """
     def record_flops_decorator(func):
         def func_wrapper(self, *args, **kwargs):
+            parent_func_name = traceback.extract_stack(limit=2)[-2][2]
+            #print("EW call: " + func_name + " from parent " + parent_func_name)
             start.record()
             #####################
             func(self, *args, **kwargs)
@@ -65,6 +71,7 @@ def record_flops_ew(mult, arg_pos, func_name):
             flop *= args[arg_pos].shape[1]
             self.time_dict[func_name].append(msecs / 1000.)
             self.flop_dict[func_name].append(flop)
+            self.paren_dic[func_name].append(parent_func_name)
         return func_wrapper
     return record_flops_decorator
 
