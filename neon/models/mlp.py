@@ -9,7 +9,7 @@ import logging
 import neon.util.metrics as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
-# from neon.diagnostics import speed_plots as pp
+from neon.diagnostics import timing_plots as tp
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class MLP(MLP_old):
             self.print_layers(debug=True)
             self.epochs_complete += 1
         self.data_layer.cleanup()
-        # pp.print_performance_stats(self.backend, logger)
+        tp.print_performance_stats(self.backend, logger)
 
     def predict_and_report(self, dataset=None):
         if dataset is not None:

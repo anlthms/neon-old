@@ -33,6 +33,8 @@ class FCLayer(WeightLayer):
         opt_param(self, ['weight_shape'], (self.nout, self.nin))
 
     def fprop(self, inputs):
+        print "giving a call"
+        import pdb; pdb.set_trace()
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
                               weights=self.weights, layer=self)
         if self.use_biases is True:

@@ -6,7 +6,10 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  timing: [fprop_fp, bprop_fc, update_fc],  # a list of function this experiment should time.
+  timing: {
+    plots: True,
+    functions: [fprop_fc, bprop_fc, update_fc],  # a list of function this experiment should time.
+    },
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '/home/users/urs/data',

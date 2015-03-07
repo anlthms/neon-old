@@ -51,6 +51,9 @@ class FitPredictErrorExperiment(FitExperiment):
         Actually carry out each of the experiment steps.
         """
 
+        # if the experiments includes timing diagnostics, decorate backend
+        if self.timing['plots']:
+            self.backend.decorate(self.timing['functions'])
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
         self.model.predict_and_report(self.dataset)
