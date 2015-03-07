@@ -119,6 +119,10 @@ class MAX(Backend):
         """
         self.nl.dot(deltas, inputs.T, out)
 
+
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+        self.nl.dropout(keep=keepthresh, out=tsr)
+
     def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef, learning_rate):
         """
         my first compound call: This wraps

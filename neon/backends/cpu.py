@@ -384,6 +384,11 @@ class CPU(Backend):
             dtype=a._tensor.dtype)
         a._tensor[:] = a._tensor[:] / keepthresh
 
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+        tsr._tensor[:] = np.array(
+            np.random.uniform(size=tsr._tensor.shape) < keepthresh,
+            dtype=tsr._tensor.dtype)
+
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation

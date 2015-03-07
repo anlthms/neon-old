@@ -47,11 +47,10 @@ class Layer(YAMLable):
         opt_param(self, ['skip_act'], False)
         opt_param(self, ['prev_names'], [])
 
-        # TODO: Make less hacky
-        for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
-                          'weight_dtype', 'updates_dtype']:
-            logger.info('dstringing %s', some_type)
-            if getattr(self, some_type) == 'np.float16':
+        opt_param(self, ['half_precision'], False)
+        if self.half_precision:
+            for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+                              'weight_dtype', 'updates_dtype']:
                 setattr(self, some_type, np.float16)
 
     def set_previous_layer(self, pl):
@@ -77,11 +76,7 @@ class Layer(YAMLable):
             return
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
-        opt_param(self, ['half_precision'], False)
-        # if self.half_precision:
-        #     for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
-        #                       'weight_dtype', 'updates_dtype']:
-        #         setattr(self, some_type, np.float16)
+
         self.output = None
         self.deltas = None
         self.initialized = True
