@@ -22,7 +22,13 @@ from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
-
+# class MaxArray(FloatArray):
+#     """
+#     Want a thin wrapper for FloatArray that adds the asnumpyarray method.
+#     Unfortunately NervanaLib.zeros() etc. creat FloatArrays Directly.
+#     """
+#     def asnumpyarray(self):
+#         return self.get()
 
 class MAX(Backend):
     """
@@ -47,22 +53,21 @@ class MAX(Backend):
 
     def decorate(self, function_list):
         """
-        Need to do this in the class, modify the methods before instanciating.
-
-        This replaces the @decorators in the backend function. Go through the list
+        Replaces the @decorators in the backend function. Go through the list
         of functions to be decorated and wrap them with the correct parameters
-
-        fun = tags("p")(fun)   is the same as putting    @tags("p")   on top of     def fun():
-
         """
-        for call in function_list:
-            print "wrapping", call, "with", td.multis[call], "and", td.shapes[call]
+        for call in function_list['decorate']:
+            print "wrapping", call, "with", td.multipliers[call],
+            print "and", td.shapes[call]
             orig_func = getattr(self, call)
-            wrapped_func = td.record_flops(mult=td.multis[call], shape_list=td.shapes[call], func_name=call)(orig_func)
+            wrapped_func = td.scott_record_flops(orig_func)
             setattr(self, call, wrapped_func)
-            print "---orig_func", orig_func
-            print "---wrapped_func", wrapped_func
-            #import pdb; pdb.set_trace()
+        for call in function_list['decorate_ew']:
+            print "wrapping", call, "ew",
+            orig_func = getattr(self, call)
+            wrapped_func = td.scott_record_flops_ew(orig_func)
+            setattr(self, call, wrapped_func)
+
 
     def init_mempool(self, shape):
         self.mem_pool = self.nl.empty(shape)
@@ -93,7 +98,6 @@ class MAX(Backend):
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
 
-    #@td.record_flops(mult=2, shape_list=td.shapes['fprop_fc'], func_name='fprop_fc')
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Dot calls for fully conneted layer fprop, bprop and update.
@@ -105,14 +109,12 @@ class MAX(Backend):
         """
         self.nl.dot(weights, inputs, out)
 
-    #@td.record_flops(mult=2, shape_list=td.shapes['bprop_fc'], func_name='bprop_fc')
     def bprop_fc(self, out, weights, deltas, layer=None):
         """
         NervanaLib dot call
         """
         self.nl.dot(weights.T, deltas, out)
 
-    #@td.record_flops(mult=2, shape_list=td.shapes['update_fc'], func_name='update_fc') # noqa
     def update_fc(self, out, inputs, deltas, layer=None):
         """
         NervanaLib dot call
@@ -241,7 +243,6 @@ class MAX(Backend):
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
-    @td.record_flops_ew(mult=4, arg_pos=0, func_name='ew_sig')
     def logistic(self, x, out):
         self.nl.sig(x, out=out)
         # self.multiply(x, -1.0, out=out)
@@ -250,24 +251,13 @@ class MAX(Backend):
         # self.reciprocal(out, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_relu')
     def rectlin(self, x, out):
         # x and out are the same buffer
         self.nl.maximum(x, 0., out=out)
         return out
 
-    # @td.record_flops(mult=1, shape_list=shapes['rectlin_derivative'], func_name='ew')
-    # def rectlin_derivative(self, x, out):
-    #     print "reclin ew yo!"
-    #     self.nl.greater(x, 0., out=out)
-    #     return out
-
-    #@td.record_flops_ew(mult=1, func_name='sum')
-    #@td.record_flops_ew(mult=1, func_name='sum')
-    # sum done this way breaks add below.
     def sum(self, tsr, axes, out):
         """wrapper to make full reduction possible"""
-
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
             self.nl.sum(tsr.reshape(sze,1), axis=0, out=out)
@@ -304,55 +294,46 @@ class MAX(Backend):
         """
         a.set(src)
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_add')
     def add(self, left, right, out):
         """assignment"""
         self.nl.add(left, right, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=1, func_name='ew_sub')
     def subtract(self, left, right, out):
         """assignment"""
         self.nl.subtract(left, right, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_mul')
     def multiply(self, left, right, out):
         """assignment"""
         self.nl.multiply(left, right, out=out)
         return out
 
-    #@td.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
     def divide(self, left, right, out):
         """assignment"""
         self.nl.divide(left, right, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_gre')
     def greater(self, left, right, out):
         """assignment"""
         self.nl.greater(left, right, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_neq')
     def not_equal(self, left, right, out):
         """assignment"""
         self.nl.not_equal(left, right, out=out)
         return out
 
-    @td.record_flops_ew(mult=2, arg_pos=0, func_name='ew_clip')
     def clip(self, a, a_min, a_max, out):
         """assignment"""
         self.nl.clip(a, a_min, a_max, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='ew_log')
     def log(self, a, out):
         """assignment"""
         self.nl.log(a, out=out)
         return out
 
-    @td.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
     def argmax(self, a, out, axis=0):
         """assignment"""
         self.nl.argmax(a, out=out, axis=axis)

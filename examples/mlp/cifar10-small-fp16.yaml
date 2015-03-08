@@ -8,7 +8,10 @@
 
   timing: {
     plots: True,
-    functions: [fprop_fc, bprop_fc, update_fc],  # a list of function this experiment should time.
+    decorate: [fprop_fc, bprop_fc, update_fc],
+    decorate_ew: [],
+    #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
+                  # sum must not be decorated at this time, it will fail
     },
 
   dataset: &ds !obj:datasets.CIFAR10 {
