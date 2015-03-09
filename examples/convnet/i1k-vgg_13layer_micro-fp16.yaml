@@ -6,6 +6,14 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
+  timing: {
+    plots: True,
+    decorate: [fprop_fc, bprop_fc, update_fc],
+    decorate_ew: [],
+    #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
+                  # sum must not be decorated at this time, it will fail
+    },
+
   dataset: &ds !obj:datasets.I1K {
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files

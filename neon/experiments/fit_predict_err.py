@@ -35,6 +35,7 @@ class FitPredictErrorExperiment(FitExperiment):
     """
     def __init__(self, **kwargs):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
+        opt_param(self, ['timing'], {'plots': False})
         opt_param(self, ['inference_sets'], [])
         opt_param(self, ['inference_metrics'], [])
         if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
