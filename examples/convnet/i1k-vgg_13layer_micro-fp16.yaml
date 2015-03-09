@@ -1,0 +1,280 @@
+# ----------------------------------------------------------------------------
+# Copyright 2015 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# VGG model: 13 layer, abridged version of following link
+# https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-readme-md
+
+!obj:experiments.FitPredictErrorExperiment {
+
+  dataset: &ds !obj:datasets.I1K {
+    load_path: '/usr/local/data', #directory where .tar files are stored
+    repo_path: '/usr/local/data', #directory to use for writing files
+    output_image_size: &ois 256,
+    cropped_image_size: &cis 224,
+    max_tar_file: &mtf 1000,
+    output_batch_size: 3072,
+    ring_buffer_size: 3,
+    num_train_macro_batches: 417, #max available train macro_batches
+    num_val_macro_batches: 16, #max available val macro batches
+    #number of cpu processes for image resizing and decompression
+    num_processes: 4, #not impl yet
+    # macro batch start and end indices to use for train and val datasets
+    start_train_batch: 0,
+    end_train_batch: 24,
+    start_val_batch: 0,
+    end_val_batch: 4,
+  },
+
+  weight_inits: [
+    &wt_init0 !obj:params.GaussianValGen {
+      scale: .01,
+    },
+    &wt_init1 !obj:params.GaussianValGen {
+      scale: .01,
+    },
+    &wt_init_fc !obj:params.GaussianValGen {
+      scale: .005,
+    },
+  ],
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    velocity_dtype: np.float16,
+    lr_params: {
+      learning_rate: 0.02,
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+
+  lrule: &gdmwd {
+    type: gradient_descent_momentum_weight_decay,
+    lr_params: {
+      learning_rate: 0.01,
+      weight_decay: .0005,
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+
+  model: !obj:models.MLP {
+    num_epochs: 60, #74 in paper
+    batch_size: &bs 32, #256 with data parallel on 4 gpus
+    step_print: 24,
+    half_precision: &hp True,
+    #serialized_path: '~/data/I1K/I1K_vgg_model.pkl',
+    layers: [
+      &datalayer !obj:layers.DataLayer {
+        name: d0,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [*cis, *cis],
+      },
+      !obj:layers.ConvLayer {
+        name: conv1_1,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 64,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv1_2,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 64,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool1,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv2_1,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 128,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv2_2,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 128,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool2,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv3_1,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv3_2,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool3,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv4_1,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 512,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv4_2,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 512,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool4,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv5_1,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 512,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv5_2,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nofm: 512,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool5,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      !obj:layers.FCLayer {
+        name: fc6,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init_fc,
+        nout: 100, #4096 in original
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout1,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      !obj:layers.FCLayer {
+        name: fc7,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init_fc,
+        nout: 100, #4096 in original
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout2,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      &lastlayer !obj:layers.FCLayer {
+        name: fc8,
+        half_precision: *hp,
+        lrule_init: *gdm,
+        weight_init: *wt_init0,
+        nout: *mtf,
+        activation: !obj:transforms.Logistic {},
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        half_precision: *hp,
+        ref_layer: *datalayer,
+        cost: !obj:transforms.CrossEntropy {
+          temp_dtype: np.float16,
+          epsilon: 0.0005,
+        },
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
