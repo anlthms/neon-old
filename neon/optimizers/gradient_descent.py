@@ -109,7 +109,8 @@ class GradientDescentMomentum(GradientDescent):
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             if self.backend.__module__ == 'neon.backends.max':
                 # wrapping all calls into a single, lazy-eval kernel
-                self.backend.everything_kernel(ps_item, us_item, vs_item, momentum_coef, learning_rate)
+                self.backend.gdm_compound(ps_item, us_item, vs_item,
+                                          momentum_coef, learning_rate)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
                 self.backend.multiply(us_item, learning_rate, out=us_item)
