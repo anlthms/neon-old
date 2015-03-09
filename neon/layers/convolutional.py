@@ -30,7 +30,12 @@ class ConvLayer(WeightLayer):
         if self.pad != 0 and isinstance(self.backend, CPU):
             raise NotImplementedError('pad != 0, for CPU backend in ConvLayer')
 
-        self.bias_shape = (self.nout, 1)
+        opt_param(self, ['shared_bias'], True)
+        if self.shared_bias:
+            self.bias_shape = (self.nofm, 1)
+            self.bias_expand = self.backend.empty((self.nout, 1))
+        else:
+            self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
@@ -63,11 +68,19 @@ class ConvLayer(WeightLayer):
                                 ofmsize=self.ofmsize,
                                 ofmlocs=self.ofmlocs, ifmshape=self.ifmshape,
                                 links=self.links, nifm=self.nifm,
-                                padding=self.pad, stride=self.stride,
+                                padding=self.negpad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf,
                                 local=self.local_conv)
         if self.use_biases is True:
-            self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+            if self.shared_bias:
+                self.pre_act = self.pre_act.reshape(
+                    (self.nofm, self.ofmsize * self.batch_size))
+                self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+                self.pre_act = self.pre_act.reshape(
+                    (self.nofm * self.ofmsize, self.batch_size))
+            else:
+                self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+
         self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
@@ -79,7 +92,7 @@ class ConvLayer(WeightLayer):
                                     ofmsize=self.ofmsize,
                                     ofmlocs=self.ofmlocs,
                                     ifmshape=self.ifmshape, links=self.links,
-                                    padding=self.pad, stride=self.stride,
+                                    padding=self.negpad, stride=self.stride,
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
@@ -92,7 +105,7 @@ class ConvLayer(WeightLayer):
                                  ofmsize=self.ofmsize,
                                  ofmlocs=self.ofmlocs,
                                  ifmshape=self.ifmshape, links=self.links,
-                                 nifm=self.nifm, padding=self.pad,
+                                 nifm=self.nifm, padding=self.negpad,
                                  stride=self.stride, ngroups=1,
                                  fwidth=self.fshape[-1],
                                  updatebuf=self.updatebuf,
@@ -100,7 +113,17 @@ class ConvLayer(WeightLayer):
                                  layer=self)
 
         if self.use_biases is True:
-            self.backend.sum(error, axes=1, out=upm[1])
+            # We can't reshape the error buffer since it might be global buffer
+            if self.shared_bias:
+                self.backend.sum(error, axes=1, out=self.bias_expand)
+                self.bias_expand = self.bias_expand.reshape(
+                    (self.nofm, self.ofmsize))
+                self.backend.sum(self.bias_expand, axes=1, out=upm[1])
+                self.bias_expand = self.bias_expand.reshape(
+                    (self.nofm * self.ofmsize, 1))
+            else:
+                self.backend.sum(error, axes=1, out=upm[1])
+
         if self.accumulate:
             self.backend.add(upm[0], self.updates[0], out=self.updates[0])
             if self.use_biases is True:

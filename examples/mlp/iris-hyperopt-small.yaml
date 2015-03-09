@@ -38,7 +38,7 @@
         name: d0,
         nout: 4,
       },
-      !obj:ayers.FCLayer {
+      !obj:layers.FCLayer {
         name: h0,
         nout: 2,
         lrule_init: *gdm,
