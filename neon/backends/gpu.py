@@ -14,7 +14,6 @@ from neon.backends.backend import Backend, Tensor
 from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
 from collections import defaultdict
-from neon.diagnostics import speed_decorators_cudanet as st
 
 logger = logging.getLogger(__name__)
 
@@ -553,7 +552,6 @@ class GPU(Backend):
         """
         a._tensor.copy_from(src)
 
-    @st.record_flops_ew(mult=2, arg_pos=0, func_name='ew')
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),
@@ -645,7 +643,6 @@ class GPU(Backend):
         dtype = self.default_dtype_if_missing(None)
         return self.tensor_cls(numpy.array(seq, dtype), dtype)
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def add(self, left, right, out):
         """
         Perform element-wise addition on the operands left and right, storing
@@ -669,7 +666,6 @@ class GPU(Backend):
             left._tensor.add(right, out._tensor)
         return out
 
-    @st.record_flops_ew(mult=1, arg_pos=1, func_name='ew')
     def subtract(self, left, right, out):
         """
         Perform element-wise subtraction on the operands left and right,
@@ -694,7 +690,6 @@ class GPU(Backend):
             left._tensor.subtract(right, out._tensor)
         return out
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def multiply(self, left, right, out):
         """
         Perform element-wise multiplication on the operands left and right,
@@ -814,7 +809,6 @@ class GPU(Backend):
             left._tensor.equals(right, out._tensor)
         return out
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def not_equal(self, left, right, out):
         """
         Performs element-wise non-equality testing on each element of left and
@@ -833,7 +827,6 @@ class GPU(Backend):
         out._tensor.equals(0, out._tensor)
         return out
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def greater(self, left, right, out):
         """
         Performs element-wise greater than testing on each element of left and
@@ -969,18 +962,15 @@ class GPU(Backend):
     def exp(self, x, out):
         cudanet.exp(x._tensor, out._tensor)
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def log(self, x, out):
         cudanet.log(x._tensor, out._tensor)
 
-    @st.record_flops_ew(mult=4, arg_pos=0, func_name='ew')
     def logistic(self, x, out):
         cudanet.sigmoid(x._tensor, out._tensor)
 
     def tanh(self, x, out):
         cudanet.tanh(x._tensor, out._tensor)
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='ew')
     def rectlin(self, x, out):
         # x and out are the same buffer
         cudanet.maximum_scalar(x._tensor, 0., out._tensor)
@@ -1095,7 +1085,6 @@ class GPU(Backend):
         tsr._tensor.argmin(axis, target=out._tensor)
         return out
 
-    @st.record_flops_ew(mult=1, arg_pos=0, func_name='reduce')
     def argmax(self, tsr, axis, out):
         """
         Calculates the indices of the maximal element value along the specified
@@ -1140,7 +1129,6 @@ class GPU(Backend):
         res.equals(0)
         return GPUTensor(res)
 
-    @st.record_flops(mult=2, shape_list=st.shapes['fprop_fc'], func_name='fprop_fc')
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
         Forward propagate the inputs of a fully connected network layer to
@@ -1156,7 +1144,6 @@ class GPU(Backend):
         """
         cudanet.dot(weights._tensor, inputs._tensor, out._tensor)
 
-    @st.record_flops(mult=2, shape_list=st.shapes['bprop_fc'], func_name='bprop_fc')
     def bprop_fc(self, out, weights, deltas, layer=None):
         """
         Backward propagate the error through a fully connected network layer.
@@ -1169,7 +1156,6 @@ class GPU(Backend):
         """
         cudanet.dot(weights.transpose()._tensor, deltas._tensor, out._tensor)
 
-    @st.record_flops(mult=2, shape_list=st.shapes['update_fc'], func_name='update_fc') # noqa
     def update_fc(self, out, inputs, deltas, layer=None):
         """
         Compute the updated gradient for a fully connected network layer.

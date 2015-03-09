@@ -142,7 +142,7 @@ class MLP(MLP_old):
             self.print_layers(debug=True)
             self.epochs_complete += 1
         self.data_layer.cleanup()
-        tp.print_performance_stats(self.backend, logger)
+        # tp.print_performance_stats(self.backend, logger)
 
     def predict_and_report(self, dataset=None):
         if dataset is not None:
