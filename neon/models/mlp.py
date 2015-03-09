@@ -27,6 +27,7 @@ class MLP(MLP_old):
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
+        opt_param(self, ['reuse_deltas'], True)
         self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
@@ -45,6 +46,18 @@ class MLP(MLP_old):
                   "accumulate": self.accumulate}
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
+
+        self.nin_max = max(map(lambda x: x.nin, self.layers[1:-1]))
+        self.global_deltas = None
+        if self.reuse_deltas:
+            self.global_deltas = backend.zeros(
+                (2 * self.nin_max, self.batch_size),
+                self.layers[1].deltas_dtype)
+
+        for idx, ll in enumerate(self.layers[1:-1]):
+            ll.set_deltas_buf(self.global_deltas,
+                              offset=((idx % 2) * self.nin_max))
+
         self.initialized = True
 
         # Make some scratch space for NL backend:
@@ -142,6 +155,9 @@ class MLP(MLP_old):
 
         return_err = dict()
 
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
                 continue
@@ -170,6 +186,10 @@ class MLP(MLP_old):
         outputs = self.backend.empty((self.class_layer.nout, nrecs))
         targets = self.backend.empty(outputs.shape)
         batch = 0
+
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
         while self.data_layer.has_more_data():
             self.fprop()
             start = batch * self.batch_size

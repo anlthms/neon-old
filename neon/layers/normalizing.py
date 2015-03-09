@@ -43,7 +43,7 @@ class CrossMapResponseNormLayer(Layer):
         self.ofmshape, self.nofm = self.ifmshape, self.nifm
         self.allocate_output_bufs()
         self.tempbuf = None
-        if self.deltas is not None and isinstance(self.backend, CPU):
+        if isinstance(self.backend, CPU) and not self.prev_layer.is_data:
             self.tempbuf = self.backend.empty(
                 (self.ifmshape[-2], self.ifmshape[-1], self.batch_size))
 
