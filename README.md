@@ -55,20 +55,12 @@ These provide additional functionality, and assist developers
     neon --gpu examples/mlp/mnist-small.yaml
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
-    # ex: 4 process data parallel cnn example from top-level neon dir:
-    mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
-           examples/convnet/mnist-small.yaml
+    # mpirun -n <num_processes> [-x <environment_vars>] neon -p [-m] <path_to.yaml>
+    # ex: 4 process data parallel cnn example:
+    mpirun -n 4 neon --datapar examples/convnet/mnist-small.yaml
 
     # ex: 2 process model parallel cnn example:
-    mpirun -n 2 -x PYTHONPATH bin/neon --modelpar \
-           examples/convnet/mnist-small.yaml
-
-    # In multi-machine MPI environments need hosts file, data copied to each
-    # host, and full paths should be used:
-    /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
-        /<full_path_to_neon>/neon --datapar \
-        /<full_path_to_examples>/convnet/mnist-small.yaml
+    mpirun -n 2 neon --modelpar examples/convnet/mnist-small.yaml
 
 See docs for full details.
 
