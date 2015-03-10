@@ -122,8 +122,8 @@ class GradientDescentMomentum(GradientDescent):
             if self.schedule['type'] == 'step':
                 div_factor = numpy.floor(
                     (epoch + 1) / self.schedule['step_epochs'])
-                return self.learning_rate * (
-                    self.schedule['ratio'] ** div_factor)
+                return numpy.float32(self.learning_rate *
+                                     self.schedule['ratio'] ** div_factor)
             else:
                 raise NotImplementedError("learning rate schedule type not "
                                           "supported")

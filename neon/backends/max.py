@@ -38,13 +38,14 @@ class MAX(Backend):
 
     Everything in here is a reduction.
     """
-    def __init__(self, rng_seed, stochastic_round=False):
+    def __init__(self, rng_seed, stochastic_round=False, device_id=0):
         self.nl = NervanaLib(stochastic_round=stochastic_round,
                              cubin_path="../flexgpu/hgemm_kernels")
         logger.info("Initialized NervanaLib with stochastic_round=%s",
                     stochastic_round)
         self.rng_seed = rng_seed
         self.rng_init()
+        self.device_id = device_id if device_id is not None else 0
 
         # output dictionaries where the timing diagnostics are stored
         self.time_dict = defaultdict(list)
@@ -70,6 +71,10 @@ class MAX(Backend):
 
 
     def init_mempool(self, shape):
+        """
+        MLP creates a mempool with the size of the number of classes for
+        softmax activations
+        """
         self.mem_pool = self.nl.empty(shape)
 
     def rng_init(self):
@@ -141,6 +146,7 @@ class MAX(Backend):
         """
         # unfortunately vs_item needs to be written to. Ask sgray to avoid this.
         # vs_item[:] = vs_item * momentum_coef - us_item * learning_rate
+        #print "constants", momentum_coef, learning_rate, "need to be wrapped?"
         self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
                          self.nl.multiply(us_item, learning_rate),
                          out=vs_item)
@@ -271,6 +277,12 @@ class MAX(Backend):
         """
         return self.nl.zeros(shape, dtype=dtype)
 
+    def ones(self, shape, dtype=np.float16):
+        """
+        wrap. Using default float16 is a little white cheat
+        """
+        return self.nl.ones(shape, dtype=dtype)
+
     def empty(self, shape, dtype=np.float16):
         """
         wrap, cheat on dtype
@@ -292,7 +304,8 @@ class MAX(Backend):
             a: FloatArray
             src (numpy.ndarray): the host-resident object to copy from
         """
-        a.set(src)
+        device = self.device_id
+        a.set(src, device)
 
     def add(self, left, right, out):
         """assignment"""
@@ -340,11 +353,17 @@ class MAX(Backend):
         return out
 
     def softmax(self, x, out):
+        """
+        Softmax computes exp(x-max(x))  /  sum exp(x-max(x))
+        so it makes sense to buffer the exp() that gets reused.
+        Note reduction needs to be after ew, other way not possible atm.
+        """
         vecbuf = self.mem_pool
-        self.nl.max(x, axis=0, out=vecbuf)
-        self.nl.exp(x - vecbuf, out=out)
-        self.nl.sum(out, axis=0, out=vecbuf)
-        out[:] = out / vecbuf
+        self.nl.max(x, axis=0, out=vecbuf)    # reduction over classes
+        self.nl.exp(x - vecbuf, out=out)      # followed by ew
+        self.nl.sum(out, axis=0, out=vecbuf)  # reduction over classes
+        out[:] = out / vecbuf                 # followed by ew
+
         return out
 
     def softmax_gradient(self, y, err, out):

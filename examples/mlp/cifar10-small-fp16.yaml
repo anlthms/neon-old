@@ -7,7 +7,7 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   timing: {
-    plots: True,
+    plots: False,
     decorate: [fprop_fc, bprop_fc, update_fc],
     decorate_ew: [],
     #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
@@ -37,7 +37,7 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 100,
+    num_epochs: 5,
     batch_size: &bs 128,
     half_precision: &hp True,
     layers: [

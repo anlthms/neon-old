@@ -49,7 +49,7 @@
     type: gradient_descent_momentum,
     velocity_dtype: np.float16,
     lr_params: {
-      learning_rate: 0.02,
+      learning_rate: 0.01,  # urs reduced from 0.02, still no convergence
       schedule: {
               type: step,
               ratio: 0.1,
@@ -62,22 +62,22 @@
     },
   },
 
-  lrule: &gdmwd {
-    type: gradient_descent_momentum_weight_decay,
-    lr_params: {
-      learning_rate: 0.01,
-      weight_decay: .0005,
-      schedule: {
-              type: step,
-              ratio: 0.1,
-              step_epochs: 20,
-      },
-      momentum_params: {
-        type: constant,
-        initial_coef: 0.90,
-      },
-    },
-  },
+  # lrule: &gdmwd {
+  #   type: gradient_descent_momentum_weight_decay,
+  #   lr_params: {
+  #     learning_rate: 0.01,
+  #     weight_decay: .0005,
+  #     schedule: {
+  #             type: step,
+  #             ratio: 0.1,
+  #             step_epochs: 20,
+  #     },
+  #     momentum_params: {
+  #       type: constant,
+  #       initial_coef: 0.90,
+  #     },
+  #   },
+  # },
 
   model: !obj:models.MLP {
     num_epochs: 60, #74 in paper
@@ -232,7 +232,7 @@
         half_precision: *hp,
         lrule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 100, #4096 in original
+        nout: 4096, # 100 small, 4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
@@ -245,7 +245,7 @@
         half_precision: *hp,
         lrule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 100, #4096 in original
+        nout: 4096, # 100 small, 4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
@@ -259,7 +259,9 @@
         lrule_init: *gdm,
         weight_init: *wt_init0,
         nout: *mtf,
-        activation: !obj:transforms.Logistic {},
+        activation: !obj:transforms.Softmax {
+          # skip_derivative: True,  # this makes self.activation==None, WTF?
+        },
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,

@@ -62,7 +62,8 @@ class MLP(MLP_old):
 
         # Make some scratch space for NL backend:
         if hasattr(self.backend, 'nl'):
-            self.backend.init_mempool((self.class_layer.nout, 1))
+            #self.backend.init_mempool((self.class_layer.nout, 1))
+            self.backend.init_mempool((1, self.batch_size))
         # check what the weight layer looks like:
 
     def fprop(self):
@@ -112,7 +113,7 @@ class MLP(MLP_old):
         misclassval = redmisclass / nrecs
         self.result = misclassval
         logging.info("%s set misclass rate: %0.5f%%",
-                     setname, 100 * misclassval)
+                     setname, 100. * misclassval)
 
     def fit(self, dataset):
         """

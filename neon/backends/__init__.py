@@ -25,7 +25,7 @@ np.typeDict['flexpt'] = np.dtype(flexpt)
 
 def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                 flexpoint=False, rng_seed=None, numerr_handling=None,
-                half=False, device_id=None):
+                half=False, stochastic_round=0, device_id=None):
     """
     Construct and return a backend instance of the appropriate type based on
     the arguments given.  With no parameters, a single CPU core, float32
@@ -61,6 +61,9 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                       of the instantiated backend.  Defaults to
                                       None, which doesn't explicitly seed (so
                                       each run will be different)
+        stochastic_round (numeric, optional): Only affects the max backend. If
+                                              1, perform stochastic rounding.
+                                              If 0, round to nearest.
         numerr_handling (dict, optional): Dictate how numeric errors are
                                           displayed and handled.  The keys and
                                           values permissible for this dict
@@ -137,7 +140,8 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         import pycuda.autoinit  # create the context
         from neon.backends.max import MAX
         be_name = 'MAX_FP16'
-        be = MAX(rng_seed=rng_seed, stochastic_round=False)
+        be = MAX(rng_seed=rng_seed, stochastic_round=stochastic_round,
+                 device_id=device_id)
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,

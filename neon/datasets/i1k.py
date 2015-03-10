@@ -33,7 +33,7 @@ macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
 
-BDTYPE = 'float32'
+BDTYPE = 'float16'
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:

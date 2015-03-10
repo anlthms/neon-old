@@ -3,6 +3,7 @@ Logistic transform functions and classes.
 """
 
 from neon.transforms.activation import Activation
+from neon.util.param import opt_param
 
 
 class Softmax(Activation):
@@ -13,6 +14,8 @@ class Softmax(Activation):
     def __init__(self):
         self.tmp = None
         self.gain = 1.0
+        opt_param(self, ['skip_derivative'], True)
+        print "softmax skip activation" # TODO: Select from YAML
 
     def apply_function(self, backend, inputs, outputs):
         """
@@ -52,4 +55,5 @@ class Softmax(Activation):
 
         if not self.tmp or self.tmp.shape != inputs.shape:
             self.tmp = backend.ones(inputs.shape)
-        backend.softmax_gradient(outputs, err=self.tmp, out=inputs)
+        if not self.skip_derivative:
+            backend.softmax_gradient(outputs, err=self.tmp, out=inputs)

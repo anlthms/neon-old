@@ -46,6 +46,7 @@ class GPUTensor(Tensor):
     _min_dims = 2
 
     def __init__(self, obj, dtype=None, copy_to_device=True):
+        print "------------------ initializing cudanet ----------------------"
         if type(obj) == cudanet.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape

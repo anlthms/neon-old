@@ -440,7 +440,8 @@ class WeightLayer(Layer):
                 param_dtype=dtype, gradient_dtype=dtype)
         elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
             lr = GradientDescentMomentumWeightDecay(
-                name=lrname, lr_params=lrule_init['lr_params'])
+                name=lrname, lr_params=lrule_init['lr_params'],
+                param_dtype=dtype, gradient_dtype=dtype)
         elif lrule_init['type'] == 'adadelta':
             lr = AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
         else:
