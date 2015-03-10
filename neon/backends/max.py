@@ -271,6 +271,36 @@ class MAX(Backend):
             self.nl.sum(tsr, axis=axes, out=out)
         return out
 
+    def mean(self, tsr, axes, out):
+        """
+        Calculates the arithmetic mean of the elements along the specified
+        axes.
+        """
+        self.nl.mean(tsr, axis=axes, out=out)
+        return out
+
+    def var(self, tsr, mean, axes, out, dtype=np.float16):
+        """
+        Calculates the sample variance of the elements along the specified
+        axes. TODO: Preallocate temp buffer outside function.
+        ``var = mean(abs(x - x.mean())**2)``
+        """
+        #np.var(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        rshape = list(tsr.shape) #  original shape
+        rshape[axes] = 1         #  reduced shape
+        #mean = self.nl.empty(rshape, dtype=dtype)  #  use these two lines
+        #self.nl.mean(tsr, axis=axes, out=mean)     #  if mean not precomp
+        self.nl.mean(self.nl.square(tsr-mean),  axis=axes, out=out) #  reduct
+        #self.nl.sqrt(out, out=out) #  this was computing the l2 norm, doh!
+        return out
+
+    def sqrt(self, x, out, dtype=np.float16):
+        """
+        Calculates square root, used for batch normalization
+        """
+        self.nl.sqrt(x, out=out) #  this was computing the l2 norm, doh!
+        return out
+
     def zeros(self, shape, dtype=np.float16):
         """
         wrap. Using default float16 is a little white cheat

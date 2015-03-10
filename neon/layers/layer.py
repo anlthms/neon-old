@@ -19,6 +19,7 @@ from neon.optimizers.adadelta import AdaDelta
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
+from neon.transforms.batch_norm import BatchNorm
 from neon.transforms.linear import Linear
 
 logger = logging.getLogger(__name__)
@@ -372,9 +373,18 @@ class WeightLayer(Layer):
 
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
-        req_param(self, ['weight_init', 'lrule_init'])
+        req_param(self, ['weight_init', 'lrule_init', 'nin', 'nout'])
         opt_param(self, ['accumulate'], False)
+        opt_param(self, ['batch_norm'], False)
+
         self.weight_init.initialize(self.backend)
+        self.params = []
+        self.updates = []
+
+        if self.batch_norm:
+            self.bn = BatchNorm()
+            kwargs['layer'] = self
+            self.bn.initialize(kwargs)
 
     def allocate_param_bufs(self):
         make_ebuf = self.backend.empty
@@ -388,11 +398,11 @@ class WeightLayer(Layer):
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
             self.biases.fill(self.weight_init.bias_init)
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
-            self.params = [self.weights, self.biases]
-            self.updates = [self.weight_updates, self.bias_updates]
+            self.params.extend([self.weights, self.biases])
+            self.updates.extend([self.weight_updates, self.bias_updates])
         else:
-            self.params = [self.weights]
-            self.updates = [self.weight_updates]
+            self.params.extend([self.weights])
+            self.updates.extend([self.weight_updates])
 
         if self.accumulate:
             self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
@@ -403,8 +413,8 @@ class WeightLayer(Layer):
         self.bias_rule = None
         if self.brule_init is not None and self.use_biases:
             self.bias_rule = self.init_learning_rule(self.brule_init)
-            self.bias_rule.allocate_state([self.bias_updates])
-            self.learning_rule.allocate_state([self.weight_updates])
+            self.bias_rule.allocate_state([self.updates[-1]])
+            self.learning_rule.allocate_state(self.updates[:-1])
         else:
             self.learning_rule.allocate_state(self.updates)
 
@@ -412,10 +422,10 @@ class WeightLayer(Layer):
         if self.bias_rule is None:
             self.learning_rule.apply_rule(self.params, self.updates, epoch)
         else:
-            self.learning_rule.apply_rule([self.weights],
-                                          [self.weight_updates], epoch)
-            self.bias_rule.apply_rule([self.biases],
-                                      [self.bias_updates], epoch)
+            self.learning_rule.apply_rule(self.params[:-1],
+                                          self.updates[:-1], epoch)
+            self.bias_rule.apply_rule([self.params[-1]],
+                                      [self.updates[-1]], epoch)
 
         if self.accumulate:
             for upm in self.updates:
@@ -424,6 +434,10 @@ class WeightLayer(Layer):
     def normalize_weights(self, wts):
         norms = self.backend.norm(wts, order=2, axis=1)
         self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
+
+    def set_train_mode(self, mode):
+        if self.batch_norm and mode is False:
+            self.bn.set_inference_mode()
 
     def init_learning_rule(self, lrule_init):
         dtype = self.weight_dtype  # TODO: Cool to reuse this here?

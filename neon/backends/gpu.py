@@ -46,7 +46,6 @@ class GPUTensor(Tensor):
     _min_dims = 2
 
     def __init__(self, obj, dtype=None, copy_to_device=True):
-        print "------------------ initializing cudanet ----------------------"
         if type(obj) == cudanet.CUDAMatrix:
             self._tensor = obj
             self.shape = self._tensor.shape
@@ -1020,6 +1019,29 @@ class GPU(Backend):
                         "You specified: %s", str(axes))
         else:
             tsr._tensor.mean(axis=axes, target=out._tensor)
+        return out
+
+    def var(self, tsr, mean, axes, out):
+        """
+        Calculates the variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr  (Tensor): the Tensor on which to compute the variance
+            mean (Tensor): the Tensor containing mean of tsr
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (Tensor): where the result will be stored.
+
+        Returns:
+            Tensor: reference to out
+        """
+        if isinstance(axes, (tuple, list)):
+            logger.warn("GPUTensor only supports single axis for var.  "
+                        "You specified: %s", str(axes))
+        else:
+            tsr._tensor.var(axis=axes, mean=mean._tensor, target=out._tensor)
         return out
 
     def min(self, tsr, axes, out):

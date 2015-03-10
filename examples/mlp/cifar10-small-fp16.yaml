@@ -37,9 +37,10 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 5,
+    num_epochs: 10,
     batch_size: &bs 128,
     half_precision: &hp True,
+    batch_norm: &bn False,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -49,6 +50,7 @@
       },
       !obj:layers.ConvLayer {
         half_precision: *hp,
+        batch_norm: *bn,
         name: layer1,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -64,6 +66,7 @@
       },
       !obj:layers.ConvLayer {
         half_precision: *hp,
+        batch_norm: *bn,
         name: layer2,
         lrule_init: *gdm,
         weight_init: *wt_init,
@@ -79,6 +82,7 @@
       },
       !obj:layers.FCLayer {
         half_precision: *hp,
+        batch_norm: *bn,
         name: h0,
         nout: 512,
         lrule_init: *gdm,
@@ -92,6 +96,7 @@
       },
       &lastlayer !obj:layers.FCLayer {
         half_precision: *hp,
+        batch_norm: *bn,
         name: output,
         nout: 10,
         lrule_init: *gdm,
