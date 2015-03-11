@@ -7,8 +7,10 @@ Decorators for measuring FLOPS on backend mop calls.
 
 # import numpy as np
 # import pycuda.driver as drv
+import matplotlib
+matplotlib.use('Agg')  # not for plotting but write to file.
 from matplotlib import pyplot as plt
-plt.interactive(1)
+#plt.interactive(1)
 import numpy as np
 from pdb import set_trace as trace
 
@@ -44,6 +46,8 @@ def print_performance_stats(backend, logger):
 
     #
     # First plot: speed vs. time
+    print "opening figure"
+    import pdb; pdb.set_trace()
     plt.figure(1)
     plt.subplot(1,2,2)
     n, bins, patches = plt.hist(timed_calls, num_bins,
@@ -86,5 +90,8 @@ def print_performance_stats(backend, logger):
     plt.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.1)
     plt.title(r'Breakdown of MOP calls by parent')
     plt.xlabel('time/s')
-    plt.show()
+    print "showing plog"
+    #plt.show()
+    plt.savefig('figurename.pdf')
+    print "shown"
 

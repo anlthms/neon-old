@@ -28,6 +28,7 @@ class MLP(MLP_old):
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
+        opt_param(self, ['timing_plots'], False)
         self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
@@ -71,11 +72,39 @@ class MLP(MLP_old):
             y = None if pl is None else pl.output
             ll.fprop(y)
 
+        # --- some debug stuff
+        # print "\nWEIGHTS"
+        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
+        #     if 'weights' in ll.__dict__:
+        #         # weights are [-.01 : .01] numbers
+        #         print "fprop dumping", ll.name, "weights", ll.weights[0,0:5].asnumpyarray()
+
+        # print "\nPRE-ACTIVATIONS (== activations-prime)"
+        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
+        #     y = None if pl is None else pl.output
+        #     #import pdb; pdb.set_trace()
+        #     if 'output' in ll.__dict__ and ll.name != 'cost' and ll.name != 'd0' :
+        #         print "fprop dumping", ll.name, "pre-activations", ll.pre_act[0,0:5].asnumpyarray()
+        # print "\nACTIVATIONS"
+        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
+        #     y = None if pl is None else pl.output
+        #     if 'output' in ll.__dict__ and ll.name != 'cost':
+        #         # data layer outputs are [0.:255.] pf16 numbers.
+        #         print "fprop dumping", ll.name, "activations", ll.output[0,0:5].asnumpyarray()
+
     def bprop(self):
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
             error = None if nl is None else nl.deltas
             ll.bprop(error)
+            # if 'weights' in ll.__dict__:
+            #     print "bprop dumping", ll.name, "errors", error[0,0:5].asnumpyarray()
+        # print "\nUPDATES (bprop)"
+        # for ll, nl in zip(reversed(self.layers),
+        #                   reversed(self.layers[1:] + [None])):
+        #     if 'weights' in ll.__dict__:
+        #         print "bprop dumping", ll.name, "updates", ll.updates[0][0,0:5].asnumpyarray()
+        #error=here
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
@@ -143,7 +172,8 @@ class MLP(MLP_old):
             self.print_layers(debug=True)
             self.epochs_complete += 1
         self.data_layer.cleanup()
-        # tp.print_performance_stats(self.backend, logger)
+        if self.timing_plots:
+            tp.print_performance_stats(self.backend, logger)
 
     def predict_and_report(self, dataset=None):
         if dataset is not None:

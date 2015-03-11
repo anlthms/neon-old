@@ -34,6 +34,7 @@ miniq_flag = False
 gpuq_flag = False
 
 BDTYPE = 'float16'
+logger.warning("i1k with hardcoded dtype %s" ,BDTYPE)
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:

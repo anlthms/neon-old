@@ -7,8 +7,8 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   timing: {
-    plots: False,
-    decorate: [fprop_fc, bprop_fc, update_fc],
+    plots: True,
+    decorate: [fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
     decorate_ew: [],
     #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
                   # sum must not be decorated at this time, it will fail
@@ -16,7 +16,7 @@
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '/home/users/urs/data',
-    sample_pct: 100,
+    sample_pct: 10,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {

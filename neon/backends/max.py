@@ -130,7 +130,8 @@ class MAX(Backend):
     def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
         self.nl.dropout(keep=keepthresh, out=tsr)
 
-    def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef, learning_rate):
+    def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef,
+                     learning_rate):
         """
         my first compound call: This wraps
             self.backend.multiply(vs_item, momentum_coef, out=vs_item)
@@ -144,7 +145,7 @@ class MAX(Backend):
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        # unfortunately vs_item needs to be written to. Ask sgray to avoid this.
+        # unfortunately vs_item needs to be written to. Ask sgray to avoid this
         # vs_item[:] = vs_item * momentum_coef - us_item * learning_rate
         #print "constants", momentum_coef, learning_rate, "need to be wrapped?"
         self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
@@ -152,6 +153,38 @@ class MAX(Backend):
                          out=vs_item)
         # ps_item[:] += vs_item
         self.nl.add(ps_item, vs_item, out=ps_item)
+
+    def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
+                       learning_rate, wd):
+        """
+        Outputs:
+            ps_item, the updated weights
+            vs_item, the updated velocity.
+        (no evaluation to us_item, the gradient updates)
+        """
+        # original bit from GDM
+        # self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
+        #                  self.nl.multiply(us_item, learning_rate),
+        #                  out=vs_item)
+        # # extra bit for WD:  with * instead of multiply, becomes 1000x slower
+        # self.nl.subtract(vs_item,
+        #                  self.nl.multiply(ps_item,
+        #                                   self.nl.multiply(wd,learning_rate)),
+        #                  out=vs_item)
+        # # original output bit
+        # self.nl.add(ps_item, vs_item, out=ps_item)
+
+        # this is weird, try again
+        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef), self.nl.multiply(us_item, learning_rate), out=vs_item) # ok, orig
+        #print "checking learning_rate", learning_rate, type(learning_rate)
+        #print "checking wd", wd, type(wd)
+        self.nl.multiply(self.nl.multiply(ps_item, float(wd)), float(learning_rate), out=us_item) # mult with zero here does nothing?
+        #print "results in", us_item[0,0:3].asnumpyarray()
+        self.nl.subtract(vs_item, us_item, out=vs_item)
+        self.nl.add(ps_item, vs_item, out=ps_item)
+        # this way at least we have the nan back
+        # and again we can learn with zero learning rate. WTF!
+
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,

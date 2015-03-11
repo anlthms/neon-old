@@ -17,10 +17,15 @@ end    = drv.Event()
 # things that are mulitplied together to compute number of operations
 shapes = {'fprop_fc' : [('inputs', 0), ('inputs', 1), ('weights', 0)],
           'bprop_fc' : [('deltas', 0), ('deltas', 1), ('weights', 1)],
-          'update_fc': [('inputs', 0), ('inputs', 1), ('deltas', 0)]}
+          'update_fc': [('inputs', 0), ('inputs', 1), ('deltas', 0)],
+          # for convolution, FLOPs are
+          'fprop_conv' : [('inputs', 0), ('inputs', 1), ('weights', 0)],
+          'bprop_conv' : [('deltas', 0), ('deltas', 1), ('weights', 1)],
+          'update_conv': [('inputs', 0), ('inputs', 1), ('deltas', 0)]}
 
 # constant factors in front of FLOP terms
-multipliers = {'fprop_fc' : 2, 'bprop_fc' : 2, 'update_fc': 2}
+multipliers = {'fprop_fc' : 2, 'bprop_fc' : 2, 'update_fc': 2,
+               'fprop_conv' : 2, 'bprop_conv' : 2, 'update_conv': 2}
 
 # elementwise operations: multipliers and arg position
 ew_mult_pos = { 'logistic': (4,0), 'rectlin': (1,0),

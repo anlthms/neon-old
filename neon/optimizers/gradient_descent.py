@@ -99,10 +99,10 @@ class GradientDescentMomentum(GradientDescent):
     def apply_rule(self, params, updates, epoch):
         """
         Steps for momentum:
-        1. velo = mu * velo    scale down old velocity
-        2. upda = eps * upda   scale down new updates
+        1. velo = mu * velo    scale down old velocity (momentum coef)
+        2. upda = eps * upda   scale down new updates (lerning rate)
         3. velo = velo - upda  combine old and new part
-        4. update the actual weights.
+        4. para = para + velo  update the actual weights.
         """
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
@@ -113,7 +113,7 @@ class GradientDescentMomentum(GradientDescent):
                                           momentum_coef, learning_rate)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item) # us_item is used as temp storage, not returned.
                 self.backend.subtract(vs_item, us_item, out=vs_item)
                 self.backend.add(ps_item, vs_item, out=ps_item)
 
@@ -203,13 +203,19 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
-            # reuse us_item for weight decay term
-            # note: usually want to only apply for weights, not biases
-            self.backend.multiply(ps_item, self.weight_decay, out=us_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
+            if self.backend.__module__ == 'neon.backends.max':
+                # wrapping all calls into a single, lazy-eval kernel
+                self.backend.gdmwd_compound(ps_item, us_item, vs_item,
+                                            momentum_coef, learning_rate,
+                                            self.weight_decay)
+            else:
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item) #ok
+                self.backend.multiply(us_item, learning_rate, out=us_item) # ok
+                self.backend.subtract(vs_item, us_item, out=vs_item) # ok, orig
+                # reuse us_item for weight decay term
+                # note: usually want to only apply for weights, not biases
+                self.backend.multiply(ps_item, self.weight_decay, out=us_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
 
-            self.backend.add(ps_item, vs_item, out=ps_item)
+                self.backend.add(ps_item, vs_item, out=ps_item) #ok
