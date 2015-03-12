@@ -38,7 +38,7 @@ def print_performance_stats(backend, logger):
         total_gflop += gflop_array.sum()
         flop_per_s = gflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
-        if time_array.sum() > .4:
+        if time_array.sum() > .1:
             used_call_list.append(call)
             timed_calls.append(flop_per_s)
             timed_times.append(time_array)
@@ -47,9 +47,9 @@ def print_performance_stats(backend, logger):
     #
     # First plot: speed vs. time
     print "opening figure"
-    import pdb; pdb.set_trace()
-    plt.figure(1)
+    plt.figure(1, figsize=(12, 6), dpi=120, facecolor='w', edgecolor='k')
     plt.subplot(1,2,2)
+    #import pdb; pdb.set_trace()
     n, bins, patches = plt.hist(timed_calls, num_bins,
                                 weights=timed_times, range=(0, 5000),
                                 histtype='barstacked', normed=0, alpha=0.5)
@@ -92,6 +92,6 @@ def print_performance_stats(backend, logger):
     plt.xlabel('time/s')
     print "showing plog"
     #plt.show()
-    plt.savefig('figurename.pdf')
+    plt.savefig('figurename126.pdf', dpi=500) # supposedly savefig overrides figure dpi value
     print "shown"
 

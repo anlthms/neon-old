@@ -33,7 +33,7 @@ macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
 
-BDTYPE = 'float16'
+BDTYPE = 'float32'
 logger.warning("i1k with hardcoded dtype %s" ,BDTYPE)
 
 def my_pickle(filename, data):
@@ -137,7 +137,7 @@ class DecompressImages(threading.Thread):
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
                     img, dtype=BDTYPE)[:, :, 0:3],
-                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.  # urs wants this to be normalized
 
     def run(self):
         # provide mini batch from macro batch

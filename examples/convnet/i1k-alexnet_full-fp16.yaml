@@ -4,6 +4,8 @@
 # Experiment settings to train/test the FULL version of AlexNet CNN on ImageNet.
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
 
+# Changed the initialization to He ... Ren (PReLu paper)
+
 !obj:experiments.FitPredictErrorExperiment {
 
   # timing: {
@@ -35,15 +37,15 @@
 
   weight_inits: [
     &wt_init0 !obj:params.GaussianValGen {
-      scale: .1, #.1 intead of 0.01 makes nonzero bprops everywhere.
+      scale: .01, #.1 intead of 0.01 makes nonzero bprops everywhere. Note for 5 FC layers, .01^5=1e-10, while 600e-10
       bias_init: 0.0, # zero
     },
     &wt_init1 !obj:params.GaussianValGen {
-      scale: .1, #.1 intead of 0.01
+      scale: .01, #.1 intead of 0.01
       bias_init: 0.1, # was .1
     },
     &wt_init_fc !obj:params.GaussianValGen {
-      scale: .05, # .05 instead of .005 helps FC layer errors
+      scale: .005, # .05 instead of .005 helps FC layer errors
       bias_init: 0.1, # was .1
     },
   ],
@@ -51,11 +53,11 @@
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    global_dtype: &npfloat np.float16,
+    global_dtype: &npfloat np.float32,       ##############################
     velocity_dtype: *npfloat,
     param_dtype: *npfloat,
     lr_params: {
-      learning_rate: 0.002, # was 0.02, 10x lower to compensate weights?
+      learning_rate: 0.02, # was 0.02, 10x lower to compensate weights?
       schedule: {
               type: step,
               ratio: 0.1,
@@ -72,7 +74,7 @@
     type: gradient_descent_momentum_weight_decay,
     velocity_dtype: *npfloat,  # this is also used for param_dtype
     lr_params: {
-      learning_rate: 0.001, # again was 0.01
+      learning_rate: 0.01, # again was 0.01
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -88,7 +90,7 @@
 
   model: !obj:models.MLP {
     num_epochs: 50,  # was 90
-    half_precision: &hp True,
+    half_precision: &hp False,              ###############################
     batch_size: &bs 256,
     step_print: 24,
     serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
@@ -104,7 +106,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init0,
+        weight_init: !obj:params.GaussianValGen {  # this sees pixels, maybe need to initialize it smaller?
+          scale: .05, # sqrt(2/n), n = k^2 c = 11**2 * 3 = 363 -> a .07 or b .016
+          bias_init: 0.0, # zero
+        },
         nofm: 64,
         fshape: [11, 11],
         stride: 4,
@@ -129,7 +134,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init1,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .035, # sqrt(2/n), n = k^2 c = 5**2 * 64 = 1600 -> a .035 or b .02
+          bias_init: 0.0, # zero
+        },
         nofm: 192,
         fshape: [5, 5],
         pad: 2,
@@ -153,7 +161,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init0,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .034, # sqrt(2/n), n = k^2 c = 3**2 * 192 = 1728 -> a .034 or b .024
+          bias_init: 0.0, # zero
+        },
         nofm: 384,
         fshape: [3, 3],
         pad: 1,
@@ -164,7 +175,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init1,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .024, # sqrt(2/n), n = k^2 c = 3**2 * 384 = 3456 -> a .024 or b .03
+          bias_init: 0.0, # zero
+        },
         nofm: 256,
         fshape: [3, 3],
         pad: 1,
@@ -175,7 +189,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init1,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .03, # MANUAL 2x OVERRIDE  sqrt(2/n), n = k^2 c = 3**2 * 256 = 2304 -> a .03 or b .03
+          bias_init: 0.0, # zero
+        },
         nofm: 256,
         fshape: [3, 3],
         pad: 1,
@@ -193,7 +210,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init_fc,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .015, # MANUAL 2x OVERRIDE   sqrt(2/n), n = 256*6*6 = 9216  or 6*6*2048 # trying shit out. -> a .015 or b .005
+          bias_init: 0.0, # zero
+        },
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
@@ -207,7 +227,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init_fc,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .03,  # sqrt(2/n), n 1*1*2048 = 2048  # trying shit out. -> a .03 or b .03 (using effective 2048 due to dropout)
+          bias_init: 0.0, # zero
+        },
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
@@ -221,7 +244,10 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init0,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .01, # was 0.01, but n 1*1*1000 -> .05
+          bias_init: 0.0, # zero
+        },
         nout: *mtf,
         activation: !obj:transforms.Softmax {},
       },

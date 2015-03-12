@@ -16,7 +16,8 @@
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '/home/users/urs/data',
-    sample_pct: 10,
+    sample_pct: 100,
+    serialized_path: '~/data/CIFAR10/cifar10_small.pkl',
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {

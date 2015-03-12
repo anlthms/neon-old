@@ -72,6 +72,11 @@ class ConvLayer(WeightLayer):
                                 padding=self.negpad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf,
                                 local=self.local_conv)
+        if 'conv-' in self.name:
+            print "\nbackend call to fprop_conv", self.name
+            print "std weights", self.weights.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.weights[0,0:4].asnumpyarray() # var
+            print "std inputs", inputs.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  inputs[0,0:4].asnumpyarray()
+            print "std pre_act", self.pre_act.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.pre_act[0,0:4].asnumpyarray()
         if self.use_biases is True:
             if self.shared_bias:
                 self.pre_act = self.pre_act.reshape(
@@ -101,6 +106,7 @@ class ConvLayer(WeightLayer):
             u_idx = 2
 
         if self.deltas is not None:
+            #self.backend.multiply(error, float(1000), out=error)
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmsize=self.ofmsize,
@@ -110,7 +116,13 @@ class ConvLayer(WeightLayer):
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
-
+            #self.backend.divide(error, float(1000), out=error) # scale back
+            if 'conv-' in self.name:
+                print "\nbackend call to BPROP_CONV", self.name
+                print "weights\tstd", self.weights.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.weights[0,0:4].asnumpyarray()# var over feature maps
+                print "error \tstd", error.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  error[0,0:4].asnumpyarray() # var over batchsize
+                print "deltas\tstd", self.deltas.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.deltas[0,0:4].asnumpyarray() # BUG! Deltas are nonzer0, std is zero!
+            #import pdb; pdb.set_trace()
         self.backend.update_conv(out=upm[u_idx], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape,
