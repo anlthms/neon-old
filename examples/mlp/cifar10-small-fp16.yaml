@@ -8,8 +8,9 @@
 
   timing: {
     plots: True,
-    decorate: [fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
-    decorate_ew: [],
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [rectlin, add, subtract, multiply, divide], # , divide kills it? Must pick wrong arg!
     #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
                   # sum must not be decorated at this time, it will fail
     },
@@ -17,7 +18,7 @@
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '/home/users/urs/data',
     sample_pct: 100,
-    serialized_path: '~/data/CIFAR10/cifar10_small.pkl',
+    # serialized_path: '~/data/CIFAR10/cifar10_small.pkl', # [TODO] Cannot serialize the data for gpu backend.
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
@@ -41,7 +42,7 @@
     num_epochs: 10,
     batch_size: &bs 128,
     half_precision: &hp True,
-    batch_norm: &bn False,
+    batch_norm: &bn False,        #           for this to work well, need to reduce lr 10x ?
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

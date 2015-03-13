@@ -53,7 +53,7 @@
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    global_dtype: &npfloat np.float32,       ##############################
+    global_dtype: &npfloat np.float16,       ##############################
     velocity_dtype: *npfloat,
     param_dtype: *npfloat,
     lr_params: {
@@ -90,7 +90,7 @@
 
   model: !obj:models.MLP {
     num_epochs: 50,  # was 90
-    half_precision: &hp False,              ###############################
+    half_precision: &hp True,              ###############################
     batch_size: &bs 256,
     step_print: 24,
     serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
@@ -228,7 +228,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.GaussianValGen {
-          scale: .03,  # sqrt(2/n), n 1*1*2048 = 2048  # trying shit out. -> a .03 or b .03 (using effective 2048 due to dropout)
+          scale: .03,  # sqrt(2/n), n 1*1*2048 = 2048  # trying shit out. -> a .03 or b .03 (using effective 2048 due to dropout, otherwise .02)
           bias_init: 0.0, # zero
         },
         nout: 4096,
@@ -245,7 +245,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.GaussianValGen {
-          scale: .01, # was 0.01, but n 1*1*1000 -> .05
+          scale: .05, # was 0.01, but n 1*1*1000 -> .05
           bias_init: 0.0, # zero
         },
         nout: *mtf,

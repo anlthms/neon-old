@@ -54,8 +54,11 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # if the experiment includes timing diagnostics, decorate backend
         if self.timing['plots']:
-            self.backend.decorate(self.timing)
+            from neon.diagnostics import timing_decorators
+            td = timing_decorators.MaxDecorators()  # instanciate
+            td.decorate(self.backend, self.timing)
             self.model.timing_plots=True
+
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
         self.model.predict_and_report(self.dataset)

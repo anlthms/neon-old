@@ -163,7 +163,7 @@ class MLP(MLP_old):
                 self.bprop()
                 #print "UPDATEz"
                 self.update(self.epochs_complete)
-                #print "ERROR"
+                #print "ERROR"       # get_cost is a 1x1 array
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)

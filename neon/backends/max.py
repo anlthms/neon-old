@@ -15,7 +15,6 @@ import pycuda.driver as drv
 import numpy as np
 from time import time
 from collections import defaultdict
-from neon.diagnostics import timing_decorators as td
 
 from neon.util.compat import range
 
@@ -51,24 +50,6 @@ class MAX(Backend):
         self.time_dict = defaultdict(list)
         self.flop_dict = defaultdict(list)
         self.paren_dic = defaultdict(list)
-
-    def decorate(self, function_list):
-        """
-        Replaces the @decorators in the backend function. Go through the list
-        of functions to be decorated and wrap them with the correct parameters
-        """
-        for call in function_list['decorate']:
-            print "wrapping", call, "with", td.multipliers[call],
-            print "and", td.shapes[call]
-            orig_func = getattr(self, call)
-            wrapped_func = td.scott_record_flops(orig_func)
-            setattr(self, call, wrapped_func)
-        for call in function_list['decorate_ew']:
-            print "wrapping", call, "ew",
-            orig_func = getattr(self, call)
-            wrapped_func = td.scott_record_flops_ew(orig_func)
-            setattr(self, call, wrapped_func)
-
 
     def init_mempool(self, shape):
         """
@@ -234,6 +215,9 @@ class MAX(Backend):
         R: Height of filter kernel
         S: Width  of filter kernel
         '''
+        #print "conf got ifmshape", ifmshape, "nifm", nifm, "ofmshape", ofmshape, "ofmsize", ofmsize
+        #print "number of OPS is"
+        #import pdb; pdb.set_trace()
         self.nl.fprop_conv(conv=fpropbuf, I=inputs, F=weights, O=out,
                            alpha=1.0, repeat=1)
 

@@ -38,7 +38,7 @@ def print_performance_stats(backend, logger):
         total_gflop += gflop_array.sum()
         flop_per_s = gflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
-        if time_array.sum() > .1:
+        if time_array.sum() > .01:
             used_call_list.append(call)
             timed_calls.append(flop_per_s)
             timed_times.append(time_array)
