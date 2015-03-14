@@ -55,7 +55,14 @@ class FitPredictErrorExperiment(FitExperiment):
         # if the experiment includes timing diagnostics, decorate backend
         if self.timing['plots']:
             from neon.diagnostics import timing_decorators
-            td = timing_decorators.MaxDecorators()  # instanciate
+            if self.backend.__class__.__name__ == 'MAX':
+                td = timing_decorators.MaxDecorators(backend=self.backend)
+            elif self.backend.__class__.__name__ == 'GPU':
+                td = timing_decorators.CudanetDecorators(backend=self.backend)
+            else:
+                assert 1 == 0, "no support for CPU backend yet!"
+
+
             td.decorate(self.backend, self.timing)
             self.model.timing_plots=True
 

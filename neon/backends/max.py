@@ -14,7 +14,6 @@ from nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
 from time import time
-from collections import defaultdict
 
 from neon.util.compat import range
 
@@ -45,11 +44,6 @@ class MAX(Backend):
         self.rng_seed = rng_seed
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
-
-        # output dictionaries where the timing diagnostics are stored
-        self.time_dict = defaultdict(list)
-        self.flop_dict = defaultdict(list)
-        self.paren_dic = defaultdict(list)
 
     def init_mempool(self, shape):
         """

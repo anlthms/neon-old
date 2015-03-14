@@ -157,13 +157,13 @@ class MLP(MLP_old):
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
-                #print "FPROP"
+                logger.info("FPROP %d in %d", mb_id, self.epochs_complete)
                 self.fprop()
-                #print "BPROP"
+                logger.info("BPROP")
                 self.bprop()
-                #print "UPDATEz"
+                logger.info("UPDATE")
                 self.update(self.epochs_complete)
-                #print "ERROR"       # get_cost is a 1x1 array
+                logger.info("ERROR")      # get_cost is a 1x1 array
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)

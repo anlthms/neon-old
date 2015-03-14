@@ -8,13 +8,13 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  # timing: {
-  #   plots: True,
-  #   decorate: [fprop_fc, bprop_fc, update_fc],
-  #   decorate_ew: [],
-  #   #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],  # a list of function this experiment should time.
-  #                 # sum must not be decorated at this time, it will fail
-  #   },
+  timing: {
+    plots: True,
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+                  # sum must not be decorated at this time, it will fail
+  },
 
   dataset: &ds !obj:datasets.I1K {
     load_path: '/usr/local/data', #directory where .tar files are stored
@@ -30,9 +30,9 @@
     num_processes: 4, #not impl yet
     # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 24, # 416,
+    end_train_batch: 6, #24, # 416,
     start_val_batch: 0,
-    end_val_batch: 4, # 15,
+    end_val_batch: 1, #4, # 15,
   },
 
   weight_inits: [
@@ -89,11 +89,11 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 50,  # was 90
+    num_epochs: 1,  # was 90
     half_precision: &hp True,              ###############################
     batch_size: &bs 256,
     step_print: 24,
-    serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
+    #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

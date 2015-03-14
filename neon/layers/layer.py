@@ -390,6 +390,7 @@ class WeightLayer(Layer):
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,
                                                  self.weight_dtype)
+        self.weights.name = self.name  # naming weights for timing diagnostics
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init.__dict__

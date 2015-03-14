@@ -6,13 +6,15 @@ Decorators for measuring FLOPS on backend mop calls. Functions are decorated
 in a
 """
 
+import logging
+
 import numpy as np
-import pycuda.driver as drv  # for timing
 import traceback  # for tracing back where the function was called from
 from functools import wraps
+from time import time  as now # for timing.
+from collections import defaultdict
 
-start  = drv.Event()
-end    = drv.Event()
+logger = logging.getLogger(__name__)
 
 
 class Decorators(object):
@@ -34,6 +36,16 @@ class Decorators(object):
                      'add':1, 'subtract': 1, 'multiply': 1, 'divide': 1,
                      'greater': 1, 'not_equal':1, 'clip': 2, 'log': 1, 'argmax': 1
                   }
+
+    def __init__(self, **kwargs):
+        """
+        Initialize output dictionaries where the timing diagnostics are stored.
+        Jerry-rigging the backend using the monkey trick
+        """
+        kwargs['backend'].time_dict = defaultdict(list)
+        kwargs['backend'].flop_dict = defaultdict(list)
+        kwargs['backend'].paren_dic = defaultdict(list)
+        kwargs['backend'].layer_dic = defaultdict(list)
 
     def decorate(self, backend, function_list):
         """
@@ -58,13 +70,6 @@ class Decorators(object):
             wrapped_func = self.record_flops_ew(orig_func)
             setattr(backend, call, wrapped_func)
 
-
-class MaxDecorators(Decorators):
-
-    """
-    These are max-backend specific decorators that use pycuda for timing.
-    """
-
     def record_flops_fc(self, func):
         """
         This function takes a list of tensors and shape indices, and multiplies
@@ -77,21 +82,25 @@ class MaxDecorators(Decorators):
         #@wraps
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
-            #print("MOP call: " + func_name + " from parent " + parent_func_name)
-            start.record()
+            if 'weights' in kwargs:
+                layer_name = kwargs['weights'].name
+            else:
+                layer_name = 'undefined'
+            logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
+            #####################
+            tic = self.start_me()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            end.record()
-            end.synchronize()
-            msecs = end.time_since(start)
-            #import pdb; pdb.set_trace()
+            msecs = self.stop_me(tic)
+            #####################
             flop = self.multipliers[func_name]
             for (matrix,dim) in self.shapes[func_name]:
                 flop *= kwargs[matrix].shape[dim]
             func.__self__.time_dict[func_name].append(msecs / 1000.)
             func.__self__.flop_dict[func_name].append(flop)
             func.__self__.paren_dic[func_name].append(parent_func_name)
+            func.__self__.layer_dic[func_name].append(layer_name)
             return retval
         return func_wrapper
 
@@ -105,14 +114,15 @@ class MaxDecorators(Decorators):
         #@wraps
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
-            #print("MOP call: " + func_name + " from parent " + parent_func_name)
-            start.record()
+            layer_name = kwargs['weights'].name
+            #import pdb; pdb.set_trace()
+
+            logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
+            tic = self.start_me()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            end.record()
-            end.synchronize()
-            msecs = end.time_since(start)
+            msecs = self.stop_me(tic)
             if func_name == 'fprop_conv':
                 '''
                 fprop: convolution between input and filter.
@@ -167,6 +177,7 @@ class MaxDecorators(Decorators):
             func.__self__.time_dict[func_name].append(msecs / 1000.)
             func.__self__.flop_dict[func_name].append(flop)
             func.__self__.paren_dic[func_name].append(parent_func_name)
+            func.__self__.layer_dic[func_name].append(layer_name)
             return retval
         return func_wrapper
 
@@ -186,24 +197,53 @@ class MaxDecorators(Decorators):
             Note args have a live of their own (reseved keyword) and shall not be
             used. kwargs on the other hand are just a dict.
             """
+            if 'weights' in kwargs:
+                layer_name = kwargs['weights'].name
+            else:
+                layer_name = 'anon'
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
-            start.record()
+            tic = self.start_me()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            end.record()
-            end.synchronize()
-            msecs = end.time_since(start)
+            msecs = self.stop_me(tic)
             array_arg = 1 if (type(arguments[0]) is float) else 0
 
             flop = (self.ew_mult_pos[func_name]
                     * arguments[array_arg].shape[0]
                     * arguments[array_arg].shape[1])
-            func.__self__.time_dict[func_name].append(msecs / 1000.)
-            func.__self__.flop_dict[func_name].append(flop)
-            func.__self__.paren_dic[func_name].append(parent_func_name)
+            func.__self__.time_dict['ew'].append(msecs / 1000.)
+            func.__self__.flop_dict['ew'].append(flop)
+            func.__self__.paren_dic['ew'].append(parent_func_name)
+            func.__self__.layer_dic['ew'].append(layer_name)
             return retval
         return func_wrapper
+
+
+class MaxDecorators(Decorators):
+    """
+    These are max-backend specific decorators that use pycuda for timing.
+    """
+
+    def __init__(self, **kwargs):
+        '''init used to hide import until we have a backend'''
+        import pycuda.driver as drv  # for timing.
+
+        self.start  = drv.Event()
+        self.end    = drv.Event()
+
+        super(MaxDecorators, self).__init__(**kwargs)
+
+    def start_me(self):
+        #
+        tic = self.start.record()
+        return tic
+
+    def stop_me(self, tic):
+        self.end.record()
+        self.end.synchronize()
+        msecs = self.end.time_since(self.start)
+        return msecs
 
 
 class CudanetDecorators(Decorators):
@@ -211,45 +251,18 @@ class CudanetDecorators(Decorators):
     decorators for cudanet (TODO: Update for new format)
     """
 
-    def record_flops(self, mult, shape_list, func_name):
-        """
-        decorator idea needs some work, function calls are very different
-        """
-        def record_flops_decorator(func):
-            def func_wrapper(self, *args, **kwargs):
-                tic = time()
-                #####################
-                func(self, *args, **kwargs)
-                #####################
-                self.sync_stream()
-                msecs = 1000. * (time() - tic)
+    def __init__(self, **kwargs):
+        '''init used to hide import until we have a backend'''
+        import cudanet # pass
+        self.sync = cudanet.sync_stream
 
-                flop = mult
-                for (matrix,dim) in shape_list:
-                    flop *= kwargs[matrix].shape[dim]
-                self.time_dict[func_name].append(msecs / 1000.)
-                self.flop_dict[func_name].append(flop)
-            return func_wrapper
-        return record_flops_decorator
+        super(CudanetDecorators, self).__init__(**kwargs)
 
-    def record_flops_ew(self, mult, arg_pos, func_name):
-        """
-        for ew functions called with args, not kwargs.
-        """
-        def record_flops_decorator(func):
-            def func_wrapper(self, *args, **kwargs):
-                tic = time()
-                #####################
-                func(self, *args, **kwargs)
-                #####################
-                self.sync_stream()
-                msecs = 1000. * (time() - tic)
+    def start_me(self):
+        tic = now()
+        return tic
 
-                flop = mult
-                #print "args", args
-                flop *= args[arg_pos].shape[0]
-                flop *= args[arg_pos].shape[1]
-                self.time_dict[func_name].append(msecs / 1000.)
-                self.flop_dict[func_name].append(flop)
-            return func_wrapper
-        return record_flops_decorator
+    def stop_me(self, tic):
+        self.sync() # syncstream is a GPU backend function.
+        msecs = 1000. * (now() - tic)
+        return msecs
