@@ -35,11 +35,15 @@ class FCLayer(WeightLayer):
     def fprop(self, inputs):
         self.backend.fprop_fc(out=self.pre_act, inputs=inputs,
                               weights=self.weights, layer=self)
+        # TODO: make this a decorator around backend.fprop_conv()
         if 'fc-' in self.name:
             print "\nbackend call to FPROP_fc", self.name
-            print "weights\tstd", self.weights.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.weights[0,0:4].asnumpyarray() # var
-            print "inputs \tstd", inputs.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  inputs[0,0:4].asnumpyarray() # var
-            print "pre_act\tstd", self.pre_act.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.pre_act[0,0:4].asnumpyarray() # var
+            a = self.weights
+            print "weights\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
+            a = inputs
+            print "inputs \tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
+            a = self.pre_act
+            print "pre_act\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
         if self.batch_norm:
@@ -61,11 +65,15 @@ class FCLayer(WeightLayer):
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
                                   deltas=error, layer=self)
+            # TODO: make this a decorator around backend.fprop_conv()
             if 'fc-' in self.name:
                 print "\nbackend call to BPROP_fc", self.name
-                print "weights\tstd", self.weights.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.weights[0,0:4].asnumpyarray()# var over feature maps
-                print "error \tstd", error.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  error[0,0:4].asnumpyarray() # var over batchsize
-                print "deltas\tstd", self.deltas.asnumpyarray().astype(np.float32).std(1)[0:4], "\traw",  self.deltas[0,0:4].asnumpyarray()
+                a = self.weights
+                print "weights\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
+                a = error
+                print "error \tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
+                a = self.deltas
+                print "deltas\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
         self.backend.update_fc(out=upm[u_idx], inputs=inputs,
                                deltas=error, layer=self)
         if self.use_biases is True:

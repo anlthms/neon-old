@@ -3,6 +3,18 @@
 # ----------------------------------------------------------------------------
 """
 Decorators for measuring FLOPS on backend mop calls.
+
+
+Soumith benchmarks:
+
+ccn2
+fprop_conv from conv1 in     54.62 ms per call with 10 calls totaling to 2675.86 GFLOPS, 10523.74GFLOP
+update_conv from conv1 in    76.71 ms per call with 10 calls totaling to 1912.79 GFLOPS, 10564.85GFLOP
+
+
+fprop_conv from conv2 in     115.07 ms per call with 10 calls totaling to 2267.50 GFLOPS, 18786.19GFLOP
+bprop_conv from conv2 in     81.36 ms per call with 10 calls totaling to 3257.21 GFLOPS, 19079.72GFLOP
+update_conv from conv2 in    154.68 ms per call with 10 calls totaling to 1693.39 GFLOPS, 18859.57GFLOP
 """
 
 # import numpy as np
@@ -19,6 +31,7 @@ def print_performance_stats(backend, logger):
 
 
     call_list = backend.flop_dict.keys()
+    print "CALL LIST is", call_list
     used_call_list = []
     timed_calls = []
     timed_times = []
@@ -39,7 +52,7 @@ def print_performance_stats(backend, logger):
         total_gflop += gflop_array.sum()
         flop_per_s = gflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
-        if time_array.sum() > .01:
+        if time_array.sum() > .001:
             used_call_list.append(call)
             timed_calls.append(flop_per_s)
             timed_times.append(time_array)
@@ -71,15 +84,16 @@ def print_performance_stats(backend, logger):
             soumith_be = np.array([backend.time_dict[call][i]
                                    for i, x
                                    in enumerate(backend.layer_dic[call])
-                                   if x == layer]).mean() # mean over iters
-            import pdb; pdb.set_trace()
+                                   if x == layer]).mean() # mean over iters! Mean must be the problem?!
+            #fumith = np.array([backend.time_dict[call][i] for i, x in enumerate(backend.layer_dic[call]) if x == layer]) # 72 elements from the 72 minibatches in an epoch (72*128=9216, 3 macros)
+            #import pdb; pdb.set_trace()
             flop_stats = np.array([backend.flop_dict[call][i]
                                    for i, x
                                    in enumerate(backend.layer_dic[call])
                                    if x == layer]).sum()
             layer_flops_stash[call + " from " + layer] =  flop_stats / time_stats / 1e9
-            layer_time_stash[call + " from " + layer] =  time_stats
-            soumith_stash[call + " from " + layer] =  soumith_be
+            layer_time_stash[call + " from " + layer] =  time_stats # sum of calls
+            soumith_stash[call + " from " + layer] =  1000. * soumith_be # mean of calls. back to ms
 
     # colors for the bars
     paren_col_stash =  ['b' if 'sub' in k else
@@ -96,13 +110,16 @@ def print_performance_stats(backend, logger):
                         'm' if 'output' in k else
                         'k' for k in layer_flops_stash.keys()]
 
+
+
+
     # First plot: detailed breakdown of time
     plt.figure(1, figsize=(12, 6), dpi=120, facecolor='w', edgecolor='k')
     plt.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.1)
 
     plt.subplot(1,2,1)
     plt.barh(range(len(paren_stash)), paren_stash.values(),
-             color=paren_col_stash, align='center', alpha=0.5)
+             color=paren_col_stash, align='center', alpha=0.5) # color paren_col_stash
     plt.yticks(range(len(paren_stash)), paren_stash.keys())
     plt.title(r'Breakdown of MOP calls by parent')
     plt.xlabel('time/s')
@@ -111,16 +128,20 @@ def print_performance_stats(backend, logger):
     plt.subplot(1,2,2)
     n, bins, patches = plt.hist(timed_calls, num_bins,
                                 weights=timed_times, range=(0, 5000),
+                                color=['g' for i in timed_calls],
                                 histtype='barstacked', normed=0, alpha=0.5)
-    plt.title(r'Time vs. Compute, total %2.2fs %2.2fGF average %2.2fGFLOP/S'
-              % (total_time, total_gflop, total_gflop/total_time))
+    plt.title(r'Total %2.1fs %2.0fTF average %2.0fGFLOP/s'
+              % (total_time, total_gflop/1000., total_gflop/total_time))
     plt.xlabel('GFLOP/s')
     plt.ylabel('op count / GFLOP')
     plt.xlim((0, 5500))
-    plt.ylabel('time / s')
+    plt.ylabel('Time / s')
     plt.legend(used_call_list)
+    sufx = 'inet_fp16'
+    plt.savefig('figure1_'+sufx+'.pdf', dpi=500) # supposedly savefig overrides figure dpi value
 
-    plt.savefig('figure1_i1k_max.pdf', dpi=500) # supposedly savefig overrides figure dpi value
+
+
 
 
     #
@@ -142,83 +163,99 @@ def print_performance_stats(backend, logger):
     plt.yticks(range(len(layer_flops_stash)), range(len(layer_flops_stash)))
     plt.title(r'Breakdown of MOP calls by layer')
     plt.xlim((0, 7))
-    plt.xlabel('time / s')
+    plt.xlabel('Time / s')
 
-    plt.savefig('figure2_i1k_max.pdf', dpi=500)
+    plt.savefig('figure2_'+sufx+'.pdf', dpi=500)
+
+
+
 
     # print out soumith benchmakr numers:
     #import pdb; pdb.set_trace()
     logger.info("Soumith Benchmarks")
+    sum_of_all_calls = 0
     for i, key in enumerate(soumith_stash.keys()):
-        logger.info("Performed %s in\t %2.2f ms ", key, 1000*soumith_stash[key])
+        logger.info("Performed %s in\t %2.2f ms per call with 10 calls totaling to %2.2f GFLOPS, %2.2fGFLOP", key, soumith_stash[key], layer_flops_stash[key], layer_flops_stash[key]*layer_time_stash[key])
+        sum_of_all_calls += soumith_stash[key]
+    logger.info("Total time in call %2.2f ms ", sum_of_all_calls)
 
 
-    # def print_accuracy():
+
+
+
+def print_accuracy():
+    fp16_sto_train=[0.77724, 0.77724, 0.61899, 0.79527, 0.86739, 0.50080, 1.10377,
+                    1.20994, 0.63502, 0.85737, 0.64904, 1.13181, 0.55889, 0.89543,
+                    0.69311,
+                    0.37861, 0.92949, 0.86338, 0.49279, 1.20192, 0.67508, 1.02364,
+                    0.79127, 0.79327, 0.59095, 0.98558, 0.44471, 0.47075, 0.61098,
+                    0.59696, 1.55248, 1.07572, 0.56891, 1.03766, 1.22796, 1.89303,
+                    1.20793]
+    fp16_sto_test  =[31.97115, 31.93109, 31.63061, 32.03125, 32.17147, 30.68910,
+                     32.81250, 32.31170, 32.39183, 31.97115, 31.51042, 32.39183,
+                     32.01122, 32.21154, 30.86939,
+                    31.43029, 32.69231, 31.71074, 31.65064, 32.09135, 31.69070,
+                    31.97115, 31.16987, 32.71234, 31.00961, 32.67228, 31.81090,
+                    31.51042, 31.91106, 32.51202, 32.87260, 31.63061, 32.03125,
+                    31.35016, 32.63221, 32.89263, 31.95112]
+
+    fp16_normal_train = [0.59095, 0.81530, 0.45072, 1.42027, 0.59696, 0.75721,
+                         0.89343, 0.55088, 0.73518, 0.66907, 0.54888, 0.90745,
+                         0.46875, 1.25200, 1.23598, 0.78926, 0.81330, 0.74119,
+                         0.60897, 0.80729, 1.16186]
+    fp16_normal_test = [31.93109, 32.05128, 31.41026, 33.33334, 31.00961,
+                        31.93109, 31.93109, 31.45032, 31.20994, 31.00961,
+                        31.25000, 31.73077, 32.41186, 32.85256, 31.97115,
+                        32.69231, 33.05289, 30.80930, 31.35016, 31.69070,
+                        32.73237]
+
+    fp32_train = [0.65505, 0.60296, 0.70112, 0.85136, 0.70112, 0.63702, 0.52484,
+                  0.59295, 1.87300, 0.58494, 0.67909, 0.46274, 0.53686, 0.88341,
+                  0.66707, 0.80929, 0.75721, 0.55889, 0.78926, 0.64503, 0.66506,
+                  1.31210, 0.73117, 0.83133, 0.81731, 1.24800, 1.10577, 0.57091]
+    fp32_test = [31.43029, 32.13141, 32.52203, 31.22997, 31.39022, 31.06971,
+                 31.59055, 31.09976, 33.96434, 30.93950, 32.06130, 30.53886,
+                 32.70232, 32.17147, 31.27003, 31.56050, 30.80930, 32.10136,
+                 32.82252, 32.40184, 30.55889, 32.58213, 30.70914, 31.76082,
+                 32.06130, 33.17308, 32.52203, 31.51042]
+
+
+    plt.figure(3, figsize=(4, 4), dpi=120, facecolor='w', edgecolor='k')
+    plt.hist([fp32_test + [i+27 for i in fp32_train],
+              fp16_normal_test + [i+27 for i in fp16_normal_train],
+              fp16_sto_test + [i+27 for i in fp16_sto_train]
+              ], 10, normed=0, alpha=0.5, histtype='stepfilled')
+    plt.legend(['fp 32', 'fp16', 'fp16 sto.'])
+    plt.savefig('figure3compare16vs32.pdf', dpi=500)
+
+
+    """
     fp32numbers = [31.53045, 32.56210, 32.11138, 32.63221, 32.12139]  # 32.19
     fp16normal  = [31.97115, 32.05128, 31.97115, 32.13141, 31.20994]  # 31.87
     fp16stochas = [32.51202, 32.33173, 31.67067, 31.89103, 32.11138]  # 32.10
     fp32a = [0.69311, 1.41627, 0.60897, 1.19992, 0.62901]
     fp16s = [1.02764, 0.87540, 0.66907, 0.67107, 0.97356]
     fp16n = [0.91947, 0.73317, 0.75521, 0.66907, 0.47676]
-
-    plt.figure(3, figsize=(4, 4), dpi=120, facecolor='w', edgecolor='k')
-    plt.hist([fp32numbers + [i+29 for i in fp32a],
-              fp16normal + [i+29 for i in fp16n],
-              fp16stochas + [i+29 for i in fp16s]
-              ], 8, normed=0, alpha=0.5)
-    plt.legend(['fp 32', 'fp16', 'fp16 sto.'])
-    plt.savefig('figure3compare16vs32.pdf', dpi=500)
+    """
 
 
-"""
-# stochastic rounding
+def soumith_benchmark():
+    soumith=dict()  #    L1  L2   L3  L4  L5   B1  B2   B3  B4  B5
+    soumith['neon16'] = [38, 114, 75,  5,  9,  107, 250, 164, 10, 19]  ## too fast because of low entropy!
+    soumith['neon32'] = [47, 172, 102, 9, 14,  144, 416, 220, 14, 28] # n
 
-2015-03-13 17:23:49,755 INFO:mlp - train set misclass rate: 1.02764%
-2015-03-13 17:23:49,808 INFO:mlp - test set misclass rate: 32.51202%
+    soumith['cu_dnn'] = [76, 000, 00, 13, 21,  194, 000, 000, 26, 45]
+    soumith['ccn2th'] = [57, 000, 00,  8, 14,  147, 000, 000, 15, 27]
+    soumith['torch7'] = [132,000, 00, 32, 48,  320, 000, 000, 37, 43]
 
-2015-03-13 17:25:06,032 INFO:mlp - train set misclass rate: 0.87540%
-2015-03-13 17:25:06,085 INFO:mlp - test set misclass rate: 32.33173%
-
-2015-03-13 17:26:23,200 INFO:mlp - train set misclass rate: 0.66907%
-2015-03-13 17:26:23,253 INFO:mlp - test set misclass rate: 31.67067%
-
-2015-03-13 17:27:40,618 INFO:mlp - train set misclass rate: 0.67107%
-2015-03-13 17:27:40,671 INFO:mlp - test set misclass rate: 31.89103%
-
-2015-03-13 17:28:58,087 INFO:mlp - train set misclass rate: 0.97356%
-2015-03-13 17:28:58,140 INFO:mlp - test set misclass rate: 32.11138%
-
-
-# pf 16 normal rounding
-2015-03-13 17:12:18,698 INFO:mlp - train set misclass rate: 0.91947%
-2015-03-13 17:12:18,748 INFO:mlp - test set misclass rate: 31.97115%
-
-2015-03-13 17:13:31,959 INFO:mlp - train set misclass rate: 0.73317%
-2015-03-13 17:13:32,009 INFO:mlp - test set misclass rate: 32.05128%
-
-2015-03-13 17:14:45,751 INFO:mlp - train set misclass rate: 0.75521%
-2015-03-13 17:14:45,801 INFO:mlp - test set misclass rate: 31.97115%
-
-2015-03-13 17:16:00,422 INFO:mlp - train set misclass rate: 0.66907%
-2015-03-13 17:16:00,472 INFO:mlp - test set misclass rate: 32.13141%
-
-2015-03-13 17:17:14,994 INFO:mlp - train set misclass rate: 0.47676%
-2015-03-13 17:17:15,045 INFO:mlp - test set misclass rate: 31.20994%
+    plt.figure(4, figsize=(4, 4), dpi=120, facecolor='w', edgecolor='k')
+    for i, key  in enumerate(soumith.keys()):
+        plt.bar(arange(6)+.1*i, soumith[key], color=np.array((i,i,i))/6., width=0.08)
+    plt.legend(soumith.keys())
+    plt.ylabel('Time / ms')
+    plt.xticks(range(6), ['L1', 'L4', 'L5', 'L1', 'L4', 'L5'])
+    plt.xlabel('Forward          Backward')
+    plt.savefig('fig_soumith_bench.pdf', dpi=500)
 
 
-# FP32
-2015-03-13 13:08:29,419 INFO:mlp - train set misclass rate: 0.69311%
-2015-03-13 13:08:29,466 INFO:mlp - test set misclass rate: 31.53045%
 
-2015-03-13 13:51:15,377 INFO:mlp - train set misclass rate: 1.41627%
-2015-03-13 13:51:15,423 INFO:mlp - test set misclass rate: 32.56210%
-
-2015-03-13 14:34:14,518 INFO:mlp - train set misclass rate: 0.60897%
-2015-03-13 14:34:14,565 INFO:mlp - test set misclass rate: 32.11138%
-
-2015-03-13 15:16:58,690 INFO:mlp - train set misclass rate: 1.19992%
-2015-03-13 15:16:58,736 INFO:mlp - test set misclass rate: 32.63221%
-
-2015-03-13 15:59:42,463 INFO:mlp - train set misclass rate: 0.62901%
-2015-03-13 15:59:42,510 INFO:mlp - test set misclass rate: 32.12139%
-"""

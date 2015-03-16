@@ -3,7 +3,19 @@
 # ----------------------------------------------------------------------------
 """
 Decorators for measuring FLOPS on backend mop calls. Functions are decorated
-in a
+
+We are looking for 1s per iteration, breaks down to 24op with 40ms each.
+We see 20ms ops, must account for EW better.
+
+EW 0.4ms overall does not seem right, maybe the bundling does not work? Yes
+greater is 1.3 already!
+
+
+Manual sanity check for FC layer: 2*4000*4000*128 = 4GF, here takes 1ms for 4TF.
+In soumith, it's not timed, doh!
+conv2 fprop: 57GF (check: 2 times 5*5*64 x 128  times 5*5*64 x 1*1*192 gives 1*1*192 x 128 -> 80M in 27*27=730 locations totals 60GF ok!)
+which takes here 16ms for 3.5TF.
+In Soumith, this layer ccn2 fprop takes 252ms. His numbers are bananas!
 """
 
 import logging
@@ -32,10 +44,12 @@ class Decorators(object):
                    'fprop_conv' : 2, 'bprop_conv' : 2, 'update_conv': 2}
 
     # elementwise operations: multipliers and arg position
-    ew_mult_pos = { 'logistic': 4, 'rectlin': 1,
-                     'add':1, 'subtract': 1, 'multiply': 1, 'divide': 1,
-                     'greater': 1, 'not_equal':1, 'clip': 2, 'log': 1, 'argmax': 1
-                  }
+    ew_mult_pos = {'logistic': 4, 'rectlin': 1, 'sum': 1, 'mean': 1, 'var': 1,
+                   'sqrt':1, 'add': 1, 'subtract': 1, 'multiply': 1,
+                   'divide': 1, 'greater': 1, 'not_equal': 1,
+                   'clip': 2, 'log': 1, 'argmax': 10, 'softmax': 10,
+                  } # 'zeros': 1, 'ones': 1, 'empty': 1, 'array': 1, 'copy_from': 1,
+                    # 'fprop_pool': 1, 'bprop_pool': 1,
 
     def __init__(self, **kwargs):
         """
@@ -86,7 +100,7 @@ class Decorators(object):
                 layer_name = kwargs['weights'].name
             else:
                 layer_name = 'undefined'
-            logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
+            #logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
             #####################
             tic = self.start_me()
             #####################
@@ -117,7 +131,7 @@ class Decorators(object):
             layer_name = kwargs['weights'].name
             #import pdb; pdb.set_trace()
 
-            logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
+            #logger.info("MOP call: %s from parent %s", func_name, parent_func_name)
             tic = self.start_me()
             #####################
             retval = func(*arguments, **kwargs)
@@ -212,10 +226,10 @@ class Decorators(object):
             flop = (self.ew_mult_pos[func_name]
                     * arguments[array_arg].shape[0]
                     * arguments[array_arg].shape[1])
-            func.__self__.time_dict['ew'].append(msecs / 1000.)
-            func.__self__.flop_dict['ew'].append(flop)
-            func.__self__.paren_dic['ew'].append(parent_func_name)
-            func.__self__.layer_dic['ew'].append(layer_name)
+            func.__self__.time_dict[func_name].append(msecs / 1000.)
+            func.__self__.flop_dict[func_name].append(flop)
+            func.__self__.paren_dic[func_name].append(parent_func_name)
+            func.__self__.layer_dic[func_name].append(layer_name)
             return retval
         return func_wrapper
 

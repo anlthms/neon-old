@@ -209,10 +209,7 @@ class MAX(Backend):
         R: Height of filter kernel
         S: Width  of filter kernel
         '''
-        #print "conf got ifmshape", ifmshape, "nifm", nifm, "ofmshape", ofmshape, "ofmsize", ofmsize
-        #print "number of OPS is"
-        #import pdb; pdb.set_trace()
-        self.nl.fprop_conv(conv=fpropbuf, I=inputs, F=weights, O=out,
+        self.nl.fprop_conv(layer=fpropbuf, I=inputs, F=weights, O=out,
                            alpha=1.0, repeat=1)
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
@@ -221,7 +218,7 @@ class MAX(Backend):
         """
         Backward propagate the error through a convolutional network layer.
         """
-        self.nl.bprop_conv(conv=bpropbuf, F=weights, E=deltas, grad_I=out,
+        self.nl.bprop_conv(layer=bpropbuf, F=weights, E=deltas, grad_I=out,
                    alpha=1.0, repeat=1)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
@@ -231,7 +228,7 @@ class MAX(Backend):
         Compute the updated gradient for a convolutional network layer.
 
         """
-        self.nl.update_conv(conv=updatebuf, I=inputs, E=deltas, grad_F=out,
+        self.nl.update_conv(layer=updatebuf, I=inputs, E=deltas, grad_F=out,
                             alpha=1.0, repeat=1)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
@@ -243,7 +240,7 @@ class MAX(Backend):
         """
         op = op.lower()
         if op == "max":
-            self.nl.fprop_pool(pool=fpropbuf, I=inputs, O=out, repeat=1)
+            self.nl.fprop_pool(layer=fpropbuf, I=inputs, O=out, repeat=1)
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
@@ -255,7 +252,7 @@ class MAX(Backend):
         """
         op = op.lower()
         if op == "max":
-            self.nl.bprop_pool(pool=bpropbuf, I=inputs, E=deltas, grad_I=out,
+            self.nl.bprop_pool(layer=bpropbuf, I=inputs, E=deltas, grad_I=out,
                                repeat=1)
         else:
             raise AttributeError("unexpected pooling op type: %s", op)

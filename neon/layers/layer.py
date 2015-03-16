@@ -147,11 +147,12 @@ class Layer(YAMLable):
                                                       self.pre_act_dtype)
 
     def set_deltas_buf(self, delta_pool, offset):
+        # TODO: Butchered this for benchmarks, revert.
         self.deltas = None
-        if self.prev_layer is None:
-            return
-        if self.prev_layer.is_data:
-            return
+        # if self.prev_layer is None:
+        #     return
+        # if self.prev_layer.is_data:
+        #     return
 
         if delta_pool is None:
             self.deltas = self.backend.zeros(self.delta_shape,
