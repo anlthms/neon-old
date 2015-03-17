@@ -122,7 +122,7 @@ class GradientDescentMomentum(GradientDescent):
             if self.schedule['type'] == 'step':
                 div_factor = numpy.floor(
                     (epoch + 1) / self.schedule['step_epochs'])
-                return numpy.float32(self.learning_rate *
+                return float(self.learning_rate *
                                      self.schedule['ratio'] ** div_factor)
             else:
                 raise NotImplementedError("learning rate schedule type not "
@@ -209,13 +209,13 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
                                             momentum_coef, learning_rate,
                                             self.weight_decay)
             else:
-                self.backend.multiply(vs_item, momentum_coef, out=vs_item) #ok
-                self.backend.multiply(us_item, learning_rate, out=us_item) # ok
-                self.backend.subtract(vs_item, us_item, out=vs_item) # ok, orig
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item) #    velo = mu * velo
+                self.backend.multiply(us_item, learning_rate, out=us_item) #    upda = eps* upda
+                self.backend.subtract(vs_item, us_item, out=vs_item) #          velo = velo - upda
                 # reuse us_item for weight decay term
                 # note: usually want to only apply for weights, not biases
-                self.backend.multiply(ps_item, self.weight_decay, out=us_item)
-                self.backend.multiply(us_item, learning_rate, out=us_item)
-                self.backend.subtract(vs_item, us_item, out=vs_item)
+                self.backend.multiply(ps_item, self.weight_decay, out=us_item) # tmp = W * decay
+                self.backend.multiply(us_item, learning_rate, out=us_item)     # tmp = tmp * eps
+                self.backend.subtract(vs_item, us_item, out=vs_item)           # velo = velo - tmp_decay term.
 
                 self.backend.add(ps_item, vs_item, out=ps_item) #ok

@@ -48,6 +48,7 @@ class Decorators(object):
                    'sqrt':1, 'add': 1, 'subtract': 1, 'multiply': 1,
                    'divide': 1, 'greater': 1, 'not_equal': 1,
                    'clip': 2, 'log': 1, 'argmax': 10, 'softmax': 10,
+                   'gdm_compound': 5, 'gdmwd_compound': 10
                   } # 'zeros': 1, 'ones': 1, 'empty': 1, 'array': 1, 'copy_from': 1,
                     # 'fprop_pool': 1, 'bprop_pool': 1,
 

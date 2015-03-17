@@ -36,7 +36,7 @@ def print_performance_stats(backend, logger):
     timed_calls = []
     timed_times = []
     total_time = 0
-    total_gflop = 0
+    total_tflop = 0
     num_bins = 30
     for call in call_list:
         logger.info("Performed %2.2f GFLOP \tin %2.2fs \t(%d %s calls)",
@@ -46,11 +46,11 @@ def print_performance_stats(backend, logger):
                     call)
 
         # Histogram of where the time is spent.
-        gflop_array = np.array(backend.flop_dict[call]) / 1e9
+        tflop_array = np.array(backend.flop_dict[call]) / 1e12
         time_array = np.array(backend.time_dict[call])
         total_time += time_array.sum()
-        total_gflop += gflop_array.sum()
-        flop_per_s = gflop_array / time_array  # in GFLOP/s
+        total_tflop += tflop_array.sum()
+        flop_per_s = tflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
         if time_array.sum() > .001:
             used_call_list.append(call)
@@ -128,14 +128,14 @@ def print_performance_stats(backend, logger):
     plt.subplot(1,2,2)
     n, bins, patches = plt.hist(timed_calls, num_bins,
                                 weights=timed_times, range=(0, 5000),
-                                color=['g' for i in timed_calls],
+                                #color=['g' for i in timed_calls],
                                 histtype='barstacked', normed=0, alpha=0.5)
-    plt.title(r'Total %2.1fs %2.0fTF average %2.0fGFLOP/s'
-              % (total_time, total_gflop/1000., total_gflop/total_time))
-    plt.xlabel('GFLOP/s')
+    plt.title(r'Total %2.1fs %2.0fTF average %2.0fTFLOP/s'
+              % (total_time, total_tflop/1000., total_tflop/total_time))
+    plt.xlabel('TFLOPS')
     plt.ylabel('op count / GFLOP')
     plt.xlim((0, 5500))
-    plt.ylabel('Time / s')
+    plt.ylabel('Time (s)')
     plt.legend(used_call_list)
     sufx = 'inet_fp16'
     plt.savefig('figure1_'+sufx+'.pdf', dpi=500) # supposedly savefig overrides figure dpi value
@@ -154,7 +154,7 @@ def print_performance_stats(backend, logger):
     plt.yticks(range(len(layer_flops_stash)), layer_flops_stash.keys())
     plt.title(r'Breakdown of MOP calls by layer')
     plt.xlim((0, 5500))
-    plt.xlabel('GFLOPS')
+    plt.xlabel('TFLOPS')
 
     # second plot: time per call
     plt.subplot(1,2,2)
@@ -162,8 +162,8 @@ def print_performance_stats(backend, logger):
              color=layer_col_stash, align='center', alpha=0.5)
     plt.yticks(range(len(layer_flops_stash)), range(len(layer_flops_stash)))
     plt.title(r'Breakdown of MOP calls by layer')
-    plt.xlim((0, 7))
-    plt.xlabel('Time / s')
+    #plt.xlim((0, 7))
+    plt.xlabel('Time (s)')
 
     plt.savefig('figure2_'+sufx+'.pdf', dpi=500)
 
@@ -229,6 +229,24 @@ def print_accuracy():
     plt.savefig('figure3compare16vs32.pdf', dpi=500)
 
 
+    # FANCY PLOT:
+    for item in [fp16_sto_test, fp16_normal_test, fp32_test]:
+        density=gaussian_kde(item)
+
+        # set the covariance_factor, lower means more detail
+        density.covariance_factor = lambda : .5
+        density._compute_covariance()
+
+        # generate a fake range of x values
+        xs = np.arange(29,34,.1)
+
+        # fill y values using density class
+        ys = density(xs)
+        plt.plot(xs,ys)
+        plt.fill_between(xs,0,ys,alpha=0.5)
+    plt.legend(['fp 32', 'fp16', 'fp16 sto.'])
+
+
     """
     fp32numbers = [31.53045, 32.56210, 32.11138, 32.63221, 32.12139]  # 32.19
     fp16normal  = [31.97115, 32.05128, 31.97115, 32.13141, 31.20994]  # 31.87
@@ -240,22 +258,94 @@ def print_accuracy():
 
 
 def soumith_benchmark():
-    soumith=dict()  #    L1  L2   L3  L4  L5   B1  B2   B3  B4  B5
-    soumith['neon16'] = [38, 114, 75,  5,  9,  107, 250, 164, 10, 19]  ## too fast because of low entropy!
-    soumith['neon32'] = [47, 172, 102, 9, 14,  144, 416, 220, 14, 28] # n
+    soumith=dict()  #    L1  L2   L3  L4  L5   B1   B2   B3  B4  B5
+    soumith['neon16'] = [38, 114, 40,  5,  9,  107, 250, 92, 10, 19]  ## too fast because of low entropy!
+    soumith['neon32'] = [47, 172, 68, 9, 14,   144, 416, 143, 14, 28]  # padding, death!
 
+    soumith['ccn2th'] = [57, 182, 68,  8, 14,  147, 438, 150, 15, 27]
+    soumith['torch7'] = [132,212, 165,32, 48,  320, 584, 201, 37, 43]
     soumith['cu_dnn'] = [76, 000, 00, 13, 21,  194, 000, 000, 26, 45]
-    soumith['ccn2th'] = [57, 000, 00,  8, 14,  147, 000, 000, 15, 27]
-    soumith['torch7'] = [132,000, 00, 32, 48,  320, 000, 000, 37, 43]
-
-    plt.figure(4, figsize=(4, 4), dpi=120, facecolor='w', edgecolor='k')
+    # maxes = [i for key in soumith.keys() ]  # not a good idea since we want absolute times to be visible.
+    plt.figure(4, figsize=(4, 6), dpi=120, facecolor='w', edgecolor='k')
     for i, key  in enumerate(soumith.keys()):
-        plt.bar(arange(6)+.1*i, soumith[key], color=np.array((i,i,i))/6., width=0.08)
+        plt.bar(arange(6+4)+.1*i, soumith[key], color=np.array((i,i,i))/6., width=0.08)
     plt.legend(soumith.keys())
     plt.ylabel('Time / ms')
-    plt.xticks(range(6), ['L1', 'L4', 'L5', 'L1', 'L4', 'L5'])
-    plt.xlabel('Forward          Backward')
+    plt.xticks(range(6+4), ['L1', 'L2', 'L3', 'L4', 'L5', 'L1', 'L2', 'L3', 'L4', 'L5'])
+    plt.xlabel('Forward                  Backward')
     plt.savefig('fig_soumith_bench.pdf', dpi=500)
 
 
+    sumi = np.array(((38, 114, 40,  5,  9,  107, 250, 92, 10, 19),
+                     (47, 172, 68, 9, 14,   144, 416, 143, 14, 28),
+                     (57, 182, 68,  8, 14,  147, 438, 150, 15, 27),
+                     (132,212, 165,32, 48,  320, 584, 201, 37, 43),
+                     (76, 000, 00, 13, 21,  194, 000, 000, 26, 45)))
 
+    plt.figure(4, figsize=(4, 6), dpi=120, facecolor='w', edgecolor='k')
+    for i in range(5):
+        plt.subplot(1,5,i+1)
+        plt.bar(left=arange(10),
+                height=sumi[i,:],
+                color=['r', 'g', 'b', 'c', 'm', 'r', 'g', 'b', 'c', 'm'],
+                width=0.8)
+        plt.ylim((0,600))
+    plt.legend(soumith.keys())
+    plt.ylabel('Time / ms')
+    plt.xticks(range(6+4), ['L1', 'L2', 'L3', 'L4', 'L5', 'L1', 'L2', 'L3', 'L4', 'L5'])
+    plt.xlabel('Forward                  Backward')
+    plt.savefig('fig_soumith_bench.pdf', dpi=500)
+
+
+"""
+
+CONFIG: input = 3x128x128 * ker = 3x96x11x11 (bs = 128, stride = 1)
+nn.SpatialConvolutionMM                 :updateOutput():     133.10
+nn.SpatialConvolutionMM              :updateGradInput():     132.02
+nn.SpatialConvolutionMM            :accGradParameters():     186.72
+nn.SpatialConvolutionMM                          :TOTAL:     451.84
+ccn2.SpatialConvolution                 :updateOutput():      56.51
+ccn2.SpatialConvolution              :updateGradInput():      79.35
+ccn2.SpatialConvolution            :accGradParameters():      67.16
+ccn2.SpatialConvolution                          :TOTAL:     203.02
+
+CONFIG: input = 64x64x64 * ker = 64x128x9x9 (bs = 128, stride = 1)
+nn.SpatialConvolutionMM                 :updateOutput():     211.80
+nn.SpatialConvolutionMM              :updateGradInput():     231.67
+nn.SpatialConvolutionMM            :accGradParameters():     352.08
+nn.SpatialConvolutionMM                          :TOTAL:     795.55
+ccn2.SpatialConvolution                 :updateOutput():     181.89
+ccn2.SpatialConvolution              :updateGradInput():     178.54
+ccn2.SpatialConvolution            :accGradParameters():     259.63
+ccn2.SpatialConvolution                          :TOTAL:     620.06
+
+CONFIG: input = 128x32x32 * ker = 128x128x9x9 (bs = 128, stride = 1)
+nn.SpatialConvolutionMM                 :updateOutput():     164.65
+nn.SpatialConvolutionMM              :updateGradInput():     117.85
+nn.SpatialConvolutionMM            :accGradParameters():      83.39
+nn.SpatialConvolutionMM                          :TOTAL:     365.88
+ccn2.SpatialConvolution                 :updateOutput():      68.30
+ccn2.SpatialConvolution              :updateGradInput():      65.97
+ccn2.SpatialConvolution            :accGradParameters():      84.18
+ccn2.SpatialConvolution                          :TOTAL:     218.45
+
+CONFIG: input = 128x16x16 * ker = 128x128x7x7 (bs = 128, stride = 1)
+nn.SpatialConvolutionMM                 :updateOutput():      32.11
+nn.SpatialConvolutionMM              :updateGradInput():      21.33
+nn.SpatialConvolutionMM            :accGradParameters():      15.28
+nn.SpatialConvolutionMM                          :TOTAL:      68.72
+ccn2.SpatialConvolution                 :updateOutput():       7.96
+ccn2.SpatialConvolution              :updateGradInput():       6.38
+ccn2.SpatialConvolution            :accGradParameters():       8.77
+ccn2.SpatialConvolution                          :TOTAL:      23.11
+
+CONFIG: input = 384x13x13 * ker = 384x384x3x3 (bs = 128, stride = 1)
+nn.SpatialConvolutionMM                 :updateOutput():      47.87
+nn.SpatialConvolutionMM              :updateGradInput():      21.93
+nn.SpatialConvolutionMM            :accGradParameters():      21.49
+nn.SpatialConvolutionMM                          :TOTAL:      91.29
+ccn2.SpatialConvolution                 :updateOutput():      13.87
+ccn2.SpatialConvolution              :updateGradInput():      12.79
+ccn2.SpatialConvolution            :accGradParameters():      16.01
+ccn2.SpatialConvolution                          :TOTAL:      42.66
+"""

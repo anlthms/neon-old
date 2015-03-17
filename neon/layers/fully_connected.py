@@ -66,7 +66,7 @@ class FCLayer(WeightLayer):
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
                                   deltas=error, layer=self)
             # TODO: make this a decorator around backend.fprop_conv()
-            if 'fc-' in self.name:
+            if 'fc4-' in self.name:
                 print "\nbackend call to BPROP_fc", self.name
                 a = self.weights
                 print "weights\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
@@ -76,6 +76,10 @@ class FCLayer(WeightLayer):
                 print "deltas\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
         self.backend.update_fc(out=upm[u_idx], inputs=inputs,
                                deltas=error, layer=self)
+        if 'fc4-' in self.name:
+            a = upm[u_idx]
+            print "update\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
+
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[u_idx+1])
 

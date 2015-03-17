@@ -117,7 +117,7 @@ class ConvLayer(WeightLayer):
                                self.skip_act)
             u_idx = 2
 
-        if True: # self.deltas is not None: # TODO: Butchered for benchmarks, revert.
+        if self.deltas is not None: # True: #  Butchered for Soumith benchmarks, reverted.
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmsize=self.ofmsize,
@@ -148,6 +148,9 @@ class ConvLayer(WeightLayer):
                                  updatebuf=self.updatebuf,
                                  local=self.local_conv,
                                  layer=self)
+        if 'conv-' in self.name:
+            a = upm[u_idx]
+            print "updates\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
 
         if self.use_biases is True:
             # We can't reshape the error buffer since it might be global buffer

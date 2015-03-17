@@ -137,7 +137,7 @@ class DecompressImages(threading.Thread):
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
                     img, dtype=BDTYPE)[:, :, 0:3],
-                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.  # urs wants this to be normalized
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1))  / 128. - 1.  # urs wants this to be normalized # or not!
 
     def run(self):
         # provide mini batch from macro batch

@@ -147,12 +147,12 @@ class Layer(YAMLable):
                                                       self.pre_act_dtype)
 
     def set_deltas_buf(self, delta_pool, offset):
-        # TODO: Butchered this for benchmarks, revert.
+        # TODO: Butchered this for Soumith benchmarks, reverted.
         self.deltas = None
-        # if self.prev_layer is None:
-        #     return
-        # if self.prev_layer.is_data:
-        #     return
+        if self.prev_layer is None:
+            return
+        if self.prev_layer.is_data:
+            return
 
         if delta_pool is None:
             self.deltas = self.backend.zeros(self.delta_shape,
@@ -261,7 +261,7 @@ class CostLayer(Layer):
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
         result = self.cost.apply_function(self.targets)
-        return self.backend.divide(result, self.batch_size, result)
+        return result # self.backend.divide(result, self.batch_size, result)
 
 
 class DataLayer(Layer):

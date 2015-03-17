@@ -67,7 +67,7 @@
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    global_dtype: &npfloat np.float32,       ##############################
+    global_dtype: &npfloat np.float16,       ##############################
     velocity_dtype: *npfloat,
     param_dtype: *npfloat,
     lr_params: {
@@ -95,7 +95,7 @@
 
   model: !obj:models.MLP {
     num_epochs: 1,  # was 90
-    half_precision: &hp False,              ###############################
+    half_precision: &hp True,              ###############################
     batch_size: &bs 128,
     step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
@@ -174,7 +174,7 @@
         },
         nofm: 128,
         fshape: [9, 9],
-        pad: 4,
+        pad: 0, # was 4
         activation: !obj:transforms.RectLin {},
       },
 

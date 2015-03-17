@@ -149,16 +149,24 @@ class MAX(Backend):
         # # original output bit
         # self.nl.add(ps_item, vs_item, out=ps_item)
 
-        # this is weird, try again
-        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef), self.nl.multiply(us_item, learning_rate), out=vs_item) # ok, orig
-        #print "checking learning_rate", learning_rate, type(learning_rate)
-        #print "checking wd", wd, type(wd)
+        # part 1: build velocity (momentum )
+        #print "entering GDWDM"
+        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
+                         self.nl.multiply(us_item, learning_rate),
+                         out=vs_item) # ok, orig
+        #import pdb; pdb.set_trace()
+        #print "orig velo term", vs_item[0,0].asnumpyarray(), "=  raw update", us_item[0,0].asnumpyarray(), "* lr", learning_rate, "* mom", momentum_coef
+
+        # part 2: weight decay
         self.nl.multiply(self.nl.multiply(ps_item, float(wd)), float(learning_rate), out=us_item) # mult with zero here does nothing?
-        #print "results in", us_item[0,0:3].asnumpyarray()
-        self.nl.subtract(vs_item, us_item, out=vs_item)
-        self.nl.add(ps_item, vs_item, out=ps_item)
-        # this way at least we have the nan back
-        # and again we can learn with zero learning rate. WTF!
+        self.nl.subtract(vs_item, us_item, out=vs_item) # 0 + 1e-7 = 1e-7
+        #print "mangled velo term", vs_item[0,0].asnumpyarray()
+
+        # part 3: perform the update
+        #print "weights before adding velo", ps_item[0,0].asnumpyarray()
+        self.nl.add(ps_item, vs_item, out=ps_item) # adding something so small it clips
+        #print "weights after adding velo", ps_item[0,0].asnumpyarray()
+
 
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
