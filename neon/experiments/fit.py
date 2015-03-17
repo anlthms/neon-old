@@ -6,6 +6,8 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
+import numpy as np
+import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.param import req_param, opt_param
@@ -53,6 +55,17 @@ class FitExperiment(Experiment):
         """
         Actually carry out each of the experiment steps.
         """
+
+        layers = self.model.layers
+        for ind in range(len(layers)):
+            layer = layers[ind]
+            if not hasattr(layer, 'weights'):
+                continue
+            filename = 'layer' + str(ind) + '.npy'
+            if os.path.exists(filename) == False:
+                continue
+            print 'loading', filename
+            layer.weights[:] = self.backend.array(np.load(filename))
 
         # load the dataset, save it to disk if specified
         if (not hasattr(self.dataset, 'dist_flag') or

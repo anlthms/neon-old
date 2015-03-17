@@ -166,7 +166,7 @@ class MLP(MLP_old):
             return_err[setname] = self.result
         return return_err
 
-    def predict_fullset(self, dataset, setname):
+    def predict_fullset_orig(self, dataset, setname):
         self.data_layer.init_dataset(dataset)
         assert self.data_layer.has_set(setname)
         self.data_layer.use_set(setname, predict=True)
@@ -185,6 +185,36 @@ class MLP(MLP_old):
             end = start + self.batch_size
             outputs[:, start:end] = self.get_classifier_output()
             targets[:, start:end] = self.data_layer.targets
+            batch += 1
+
+        self.data_layer.cleanup()
+        return outputs, targets
+
+    def predict_fullset(self, dataset, setname):
+        import numpy as np
+        import sys
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * self.data_layer.num_batches
+        outputs = self.backend.empty((1, nrecs))
+        targets = self.backend.empty(outputs.shape)
+        batch = 0
+
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
+        while self.data_layer.has_more_data():
+            self.fprop()
+            start = batch * self.batch_size
+            end = start + self.batch_size
+            inds = np.nonzero(self.data_layer.targets.asnumpyarray())
+            outputs[0, start:end] = self.get_classifier_output()[inds]
+            if batch == 0:
+                print outputs[0, start:start+30]
+            #sys.exit()
+            targets[0, start:end] = self.data_layer.targets[inds]
             batch += 1
 
         self.data_layer.cleanup()
