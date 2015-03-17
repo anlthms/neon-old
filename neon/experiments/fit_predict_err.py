@@ -61,10 +61,15 @@ class FitPredictErrorExperiment(FitExperiment):
                 td = timing_decorators.CudanetDecorators(backend=self.backend)
             else:
                 assert 1 == 0, "no support for CPU backend yet!"
-
-
-            td.decorate(self.backend, self.timing)
+            td.decorate(self.timing)
             self.model.timing_plots=True
+
+        # if the experiment includes parameter statistics
+        if self.ranges['display']:
+            from neon.diagnostics import ranges_decorators
+            rd = ranges_decorators.Decorators(backend=self.backend)
+            rd.decorate(function_list=self.ranges)
+
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()

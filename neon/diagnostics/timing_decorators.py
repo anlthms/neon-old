@@ -52,17 +52,18 @@ class Decorators(object):
                   } # 'zeros': 1, 'ones': 1, 'empty': 1, 'array': 1, 'copy_from': 1,
                     # 'fprop_pool': 1, 'bprop_pool': 1,
 
-    def __init__(self, **kwargs):
+    def __init__(self, backend):
         """
         Initialize output dictionaries where the timing diagnostics are stored.
         Jerry-rigging the backend using the monkey trick
         """
-        kwargs['backend'].time_dict = defaultdict(list)
-        kwargs['backend'].flop_dict = defaultdict(list)
-        kwargs['backend'].paren_dic = defaultdict(list)
-        kwargs['backend'].layer_dic = defaultdict(list)
+        backend.time_dict = defaultdict(list)
+        backend.flop_dict = defaultdict(list)
+        backend.paren_dic = defaultdict(list)
+        backend.layer_dic = defaultdict(list)
+        self.backend = backend
 
-    def decorate(self, backend, function_list):
+    def decorate(self, function_list):
         """
         Replaces the @decorators in the backend function. Go through the list
         of functions to be decorated and wrap them with the correct parameters
@@ -70,20 +71,20 @@ class Decorators(object):
         for call in function_list['decorate_fc']:
             print "wrapping", call, "with", self.multipliers[call],
             print "and", self.shapes[call]
-            orig_func = getattr(backend, call)
+            orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_fc(orig_func)
-            setattr(backend, call, wrapped_func)
+            setattr(self.backend, call, wrapped_func)
         for call in function_list['decorate_conv']:
             print "wrapping", call, "with", self.multipliers[call],
             print "and", self.shapes[call]
-            orig_func = getattr(backend, call)
+            orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_conv(orig_func)
-            setattr(backend, call, wrapped_func)
+            setattr(self.backend, call, wrapped_func)
         for call in function_list['decorate_ew']:
             print "wrapping", call, "ew"
-            orig_func = getattr(backend, call)
+            orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_ew(orig_func)
-            setattr(backend, call, wrapped_func)
+            setattr(self.backend, call, wrapped_func)
 
     def record_flops_fc(self, func):
         """
@@ -93,8 +94,9 @@ class Decorators(object):
         """
         func_name = func.__name__
         if func_name not in self.multipliers:
+            import pdb; pdb.set_trace()
             raise ValueError("Cannot record flops for function: %s" % func_name)
-        #@wraps
+        @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
             if 'weights' in kwargs:
@@ -126,7 +128,7 @@ class Decorators(object):
         func_name = func.__name__
         if func_name not in self.multipliers:
             raise ValueError("Cannot record flops for function: %s" % func_name)
-        #@wraps
+        @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
             layer_name = kwargs['weights'].name
@@ -206,7 +208,7 @@ class Decorators(object):
         func_name = func.__name__
         if func_name not in self.ew_mult_pos:
             raise ValueError("Cannot record flops for ew function: %s" % func_name)
-        #@wraps
+        @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             """
             Note args have a live of their own (reseved keyword) and shall not be

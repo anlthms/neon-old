@@ -20,13 +20,6 @@ from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
 
-# class MaxArray(FloatArray):
-#     """
-#     Want a thin wrapper for FloatArray that adds the asnumpyarray method.
-#     Unfortunately NervanaLib.zeros() etc. creat FloatArrays Directly.
-#     """
-#     def asnumpyarray(self):
-#         return self.get()
 
 class MAX(Backend):
     """

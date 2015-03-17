@@ -73,22 +73,6 @@ class ConvLayer(WeightLayer):
                                 padding=self.negpad, stride=self.stride,
                                 ngroups=1, fpropbuf=self.prodbuf,
                                 local=self.local_conv)
-        # TODO: make this a decorator around backend.fprop_conv()
-        if 'conv-' in self.name:
-            print "\nbackend call to fprop_conv", self.name
-            a = self.weights
-            print "std weights", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
-            try:
-                a = inputs
-                print "std inputs", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
-            except FloatingPointError:
-                print "CANNOT COMPUTE: pre_act"
-            try:
-                a = self.pre_act
-                print "std pre_act", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
-            except FloatingPointError:
-                print "CANNOT COMPUTE: pre_act"
-                import pdb; pdb.set_trace()
         if self.use_biases is True:
             if self.shared_bias:
                 self.pre_act = self.pre_act.reshape(
@@ -117,7 +101,7 @@ class ConvLayer(WeightLayer):
                                self.skip_act)
             u_idx = 2
 
-        if self.deltas is not None: # True: #  Butchered for Soumith benchmarks, reverted.
+        if self.deltas is not None:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
                                     ofmsize=self.ofmsize,
@@ -127,15 +111,6 @@ class ConvLayer(WeightLayer):
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
-            # TODO: make this a decorator around backend.bprop_conv()
-            if 'conv-' in self.name:
-                print "\nbackend call to BPROP_CONV", self.name
-                a = self.weights
-                print "weights\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
-                a = error
-                print "error \tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
-                a = self.deltas
-                print "deltas\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
         self.backend.update_conv(out=upm[u_idx], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape,
@@ -148,9 +123,6 @@ class ConvLayer(WeightLayer):
                                  updatebuf=self.updatebuf,
                                  local=self.local_conv,
                                  layer=self)
-        if 'conv-' in self.name:
-            a = upm[u_idx]
-            print "updates\tstd", a.asnumpyarray().astype(np.float32).std(1)[0:3], "\traw",  a[0,0:3].asnumpyarray(), "\tmin", a.asnumpyarray().min(), "\tmax", a.asnumpyarray().max()
 
         if self.use_biases is True:
             # We can't reshape the error buffer since it might be global buffer
