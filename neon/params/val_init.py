@@ -103,6 +103,8 @@ class AutoUniformValGen(UniformValGen):
     def __init__(self, **kwargs):
         super(AutoUniformValGen, self).__init__(**kwargs)
         opt_param(self, ['relu'], False)
+        opt_param(self, ['islocal'], False)
+
         self.low = float('nan')
         self.high = float('nan')
 
@@ -121,7 +123,10 @@ class AutoUniformValGen(UniformValGen):
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
-        self.low = - 1.0 / math.sqrt(shape[-1])
+        if self.islocal:
+            self.low = - 1.0 / math.sqrt(shape[0])
+        else:
+            self.low = - 1.0 / math.sqrt(shape[-1])
         if self.relu:
             self.low *= math.sqrt(2)
         self.high = - self.low

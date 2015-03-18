@@ -6,7 +6,7 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:datasets.I1K {
+  dataset: &ds !obj:datasets.I1Knq {
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
     output_image_size: &ois 256,
@@ -34,12 +34,12 @@
       scale: .01,
       bias_init: 0.1,
     },
-    &wt_init_fc !obj:params.GaussianValGen {
-      scale: .01,
+    &wt_init_fc !obj:params.AutoUniformValGen {
+      relu: True,
       bias_init: 1.0,
     },
-    &wt_initout !obj:params.GaussianValGen {
-      scale: .01,
+    &wt_initout !obj:params.AutoUniformValGen {
+      relu: True,
       bias_init: -7.0,
     },
   ],
@@ -77,6 +77,14 @@
     },
   },
 
+  lrule: &ada {
+    type: adadelta,
+    lr_params: {
+      rho: &ro 0.95,
+      epsilon: &eps 0.000001,
+    },
+  },
+
   model: !obj:models.MLP {
     num_epochs: 60,
     batch_size: &bs 128,
@@ -93,7 +101,7 @@
         name: conv1,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
+        weight_init: !obj:params.AutoUniformValGen {
           scale: .01,
           bias_init: 0.0,
         },
@@ -119,8 +127,9 @@
         name: conv2,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .01,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
           bias_init: 1.0,
         },
         nofm: 192,
@@ -144,8 +153,9 @@
         name: conv3,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .03,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
           bias_init: 0.0,
         },
         nofm: 384,
@@ -157,8 +167,9 @@
         name: conv4,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .03,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
           bias_init: 1.0,
         },
         nofm: 256,
@@ -170,8 +181,9 @@
         name: conv5,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .03,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
           bias_init: 1.0,
         },
         nofm: 256,
@@ -220,6 +232,8 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
+        # ref_label: 'targets',
+        # raw_label: True,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],

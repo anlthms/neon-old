@@ -1258,10 +1258,11 @@ class GPU(Backend):
                                     convolution (False, the default)
             layer (Layer): The layer object.
         """
+        sumwidth = 3 if ofmshape[-2] < 32 else 4
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[-2], ofmshape[-2], ofmshape[-1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[-2], local)
+            padding, stride, nifm, ngroups, sumwidth, local)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
                    ifmshape, links, nifm, padding, stride, fpropbuf):

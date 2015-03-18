@@ -16,6 +16,7 @@ from neon.util.compat import range, pickle, queue, StringIO
 from neon.util.param import opt_param, req_param
 import threading
 import sys
+import imgworker
 
 from multiprocessing import Pool
 import pandas as pd
@@ -79,6 +80,10 @@ class BatchWriter(object):
         self.train_file = os.path.join(self.out_dir, 'train_file.csv.gz')
         self.val_file = os.path.join(self.out_dir, 'val_file.csv.gz')
         self.stats = os.path.join(self.out_dir, 'dataset_cache.pkl')
+        self.val_mean = np.zeros((self.output_image_size,
+                                 self.output_image_size, 3), dtype=np.uint8)
+        self.train_mean = np.zeros((self.output_image_size,
+                                   self.output_image_size, 3), dtype=np.uint8)
 
     def __str__(self):
         pairs = map(lambda a: a[0] + ': ' + a[1],
@@ -125,7 +130,9 @@ class BatchWriter(object):
                                'nval': self.nval,
                                'train_start': self.train_start,
                                'val_start': self.val_start,
-                               'macro_size': self.batch_size})
+                               'macro_size': self.batch_size,
+                               'train_mean': self.train_mean,
+                               'val_mean': self.val_mean})
 
     def parse_file_list(self, infile):
         compression = 'gzip' if infile.endswith('.gz') else None
@@ -152,11 +159,15 @@ class BatchWriter(object):
         labels = [{k: v[i*psz: (i+1)*psz] for k, v in labels.iteritems()}
                   for i in range(nparts)]
 
+        accum_buf = np.zeros((self.output_image_size,
+                          self.output_image_size, 3), dtype=np.int32)
+        batch_mean = np.zeros(self.accum.shape, dtype=np.uint8)
         print "Writing %s batches..." % name
         for i, jpeg_file_batch in enumerate(imfiles):
             t = time()
             pool = Pool(processes=self.num_workers)
             jpeg_strings = pool.map(proc_img, jpeg_file_batch)
+            pool.close()
             targets_batch = None if targets is None else targets[i]
             labels_batch = labels[i]
             bfile = os.path.join(self.out_dir, 'data_batch_%d' % (start + i))
@@ -165,6 +176,19 @@ class BatchWriter(object):
                               'targets': targets_batch})
             print "Wrote to %s (%s batch %d of %d) (%.2f sec)" % (
                 self.out_dir, name, i + 1, len(imfiles), time() - t)
+
+            # get the means and accumulate
+            imgworker.calc_batch_mean(jpglist=jpeg_strings, tgt=batch_mean,
+                                      orig_size=self.output_image_size,
+                                      rgb=True, nthreads=5)
+
+            # scale for the case where we have an undersized batch
+            if len(jpeg_strings) < self.batch_size:
+                batch_mean *= len(jpeg_strings) / self.batch_size
+            accum_buf += batch_mean
+
+        mean_buf = self.train_mean if name == 'train' else self.val_mean
+        mean_buf[:] = accum / len(imfiles)
 
     def run(self):
         self.write_csv_files()
@@ -211,70 +235,38 @@ class DecompressImages(threading.Thread):
     '''
 
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
-                 cropped_image_size, macro_data, backend,
-                 num_processes, mean_img, predict, dotransforms=False):
+                 cropped_image_size, macro_data, mean_img, predict,
+                 dotransforms=False):
         threading.Thread.__init__(self)
-        from PIL import Image
-        self.imlib = Image
         self.mb_id = mb_id
         # mini-batch queue
         self.mini_batch_queue = mini_batch_queue
         self.batch_size = batch_size
         self.output_image_size = output_image_size
         self.cropped_image_size = cropped_image_size
-        self.diff_size = self.output_image_size - cropped_image_size
         self.img_macro = macro_data[0]['data']
         self.tgt_macro = macro_data[1]
         self.lbl_macro = macro_data[2]
-        self.backend = backend
-        self.dotransforms = dotransforms
 
         imsz = (cropped_image_size ** 2) * 3
-        self.inputs = np.empty((imsz, self.batch_size), dtype='float32')
-        self.num_processes = num_processes
+        self.inputs = np.empty((batch_size, (cropped_image_size ** 2) * 3),
+                               dtype=np.uint8)
         self.mean_img = mean_img
-        self.predict = predict
-
-    def jpeg_decoder(self, start_id, end_id, offset):
-        # convert jpeg string to numpy array
-        imdim = self.cropped_image_size
-        if self.predict:  # during prediction just use center crop & no flips
-            csx = self.diff_size / 2
-            csy = csx
-        else:
-            csx = np.random.randint(0, max(self.diff_size, 1))
-            csy = np.random.randint(0, max(self.diff_size, 1))
-
-        # Uncomment if using mean subtraction
-        # crop_mean_img = (self.mean_img[:, csx:csx + imdim, csy:csy + imdim])
-        for i, jpeg_string in enumerate(self.img_macro[start_id:end_id]):
-            img = self.imlib.open(StringIO(jpeg_string))
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-
-            if not self.predict and self.dotransforms:  # for training
-                # horizontal reflections of the image
-                flip_horizontal = np.random.randint(0, 2)
-                if flip_horizontal == 1:
-                    img = img.transpose(self.imlib.FLIP_LEFT_RIGHT)
-
-            img = img.crop((csx, csy, csx + imdim, csy + imdim))
-            self.inputs[:, i + offset] = (
-                np.transpose(np.array(
-                    img, dtype='float32')[:, :, 0:3],
-                    axes=[2, 0, 1])).reshape((-1))/255.
-
-                # np.transpose(np.array(
-                #     img, dtype='float32')[:, :, 0:3],
-                #     axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
+        self.tparams = {'center?': not predict,
+                        'flip?': not predict and dotransforms}
 
     def run(self):
         # provide mini batch from macro batch
         s_idx = self.mb_id * self.batch_size
-        e_idx = (self.mb_id + 1) * self.batch_size
+        e_idx = s_idx + self.batch_size
 
-        # single process decompression
-        self.jpeg_decoder(s_idx, e_idx, 0)
+        imgworker.decode_list(jpglist=self.img_macro[s_idx:e_idx],
+                              tgt=self.inputs,
+                              orig_size=self.output_image_size,
+                              crop_size=self.cropped_image_size,
+                              center=self.tparams['center?'],
+                              flip=self.tparams['flip?'],
+                              rgb=True, calcmean=False, nthreads=5)
 
         targets = None
         if self.tgt_macro is not None:
@@ -300,47 +292,43 @@ class DecompressImages(threading.Thread):
 class RingBuffer(object):
 
     '''
-    ring buffer for GPU backend to assist in transferring data from host to gpu
+    ring buffer for backend to assist in transferring data from host to gpu
     the buffers that live on host
     '''
 
     def __init__(self, max_size, batch_size, num_input_dims, num_tgt_dims,
-                 label_list):
-        from neon.backends.gpu import GPUTensor
-
+                 label_list, backend):
         self.max_size = max_size
         self.id = self.prev_id = 0
 
-        self.inputs_be = [GPUTensor(
-            np.empty((num_input_dims, batch_size), dtype='float32'))
-            for i in range(max_size)]
+        in_shape = (num_input_dims, batch_size)
+        lbl_shape = (1, batch_size)
+        tgt_shape = (num_tgt_dims, batch_size)
+
+        self.inputs_be = [backend.empty(in_shape, dtype='float32')
+                          for i in range(max_size)]
+
+        self.labels_be = [{lbl: backend.empty(lbl_shape, dtype='float32')
+                           for lbl in label_list} for i in range(max_size)]
 
         if num_tgt_dims is not None:
-            self.targets_be = [GPUTensor(
-                np.empty((num_tgt_dims, batch_size), dtype='float32'))
-                for i in range(max_size)]
-
-        self.labels_be = [{lbl: GPUTensor(np.empty((1, batch_size),
-                                          dtype='float32'))
-                           for lbl in label_list} for i in range(max_size)]
+            self.targets_be = [backend.empty(tgt_shape, dtype='float32')
+                               for i in range(max_size)]
 
     def add_item(self, inputs, targets, labels, backend):
         logger.debug('start add_item')
 
-        # using ring buffer
-        # TODO Change to use copy_from
+        # Handle transpose copy_from
         self.inputs_be[self.id].copy_from(inputs)
-        # self.inputs_be[self.id].copy_to_device()
+
+        for lbl in labels.keys():
+            self.labels_be[self.id][lbl].copy_from(labels[lbl])
 
         if targets is not None:
             # XXX: temporary hack to format the targets.
             targets = targets.transpose().copy()
             self.targets_be[self.id].copy_from(targets)
-            # self.targets_be[self.id].copy_to_device()
 
-        for lbl in labels.keys():
-            self.labels_be[self.id][lbl].copy_from(labels[lbl])
-            # self.labels_be[self.id][lbl].copy_to_device()
         logger.debug('end add_item')
 
         self.prev_id = self.id
@@ -363,7 +351,7 @@ class GPUTransfer(threading.Thread):
         logger.debug('GT %d created', self.mb_id)
 
     def run(self):
-        from neon.backends.gpu import GPU
+        from neon.backends.cpu import CPU
         logger.debug('backend mini-batch transfer start %d', self.mb_id)
         # threaded conversion of jpeg strings to numpy array
         # if no item in queue, wait
@@ -454,51 +442,18 @@ class Imageset(Dataset):
                                       self.macro_batch_size,
                                       self.batch_dir)
         self.__dict__.update(cstats)
-        req_param(self, ['ntrain', 'nval', 'train_start', 'val_start'])
+        # Make sure these properties are set by the cachefile
+        req_param(self, ['ntrain', 'nval', 'train_start', 'val_start',
+                         'train_mean', 'val_mean'])
         sys.exit()
-
-    def preprocess_images(self):
-        # compute mean of all the images
-        logger.info("preprocessing images (computing mean image)")
-        self.mean_img = np.zeros((3, self.output_image_size,
-                                  self.output_image_size), dtype='float32')
-        return
-        t1 = time()
-        for i in range(self.train_start, self.ntrain + self.train_start):
-            logger.info("preprocessing macro-batch %d :", i)
-            file_path = os.path.join(self.batch_dir, 'data_batch_%d' % (i))
-            jpeg_strings = my_unpickle(file_path)
-            for jpeg_string in jpeg_strings['data']:
-                img = self.imlib.open(StringIO(jpeg_string))
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                self.mean_img += np.transpose(np.array(
-                    img, dtype='float32')[:, :, 0:3],
-                    axes=[2, 0, 1])  # .reshape((-1, 1))
-        logger.info("Time taken %f", time()-t1)
-        self.mean_img = (self.mean_img /
-                         (self.ntrain * self.macro_batch_size))
-        logger.info("done preprocessing images (computing mean image)")
-
-    def get_next_macro_batch_id(self, macro_batch_index):
-        next_macro_batch_id = (macro_batch_index + 1)
-        if next_macro_batch_id > self.endb:
-            next_macro_batch_id = self.startb
-        return next_macro_batch_id
-
-    def get_next_mini_batch_id(self, mini_batch_index):
-        next_mini_batch_id = mini_batch_index + 1
-        if next_mini_batch_id >= self.num_minibatches_in_macro:
-            next_mini_batch_id = 0
-        return next_mini_batch_id
 
     def get_macro_batch(self):
         for i in range(self.num_iter_macro):
-            self.macro_batch_onque = self.get_next_macro_batch_id(
-                self.macro_batch_onque)
-            fname = os.path.join(self.batch_dir, 'data_batch_%d' % (
-                self.macro_batch_onque))
-            t = LoadFile(fname,  self.macro_batch_queue)
+            self.macro_onque = (self.macro_onque + 1 - self.startb) \
+                                % self.nmacros + self.startb
+            fname = os.path.join(self.batch_dir,
+                                 'data_batch_{:d}'.format(self.macro_onque))
+            t = LoadFile(fname, self.macro_batch_queue)
             t.daemon = True
             global macroq_flag
             if macroq_flag:
@@ -510,22 +465,23 @@ class Imageset(Dataset):
         self.num_iter_macro = 1
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
-        from neon.backends.gpu import GPU
+        from neon.backends.cpu import CPU
         sn = 'val' if (setname == 'validation') else setname
         self.startb = getattr(self, sn + '_start')
         self.nmacros = getattr(self, 'n' + sn)
         self.endb = self.startb + self.nmacros
         nrecs = self.macro_batch_size * self.nmacros
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
+        self.mean_img = getattr(self, sn + '_mean')
 
         self.batch_size = batch_size
         self.predict = predict
-        self.num_minibatches_in_macro = self.macro_batch_size / batch_size
+        self.minis_per_macro = self.macro_batch_size / batch_size
 
         if self.macro_batch_size % batch_size != 0:
             raise ValueError('self.macro_batch_size % batch_size != 0')
 
-        if isinstance(self.backend, GPU):
+        if not isinstance(self.backend, CPU):
             self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
                                           batch_size=batch_size,
                                           num_tgt_dims=self.tdims,
@@ -542,16 +498,12 @@ class Imageset(Dataset):
         macroq_flag = False
         miniq_flag = False
         gpuq_flag = False
-        self.macro_batch_onque = self.endb
-        self.mini_batch_onque = self.num_minibatches_in_macro - 1
-        self.gpu_batch_onque = self.num_minibatches_in_macro - 1
+        self.macro_onque = self.endb
+        self.mini_onque = self.minis_per_macro - 1
+        self.gpu_onque = self.minis_per_macro - 1
         self.num_iter_mini = self.ring_buffer_size
         self.num_iter_gpu = self.ring_buffer_size
         self.num_iter_macro = self.ring_buffer_size
-
-        if not self.preprocess_done:
-            self.preprocess_images()
-            self.preprocess_done = True
 
         return num_batches
 
@@ -575,12 +527,11 @@ class Imageset(Dataset):
         # threaded version of get_mini_batch
         # batch_idx is ignored
         logger.debug('\tPre Minibatch %d %d %d', batch_idx, self.num_iter_mini,
-                     self.mini_batch_onque)
+                     self.mini_onque)
 
         for i in range(self.num_iter_mini):
-            self.mini_batch_onque = self.get_next_mini_batch_id(
-                self.mini_batch_onque)
-            if self.mini_batch_onque == 0:
+            self.mini_onque = (self.mini_onque + 1) % self.minis_per_macro
+            if self.mini_onque == 0:
                 self.get_macro_batch()
                 # deque next macro batch
                 try:
@@ -589,19 +540,20 @@ class Imageset(Dataset):
                     # allow for the first get from macro_batch_queue
                     pass
                 self.jpeg_strings = self.macro_batch_queue.get(block=True)
+
+            self.targets_macro = None
             if 'targets' in self.jpeg_strings:
                 self.targets_macro = self.jpeg_strings['targets']
-            else:
-                self.targets_macro = None
+
             self.labels_macro = {k: self.jpeg_strings['labels'][k]
                                  for k in self.jpeg_strings['labels'].keys()}
 
             macro_data = [self.jpeg_strings, self.targets_macro,
                           self.labels_macro]
-            di = DecompressImages(self.mini_batch_onque, self.mini_batch_queue,
+
+            di = DecompressImages(self.mini_onque, self.mini_batch_queue,
                                   self.batch_size, self.output_image_size,
                                   self.cropped_image_size, macro_data,
-                                  self.backend, self.num_processes,
                                   self.mean_img, self.predict)
             di.daemon = True
             global miniq_flag
@@ -611,14 +563,12 @@ class Imageset(Dataset):
                 di.start()
                 miniq_flag = True
         logger.debug('\tMid Minibatch %d %d %d', batch_idx, self.num_iter_gpu,
-                     self.gpu_batch_onque)
+                     self.gpu_onque)
 
         for i in range(self.num_iter_gpu):
-            self.gpu_batch_onque = self.get_next_mini_batch_id(
-                self.gpu_batch_onque)
-            gt = GPUTransfer(self.gpu_batch_onque,
-                             self.mini_batch_queue, self.gpu_queue,
-                             self.backend, self.ring_buffer)
+            self.gpu_onque = (self.gpu_onque + 1) % self.minis_per_macro
+            gt = GPUTransfer(self.gpu_onque, self.mini_batch_queue,
+                             self.gpu_queue, self.backend, self.ring_buffer)
             gt.daemon = True
             global gpuq_flag
             if gpuq_flag:
