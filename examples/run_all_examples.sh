@@ -7,7 +7,7 @@
 THIS_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 OUT_FILE="${THIS_DIR}/all_example_results.txt"
 NEON_EXE="${THIS_DIR}/../bin/neon"
-NEON_OPTS="-r 1"  # non-distributed, CPU backend
+NEON_OPTS="-r 0"  # non-distributed, CPU backend
 
 make -C ${THIS_DIR}/.. build  # ensure the build is up to date first
 echo "" > "$OUT_FILE"
