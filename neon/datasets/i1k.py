@@ -136,7 +136,7 @@ class DecompressImages(threading.Thread):
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
                     img, dtype=self.bdtype)[:, :, 0:3],
-                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.  # TODO should this be normalized or not?
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.
 
     def run(self):
         # provide mini batch from macro batch
@@ -201,8 +201,8 @@ class RingBuffer(object):
         logger.debug('start add_item')
 
         # using ring buffer
-        backend.copy_from(self.inputs_backend[self.id], inputs)
-        backend.copy_from(self.targets_backend[self.id], targets)
+        self.inputs_backend[self.id].copy_from(inputs)
+        self.targets_backend[self.id].copy_from(targets)
 
         logger.debug('end add_item')
         self.id += 1
@@ -412,8 +412,8 @@ class I1K(Dataset):
 
                 # Write training batches
                 self.num_train_macro_batches = self.write_batches(
-                    os.path.join(save_dir, prefix_macro
-                                 + str(self.output_image_size)),
+                    os.path.join(save_dir, prefix_macro +
+                                 str(self.output_image_size)),
                     'training', 0,
                     label_sample, jpeg_file_sample)
                 with self.open_tar(ilsvrc_validation_tar,
@@ -434,8 +434,8 @@ class I1K(Dataset):
                     val_label_sample = val_label_sample[
                         0:self.val_max_file_index]
                     self.num_val_macro_batches = self.write_batches(
-                        os.path.join(save_dir, prefix_macro
-                                     + str(self.output_image_size)),
+                        os.path.join(save_dir, prefix_macro +
+                                     str(self.output_image_size)),
                         'validation', 0,
                         val_label_sample,
                         val_file_sample)
@@ -577,8 +577,8 @@ class I1K(Dataset):
                                           batch_size=batch_size,
                                           num_targets=self.nclasses,
                                           num_input_dims=(
-                                              self.cropped_image_size ** 2)
-                                          * 3,
+                                              self.cropped_image_size ** 2) *
+                                          3,
                                           backend=self.backend,
                                           dtype=self.bdtype)
         self.file_name_queue = queue.Queue()
@@ -825,8 +825,8 @@ class I1K(Dataset):
                           0] - 1) for m in meta_mat['synsets']
                           if m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000)
         label_names_dic = dict((m[0][1][0], m[0][2][0]) for m in meta_mat[
-                               'synsets'] if m[0][0][0][0] >= 1
-                               and m[0][0][0][0] <= 1000)
+                               'synsets'] if m[0][0][0][0] >= 1 and
+                               m[0][0][0][0] <= 1000)
         label_names = [tup[1] for tup in sorted(
             [(v, label_names_dic[k]) for k, v in labels_dic.items()],
             key=lambda x:x[0])]
@@ -839,11 +839,13 @@ class I1K(Dataset):
         tf.close()
         return labels_dic, label_names, validation_ground_truth
 
+    def divup(self, a, b):
+        return (a + b - 1) / b
+
     # following functions are for creating macrobatches
     def partition_list(self, l, partition_size):
-        divup = lambda a, b: (a + b - 1) / b
         return [l[i * partition_size:(i + 1) * partition_size]
-                for i in range(divup(len(l), partition_size))]
+                for i in range(self.divup(len(l), partition_size))]
 
     def write_batches(self, target_dir, name, start_batch_num, labels,
                       jpeg_files):

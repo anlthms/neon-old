@@ -761,19 +761,19 @@ class CPU(Backend):
         np.mean(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
         return out
 
-    def var(self, tsr, mean, axes, out):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the sample variance of the elements along the specified
         axes.
 
         Arguments:
             tsr (CPUTensor): the Tensor on which to compute the variance
-            mean (Tensor): the Tensor containing mean of tsr
-                           Unnecessary for cpu backend
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
             out (CPUTensor): where the result will be stored.
+            mean (CPUTensor, optional): The Tensor containing mean of tsr.
+                                        Value currently ignored if specified.
 
         Returns:
             CPUTensor: reference to out

@@ -498,18 +498,20 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def var(self, tsr, mean, axes, out):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the variance of the elements along the specified
         axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the variance
-            mean (Tensor): the Tensor containing mean of tsr
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
             out (Tensor): where the result will be stored.
+            mean (Tensor, optional): the Tensor containing mean of tsr.  If not
+                                     specified, mean will be computed
+                                     internally.
 
         Returns:
             Tensor: reference to out

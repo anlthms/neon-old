@@ -140,26 +140,26 @@ class MAX(Backend):
         activation function).
 
         Arguments:
-            out (GPUTensor): Where to store the forward propagated results.
-            inputs (GPUTensor): Will be either the dataset input values (first
+            out (FloatArray): Where to store the forward propagated results.
+            inputs (FloatArray): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
-            weights (GPUTensor): The weight coefficient values for this layer.
+            weights (FloatArray): The weight coefficient values for this layer.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
             ofmsize (int): Total size of each output feature map.
-            ofmlocs (GPUTensor): Indices giving the location of each element in
-                                 each output feature map stored in out.
+            ofmlocs (FloatArray): Indices giving the location of each element
+                                  in each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).  For this
                               backend we expect these values to be square.
-            links (GPUTensor): Input receptive field indices.
+            links (FloatArray): Input receptive field indices.
             nifm (int): Total number of input feature maps.
             padding (int): Number of additional elements to include along each
                            dimension of each local receptive field during the
                            convolution operation.
             stride (int): Number of neurons to shift the filter at each step.
             ngroups (int): Number of groups.
-            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
+            fpropbuf (FloatArray): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.  Not used for this backend.
             local (bool, optional): Whether to do local filtering (True) or
@@ -189,7 +189,7 @@ class MAX(Backend):
         Backward propagate the error through a convolutional network layer.
         """
         self.nl.bprop_conv(layer=bpropbuf, F=weights, E=deltas, grad_I=out,
-                   alpha=1.0, repeat=1)
+                           alpha=1.0, repeat=1)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
@@ -283,14 +283,25 @@ class MAX(Backend):
             self.nl.max(tsr, axis=axes, out=out)
         return out
 
-    def var(self, tsr, mean, axes, out, dtype=np.float16):
+    def variance(self, tsr, axes, out, mean=None, dtype=np.float16):
         """
-        Calculates the sample variance of the elements along the specified
-        axes. TODO: Preallocate temp buffer outside function.
-        ``var = mean(abs(x - x.mean())**2)``
+        Calculates the variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr  (FloatArray): the tensor on which to compute the variance
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (FloatArray): where the result will be stored.
+            mean (FloatArray): the tensor containing mean of tsr
+
+        Returns:
+            FloatArray: reference to out
         """
-        rshape = list(tsr.shape)  # original shape
-        rshape[axes] = 1          # reduced shape
+        if mean is None:
+            logger.error("FloatArray requires mean to be specified.")
+            raise ValueError("mean not specified")
         self.nl.mean(self.nl.square(tsr-mean),  axis=axes, out=out)
         return out
 
@@ -325,17 +336,6 @@ class MAX(Backend):
         """
         return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
                           rounding=self.nl.round_mode).set(ary)
-
-    def copy_from(self, a, src):
-        """
-        Copy contents from src to a
-
-        Arguments:
-            a: FloatArray
-            src (numpy.ndarray): the host-resident object to copy from
-        """
-        device = self.device_id
-        a.set(src, device)
 
     def add(self, left, right, out):
         """assignment"""

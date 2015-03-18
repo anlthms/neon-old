@@ -3,6 +3,8 @@
 import os
 import sys
 
+from neon import __version__ as neon_version
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -69,8 +71,7 @@ copyright = u'2014, Nervana Systems Inc.'
 # built documents.
 #
 # The short X.Y version.
-import neon
-version = '%s' % (neon.__version__)
+version = '%s' % (neon_version)
 # The full version, including alpha/beta/rc tags.
 release = version
 

@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument('-g', '--gpu', action='store_true',
                         help='Attempt to run using a CUDA capable GPU backend')
     parser.add_argument('-z', '--half', action='store_true',
-                        help='Attempt to run using a half-assed GPU backend')
+                        help='Attempt to run using a fp16 GPU backend')
     parser.add_argument('-o', '--rounding', type=int,
                         help=' 1 for stochastic rounding, 0 for deterministic')
     parser.add_argument('-n', '--nrv', action='store_true',

@@ -121,6 +121,7 @@ Summarization Operation Support
    neon.backends.backend.Backend.argmin
    neon.backends.backend.Backend.argmax
    neon.backends.backend.Backend.norm
+   neon.backends.backend.Backend.variance
 
 Initialization and Setup
 ========================
@@ -176,6 +177,7 @@ v0.8.0
 ======
 
 * rename axes parameter to axis in summarization operations (planned)
+* new function variance to compute the variance.
 
 v0.7.0
 ======

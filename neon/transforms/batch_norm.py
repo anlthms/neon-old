@@ -9,6 +9,7 @@ from neon.transforms.activation import Activation
 from neon.util.param import req_param, opt_param
 import numpy as np
 
+
 class BatchNorm(Activation):
 
     """
@@ -97,7 +98,7 @@ class BatchNorm(Activation):
         if self.train_mode:
             # Calc batch statistics
             backend.mean(inputs, axes=1, out=self._mean)
-            backend.var(inputs, self._mean, axes=1, out=self._vars)
+            backend.variance(inputs, axes=1, out=self._vars, mean=self._mean)
 
             # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)

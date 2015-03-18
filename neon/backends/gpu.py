@@ -541,16 +541,6 @@ class GPU(Backend):
         assert type(tsr) == self.tensor_cls
         return self.tensor_cls(tsr._tensor.copy())
 
-    def copy_from(self, a, src):
-        """
-        Copy contents from src to a
-
-        Arguments:
-            a: GPUTensor
-            src (numpy.ndarray): the host-resident object to copy from
-        """
-        a._tensor.copy_from(src)
-
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),
@@ -1020,22 +1010,25 @@ class GPU(Backend):
             tsr._tensor.mean(axis=axes, target=out._tensor)
         return out
 
-    def var(self, tsr, mean, axes, out):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the variance of the elements along the specified
         axes.
 
         Arguments:
-            tsr  (Tensor): the Tensor on which to compute the variance
-            mean (Tensor): the Tensor containing mean of tsr
+            tsr  (GPUTensor): the Tensor on which to compute the variance
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
-            out (Tensor): where the result will be stored.
+            out (GPUTensor): where the result will be stored.
+            mean (GPUTensor): the Tensor containing mean of tsr
 
         Returns:
             Tensor: reference to out
         """
+        if mean is None:
+            logger.error("GPUTensor requires mean to be specified.")
+            raise ValueError("mean not specified")
         if isinstance(axes, (tuple, list)):
             logger.warn("GPUTensor only supports single axis for var.  "
                         "You specified: %s", str(axes))
@@ -1268,7 +1261,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False, layer=None, sumwidth = 4):
+                    fwidth, updatebuf, local=False, layer=None, sumwidth=4):
         """
         Compute the updated gradient for a convolutional network layer.
 

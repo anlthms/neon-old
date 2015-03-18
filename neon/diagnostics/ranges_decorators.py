@@ -52,7 +52,8 @@ class Decorators(object):
             retval = func(*arguments, **kwargs)
 
             # new plotting stuff
-            logger.debug("\nbackend call to %s from %s", func_name, parent_func_name)
+            logger.debug("\nbackend call to %s from %s", func_name,
+                         parent_func_name)
             for item in ['weights', 'deltas', 'out', 'inputs']:
                 if item in kwargs:
                     the_min = be.zeros((1, 1))
