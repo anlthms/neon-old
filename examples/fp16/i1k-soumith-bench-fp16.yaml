@@ -1,34 +1,22 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the FULL version of AlexNet CNN on ImageNet.
-# Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
-
 # These are the layers from Soumith Benchmark.
+# compare to https://github.com/soumith/convnet-benchmarks/blob/master/torch7/layerwise_benchmarks/benchmark.lua
+# For internal use only. -- This yaml is set up to compute conv3 outputs only.
+
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  timing: {
-    plots: True,
+  diagnostics: {
+    timing: True,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
-    #decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
-    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax, softmax]
-    # specia: fprop_pool, bprop_pool,
-    # special cases: gdm_compound, gdmwd_compound,
-    # removed: zeros, ones, empty, array, copy_from,
+    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract,
+                  multiply, divide, greater, not_equal, clip, log, argmax,
+                  softmax],
+    ranges: False,
   },
-
-
-
-
-  seterr: {
-    all: raise,
-  },
-
-
-
-
 
   dataset: &ds !obj:datasets.I1K {
     load_path: '/usr/local/data', #directory where .tar files are stored
@@ -40,38 +28,34 @@
     ring_buffer_size: 3,
     num_train_macro_batches: 417, #max available train macro_batches
     num_val_macro_batches: 16, #max available val macro batches
-    #number of cpu processes for image resizing and decompression
     num_processes: 4, #not impl yet
-    # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 2, #24, # 416,
+    end_train_batch: 1,
     start_val_batch: 0,
-    end_val_batch: 1, #4, # 15,
+    end_val_batch: 1,
   },
 
   weight_inits: [
     &wt_init0 !obj:params.GaussianValGen {
-      scale: .01, #.1 intead of 0.01 makes nonzero bprops everywhere. Note for 5 FC layers, .01^5=1e-10, while 600e-10
-      bias_init: 0.0, # zero
+      scale: .01,
+      bias_init: 0.0,
     },
     &wt_init1 !obj:params.GaussianValGen {
-      scale: .01, #.1 intead of 0.01
-      bias_init: 0.1, # was .1
+      scale: .01,
+      bias_init: 0.1,
     },
     &wt_init_fc !obj:params.GaussianValGen {
-      scale: .005, # .05 instead of .005 helps FC layer errors
-      bias_init: 0.1, # was .1
+      scale: .005,
+      bias_init: 0.1,
     },
   ],
 
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    global_dtype: &npfloat np.float16,       ##############################
-    velocity_dtype: *npfloat,
-    param_dtype: *npfloat,
+    half_precision: &hp True,
     lr_params: {
-      learning_rate: 0.000, # was 0.02, 10x lower to compensate weights?
+      learning_rate: 0.000,
 
       momentum_params: {
         type: constant,
@@ -82,9 +66,9 @@
   # used for weight rule
   lrule: &gdmwd {
     type: gradient_descent_momentum,
-    velocity_dtype: *npfloat,  # this is also used for param_dtype
+    half_precision: *hp,
     lr_params: {
-      learning_rate: 0.000, # again was 0.01
+      learning_rate: 0.000,
 
       momentum_params: {
         type: constant,
@@ -95,10 +79,9 @@
 
   model: !obj:models.MLP {
     num_epochs: 1,  # was 90
-    half_precision: &hp True,              ###############################
+    half_precision: *hp,
     batch_size: &bs 128,
     step_print: 24,
-    #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -111,7 +94,7 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {  # this sees pixels, maybe need to initialize it smaller?
+        weight_init: !obj:params.GaussianValGen {
           scale: .05, # sqrt(2/n), n = k^2 c = 11**2 * 3 = 363 -> a .07 or b .016
           bias_init: 0.0, # zero
         },
@@ -272,7 +255,7 @@
         half_precision: *hp,
         ref_layer: *datalayer,
         cost: !obj:transforms.CrossEntropy {
-          temp_dtype: *npfloat,
+          half_precision: *hp,
           epsilon: 0.0005,
         },
       },

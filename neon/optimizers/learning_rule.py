@@ -6,6 +6,7 @@ Generic parent class used to control how updates are applied to coefficients
 i.e. how the learning should proceed.
 """
 
+from neon.util.param import opt_param, req_param
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,15 +21,15 @@ class LearningRule(object):
         name (str): Used to identify this LearningRule when logging.
         batch_size (int): Number of examples presented at this iteration
     """
-    def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
+    def __init__(self, name, lr_params):
         self.name = name
-        self.param_dtype = param_dtype
-        self.gradient_dtype = gradient_dtype
 
         opt_param(self, ['half_precision'], False)
         if self.half_precision:
             import numpy as np
             setattr(self, 'velocity_dtype', np.float16)
+            setattr(self, 'param_dtype', np.float16)
+            setattr(self, 'gradient_dtype', np.float16)
 
     def initialize(self, backend):
         self.backend = backend

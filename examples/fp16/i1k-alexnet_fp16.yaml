@@ -8,14 +8,14 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  timing: {
-    plots: True,
+  diagnostics: {
+    timing: True,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
-    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax, softmax, gdm_compound, gdmwd_compound]
-    # specia: fprop_pool, bprop_pool,
-    # special cases:
-    # removed: zeros, ones, empty, array, copy_from,
+    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract,
+                  multiply, divide, greater, not_equal, clip, log, argmax,
+                  softmax, gdm_compound, gdmwd_compound],
+    ranges: False,
   },
 
 
@@ -34,34 +34,32 @@
     num_processes: 4, #not impl yet
     # macro batch start and end indices to use for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 24, #24, # 416,
+    end_train_batch: 24, #24 mini 416 full,
     start_val_batch: 0,
-    end_val_batch: 15, #4, # 15,
+    end_val_batch: 15, #4 mini 15 full,
   },
 
   weight_inits: [
     &wt_init0 !obj:params.GaussianValGen {
-      scale: .01, #.1 intead of 0.01 makes nonzero bprops everywhere. Note for 5 FC layers, .01^5=1e-10, while 600e-10
-      bias_init: 0.0, # zero
+      scale: .01,
+      bias_init: 0.0,
     },
     &wt_init1 !obj:params.GaussianValGen {
-      scale: .01, #.1 intead of 0.01
-      bias_init: 0.1, # was .1
+      scale: .01,
+      bias_init: 0.1,
     },
     &wt_init_fc !obj:params.GaussianValGen {
-      scale: .005, # .05 instead of .005 helps FC layer errors
-      bias_init: 0.1, # was .1
+      scale: .005,
+      bias_init: 0.1,
     },
   ],
 
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    global_dtype: &npfloat np.float16,       ##############################
-    velocity_dtype: *npfloat,
-    param_dtype: *npfloat,
+    half_precision: &hp True,
     lr_params: {
-      learning_rate: 0.02, # was 0.02, 10x lower to compensate weights?
+      learning_rate: 0.02,
       schedule: {
               type: step,
               ratio: 0.1,
@@ -73,12 +71,13 @@
       },
     },
   },
+
   # used for weight rule
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
-    velocity_dtype: *npfloat,  # this is also used for param_dtype
+    half_precision: *hp,
     lr_params: {
-      learning_rate: 0.01, # again was 0.01
+      learning_rate: 0.01,
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -93,8 +92,8 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 50,  # was 90  alex sais 50 is enough to get 80% top 1 error
-    half_precision: &hp True,              ###############################
+    num_epochs: 50,  # was 90. Alex: 50 is enough to get 80% top 1 error
+    half_precision: *hp,
     batch_size: &bs 128,
     step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
@@ -110,7 +109,7 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {  # this sees pixels, maybe need to initialize it smaller?
+        weight_init: !obj:params.GaussianValGen {
           scale: .05, # sqrt(2/n), n = k^2 c = 11**2 * 3 = 363 -> a .07 or b .016
           bias_init: 0.0, # zero
         },
@@ -253,14 +252,14 @@
           bias_init: 0.0, # zero
         },
         nout: *mtf,
-        activation: !obj:transforms.Logistic {},  # Softmax or Logistic  but in weird trick Kriz uses logistsic! epoch: 0, training error: 51.72103    epoch: 9, training error: 7.98694 on ccn2 backend.
+        activation: !obj:transforms.Logistic {},  # SuperVision: Softmax or WeirdTrick: Logistic
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
         half_precision: *hp,
         ref_layer: *datalayer,
         cost: !obj:transforms.CrossEntropy {
-          temp_dtype: *npfloat,
+          half_precision: *hp,
           epsilon: 0.0005,
         },
       },
