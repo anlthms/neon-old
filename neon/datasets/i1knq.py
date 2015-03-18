@@ -59,8 +59,6 @@ class I1Knq(Dataset):
     url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
-        from PIL import Image
-        self.image = Image
         self.dist_flag = False
         self.start_train_batch = -1
         self.end_train_batch = -1
@@ -109,20 +107,30 @@ class I1Knq(Dataset):
                 return
 
     def preprocess_images(self):
-        # compute mean of all the images
-        logger.info("preprocessing images (computing mean image)")
+        # Depends on mean being saved to a cached file in the data directory
+        # Otherwise will just subtract 128 uniformly
+        osz = self.output_image_size
+        csz = self.cropped_image_size
+        logger.info("loading mean image")
         mean_path = os.path.join(self.save_dir,
-                                 prefix_macro + str(self.output_image_size),
+                                 prefix_macro + str(osz),
                                  'i1kmean.pkl')
-        self.mean_img = my_unpickle(mean_path)
-        self.mean_img.shape = (3,
-                               self.output_image_size, self.output_image_size)
 
-        self.mean_be.copy_from(
-            self.mean_img[:,
-             :self.cropped_image_size,
-             :self.cropped_image_size].reshape(-1).astype(np.float32))
-        logger.info("done preprocessing images (computing mean image)")
+        try:
+            self.mean_img = my_unpickle(mean_path)
+            self.mean_img.shape = (3, osz, osz)
+            cstart = (osz - csz) / 2
+            self.mean_be = self.backend.empty((self.npixels, 1))
+            self.mean_be.copy_from(
+                self.mean_img[:,
+                    cstart:(cstart + csz),
+                    cstart:(cstart + csz)].reshape(-1).astype(np.float32))
+        except:
+            logger.info("Unable to find mean img file, setting mean to 128.")
+            self.mean_be = self.backend.empty((1, 1))
+            self.mean_be[:] = 128.
+
+        logger.info("done loading mean image")
 
     def get_macro_batch(self):
         self.macro_idx += 1
@@ -170,7 +178,6 @@ class I1Knq(Dataset):
         # self.targets_be = self.backend.empty((1, self.batch_size))
 
         self.inputs_be = self.backend.empty((self.npixels, self.batch_size))
-        self.mean_be = self.backend.empty((self.npixels, 1))
 
         if not self.preprocess_done:
             self.preprocess_images()
@@ -202,7 +209,7 @@ class I1Knq(Dataset):
 
         # This is what we transfer over
         self.inputs_be.copy_from(
-            self.img_macro[startidx:endidx].T.copy().astype(np.float32))
+            self.img_macro[startidx:endidx].T.astype(np.float32, order='C'))
         self.targets_be.copy_from(
             self.targets_macro[:, startidx:endidx].astype(np.float32))
 
