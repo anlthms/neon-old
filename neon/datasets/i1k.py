@@ -33,8 +33,15 @@ macroq_flag = False
 miniq_flag = False
 gpuq_flag = False
 
-BDTYPE = 'float16'
-logger.warning("i1k with hardcoded dtype %s" ,BDTYPE)
+
+"""
+This gets upsed in
+DecompressImages (init, jpeg_decoder)
+RingBuffer (init)
+I1K (resize_jpeg, preprocess_images, get_mini_batch, jpeg_decoder)
+
+which one gets instanciated first?
+"""
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
@@ -83,7 +90,8 @@ class DecompressImages(threading.Thread):
 
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
-                 num_processes, mean_img, predict):
+                 num_processes, mean_img, predict, dtype):
+        print "---------------------FIRING UP: DecompressImages --------------------"
         from PIL import Image
         threading.Thread.__init__(self)
         self.mb_id = mb_id
@@ -102,10 +110,11 @@ class DecompressImages(threading.Thread):
         #     ((self.cropped_image_size ** 2) * 3 * self.batch_size))
         self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
-            dtype=BDTYPE)
+            dtype=dtype)
         self.num_processes = num_processes
         self.mean_img = mean_img
         self.predict = predict
+        self.bdtype = dtype
 
     def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
@@ -136,7 +145,7 @@ class DecompressImages(threading.Thread):
                 img = img.convert('RGB')
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
-                    img, dtype=BDTYPE)[:, :, 0:3],
+                    img, dtype=self.bdtype)[:, :, 0:3],
                     axes=[2, 0, 1]) - crop_mean_img).reshape((-1))  / 128. - 1.  # urs wants this to be normalized # or not!
 
     def run(self):
@@ -184,12 +193,13 @@ class RingBuffer(object):
     '''
 
     def __init__(self, max_size, batch_size, num_targets, num_input_dims,
-                 backend):
+                 backend, dtype):
+        print "---------------------FIRING UP: RingBuffer --------------------"
         self.max_size = max_size
         self.id = 0
         self.prev_id = 0
-        tmp_input = np.empty((num_input_dims, batch_size), dtype=BDTYPE)
-        tmp_target = np.empty((num_targets, batch_size), dtype=BDTYPE)
+        tmp_input = np.empty((num_input_dims, batch_size), dtype=dtype)
+        tmp_target = np.empty((num_targets, batch_size), dtype=dtype)
 
         self.inputs_backend = []
         self.targets_backend = []
@@ -276,6 +286,8 @@ class I1K(Dataset):
     url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
+        print "---------------------FIRING UP: I1K --------------------"
+        self.bdtype = 'float16'
         from PIL import Image
         self.image = Image
         self.dist_flag = False
@@ -446,7 +458,7 @@ class I1K(Dataset):
             # as numpy array, row order
             tgt = np.empty(
                 (len(jpeg_strings), (self.output_image_size ** 2) * 3),
-                dtype=BDTYPE)
+                dtype=self.bdtype)
         for i, jpeg_string in enumerate(jpeg_strings):
             img = self.image.open(StringIO(jpeg_string))
 
@@ -487,7 +499,7 @@ class I1K(Dataset):
         # compute mean of all the images
         logger.info("preprocessing images (computing mean image)")
         self.mean_img = np.zeros((3, self.output_image_size,
-                                  self.output_image_size), dtype=BDTYPE)
+                                  self.output_image_size), dtype=self.bdtype)
         return
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)
@@ -504,7 +516,7 @@ class I1K(Dataset):
                 if(img.mode != 'RGB'):
                     img = img.convert('RGB')
                 self.mean_img += np.transpose(np.array(
-                    img, dtype=BDTYPE)[:, :, 0:3],
+                    img, dtype=self.bdtype)[:, :, 0:3],
                     axes=[2, 0, 1])  # .reshape((-1, 1))
 
         self.mean_img = (self.mean_img /
@@ -574,7 +586,8 @@ class I1K(Dataset):
                                           num_input_dims=(
                                               self.cropped_image_size ** 2)
                                           * 3,
-                                          backend=self.backend)
+                                          backend=self.backend,
+                                          dtype=self.bdtype)
         self.file_name_queue = queue.Queue()
         self.macro_batch_queue = queue.Queue()
         self.mini_batch_queue = queue.Queue()
@@ -678,11 +691,11 @@ class I1K(Dataset):
                 labels = self.jpeg_strings['labels']
                 # flatten the labels list of lists to a single list
                 labels = [item for sublist in labels for item in sublist]
-                labels = np.asarray(labels, dtype=BDTYPE)
+                labels = np.asarray(labels, dtype=self.bdtype)
                 # if not self.raw_targets:
                 self.targets_macro = np.zeros((self.nclasses,
                                                self.output_batch_size),
-                                              dtype=BDTYPE)
+                                              dtype=self.bdtype)
                 for col in range(self.nclasses):
                     self.targets_macro[col] = labels == col
                 # else:
@@ -693,7 +706,7 @@ class I1K(Dataset):
                                   self.cropped_image_size, self.jpeg_strings,
                                   self.targets_macro, self.backend,
                                   self.num_processes, self.mean_img,
-                                  self.predict)
+                                  self.predict, self.bdtype)
             di.setDaemon(True)
             global miniq_flag
             if miniq_flag:
@@ -728,7 +741,7 @@ class I1K(Dataset):
         # convert jpeg string to numpy array
         self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
-            dtype=BDTYPE)
+            dtype=self.bdtype)
         self.diff_size = self.output_image_size - self.cropped_image_size
         if not self.predict:
             # use predict for training vs testing performance
@@ -752,7 +765,7 @@ class I1K(Dataset):
                                   csy:csy + self.cropped_image_size])
                 self.inputs[:, i, np.newaxis] = (
                     np.transpose(np.array(
-                        img, dtype=BDTYPE)[:, :, 0:3],
+                        img, dtype=self.bdtype)[:, :, 0:3],
                         axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
         else:
             csx = self.diff_size / 2
@@ -771,7 +784,7 @@ class I1K(Dataset):
                     img = img.convert('RGB')
                 self.inputs[:, i, np.newaxis] = (
                     np.transpose(np.array(
-                        img, dtype=BDTYPE)[:, :, 0:3],
+                        img, dtype=self.bdtype)[:, :, 0:3],
                         axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
 
     def has_set(self, setname):
