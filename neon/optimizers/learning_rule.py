@@ -6,7 +6,7 @@ Generic parent class used to control how updates are applied to coefficients
 i.e. how the learning should proceed.
 """
 
-from neon.util.param import opt_param, req_param
+from neon.util.param import opt_param
 import logging
 
 logger = logging.getLogger(__name__)
