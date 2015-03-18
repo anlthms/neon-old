@@ -11,7 +11,8 @@ from neon.transforms.softmax import Softmax
 from neon.util.param import opt_param
 
 
-def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23):
+def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23,
+                  scale_by_batchsize=False):
     """
     Evaluates cross entropy on pairwise elements from outputs and targets.
 
@@ -25,6 +26,7 @@ def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23):
         temp (list): temporary buffers.
         epsilon (numeric): unit roundoff error.  Defaults to 2^-23, which
                            matches python float32 machine epsilon.
+        scale_by_batchsize: Prescale the cross_entropy, useful for
 
     Returns:
         Tensor: Calculated cross entropy values for each element.
@@ -44,11 +46,13 @@ def cross_entropy(backend, outputs, targets, temp, epsilon=2**-23):
     # Compute t*log(y) - (t-1)*log(1-y)
     backend.subtract(temp[0], temp[1], out=temp[0])
     result = backend.empty((1, 1))
-    backend.divide(temp[0], temp[0].shape[1], temp[0])  # MOVED DIVISION HERE TO PREVENT OVERFLOW!
+    if scale_by_batchsize:
+        backend.divide(temp[0], temp[0].shape[1], temp[0])
     return backend.sum(temp[0], axes=None, out=result)
 
 
-def cross_entropy_multi(backend, outputs, targets, temp, epsilon=2**-23):
+def cross_entropy_multi(backend, outputs, targets, temp, epsilon=2**-23,
+                        scale_by_batchsize=False):
     """
     Evaluates cross entropy on elements from outputs and targets.
 
@@ -70,6 +74,8 @@ def cross_entropy_multi(backend, outputs, targets, temp, epsilon=2**-23):
     backend.multiply(targets, temp[1], out=temp[1])
     backend.multiply(temp[1], -1.0, out=temp[0])
     result = backend.empty((1, 1))
+    if scale_by_batchsize:
+        backend.divide(temp[0], temp[0].shape[1], temp[0])
     return backend.sum(temp[0], axes=None, out=result)
 
 
@@ -205,12 +211,13 @@ class CrossEntropy(Cost):
         return cross_entropy_multi(self.backend, self.temp[0], targets,
                                    self.temp)
 
-    def apply_function(self, targets):
+    def apply_function(self, targets, scale_by_batchsize=False):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
         result = self.ce_function(self.backend, self.outputbuf, targets,
-                                  self.temp, epsilon=self.epsilon)
+                                  self.temp, epsilon=self.epsilon,
+                                  scale_by_batchsize=scale_by_batchsize)
         self.backend.multiply(result, self.scale, out=result)
         return result
 

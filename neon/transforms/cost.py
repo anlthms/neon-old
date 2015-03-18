@@ -6,6 +6,9 @@ Contains cost or loss function related code.
 """
 
 
+from neon.util.param import req_param, opt_param
+
+
 class Cost(object):
     """
     Abstract cost function class.  Defines operations any concrete
@@ -24,8 +27,8 @@ class Cost(object):
         self.outputbuf = None
         self.temp = None
 
-        # TODO: Make less hacky
-        if getattr(self, 'temp_dtype') == 'np.float16':
+        opt_param(self, ['half_precision'], False)
+        if self.half_precision:
             import numpy as np
             setattr(self, 'temp_dtype', np.float16)
 

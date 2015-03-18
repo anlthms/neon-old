@@ -260,8 +260,12 @@ class CostLayer(Layer):
     def get_cost(self):
         if self.ref_layer is not None:
             self.targets = getattr(self.ref_layer, self.ref_label)
-        result = self.cost.apply_function(self.targets)
-        return result # self.backend.divide(result, self.batch_size, result)
+        scale_me = True if hasattr(self.backend, 'nl') else False
+        result = self.cost.apply_function(self.targets,
+                                          scale_by_batchsize=scale_me)
+        if not scale_me:  # Check for fp16 backend and use scaling
+            self.backend.divide(result, self.batch_size, result)
+        return result
 
 
 class DataLayer(Layer):

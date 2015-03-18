@@ -1,0 +1,282 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test the FULL version of AlexNet CNN on ImageNet.
+# Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
+
+# Changed the initialization to He ... Ren (PReLu paper)
+
+!obj:experiments.FitPredictErrorExperiment {
+
+  timing: {
+    plots: True,
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax, softmax, gdm_compound, gdmwd_compound]
+    # specia: fprop_pool, bprop_pool,
+    # special cases:
+    # removed: zeros, ones, empty, array, copy_from,
+  },
+
+
+
+  dataset: &ds !obj:datasets.I1K {
+    load_path: '/usr/local/data', #directory where .tar files are stored
+    repo_path: '/usr/local/data', #directory to use for writing files
+    output_image_size: &ois 256,
+    cropped_image_size: &cis 224,
+    max_tar_file: &mtf 1000,
+    output_batch_size: 3072,
+    ring_buffer_size: 3,
+    num_train_macro_batches: 417, #max available train macro_batches
+    num_val_macro_batches: 16, #max available val macro batches
+    #number of cpu processes for image resizing and decompression
+    num_processes: 4, #not impl yet
+    # macro batch start and end indices to use for train and val datasets
+    start_train_batch: 0,
+    end_train_batch: 24, #24, # 416,
+    start_val_batch: 0,
+    end_val_batch: 15, #4, # 15,
+  },
+
+  weight_inits: [
+    &wt_init0 !obj:params.GaussianValGen {
+      scale: .01, #.1 intead of 0.01 makes nonzero bprops everywhere. Note for 5 FC layers, .01^5=1e-10, while 600e-10
+      bias_init: 0.0, # zero
+    },
+    &wt_init1 !obj:params.GaussianValGen {
+      scale: .01, #.1 intead of 0.01
+      bias_init: 0.1, # was .1
+    },
+    &wt_init_fc !obj:params.GaussianValGen {
+      scale: .005, # .05 instead of .005 helps FC layer errors
+      bias_init: 0.1, # was .1
+    },
+  ],
+
+  # used for bias rule
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    global_dtype: &npfloat np.float16,       ##############################
+    velocity_dtype: *npfloat,
+    param_dtype: *npfloat,
+    lr_params: {
+      learning_rate: 0.02, # was 0.02, 10x lower to compensate weights?
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+  # used for weight rule
+  lrule: &gdmwd {
+    type: gradient_descent_momentum_weight_decay,
+    velocity_dtype: *npfloat,  # this is also used for param_dtype
+    lr_params: {
+      learning_rate: 0.01, # again was 0.01
+      weight_decay: .0005,
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+
+  model: !obj:models.MLP {
+    num_epochs: 50,  # was 90  alex sais 50 is enough to get 80% top 1 error
+    half_precision: &hp True,              ###############################
+    batch_size: &bs 128,
+    step_print: 24,
+    #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
+    layers: [
+      &datalayer !obj:layers.DataLayer {
+        name: d0,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [*cis, *cis],
+      },
+      !obj:layers.ConvLayer {
+        name: conv1,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {  # this sees pixels, maybe need to initialize it smaller?
+          scale: .05, # sqrt(2/n), n = k^2 c = 11**2 * 3 = 363 -> a .07 or b .016
+          bias_init: 0.0, # zero
+        },
+        nofm: 64,
+        fshape: [11, 11],
+        stride: 4,
+        pad: 3,
+        activation: !obj:transforms.RectLin {},
+      },
+      # !obj:layers.CrossMapResponseNormLayer {
+      #   name: rnorm1,
+      #   ksize: 5,
+      #   alpha: 0.0001,
+      #   beta: 0.75,
+      # },
+      !obj:layers.PoolingLayer {
+        name: pool1,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv2,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .035, # sqrt(2/n), n = k^2 c = 5**2 * 64 = 1600 -> a .035 or b .02
+          bias_init: 0.0, # zero
+        },
+        nofm: 192,
+        fshape: [5, 5],
+        pad: 2,
+        activation: !obj:transforms.RectLin {},
+      },
+      # !obj:layers.CrossMapResponseNormLayer {
+      #   name: rnorm2,
+      #   ksize: 5,
+      #   alpha: 0.0001,
+      #   beta: 0.75,
+      # },
+      !obj:layers.PoolingLayer {
+        name: pool2,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv3,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .034, # sqrt(2/n), n = k^2 c = 3**2 * 192 = 1728 -> a .034 or b .024
+          bias_init: 0.0, # zero
+        },
+        nofm: 384,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv4,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .024, # sqrt(2/n), n = k^2 c = 3**2 * 384 = 3456 -> a .024 or b .03
+          bias_init: 0.0, # zero
+        },
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv5,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .03, # MANUAL 2x OVERRIDE  sqrt(2/n), n = k^2 c = 3**2 * 256 = 2304 -> a .03 or b .03
+          bias_init: 0.0, # zero
+        },
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool3,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.FCLayer {
+        name: fc4096a,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .015, # MANUAL 2x OVERRIDE   sqrt(2/n), n = 256*6*6 = 9216  or 6*6*2048 # trying shit out. -> a .015 or b .005
+          bias_init: 0.0, # zero
+        },
+        nout: 4096,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout1,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      !obj:layers.FCLayer {
+        name: fc4096b,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .03,  # sqrt(2/n), n 1*1*2048 = 2048  # trying shit out. -> a .03 or b .03 (using effective 2048 due to dropout, otherwise .02)
+          bias_init: 0.0, # zero
+        },
+        nout: 4096,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout2,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      &lastlayer !obj:layers.FCLayer {
+        name: fc1000,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.GaussianValGen {
+          scale: .05, # was 0.01, but n 1*1*1000 -> .05
+          bias_init: 0.0, # zero
+        },
+        nout: *mtf,
+        activation: !obj:transforms.Logistic {},  # Softmax or Logistic  but in weird trick Kriz uses logistsic! epoch: 0, training error: 51.72103    epoch: 9, training error: 7.98694 on ccn2 backend.
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        half_precision: *hp,
+        ref_layer: *datalayer,
+        cost: !obj:transforms.CrossEntropy {
+          temp_dtype: *npfloat,
+          epsilon: 0.0005,
+        },
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

@@ -25,6 +25,11 @@ class LearningRule(object):
         self.param_dtype = param_dtype
         self.gradient_dtype = gradient_dtype
 
+        opt_param(self, ['half_precision'], False)
+        if self.half_precision:
+            import numpy as np
+            setattr(self, 'velocity_dtype', np.float16)
+
     def initialize(self, backend):
         self.backend = backend
 

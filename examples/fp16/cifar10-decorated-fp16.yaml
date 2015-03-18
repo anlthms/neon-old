@@ -1,0 +1,136 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# MLP on CIFAR-10
+# ~10M (6M+2M) parameter network to showcase performance of pf16 kernels
+
+!obj:experiments.FitPredictErrorExperiment {
+
+  diagnostics: {
+    timing: True,
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+                  # sum must not be decorated at this time, it will fail
+
+    ranges: False,
+    decorate_ranges: [fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+  },
+
+  dataset: &ds !obj:datasets.CIFAR10 {
+    repo_path: '/home/users/urs/data',
+    sample_pct: 100,
+    # serialized_path: '~/data/CIFAR10/cifar10_small.pkl', # [TODO] Cannot serialize the data for gpu backend.
+  },
+
+  weight_inits: &wt_init !obj:params.UniformValGen {
+    low: -0.1,
+    high: 0.1,
+  },
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    half_precision: &hp True,
+    lr_params: {
+      learning_rate: 0.01,
+      momentum_params: {
+        type: constant,
+        coef: 0.90,
+      },
+    },
+  },
+
+  model: !obj:models.MLP {
+    num_epochs: 10,
+    batch_size: &bs 128,
+    half_precision: *hp,
+    batch_norm: &bn False,        #           for this to work well, need to reduce lr 10x ?
+    layers: [
+      &datalayer !obj:layers.DataLayer {
+        name: d0,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [32, 32],
+      },
+      !obj:layers.ConvLayer {
+        half_precision: *hp,
+        batch_norm: *bn,
+        name: conv1,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        nofm: 64,  # was 16 kriz has 64
+        fshape: [5, 5],
+      },
+      !obj:layers.PoolingLayer {
+        half_precision: *hp,
+        name: pool1,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      # kriz has CMR norm here
+      !obj:layers.ConvLayer {
+        half_precision: *hp,
+        batch_norm: *bn,
+        name: conv2,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        nofm: 64, # was 32, kriz again 64
+        fshape: [5, 5],
+      },
+      # another CMR norm
+      !obj:layers.PoolingLayer {
+        half_precision: *hp,
+        name: pool2,
+        op: 'max',
+        fshape: [2, 2],
+        stride: 2,
+      },
+      # original has local3, local4 here (64 and 32 channels)
+      !obj:layers.FCLayer {
+        half_precision: *hp,
+        batch_norm: *bn,
+        name: fc1,
+        nout: 512,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        half_precision: *hp,
+        name: dropout1,
+        keep: 0.25, # was .5, but .25 gets from 34 to 30%
+      },
+      &lastlayer !obj:layers.FCLayer {
+        half_precision: *hp,
+        batch_norm: *bn,
+        name: output,
+        nout: 10,
+        lrule_init: *gdm,
+        weight_init: *wt_init,
+        activation: !obj:transforms.Softmax {},  # kriz uses softmax, but Logistic is 32%, this is 34%
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        cost: !obj:transforms.CrossEntropy {
+          half_precision: *hp,
+          epsilon: 0.0005,
+        },
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}

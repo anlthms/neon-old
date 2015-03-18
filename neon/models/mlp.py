@@ -67,46 +67,17 @@ class MLP(MLP_old):
         if hasattr(self.backend, 'nl'):
             #self.backend.init_mempool((self.class_layer.nout, 1))
             self.backend.init_mempool((1, self.batch_size))
-        # check what the weight layer looks like:
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             y = None if pl is None else pl.output
             ll.fprop(y)
 
-        # --- some debug stuff
-        # print "\nWEIGHTS"
-        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-        #     if 'weights' in ll.__dict__:
-        #         # weights are [-.01 : .01] numbers
-        #         print "fprop dumping", ll.name, "weights", ll.weights[0,0:5].asnumpyarray()
-
-        # print "\nPRE-ACTIVATIONS (== activations-prime)"
-        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-        #     y = None if pl is None else pl.output
-        #     #import pdb; pdb.set_trace()
-        #     if 'output' in ll.__dict__ and ll.name != 'cost' and ll.name != 'd0' :
-        #         print "fprop dumping", ll.name, "pre-activations", ll.pre_act[0,0:5].asnumpyarray()
-        # print "\nACTIVATIONS"
-        # for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
-        #     y = None if pl is None else pl.output
-        #     if 'output' in ll.__dict__ and ll.name != 'cost':
-        #         # data layer outputs are [0.:255.] pf16 numbers.
-        #         print "fprop dumping", ll.name, "activations", ll.output[0,0:5].asnumpyarray()
-
     def bprop(self):
         for ll, nl in zip(reversed(self.layers),
                           reversed(self.layers[1:] + [None])):
             error = None if nl is None else nl.deltas
             ll.bprop(error)
-            # if 'weights' in ll.__dict__:
-            #     print "bprop dumping", ll.name, "errors", error[0,0:5].asnumpyarray()
-        # print "\nUPDATES (bprop)"
-        # for ll, nl in zip(reversed(self.layers),
-        #                   reversed(self.layers[1:] + [None])):
-        #     if 'weights' in ll.__dict__:
-        #         print "bprop dumping", ll.name, "updates", ll.updates[0][0,0:5].asnumpyarray()
-        #error=here
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
@@ -158,14 +129,10 @@ class MLP(MLP_old):
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
-            while self.data_layer.has_more_data():  #mb_id <= 10: #
-                #logger.info("FPROP %d in %d", mb_id, self.epochs_complete)
+            while self.data_layer.has_more_data():
                 self.fprop()
-                #logger.info("BPROP")
                 self.bprop()
-                #logger.info("UPDATE")
                 self.update(self.epochs_complete)
-                #logger.info("ERROR sub %2.2f", self.cost_layer.get_cost().asnumpyarray())      # get_cost is a 1x1 array
                 self.backend.add(error, self.cost_layer.get_cost(), error)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(error, mb_id, partial=True)
