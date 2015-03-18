@@ -95,25 +95,9 @@ class BalanceMP(MLP):
 
     def fprop(self):
         super(BalanceMP, self).fprop()
-        # for ll in self.layers[:-1]:
-        #     myarray = ll.output.asnumpyarray()
-            # if numpy.isnan(myarray).any():
-            #     print ll.name
-            #     print ll.prev_layer.output.asnumpyarray()
-            #     print myarray
-            #     print ll.weights.asnumpyarray()
-            #     my_pickle('ff.wts',
-            #               {'wt': ll.weights.asnumpyarray(),
-            #                'in': ll.prev_layer.output.asnumpyarray(),
-            #                'out': myarray})
-
         for ckey in self.costpaths.keys():
             ll = self.costpaths[ckey][-1]
             ll.fprop(ll.prev_layer.output)
-            # myarray = ll.prev_layer.output.asnumpyarray()
-            # if numpy.isnan(myarray).any():
-            #     print ll.name, myarray
-            #     sys.exit()
 
     def bprop(self):
         for path, skip_act in zip(self.pathways, self.path_skip_act):
