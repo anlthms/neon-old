@@ -13,8 +13,8 @@
     decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
                   # sum must not be decorated at this time, it will fail
 
-    ranges: True,
-    decorate_ranges: [fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+    ranges: False,  # Need logging level debug for these to display
+    decorate_ranges: [fprop_fc], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
   dataset: &ds !obj:datasets.CIFAR10 {
@@ -130,7 +130,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 20,
+    level: 10,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

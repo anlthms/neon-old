@@ -52,20 +52,16 @@ class Decorators(object):
         Replaces the @decorators in the backend function. Go through the list
         of functions to be decorated and wrap them with the correct parameters
         """
+        logger.info("wrapping %d sets of calls for timing", len(function_list))
         for call in function_list['decorate_fc']:
-            print "wrapping", call, "with", self.multipliers[call],
-            print "and", self.shapes[call]
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_fc(orig_func)
             setattr(self.backend, call, wrapped_func)
         for call in function_list['decorate_conv']:
-            print "wrapping", call, "with", self.multipliers[call],
-            print "and", self.shapes[call]
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_conv(orig_func)
             setattr(self.backend, call, wrapped_func)
         for call in function_list['decorate_ew']:
-            print "wrapping", call, "ew"
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_ew(orig_func)
             setattr(self.backend, call, wrapped_func)

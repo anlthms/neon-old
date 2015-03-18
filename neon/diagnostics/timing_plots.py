@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 def print_performance_stats(backend, logger):
 
     call_list = backend.flop_dict.keys()
-    print "CALL LIST is", call_list
     used_call_list = []
     timed_calls = []
     timed_times = []

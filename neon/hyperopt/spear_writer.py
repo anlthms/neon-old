@@ -9,6 +9,9 @@ Script for generating the PB file for Spearmint:
 """
 
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def write_pb(input_file, pb_file):
@@ -41,7 +44,6 @@ def parse_line(line):
         ho_dict['start'] = int(dic[4])
         ho_dict['end'] = int(dic[5])
     else:
-        print "got ho_dict['type']", ho_dict['type']
         raise AttributeError("Supported types are FLOAT, INT, ENUM")
         # todo: Spearmint supports ENUM but we are not handling it yet.
     return ho_dict
@@ -67,6 +69,6 @@ def main():
 
     success = write_pb(in_file, pb_file)
     if success:
-        print "Done writing hyper ranges from ", in_file, "to", pb_file
+        logger.info("Hyper ranges written from %s to %s", in_file, pb_file)
     else:
         raise AttributeError("Wrong experiment type, does not return result")
