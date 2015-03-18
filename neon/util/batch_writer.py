@@ -92,6 +92,7 @@ class BatchWriter(object):
             t = time()
             pool = Pool(processes=self.num_workers)
             jpeg_strings = pool.map(proc_img, jpeg_file_batch)
+            pool.close()
             labels_batch = labels[i]
             targets_batch = None if targets is None else targets[i]
             batchfile = os.path.join(self.output_dir,
