@@ -21,6 +21,7 @@
 
 
   dataset: &ds !obj:datasets.I1K {
+    half_precision: &hp True,
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
     output_image_size: &ois 256,
@@ -57,7 +58,7 @@
   # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
-    half_precision: &hp True,
+    half_precision: *hp,
     lr_params: {
       learning_rate: 0.02,
       schedule: {

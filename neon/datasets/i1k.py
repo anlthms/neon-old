@@ -91,7 +91,6 @@ class DecompressImages(threading.Thread):
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
                  num_processes, mean_img, predict, dtype):
-        print "---------------------FIRING UP: DecompressImages --------------------"
         from PIL import Image
         threading.Thread.__init__(self)
         self.mb_id = mb_id
@@ -194,7 +193,6 @@ class RingBuffer(object):
 
     def __init__(self, max_size, batch_size, num_targets, num_input_dims,
                  backend, dtype):
-        print "---------------------FIRING UP: RingBuffer --------------------"
         self.max_size = max_size
         self.id = 0
         self.prev_id = 0
@@ -286,8 +284,11 @@ class I1K(Dataset):
     url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
-        print "---------------------FIRING UP: I1K --------------------"
-        self.bdtype = 'float16'
+        if hasattr(self, 'half_precision') and self.half_precision:
+            self.bdtype = 'float16'
+        else:
+            self.bdtype = 'float32'
+        logger.info("I1K is using data format %s", self.bdtype)
         from PIL import Image
         self.image = Image
         self.dist_flag = False
