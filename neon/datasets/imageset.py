@@ -448,21 +448,11 @@ class Imageset(Dataset):
         sys.exit()
 
     def get_macro_batch(self):
-        for i in range(self.num_iter_macro):
-            self.macro_onque = (self.macro_onque + 1 - self.startb) \
-                                % self.nmacros + self.startb
-            fname = os.path.join(self.batch_dir,
-                                 'data_batch_{:d}'.format(self.macro_onque))
-            t = LoadFile(fname, self.macro_batch_queue)
-            t.daemon = True
-            global macroq_flag
-            if macroq_flag:
-                macroq.put(t)
-            else:
-                t.start()
-                # if macroq is not empty then set macroq_flag to True
-                macroq_flag = True
-        self.num_iter_macro = 1
+        self.macro_idx = (self.macro_idx + 1 - self.startb) \
+                            % self.nmacros + self.startb
+        fname = os.path.join(self.batch_dir,
+                             'data_batch_{:d}'.format(self.macro_idx))
+        return my_unpickle(os.path.expanduser(fname))
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         from neon.backends.cpu import CPU
@@ -481,12 +471,44 @@ class Imageset(Dataset):
         if self.macro_batch_size % batch_size != 0:
             raise ValueError('self.macro_batch_size % batch_size != 0')
 
-        self.macro_onque = self.endb
-        self.mini_onque = self.minis_per_macro - 1
-        self.gpu_onque = self.minis_per_macro - 1
-        self.num_iter_mini = self.ring_buffer_size
-        self.num_iter_gpu = self.ring_buffer_size
-        self.num_iter_macro = self.ring_buffer_size
+        self.macro_idx = self.endb
+        self.mini_idx = self.minis_per_macro - 1
+        self.npixels = self.cropped_image_size * self.cropped_image_size * 3
+
+        self.inputs = np.empty((batch_size, (cropped_image_size ** 2) * 3),
+                               dtype=np.uint8)
+
+        labels = {k: np.array(
+                  self.lbl_macro[k][np.newaxis, s_idx:e_idx].copy(),
+                  dtype=np.float32)
+                  for k in self.lbl_macro.keys()}
+
+        logger.debug('mini-batch decompress end %d', self.mb_id)
+
+        self.targets_macro = np.zeros((self.nclasses, self.output_batch_size),
+                                      dtype=np.float32)
+        self.img_macro = np.zeros(
+            (self.output_batch_size, self.npixels), dtype=np.uint8)
+
+
+        in_shape = (num_input_dims, self.batch_size)
+        lbl_shape = (1, self.batch_size)
+        tgt_shape = (num_tgt_dims, self.batch_size)
+
+        self.inputs_be = [backend.empty(in_shape, dtype='float32')
+                          for i in range(max_size)]
+
+        self.labels_be = [{lbl: backend.empty(lbl_shape, dtype='float32')
+                           for lbl in label_list} for i in range(max_size)]
+
+        if num_tgt_dims is not None:
+            self.targets_be = [backend.empty(tgt_shape, dtype='float32')
+                               for i in range(max_size)]
+
+        self.targets_be = self.backend.empty((self.nclasses, self.batch_size))
+        # self.targets_be = self.backend.empty((1, self.batch_size))
+
+        self.inputs_be = self.backend.empty((self.npixels, self.batch_size))
 
         return num_batches
 
@@ -494,11 +516,11 @@ class Imageset(Dataset):
         # threaded version of get_mini_batch
         # batch_idx is ignored
         logger.debug('\tPre Minibatch %d %d %d', batch_idx, self.num_iter_mini,
-                     self.mini_onque)
+                     self.mini_idx)
 
         for i in range(self.num_iter_mini):
-            self.mini_onque = (self.mini_onque + 1) % self.minis_per_macro
-            if self.mini_onque == 0:
+            self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
+            if self.mini_idx == 0:
                 self.get_macro_batch()
                 # deque next macro batch
                 try:
@@ -518,7 +540,7 @@ class Imageset(Dataset):
             macro_data = [self.jpeg_strings, self.targets_macro,
                           self.labels_macro]
 
-            di = DecompressImages(self.mini_onque, self.mini_batch_queue,
+            di = DecompressImages(self.mini_idx, self.mini_batch_queue,
                                   self.batch_size, self.output_image_size,
                                   self.cropped_image_size, macro_data,
                                   self.mean_img, self.predict)

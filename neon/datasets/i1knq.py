@@ -193,7 +193,7 @@ class I1Knq(Dataset):
 
             labels = self.jpeg_strings['labels']
             labels = [item for sublist in labels for item in sublist]
-            labels = np.asarray(labels, dtype='float32')
+            labels = np.asarray(labels, dtype=np.float32)
             for col in range(self.nclasses):
                 self.targets_macro[col] = labels == col
             # self.targets_macro[:] = np.asarray(labels, dtype='float32')
