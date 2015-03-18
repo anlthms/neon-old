@@ -507,22 +507,6 @@ class Imageset(Dataset):
 
         return num_batches
 
-    def del_queue(self, qname):
-        while not qname.empty():
-            qname.get()
-            qname.task_done()
-
-    def del_mini_batch_producer(self):
-        # graceful ending of thread queues
-        self.del_queue(self.macro_batch_queue)
-        self.del_queue(self.mini_batch_queue)
-        self.del_queue(self.gpu_queue)
-        global macroq, miniq, gpuq
-        self.del_queue(macroq)
-        self.del_queue(miniq)
-        self.del_queue(gpuq)
-        del self.macro_batch_queue, self.mini_batch_queue, self.gpu_queue
-
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
         # batch_idx is ignored

@@ -112,8 +112,7 @@ class I1Knq(Dataset):
         osz = self.output_image_size
         csz = self.cropped_image_size
         logger.info("loading mean image")
-        mean_path = os.path.join(self.save_dir,
-                                 prefix_macro + str(osz),
+        mean_path = os.path.join(self.save_dir, prefix_macro + str(osz),
                                  'i1kmean.pkl')
 
         try:
