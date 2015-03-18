@@ -46,7 +46,7 @@ class ValGen(YAMLable):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         raise NotImplementedError('This class should not be instantiated.')
 
@@ -81,7 +81,7 @@ class UniformValGen(ValGen):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
@@ -119,7 +119,7 @@ class AutoUniformValGen(UniformValGen):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
@@ -162,7 +162,7 @@ class GaussianValGen(ValGen):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
@@ -208,7 +208,7 @@ class SparseEigenValGen(ValGen):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
@@ -260,9 +260,39 @@ class NodeNormalizedValGen(ValGen):
                                      backend.
 
         Returns:
-            neon.backneds.Tensor: newly initialized data structure.
+            neon.backends.Tensor: newly initialized data structure.
         """
         logger.info("Generating {cl_nm} values of shape {shape}".format(
                     cl_nm=self.__class__.__name__, shape=shape))
         node_norm = self.scale * math.sqrt(6.0 / sum(shape))
         return self.backend.uniform(-node_norm, node_norm, shape, dtype)
+
+
+class OrthoNormalizedValGen(ValGen):
+    """
+    Orthogonal matrix initialization. As described in Saxe et al.
+    (http://arxiv.org/abs/1312.6120)
+    """
+    def __init__(self, **kwargs):
+        super(OrthoNormalizedValGen, self).__init__(**kwargs)
+        opt_param(self, ['relu'], False)
+        opt_param(self, ['islocal'], False)
+
+    def generate(self, shape, dtype=None):
+        logger.info("Generating {cl_nm} values of shape {shape}".format(
+                    cl_nm=self.__class__.__name__, shape=shape))
+        if len(shape) != 2:
+            raise ValueError("Can only generate Tensors with exactly 2"
+                             " dimensions, you gave: {}".format(len(shape)))
+
+        # Non local, shape is O x I, local shape is (C x R x S) x O
+        oi_shape = shape if self.islocal else (shape[1], shape[0])
+        init_wts = np.random.normal(0.0, 1.0, oi_shape)
+        u, _, v = np.linalg.svd(init_wts, full_matrices=False)
+        q = u if u.shape == oi_shape else v
+        q.shape = oi_shape
+        if self.relu:
+            q *= math.sqrt(2)
+        if self.islocal:
+            q = q.T.copy()
+        return self.backend.array(q, dtype)
