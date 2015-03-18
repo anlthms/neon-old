@@ -137,7 +137,7 @@ def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
     plt.ylabel('op count / GFLOP')
     plt.xlim((0, 5500))
     plt.ylabel('Time (s)')
-    plt.legend(paren_stash.keys())
+    plt.legend(paren_stash.keys(), prop={'size':6})
     plt.savefig(fname, dpi=500)   # savefig overrides dpi value
 
 

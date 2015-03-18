@@ -9,8 +9,7 @@ backend.
 import logging
 from neon.layers.layer import WeightLayer
 from neon.util.param import opt_param
-import numpy as np
-np.set_printoptions(linewidth=200)
+
 logger = logging.getLogger(__name__)
 
 

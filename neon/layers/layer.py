@@ -147,7 +147,6 @@ class Layer(YAMLable):
                                                       self.pre_act_dtype)
 
     def set_deltas_buf(self, delta_pool, offset):
-        # TODO: Butchered this for Soumith benchmarks, reverted.
         self.deltas = None
         if self.prev_layer is None:
             return

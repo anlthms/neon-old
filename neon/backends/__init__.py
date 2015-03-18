@@ -61,6 +61,8 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                       of the instantiated backend.  Defaults to
                                       None, which doesn't explicitly seed (so
                                       each run will be different)
+        half (bool, optional): If True, attemt to utizize a Maxwell class GPU
+                               with the float16 FlexGPU library.
         stochastic_round (numeric, optional): Only affects the max backend. If
                                               1, perform stochastic rounding.
                                               If 0, round to nearest.

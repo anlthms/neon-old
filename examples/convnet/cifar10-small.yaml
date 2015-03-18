@@ -3,8 +3,8 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '/usr/local/data',
-    sample_pct: 100,
+    repo_path: '~/data',
+    sample_pct: 10,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
@@ -30,8 +30,8 @@
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 10,
-    batch_size: &bs 128,
+    num_epochs: 5,
+    batch_size: &bs 100,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -52,12 +52,12 @@
         fshape: [2, 2],
         stride: 2,
       },
-      # !obj:layers.CrossMapResponseNormLayer {
-      #   name: layer3,
-      #   ksize: 5,
-      #   alpha: 0.001,
-      #   beta: 0.75,
-      # },
+      !obj:layers.CrossMapResponseNormLayer {
+        name: layer3,
+        ksize: 5,
+        alpha: 0.001,
+        beta: 0.75,
+      },
       !obj:layers.ConvLayer {
         name: layer4,
         lrule_init: *gdm,
@@ -71,15 +71,15 @@
         fshape: [2, 2],
         stride: 2,
       },
-      # !obj:layers.CrossMapResponseNormLayer {
-      #   name: layer5b,
-      #   ksize: 5,
-      #   alpha: 0.001,
-      #   beta: 0.75,
-      # },
+      !obj:layers.CrossMapResponseNormLayer {
+        name: layer5b,
+        ksize: 5,
+        alpha: 0.001,
+        beta: 0.75,
+      },
       !obj:layers.FCLayer {
         name: layer6,
-        nout: 512,
+        nout: 500,
         lrule_init: *gdm,
         weight_init: *wt_init,
         activation: !obj:transforms.RectLin {},
