@@ -481,23 +481,6 @@ class Imageset(Dataset):
         if self.macro_batch_size % batch_size != 0:
             raise ValueError('self.macro_batch_size % batch_size != 0')
 
-        if not isinstance(self.backend, CPU):
-            self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
-                                          batch_size=batch_size,
-                                          num_tgt_dims=self.tdims,
-                                          num_input_dims=self.idims,
-                                          label_list=self.label_list)
-
-        self.macro_batch_queue = queue.Queue()
-        self.mini_batch_queue = queue.Queue()
-        self.gpu_queue = queue.Queue()
-        global macroq, miniq, gpuq, macroq_flag, miniq_flag, gpuq_flag
-        macroq = queue.Queue()
-        miniq = queue.Queue()
-        gpuq = queue.Queue()
-        macroq_flag = False
-        miniq_flag = False
-        gpuq_flag = False
         self.macro_onque = self.endb
         self.mini_onque = self.minis_per_macro - 1
         self.gpu_onque = self.minis_per_macro - 1
