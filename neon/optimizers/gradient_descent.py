@@ -113,7 +113,7 @@ class GradientDescentMomentum(GradientDescent):
                                           momentum_coef, learning_rate)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-                self.backend.multiply(us_item, learning_rate, out=us_item) # us_item is used as temp storage, not returned.
+                self.backend.multiply(us_item, learning_rate, out=us_item)
                 self.backend.subtract(vs_item, us_item, out=vs_item)
                 self.backend.add(ps_item, vs_item, out=ps_item)
 
@@ -123,7 +123,7 @@ class GradientDescentMomentum(GradientDescent):
                 div_factor = numpy.floor(
                     (epoch + 1) / self.schedule['step_epochs'])
                 return float(self.learning_rate *
-                                     self.schedule['ratio'] ** div_factor)
+                             self.schedule['ratio'] ** div_factor)
             else:
                 raise NotImplementedError("learning rate schedule type not "
                                           "supported")
@@ -198,7 +198,11 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
         1. velo = mu * velo    scale down old velocity
         2. upda = eps * upda   scale down new updates
         3. velo = velo - upda  combine old and new part
-        4. update the actual weights.
+        Extra steps for weight decay:
+        4. tmp = W * decay
+        5. tmp = tmp * eps
+        6. velo = velo - tmp_decay term.
+        and add update
         """
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
@@ -209,13 +213,13 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
                                             momentum_coef, learning_rate,
                                             self.weight_decay)
             else:
-                self.backend.multiply(vs_item, momentum_coef, out=vs_item) #    velo = mu * velo
-                self.backend.multiply(us_item, learning_rate, out=us_item) #    upda = eps* upda
-                self.backend.subtract(vs_item, us_item, out=vs_item) #          velo = velo - upda
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
                 # reuse us_item for weight decay term
                 # note: usually want to only apply for weights, not biases
-                self.backend.multiply(ps_item, self.weight_decay, out=us_item) # tmp = W * decay
-                self.backend.multiply(us_item, learning_rate, out=us_item)     # tmp = tmp * eps
-                self.backend.subtract(vs_item, us_item, out=vs_item)           # velo = velo - tmp_decay term.
+                self.backend.multiply(ps_item, self.weight_decay, out=us_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
 
-                self.backend.add(ps_item, vs_item, out=ps_item) #ok
+                self.backend.add(ps_item, vs_item, out=ps_item)

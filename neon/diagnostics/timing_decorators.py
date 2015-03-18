@@ -7,10 +7,9 @@ Decorators for measuring FLOPS on backend mop calls
 
 import logging
 
-import numpy as np
 import traceback  # for tracing back where the function was called from
 from functools import wraps
-from time import time  as now
+from time import time as now
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -18,21 +17,21 @@ logger = logging.getLogger(__name__)
 
 class Decorators(object):
     # things that are mulitplied together to compute number of operations
-    shapes = {'fprop_fc' : [('inputs', 0), ('inputs', 1), ('weights', 0)],
-              'bprop_fc' : [('deltas', 0), ('deltas', 1), ('weights', 1)],
+    shapes = {'fprop_fc':  [('inputs', 0), ('inputs', 1), ('weights', 0)],
+              'bprop_fc':  [('deltas', 0), ('deltas', 1), ('weights', 1)],
               'update_fc': [('inputs', 0), ('inputs', 1), ('deltas', 0)],
               # for convolution, FLOPs are
-              'fprop_conv' : [('inputs', 0), ('inputs', 1), ('weights', 0)],
-              'bprop_conv' : [('deltas', 0), ('deltas', 1), ('weights', 1)],
+              'fprop_conv':  [('inputs', 0), ('inputs', 1), ('weights', 0)],
+              'bprop_conv':  [('deltas', 0), ('deltas', 1), ('weights', 1)],
               'update_conv': [('inputs', 0), ('inputs', 1), ('deltas', 0)]}
 
     # constant factors in front of FLOP terms
-    multipliers = {'fprop_fc' : 2, 'bprop_fc' : 2, 'update_fc': 2,
-                   'fprop_conv' : 2, 'bprop_conv' : 2, 'update_conv': 2}
+    multipliers = {'fprop_fc':   2, 'bprop_fc':   2, 'update_fc':   2,
+                   'fprop_conv': 2, 'bprop_conv': 2, 'update_conv': 2}
 
     # elementwise operations: multipliers and arg position
     ew_mult_pos = {'logistic': 4, 'rectlin': 1, 'sum': 1, 'mean': 1, 'var': 1,
-                   'sqrt':1, 'add': 1, 'subtract': 1, 'multiply': 1,
+                   'sqrt': 1, 'add': 1, 'subtract': 1, 'multiply': 1,
                    'divide': 1, 'greater': 1, 'not_equal': 1,
                    'clip': 2, 'log': 1, 'argmax': 10, 'softmax': 10,
                    'gdm_compound': 5, 'gdmwd_compound': 10}
@@ -79,8 +78,8 @@ class Decorators(object):
         """
         func_name = func.__name__
         if func_name not in self.multipliers:
-            import pdb; pdb.set_trace()
             raise ValueError("Cannot record flops for: %s" % func_name)
+
         @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
@@ -96,7 +95,7 @@ class Decorators(object):
             msecs = self.stop_me(tic)
             #####################
             flop = self.multipliers[func_name]
-            for (matrix,dim) in self.shapes[func_name]:
+            for (matrix, dim) in self.shapes[func_name]:
                 flop *= kwargs[matrix].shape[dim]
             func.__self__.time_dict[func_name].append(msecs / 1000.)
             func.__self__.flop_dict[func_name].append(flop)
@@ -112,6 +111,7 @@ class Decorators(object):
         func_name = func.__name__
         if func_name not in self.multipliers:
             raise ValueError("Cannot record flops for: %s" % func_name)
+
         @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
@@ -125,10 +125,10 @@ class Decorators(object):
                 '''
                 fprop: convolution between input and filter.
                 '''
-                mads = kwargs['ofmsize'] \
-                         * kwargs['weights'].shape[0] \
-                         * kwargs['weights'].shape[1] \
-                         * kwargs['inputs'].shape[1]
+                mads = (kwargs['ofmsize'] *
+                        kwargs['weights'].shape[0] *
+                        kwargs['weights'].shape[1] *
+                        kwargs['inputs'].shape[1])
                 adds = 0
                 flop = 2 * mads + adds
             elif func_name == 'bprop_conv':
@@ -136,26 +136,26 @@ class Decorators(object):
                 bprop: convolution between zero padded delta and kernel
                 loop(ofmsize) w0 w1 d1 (taked from CPU backend)
                 '''
-                mads = kwargs['ofmsize'] \
-                         * kwargs['weights'].shape[0] \
-                         * kwargs['weights'].shape[1] \
-                         * kwargs['deltas'].shape[1]
-                adds = kwargs['ofmsize'] \
-                         * kwargs['out'].shape[1] \
-                         * kwargs['weights'].shape[0]
+                mads = (kwargs['ofmsize'] *
+                        kwargs['weights'].shape[0] *
+                        kwargs['weights'].shape[1] *
+                        kwargs['deltas'].shape[1])
+                adds = (kwargs['ofmsize'] *
+                        kwargs['out'].shape[1] *
+                        kwargs['weights'].shape[0])
                 flop = 2 * mads + adds
             elif func_name == 'update_conv':
                 '''
                 update: convolution between input data and delta matrix
                 taken from CPU backend
                 '''
-                mads = kwargs['ofmsize'] \
-                         * kwargs['deltas'].shape[1] \
-                         * kwargs['out'].shape[1] \
-                         * kwargs['out'].shape[0]
-                adds = kwargs['ofmsize'] \
-                         * kwargs['out'].shape[0] \
-                         * kwargs['out'].shape[1]
+                mads = (kwargs['ofmsize'] *
+                        kwargs['deltas'].shape[1] *
+                        kwargs['out'].shape[1] *
+                        kwargs['out'].shape[0])
+                adds = (kwargs['ofmsize'] *
+                        kwargs['out'].shape[0] *
+                        kwargs['out'].shape[1])
                 flop = 2 * mads + adds
             func.__self__.time_dict[func_name].append(msecs / 1000.)
             func.__self__.flop_dict[func_name].append(flop)
@@ -172,7 +172,8 @@ class Decorators(object):
         """
         func_name = func.__name__
         if func_name not in self.ew_mult_pos:
-            raise ValueError("Cannot record flops for ew function: %s" % func_name)
+            raise ValueError("Cannot record flops for: %s" % func_name)
+
         @wraps(func)
         def func_wrapper(*arguments, **kwargs):
             """
@@ -191,9 +192,9 @@ class Decorators(object):
             msecs = self.stop_me(tic)
             array_arg = 1 if (type(arguments[0]) is float) else 0
 
-            flop = (self.ew_mult_pos[func_name]
-                    * arguments[array_arg].shape[0]
-                    * arguments[array_arg].shape[1])
+            flop = (self.ew_mult_pos[func_name] *
+                    arguments[array_arg].shape[0] *
+                    arguments[array_arg].shape[1])
             func.__self__.time_dict[func_name].append(msecs / 1000.)
             func.__self__.flop_dict[func_name].append(flop)
             func.__self__.paren_dic[func_name].append(parent_func_name)
@@ -211,8 +212,8 @@ class MaxDecorators(Decorators):
         '''init used to hide import until we have a backend'''
         import pycuda.driver as drv  # for timing.
 
-        self.start  = drv.Event()
-        self.end    = drv.Event()
+        self.start = drv.Event()
+        self.end = drv.Event()
 
         super(MaxDecorators, self).__init__(**kwargs)
 
@@ -245,6 +246,6 @@ class CudanetDecorators(Decorators):
         return tic
 
     def stop_me(self, tic):
-        self.sync() # syncstream is a GPU backend function.
+        self.sync()  # syncstream is a GPU backend function.
         msecs = 1000. * (now() - tic)
         return msecs

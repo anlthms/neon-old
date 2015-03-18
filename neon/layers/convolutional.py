@@ -56,7 +56,6 @@ class ConvLayer(WeightLayer):
                 str_d=1, str_h=self.stride, str_w=self.stride)
             self.prodbuf = self.bpropbuf = self.updatebuf = self.conv_params
 
-
     def set_weight_shape(self):
         if hasattr(self, 'local_conv') and self.local_conv:
             weight_shape = (self.fsize * self.ofmsize, self.nofm)
@@ -82,7 +81,6 @@ class ConvLayer(WeightLayer):
                     (self.nofm * self.ofmsize, self.batch_size))
             else:
                 self.backend.add(self.pre_act, self.biases, out=self.pre_act)
-
 
         if self.batch_norm:
             self.bn.fprop_func(self.backend, self.pre_act, self.pre_act)

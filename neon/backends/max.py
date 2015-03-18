@@ -8,14 +8,9 @@ the NervanaLib class, and FloatArray is taken from there.
 import logging
 
 from neon.backends.backend import Backend
-import sys
-# sys.path.append('/home/users/urs/code/flexgpu')
 from nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
-from time import time
-
-from neon.util.compat import range
 
 
 logger = logging.getLogger(__name__)
@@ -63,7 +58,7 @@ class MAX(Backend):
                           rounding=self.nl.round_mode).set(ary)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None, name=None,
-                allocator=drv.mem_alloc):
+               allocator=drv.mem_alloc):
         """
         Gaussian/Normal random number sample generation
         """
@@ -94,14 +89,13 @@ class MAX(Backend):
         """
         self.nl.dot(deltas, inputs.T, out)
 
-
     def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
         self.nl.dropout(keep=keepthresh, out=tsr)
 
     def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef,
                      learning_rate):
         """
-        my first compound call: This wraps
+        compound call: This wraps
             self.backend.multiply(vs_item, momentum_coef, out=vs_item)
             self.backend.multiply(us_item, learning_rate, out=us_item)
             self.backend.subtract(vs_item, us_item, out=vs_item)
@@ -113,13 +107,9 @@ class MAX(Backend):
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        # unfortunately vs_item needs to be written to. Ask sgray to avoid this
-        # vs_item[:] = vs_item * momentum_coef - us_item * learning_rate
-        #print "constants", momentum_coef, learning_rate, "need to be wrapped?"
         self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
                          self.nl.multiply(us_item, learning_rate),
                          out=vs_item)
-        # ps_item[:] += vs_item
         self.nl.add(ps_item, vs_item, out=ps_item)
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
@@ -130,37 +120,16 @@ class MAX(Backend):
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        # original bit from GDM
-        # self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
-        #                  self.nl.multiply(us_item, learning_rate),
-        #                  out=vs_item)
-        # # extra bit for WD:  with * instead of multiply, becomes 1000x slower
-        # self.nl.subtract(vs_item,
-        #                  self.nl.multiply(ps_item,
-        #                                   self.nl.multiply(wd,learning_rate)),
-        #                  out=vs_item)
-        # # original output bit
-        # self.nl.add(ps_item, vs_item, out=ps_item)
-
-        # part 1: build velocity (momentum )
-        #print "entering GDWDM"
         self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
                          self.nl.multiply(us_item, learning_rate),
-                         out=vs_item) # ok, orig
-        #import pdb; pdb.set_trace()
-        #print "orig velo term", vs_item[0,0].asnumpyarray(), "=  raw update", us_item[0,0].asnumpyarray(), "* lr", learning_rate, "* mom", momentum_coef
+                         out=vs_item)
 
-        # part 2: weight decay
-        self.nl.multiply(self.nl.multiply(ps_item, float(wd)), float(learning_rate), out=us_item) # mult with zero here does nothing?
-        self.nl.subtract(vs_item, us_item, out=vs_item) # 0 + 1e-7 = 1e-7
-        #print "mangled velo term", vs_item[0,0].asnumpyarray()
+        # weight decay
+        self.nl.multiply(self.nl.multiply(ps_item, wd),
+                         learning_rate, out=us_item)
+        self.nl.subtract(vs_item, us_item, out=vs_item)
 
-        # part 3: perform the update
-        #print "weights before adding velo", ps_item[0,0].asnumpyarray()
-        self.nl.add(ps_item, vs_item, out=ps_item) # adding something so small it clips
-        #print "weights after adding velo", ps_item[0,0].asnumpyarray()
-
-
+        self.nl.add(ps_item, vs_item, out=ps_item)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
@@ -259,15 +228,19 @@ class MAX(Backend):
             raise AttributeError("unexpected pooling op type: %s", op)
 
     def logistic(self, x, out):
-        self.nl.sig(x, out=out)
+        """
+        Logistic sigmoid, which is derived from:
         # self.multiply(x, -1.0, out=out)
         # self.exp(out, out=out)
         # self.add(out, 1.0, out=out)
         # self.reciprocal(out, out=out)
+        """
+        self.nl.sig(x, out=out)
+
         return out
 
     def rectlin(self, x, out):
-        # x and out are the same buffer
+        # note x and out can be the same buffer
         self.nl.maximum(x, 0., out=out)
         return out
 
@@ -275,7 +248,7 @@ class MAX(Backend):
         """wrapper to make full reduction possible"""
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.sum(tsr.reshape(sze,1), axis=0, out=out)
+            self.nl.sum(tsr.reshape(sze, 1), axis=0, out=out)
         else:
             self.nl.sum(tsr, axis=axes, out=out)
         return out
@@ -288,26 +261,44 @@ class MAX(Backend):
         self.nl.mean(tsr, axis=axes, out=out)
         return out
 
+    def min(self, tsr, axes, out):
+        """
+        experimental
+        """
+        if axes is None:
+            sze = tsr.shape[0]*tsr.shape[1]
+            self.nl.min(tsr.reshape(sze, 1), axis=0, out=out)
+        else:
+            self.nl.min(tsr, axis=axes, out=out)
+        return out
+
+    def max(self, tsr, axes, out):
+        """
+        experimental
+        """
+        if axes is None:
+            sze = tsr.shape[0]*tsr.shape[1]
+            self.nl.max(tsr.reshape(sze, 1), axis=0, out=out)
+        else:
+            self.nl.max(tsr, axis=axes, out=out)
+        return out
+
     def var(self, tsr, mean, axes, out, dtype=np.float16):
         """
         Calculates the sample variance of the elements along the specified
         axes. TODO: Preallocate temp buffer outside function.
         ``var = mean(abs(x - x.mean())**2)``
         """
-        #np.var(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
-        rshape = list(tsr.shape) #  original shape
-        rshape[axes] = 1         #  reduced shape
-        #mean = self.nl.empty(rshape, dtype=dtype)  #  use these two lines
-        #self.nl.mean(tsr, axis=axes, out=mean)     #  if mean not precomp
-        self.nl.mean(self.nl.square(tsr-mean),  axis=axes, out=out) #  reduct
-        #self.nl.sqrt(out, out=out) #  this was computing the l2 norm, doh!
+        rshape = list(tsr.shape)  # original shape
+        rshape[axes] = 1          # reduced shape
+        self.nl.mean(self.nl.square(tsr-mean),  axis=axes, out=out)
         return out
 
     def sqrt(self, x, out, dtype=np.float16):
         """
         Calculates square root, used for batch normalization
         """
-        self.nl.sqrt(x, out=out) #  this was computing the l2 norm, doh!
+        self.nl.sqrt(x, out=out)
         return out
 
     def zeros(self, shape, dtype=np.float16):

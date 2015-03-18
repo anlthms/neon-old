@@ -6,7 +6,7 @@ Contains cost or loss function related code.
 """
 
 
-from neon.util.param import req_param, opt_param
+from neon.util.param import opt_param
 
 
 class Cost(object):

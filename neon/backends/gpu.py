@@ -78,7 +78,6 @@ class GPUTensor(Tensor):
                 self._tensor = obj
         self.dtype = dtype
 
-
     @property
     def raw(self):
         return self._tensor
@@ -1269,7 +1268,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False, layer=None):
+                    fwidth, updatebuf, local=False, layer=None, sumwidth = 4):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1300,10 +1299,10 @@ class GPU(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
             layer (Layer): The layer object.
+            sumwidth (int): Reshapes the features maps for update_conv.
+                            There is no hard and fast rule for setting it,
+                            generally 4 is good.
         """
-        sumwidth = 5 #  if ofmshape[-2] > 10 else ofmshape[-2]
-        #print "(", ofmshape[-2], "->", sumwidth,")",
-        # sumwidth = ofmshape[-2]
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[-2], ofmshape[-2], ofmshape[-1], fwidth,

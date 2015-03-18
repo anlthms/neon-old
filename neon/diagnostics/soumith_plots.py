@@ -1,5 +1,10 @@
-
-
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+"""
+Variance of model performance with fp32, fp16 and stochastic rounding from
+CIFAR10 model, and a bar plot for the Toch7 benchmark nubmers.
+"""
 
 def print_accuracy():
     fp16_sto_train=[0.77724, 0.77724, 0.61899, 0.79527, 0.86739, 0.50080, 1.10377,
@@ -56,12 +61,12 @@ def print_accuracy():
         density._compute_covariance()
 
         # generate a fake range of x values
-        xs = np.arange(29,35,.1)
+        xs = np.arange(29, 35, .1)
 
         # fill y values using density class
         ys = density(xs)
-        plt.plot(xs,ys, color=col)
-        plt.fill_between(xs,0,ys,facecolor=col, alpha=0.5)
+        plt.plot(xs, ys, color=col)
+        plt.fill_between(xs, 0, ys, facecolor=col, alpha=0.5)
     plt.legend(['fp 16 sto', 'fp16', 'fp32'])
     plt.savefig('figure3compare16vs32.pdf', dpi=500)
 
@@ -102,7 +107,7 @@ def soumith_benchmark():
 
     plt.figure(4, figsize=(4, 6), dpi=120, facecolor='w', edgecolor='k')
     for i in range(5):
-        plt.subplot(1,5,i+1)
+        plt.subplot(1, 5, i+1)
         plt.bar(left=arange(10),
                 height=sumi[i,:],
                 color=['r', 'g', 'b', 'c', 'm', 'r', 'g', 'b', 'c', 'm'],
@@ -115,55 +120,3 @@ def soumith_benchmark():
     plt.savefig('fig_soumith_bench.pdf', dpi=500)
 
 
-"""
-
-CONFIG: input = 3x128x128 * ker = 3x96x11x11 (bs = 128, stride = 1)
-nn.SpatialConvolutionMM                 :updateOutput():     133.10
-nn.SpatialConvolutionMM              :updateGradInput():     132.02
-nn.SpatialConvolutionMM            :accGradParameters():     186.72
-nn.SpatialConvolutionMM                          :TOTAL:     451.84
-ccn2.SpatialConvolution                 :updateOutput():      56.51
-ccn2.SpatialConvolution              :updateGradInput():      79.35
-ccn2.SpatialConvolution            :accGradParameters():      67.16
-ccn2.SpatialConvolution                          :TOTAL:     203.02
-
-CONFIG: input = 64x64x64 * ker = 64x128x9x9 (bs = 128, stride = 1)
-nn.SpatialConvolutionMM                 :updateOutput():     211.80
-nn.SpatialConvolutionMM              :updateGradInput():     231.67
-nn.SpatialConvolutionMM            :accGradParameters():     352.08
-nn.SpatialConvolutionMM                          :TOTAL:     795.55
-ccn2.SpatialConvolution                 :updateOutput():     181.89
-ccn2.SpatialConvolution              :updateGradInput():     178.54
-ccn2.SpatialConvolution            :accGradParameters():     259.63
-ccn2.SpatialConvolution                          :TOTAL:     620.06
-
-CONFIG: input = 128x32x32 * ker = 128x128x9x9 (bs = 128, stride = 1)
-nn.SpatialConvolutionMM                 :updateOutput():     164.65
-nn.SpatialConvolutionMM              :updateGradInput():     117.85
-nn.SpatialConvolutionMM            :accGradParameters():      83.39
-nn.SpatialConvolutionMM                          :TOTAL:     365.88
-ccn2.SpatialConvolution                 :updateOutput():      68.30
-ccn2.SpatialConvolution              :updateGradInput():      65.97
-ccn2.SpatialConvolution            :accGradParameters():      84.18
-ccn2.SpatialConvolution                          :TOTAL:     218.45
-
-CONFIG: input = 128x16x16 * ker = 128x128x7x7 (bs = 128, stride = 1)
-nn.SpatialConvolutionMM                 :updateOutput():      32.11
-nn.SpatialConvolutionMM              :updateGradInput():      21.33
-nn.SpatialConvolutionMM            :accGradParameters():      15.28
-nn.SpatialConvolutionMM                          :TOTAL:      68.72
-ccn2.SpatialConvolution                 :updateOutput():       7.96
-ccn2.SpatialConvolution              :updateGradInput():       6.38
-ccn2.SpatialConvolution            :accGradParameters():       8.77
-ccn2.SpatialConvolution                          :TOTAL:      23.11
-
-CONFIG: input = 384x13x13 * ker = 384x384x3x3 (bs = 128, stride = 1)
-nn.SpatialConvolutionMM                 :updateOutput():      47.87
-nn.SpatialConvolutionMM              :updateGradInput():      21.93
-nn.SpatialConvolutionMM            :accGradParameters():      21.49
-nn.SpatialConvolutionMM                          :TOTAL:      91.29
-ccn2.SpatialConvolution                 :updateOutput():      13.87
-ccn2.SpatialConvolution              :updateGradInput():      12.79
-ccn2.SpatialConvolution            :accGradParameters():      16.01
-ccn2.SpatialConvolution                          :TOTAL:      42.66
-"""

@@ -34,15 +34,6 @@ miniq_flag = False
 gpuq_flag = False
 
 
-"""
-This gets upsed in
-DecompressImages (init, jpeg_decoder)
-RingBuffer (init)
-I1K (resize_jpeg, preprocess_images, get_mini_batch, jpeg_decoder)
-
-which one gets instanciated first?
-"""
-
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
         pickle.dump(data, fo, protocol=pickle.HIGHEST_PROTOCOL)
@@ -145,7 +136,7 @@ class DecompressImages(threading.Thread):
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
                     img, dtype=self.bdtype)[:, :, 0:3],
-                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1))  / 128. - 1.  # urs wants this to be normalized # or not!
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.  # TODO should this be normalized or not?
 
     def run(self):
         # provide mini batch from macro batch

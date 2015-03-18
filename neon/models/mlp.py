@@ -13,8 +13,6 @@ from neon.diagnostics import timing_plots as tp
 
 logger = logging.getLogger(__name__)
 
-import numpy as np
-np.seterr(all='raise')
 
 class MLP(MLP_old):
 
