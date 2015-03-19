@@ -73,7 +73,6 @@ def test_rectleaky_derivative_negatives():
 
 def test_rectleaky_derivative_mixed():
     inputs = np.array([[4, 0], [-2, 9]])
-    # is it okay to map 0 to 0.01 for the derivative?
     outputs = np.array([[1, 0.01], [0.01, 1]])
     compare_cpu_tensors(inputs, outputs, deriv=True)
 
