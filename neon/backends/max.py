@@ -8,6 +8,7 @@ the NervanaLib class, and FloatArray is taken from there.
 import logging
 
 from neon.backends.backend import Backend
+from neon.diagnostics.timing_decorators import FlopsDecorator
 from nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
@@ -46,6 +47,51 @@ class MAX(Backend):
             seed = self.rng_seed
             logger.info("Seeding random number generator with: %s", str(seed))
         np.random.seed(seed)
+
+    def flop_timing_init(self, decorate_fc, decorate_conv, decorate_ew):
+        """
+        Initialize FLOP timing.  Wraps the specified MOP calls via a decorator
+        to record elapsed time and number of operations.
+
+        Arguments:
+           decorate_fc (list): string giving the function names of fully
+                               connected layer forward/backward/update calls
+                               to time.
+           decorate_conv (list): string giving the function names of
+                                 convolutional layer forward/backward/update
+                                 calls to time.
+           decorate_ew (list): string giving the function names of element-wise
+                               calls to time.
+
+        Notes:
+            Must be called prior to first flop_timing_start call
+        """
+        self.start = drv.Event()
+        self.end = drv.Event()
+        self.flop_timer = FlopsDecorator()
+        self.flop_timer.decorate(decorate_fc, decorate_conv, decorate_ew)
+
+    def flop_timinig_start(self):
+        """
+        Start a new FLOP timer.
+        Returns:
+            None: dummy value (not used)
+        """
+        return self.start.record()
+
+    def flop_timing_finish(self, start_time):
+        """
+        Complete current FLOP timing.
+
+        Arguments:
+            start_time (unused): ignored.
+
+        Returns:
+            float: elapsed time in seconds since prior flop_timing_start call.
+        """
+        self.end.record()
+        self.end.synchronize()
+        return self.end.time_since(self.start)
 
     def uniform(self, low=0.0, high=1.0, shape=1, dtype=None, name=None,
                 allocator=drv.mem_alloc):
@@ -338,47 +384,38 @@ class MAX(Backend):
                           rounding=self.nl.round_mode).set(ary)
 
     def add(self, left, right, out):
-        """assignment"""
         self.nl.add(left, right, out=out)
         return out
 
     def subtract(self, left, right, out):
-        """assignment"""
         self.nl.subtract(left, right, out=out)
         return out
 
     def multiply(self, left, right, out):
-        """assignment"""
         self.nl.multiply(left, right, out=out)
         return out
 
     def divide(self, left, right, out):
-        """assignment"""
         self.nl.divide(left, right, out=out)
         return out
 
     def greater(self, left, right, out):
-        """assignment"""
         self.nl.greater(left, right, out=out)
         return out
 
     def not_equal(self, left, right, out):
-        """assignment"""
         self.nl.not_equal(left, right, out=out)
         return out
 
     def clip(self, a, a_min, a_max, out):
-        """assignment"""
         self.nl.clip(a, a_min, a_max, out=out)
         return out
 
     def log(self, a, out):
-        """assignment"""
         self.nl.log(a, out=out)
         return out
 
     def argmax(self, a, out, axis=0):
-        """assignment"""
         self.nl.argmax(a, out=out, axis=axis)
         return out
 
@@ -389,6 +426,7 @@ class MAX(Backend):
         Note reduction needs to be after ew, other way not possible atm.
         """
         vecbuf = self.mem_pool
+        assert vecbuf.shape == (1, x.shape[1])
         self.nl.max(x, axis=0, out=vecbuf)    # reduction over classes
         self.nl.exp(x - vecbuf, out=out)      # followed by ew
         self.nl.sum(out, axis=0, out=vecbuf)  # reduction over classes

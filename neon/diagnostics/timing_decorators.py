@@ -9,13 +9,12 @@ import logging
 
 import traceback  # for tracing back where the function was called from
 from functools import wraps
-from time import time as now
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 
-class Decorators(object):
+class FlopsDecorator(object):
     # things that are mulitplied together to compute number of operations
     shapes = {'fprop_fc':  [('inputs', 0), ('inputs', 1), ('weights', 0)],
               'bprop_fc':  [('deltas', 0), ('deltas', 1), ('weights', 1)],
@@ -197,51 +196,3 @@ class Decorators(object):
             func.__self__.layer_dic[func_name].append(layer_name)
             return retval
         return func_wrapper
-
-
-class MaxDecorators(Decorators):
-    """
-    These are max-backend specific decorators that use pycuda for timing.
-    """
-
-    def __init__(self, **kwargs):
-        '''init used to hide import until we have a backend'''
-        import pycuda.driver as drv  # for timing.
-
-        self.start = drv.Event()
-        self.end = drv.Event()
-
-        super(MaxDecorators, self).__init__(**kwargs)
-
-    def start_me(self):
-        #
-        tic = self.start.record()
-        return tic
-
-    def stop_me(self, tic):
-        self.end.record()
-        self.end.synchronize()
-        msecs = self.end.time_since(self.start)
-        return msecs
-
-
-class CudanetDecorators(Decorators):
-    """
-    decorators for cudanet (TODO: Update for new format)
-    """
-
-    def __init__(self, **kwargs):
-        '''init used to hide import until we have a backend'''
-        import cudanet
-        self.sync = cudanet.sync_stream
-
-        super(CudanetDecorators, self).__init__(**kwargs)
-
-    def start_me(self):
-        tic = now()
-        return tic
-
-    def stop_me(self, tic):
-        self.sync()  # syncstream is a GPU backend function.
-        msecs = 1000. * (now() - tic)
-        return msecs

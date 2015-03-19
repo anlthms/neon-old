@@ -637,6 +637,50 @@ class Backend(YAMLable):
         """
         raise NotImplementedError("Can't create direct instances of Backend")
 
+    def flop_timing_init(self, decorate_fc, decorate_conv, decorate_ew):
+        """
+        Initialize FLOP timing.  Wraps the specified MOP calls via a decorator
+        to record elapsed time and number of operations.
+
+        Arguments:
+           decorate_fc (list): string giving the function names of fully
+                               connected layer forward/backward/update calls
+                               to time.
+           decorate_conv (list): string giving the function names of
+                                 convolutional layer forward/backward/update
+                                 calls to time.
+           decorate_ew (list): string giving the function names of element-wise
+                               calls to time.
+
+        Notes:
+            Must be called prior to first flop_timing_start call
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_start(self):
+        """
+        Start FLOP timing
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_finish(self, start_time):
+        """
+        Finish FLOP timing
+
+        Arguments:
+            start_time (float, optional): value returned by last call to
+                                          flop_timing_start
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
     def err_init(self):
         """
         Perform error handling initialization.
