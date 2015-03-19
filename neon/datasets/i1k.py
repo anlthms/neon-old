@@ -15,7 +15,7 @@ import sys
 import tarfile
 import threading
 from time import time
-
+import imgworker as iw
 import numpy as np
 
 from neon.datasets.dataset import Dataset
@@ -101,6 +101,9 @@ class DecompressImages(threading.Thread):
         self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
             dtype=dtype)
+        self.inputsui = np.empty(
+            (self.batch_size, (self.cropped_image_size ** 2) * 3),
+            dtype=np.uint8)
         self.num_processes = num_processes
         self.mean_img = mean_img
         self.predict = predict
@@ -108,6 +111,11 @@ class DecompressImages(threading.Thread):
 
     def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
+
+        # iw.decode_list(jpglist=self.jpeg_strings['data'][start_id:end_id],
+        #        tgt=self.inputsui, orig_size=self.output_image_size,
+        #        crop_size=self.cropped_image_size, flip=True, nthreads=5)
+        self.inputs[:] = self.inputsui.T.copy().astype(np.float32)
         if self.predict:  # during prediction just use center crop & no flips
             csx = self.diff_size / 2
             csy = csx
@@ -491,8 +499,12 @@ class I1K(Dataset):
     def preprocess_images(self):
         # compute mean of all the images
         logger.info("preprocessing images (computing mean image)")
-        self.mean_img = np.zeros((3, self.output_image_size,
-                                  self.output_image_size), dtype=self.bdtype)
+        mean_path = os.path.join(self.save_dir,
+                                 prefix_macro + str(self.output_image_size),
+                                 'i1kmean.pkl')
+        self.mean_img = my_unpickle(mean_path)
+        self.mean_img.shape = (3,
+                               self.output_image_size, self.output_image_size)
         return
         for i in range(self.n_train_batches):
             logger.info("preprocessing macro-batch %d :", i)

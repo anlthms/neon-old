@@ -7,3 +7,4 @@ from neon.datasets.mobydick import MOBYDICK  # noqa
 from neon.datasets.sparsenet import SPARSENET  # noqa
 from neon.datasets.synthetic import ToyImages, UniformRandom  # noqa
 from neon.datasets.imageset import Imageset  # noqa
+from neon.datasets.i1knq import I1Knq  # noqa

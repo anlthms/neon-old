@@ -6,7 +6,7 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:datasets.I1K {
+  dataset: &ds !obj:datasets.I1Knq {
     load_path: '/usr/local/data', #directory where .tar files are stored
     repo_path: '/usr/local/data', #directory to use for writing files
     output_image_size: &ois 256,
@@ -74,6 +74,14 @@
         type: constant,
         initial_coef: 0.90,
       },
+    },
+  },
+
+  lrule: &ada {
+    type: adadelta,
+    lr_params: {
+      rho: &ro 0.95,
+      epsilon: &eps 0.000001,
     },
   },
 
@@ -220,6 +228,8 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
+        # ref_label: 'targets',
+        # raw_label: True,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],

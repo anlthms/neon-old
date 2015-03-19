@@ -61,7 +61,12 @@ class NeonCommand(Command):
                                                    'sphinxcontrib-napoleon' +
                                                    '>=0.2.8',
                                                    'scikit-learn>=0.15.2',
-                                                   'matplotlib>=1.4.0']
+                                                   'matplotlib>=1.4.0',
+                                                   'imgworker>=0.1.0']
+            self.distribution.dependency_links += ['git+http://gitlab.'
+                                                   'localdomain/algorithms/'
+                                                   'imgworker.git#'
+                                                   'egg=imgworker']
         if self.gpu == "1":
             self.distribution.install_requires += ['cudanet>=0.2.4']
             self.distribution.dependency_links += ['git+https://github.com/'

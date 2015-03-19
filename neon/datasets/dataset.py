@@ -62,7 +62,7 @@ class Dataset(object):
 
     def load(self, backend=None):
         """
-        Makes the dataset data avilable for use.
+        Makes the dataset data available for use.
         Needs to be implemented in every concrete Dataset child class.
 
         Arguments:
