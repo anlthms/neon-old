@@ -15,7 +15,6 @@ import sys
 import tarfile
 import threading
 from time import time
-import imgworker as iw
 import numpy as np
 
 from neon.datasets.dataset import Dataset
@@ -420,8 +419,8 @@ class I1K(Dataset):
 
                 # Write training batches
                 self.num_train_macro_batches = self.write_batches(
-                    os.path.join(save_dir, prefix_macro
-                                 + str(self.output_image_size)),
+                    os.path.join(save_dir, (prefix_macro +
+                                            str(self.output_image_size))),
                     'training', 0,
                     label_sample, jpeg_file_sample)
                 with self.open_tar(ilsvrc_validation_tar,
@@ -442,8 +441,8 @@ class I1K(Dataset):
                     val_label_sample = val_label_sample[
                         0:self.val_max_file_index]
                     self.num_val_macro_batches = self.write_batches(
-                        os.path.join(save_dir, prefix_macro
-                                     + str(self.output_image_size)),
+                        os.path.join(save_dir, (prefix_macro +
+                                     str(self.output_image_size))),
                         'validation', 0,
                         val_label_sample,
                         val_file_sample)
@@ -574,7 +573,7 @@ class I1K(Dataset):
             raise NotImplementedError("Must specify [start|end]"
                                       "_[train|val]_batch")
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
-
+        self.npixels = (self.cropped_image_size ** 2) * 3
         self.batch_size = batch_size
         self.batch_type = 'training' if (setname == 'train') else setname
         self.predict = predict
@@ -588,11 +587,8 @@ class I1K(Dataset):
             self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
                                           batch_size=batch_size,
                                           num_targets=self.nclasses,
-                                          num_input_dims=(
-                                              self.cropped_image_size ** 2)
-                                          * 3,
-                                          backend=self.backend,
-                                          dtype=self.bdtype)
+                                          dtype=self.bdtype,)
+                                          num_input_dims=self.npixels)
         self.file_name_queue = queue.Queue()
         self.macro_batch_queue = queue.Queue()
         self.mini_batch_queue = queue.Queue()
@@ -833,12 +829,12 @@ class I1K(Dataset):
         os.system('taskset -cp 0-%d %s' % (pool_size, os.getpid()))
 
         meta_mat = scipy.io.loadmat(StringIO(fmeta.read()))
-        labels_dic = dict((m[0][1][0], m[0][0][0][
-                          0] - 1) for m in meta_mat['synsets']
-                          if m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000)
-        label_names_dic = dict((m[0][1][0], m[0][2][0]) for m in meta_mat[
-                               'synsets'] if m[0][0][0][0] >= 1
-                               and m[0][0][0][0] <= 1000)
+        labels_dic = dict(
+            (m[0][1][0], m[0][0][0][0] - 1) for m in meta_mat['synsets']
+            if m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000)
+        label_names_dic = dict(
+            (m[0][1][0], m[0][2][0]) for m in meta_mat['synsets']
+            if (m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000))
         label_names = [tup[1] for tup in sorted(
             [(v, label_names_dic[k]) for k, v in labels_dic.items()],
             key=lambda x:x[0])]
@@ -853,9 +849,9 @@ class I1K(Dataset):
 
     # following functions are for creating macrobatches
     def partition_list(self, l, partition_size):
-        divup = lambda a, b: (a + b - 1) / b
+        nparts = (len(l) + partition_size - 1) / partition_size
         return [l[i * partition_size:(i + 1) * partition_size]
-                for i in range(divup(len(l), partition_size))]
+                for i in range(nparts)]
 
     def write_batches(self, target_dir, name, start_batch_num, labels,
                       jpeg_files):

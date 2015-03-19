@@ -23,6 +23,9 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+TARGET_SIZE = 256
+SQUARE_CROP = True
+
 
 def my_pickle(filename, data):
     with open(filename, "w") as fo:
@@ -114,7 +117,7 @@ class BatchWriter(object):
         self.ntrain = (len(tlines) + self.batch_size - 1) / self.batch_size
         self.nval = (len(vlines) + self.batch_size - 1) / self.batch_size
         self.train_start = 0
-        self.val_start = 10**int(np.log10(self.ntrain*10))
+        self.val_start = 10 ** int(np.log10(self.ntrain * 10))
 
         my_pickle(self.stats, {'ntrain': self.ntrain,
                                'nval': self.nval,
@@ -139,6 +142,7 @@ class BatchWriter(object):
 
     def write_batches(self, name, start, labels, imfiles, targets=None):
         psz = self.batch_size
+        osz = self.output_image_size
         npts = (len(imfiles) + psz - 1) / psz
 
         imfiles = [imfiles[i*psz: (i+1)*psz] for i in range(npts)]
@@ -149,8 +153,7 @@ class BatchWriter(object):
         labels = [{k: v[i*psz: (i+1)*psz] for k, v in labels.iteritems()}
                   for i in range(npts)]
 
-        accum_buf = np.zeros((self.output_image_size,
-                          self.output_image_size, 3), dtype=np.int32)
+        accum_buf = np.zeros((osz, osz, 3), dtype=np.int32)
         batch_mean = np.zeros(self.accum.shape, dtype=np.uint8)
         print "Writing %s batches..." % name
         for i, jpeg_file_batch in enumerate(imfiles):
@@ -169,8 +172,7 @@ class BatchWriter(object):
 
             # get the means and accumulate
             imgworker.calc_batch_mean(jpglist=jpeg_strings, tgt=batch_mean,
-                                      orig_size=self.output_image_size,
-                                      rgb=True, nthreads=5)
+                                      orig_size=osz, rgb=True, nthreads=5)
 
             # scale for the case where we have an undersized batch
             if len(jpeg_strings) < self.batch_size:
@@ -178,7 +180,7 @@ class BatchWriter(object):
             accum_buf += batch_mean
 
         mean_buf = self.train_mean if name == 'train' else self.val_mean
-        mean_buf[:] = accum / len(imfiles)
+        mean_buf[:] = accum_buf / len(imfiles)
 
     def run(self):
         self.write_csv_files()
@@ -215,7 +217,7 @@ class Imageset(Dataset):
     def __init__(self, **kwargs):
 
         opt_param(self, ['preprocess_done', 'dist_flag'], False)
-        opt_param(self, ['dotransforms', 'square_crop'], False)
+        opt_param(self, ['dotransforms', 'square_crop', 'zero_center'], False)
         opt_param(self, ['tdims'], 0)
         opt_param(self, ['label_list'], ['l_id'])
         opt_param(self, ['num_workers'], 6)
@@ -263,31 +265,26 @@ class Imageset(Dataset):
                              'data_batch_{:d}'.format(self.macro_idx))
         return my_unpickle(os.path.expanduser(fname))
 
-    def preprocess_images(self):
-        # Depends on mean being saved to a cached file in the data directory
-        # Otherwise will just subtract 128 uniformly
-        osz = self.output_image_size
-        csz = self.cropped_image_size
-
-        self.mean_img = self.train_mean if self.predict else self.val_mean
-        self.mean_img.shape = (3, osz, osz)
-        pad = (osz - csz) / 2
-        self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
-        self.mean_be = self.backend.empty((self.npixels, 1))
-        self.mean_be.copy_from(self.mean_crop.reshape(-1).astype(np.float32))
-
-        logger.info("done loading mean image")
-
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
+        # local shortcuts
         sbe = self.backend.empty
         betype = self.backend_type
         sn = 'val' if (setname == 'validation') else setname
+        osz = self.output_image_size
+        csz = self.cropped_image_size
+
         self.startb = getattr(self, sn + '_start')
         self.nmacros = getattr(self, 'n' + sn)
         self.endb = self.startb + self.nmacros
         nrecs = self.macro_size * self.nmacros
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
         self.mean_img = getattr(self, sn + '_mean')
+
+        self.mean_img.shape = (3, osz, osz)
+        pad = (osz - csz) / 2
+        self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
+        self.mean_be = sbe((self.npixels, 1))
+        self.mean_be.copy_from(self.mean_crop.reshape(-1).astype(np.float32))
 
         self.batch_size = batch_size
         self.predict = predict
@@ -327,17 +324,19 @@ class Imageset(Dataset):
             self.tgt_macro = jdict['targets'] if 'targets' in jdict else None
             self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
 
-            iw.decode_list(jpglist=jdict['data'], tgt=self.img_macro,
-                           orig_size=self.output_image_size,
-                           crop_size=self.cropped_image_size,
-                           center=self.predict, flip=True, nthreads=5)
+            imgworker.decode_list(jpglist=jdict['data'], tgt=self.img_macro,
+                                  orig_size=self.output_image_size,
+                                  crop_size=self.cropped_image_size,
+                                  center=self.predict, flip=True, nthreads=5)
 
-        logger.debug('\tMid Minibatch %d', batch_idx)
         s_idx = self.mini_idx * self.batch_size
         e_idx = (self.mini_idx + 1) * self.batch_size
 
         self.inp_be.copy_from(
             self.img_macro[s_idx:e_idx].T.astype(betype, order='C'))
+        self.backend.subtract(self.inputs_be, self.mean_be, self.inputs_be)
+        if self.zero_center:
+            self.backend.divide(self.inputs_be, 128., self.inputs_be)
 
         for lbl in self.label_list:
             self.lbl_be[lbl].copy_from(
@@ -345,7 +344,7 @@ class Imageset(Dataset):
 
         if self.tgt_macro is not None:
             self.tgt_be.copy_from(
-                self.tgt_macro[:, startidx:endidx].astype(betype))
+                self.tgt_macro[:, s_idx:e_idx].astype(betype))
 
         return self.inp_be, self.tgt_be, self.lbl_be
 

@@ -8,18 +8,13 @@ Sign up for an ImageNet account to download the dataset!
 """
 
 import logging
-import multiprocessing as mp
 import os
-from random import shuffle
-import sys
-import tarfile
-import threading
-from time import time
+
 import imgworker as iw
 import numpy as np
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import range, pickle, queue, StringIO
+from neon.util.compat import range, pickle
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +92,6 @@ class I1Knq(Dataset):
 
             self.load_path = os.path.expandvars(os.path.expanduser(
                 self.load_path))
-            load_dir = os.path.join(self.load_path, 'I1K')
             self.save_dir = os.path.expandvars(os.path.expanduser(
                 self.save_dir))
             save_dir = self.save_dir
@@ -118,12 +112,12 @@ class I1Knq(Dataset):
         try:
             self.mean_img = my_unpickle(mean_path)
             self.mean_img.shape = (3, osz, osz)
-            cstart = (osz - csz) / 2
+            pad = (osz - csz) / 2
+            self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
             self.mean_be = self.backend.empty((self.npixels, 1))
             self.mean_be.copy_from(
-                self.mean_img[:,
-                    cstart:(cstart + csz),
-                    cstart:(cstart + csz)].reshape(-1).astype(np.float32))
+                self.mean_crop.reshape(-1).astype(np.float32))
+
         except:
             logger.info("Unable to find mean img file, setting mean to 128.")
             self.mean_be = self.backend.empty((1, 1))
@@ -135,11 +129,11 @@ class I1Knq(Dataset):
         self.macro_idx += 1
         if self.macro_idx > self.endb:
             self.macro_idx = self.startb
+        batch_fname = '{}_batch_{:d}'.format(self.batch_type, self.macro_idx)
         batch_path = os.path.join(
             self.save_dir, prefix_macro + str(self.output_image_size),
-                '%s_batch_%d' % (self.batch_type, self.macro_idx))
-        macro_fname = os.path.join(batch_path, '%s_batch_%d.0' % (
-                    self.batch_type, self.macro_idx))
+            batch_fname)
+        macro_fname = os.path.join(batch_path, batch_fname + '.0')
         return my_unpickle(macro_fname)
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
@@ -166,15 +160,12 @@ class I1Knq(Dataset):
         self.macro_idx = self.endb
 
         self.npixels = self.cropped_image_size * self.cropped_image_size * 3
-        # self.targets_macro = np.zeros((1, self.output_batch_size),
-        #                               dtype=np.float32)
         self.targets_macro = np.zeros((self.nclasses, self.output_batch_size),
                                       dtype=np.float32)
         self.img_macro = np.zeros(
             (self.output_batch_size, self.npixels), dtype=np.uint8)
 
         self.targets_be = self.backend.empty((self.nclasses, self.batch_size))
-        # self.targets_be = self.backend.empty((1, self.batch_size))
 
         self.inputs_be = self.backend.empty((self.npixels, self.batch_size))
 
@@ -196,12 +187,12 @@ class I1Knq(Dataset):
             labels = np.asarray(labels, dtype=np.float32)
             for col in range(self.nclasses):
                 self.targets_macro[col] = labels == col
-            # self.targets_macro[:] = np.asarray(labels, dtype='float32')
 
             iw.decode_list(jpglist=self.jpeg_strings['data'],
-                   tgt=self.img_macro, orig_size=self.output_image_size,
-                   crop_size=self.cropped_image_size, center=self.predict,
-                   flip=True, nthreads=5)
+                           tgt=self.img_macro,
+                           orig_size=self.output_image_size,
+                           crop_size=self.cropped_image_size,
+                           center=self.predict, flip=True, nthreads=5)
 
         startidx = self.mini_idx * self.batch_size
         endidx = (self.mini_idx + 1) * self.batch_size
@@ -218,4 +209,3 @@ class I1Knq(Dataset):
 
     def has_set(self, setname):
         return True if (setname in ['train', 'validation']) else False
-
