@@ -62,8 +62,8 @@ class Decorators(object):
                     be.max(kwargs[item], axes=None, out=the_max)
                     logger.debug("%s:\tstd %s \traw %s \tmin %s \tmax %s",
                                  item,
-                                 kwargs[item][0:3].asnumpyarray().astype(
-                                    np.float32).std(1).__str__(),
+                                 kwargs[item][0:3].asnumpyarray().
+                                 astype(np.float32).std(1).__str__(),
                                  kwargs[item][0, 0:3].asnumpyarray().__str__(),
                                  the_min.asnumpyarray().__str__(),
                                  the_max.asnumpyarray().__str__())

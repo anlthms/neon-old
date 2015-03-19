@@ -17,6 +17,7 @@ Current Implementations
    neon.backends.par.NoPar
    neon.backends.par.DataPar
    neon.backends.par.ModelPar
+..   neon.backends.max.MAX
 
 Adding a new Backend
 --------------------
