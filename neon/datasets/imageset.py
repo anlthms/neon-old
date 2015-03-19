@@ -18,8 +18,6 @@ import sys
 import imgworker
 
 from multiprocessing import Pool
-import pandas as pd
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +38,7 @@ def my_unpickle(filename):
 
 
 def proc_img(imgfile):
+    from PIL import Image
     im = Image.open(imgfile)
 
     # This part does the processing
@@ -128,6 +127,7 @@ class BatchWriter(object):
                                'val_mean': self.val_mean})
 
     def parse_file_list(self, infile):
+        import pandas as pd
         compression = 'gzip' if infile.endswith('.gz') else None
         df = pd.read_csv(infile, compression=compression)
 
@@ -155,7 +155,7 @@ class BatchWriter(object):
 
         accum_buf = np.zeros((osz, osz, 3), dtype=np.int32)
         batch_mean = np.zeros(self.accum.shape, dtype=np.uint8)
-        print "Writing %s batches..." % name
+        logger.info("Writing %s batches...", name)
         for i, jpeg_file_batch in enumerate(imfiles):
             t = time()
             pool = Pool(processes=self.num_workers)
@@ -167,8 +167,8 @@ class BatchWriter(object):
             my_pickle(bfile, {'data': jpeg_strings,
                               'labels': labels_batch,
                               'targets': targets_batch})
-            print "Wrote to %s (%s batch %d of %d) (%.2f sec)" % (
-                self.out_dir, name, i + 1, len(imfiles), time() - t)
+            logger.info("Wrote to %s (%s batch %d of %d) (%.2f sec)",
+                        self.out_dir, name, i + 1, len(imfiles), time() - t)
 
             # get the means and accumulate
             imgworker.calc_batch_mean(jpglist=jpeg_strings, tgt=batch_mean,
@@ -188,12 +188,12 @@ class BatchWriter(object):
         filelist = [self.train_file, self.val_file]
         startlist = [self.train_start, self.val_start]
         for sname, fname, start in zip(namelist, filelist, startlist):
-            print sname, fname, start
+            logger.info("%s %s %s", sname, fname, start)
             if fname is not None and os.path.exists(fname):
                 imgs, labels, targets = self.parse_file_list(fname)
                 self.write_batches(sname, start, labels, imgs, targets)
             else:
-                print 'Skipping {}, file missing'.format(sname)
+                logger.info('Skipping %s, file missing', sname)
 
 
 class Imageset(Dataset):
@@ -227,8 +227,6 @@ class Imageset(Dataset):
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'image_dir', 'batch_dir', 'macro_size'])
 
-        from PIL import Image
-        self.imlib = Image
         self.idims = (self.cropped_image_size ** 2) * 3
 
     def load(self):
