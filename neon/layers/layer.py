@@ -234,8 +234,11 @@ class CostLayer(Layer):
         super(CostLayer, self).initialize(kwargs)
         req_param(self, ['cost', 'ref_layer'])
         opt_param(self, ['ref_label'], 'targets')
-        self.targets = None
+        opt_param(self, ['raw_label'], False)
+        opt_param(self, ['category_label'], 'l_id')
+        self.reference = None
         self.cost.olayer = self.prev_layer
+        kwargs['raw_label'] = self.raw_label
         self.cost.initialize(kwargs)
         self.deltas = self.cost.get_deltabuf()
 
@@ -244,27 +247,37 @@ class CostLayer(Layer):
                 self.__class__.__name__, self.name, self.nin,
                 self.cost.__class__.__name__))
 
+    def set_reference(self):
+        if self.ref_layer is not None:
+            refs = getattr(self.ref_layer, self.ref_label)
+            if isinstance(refs, dict):
+                self.reference = refs[self.category_label]
+            else:
+                self.reference = refs
+
     def fprop(self, inputs):
         pass
 
     def bprop(self, error):
         # Since self.deltas already pointing to destination of act gradient
         # we just have to scale by mini-batch size
-        if self.ref_layer is not None:
-            self.targets = getattr(self.ref_layer, self.ref_label)
-        self.cost.apply_derivative(self.targets)
+        self.set_reference()
+        self.cost.apply_derivative(self.reference)
         self.backend.divide(self.deltas, self.backend.actual_batch_size,
                             out=self.deltas)
 
     def get_cost(self):
-        if self.ref_layer is not None:
-            self.targets = getattr(self.ref_layer, self.ref_label)
-        scale_me = True if hasattr(self.backend, 'nl') else False
-        result = self.cost.apply_function(self.targets,
-                                          scale_by_batchsize=scale_me)
-        if not scale_me:  # Check for fp16 backend and use scaling
+        self.set_reference()
+        scale_cost = True if hasattr(self.backend, 'nl') else False
+        result = self.cost.apply_function(self.reference,
+                                          scale_by_batchsize=scale_cost)
+        if not scale_cost:  # Check for fp16 backend and use scaling
             self.backend.divide(result, self.batch_size, result)
         return result
+
+    def get_reference(self):
+        self.set_reference()
+        return self.reference
 
 
 class DataLayer(Layer):
@@ -274,6 +287,7 @@ class DataLayer(Layer):
     """
     def __init__(self, **kwargs):
         self.is_data = True
+        opt_param(self, ['has_labels'], False)
         super(DataLayer, self).__init__(**kwargs)
         # req_param(self, ['dataset'])
 
@@ -336,6 +350,18 @@ class DataLayer(Layer):
         self.dataset.del_mini_batch_producer()
 
 
+class ImageDataLayer(DataLayer):
+
+    def __init__(self, **kwargs):
+        super(ImageDataLayer, self).__init__(**kwargs)
+        self.has_labels = True
+
+    def fprop(self, inputs):
+        self.output, self.targets, self.labels = self.dataset.get_mini_batch(
+            self.batch_idx)
+        self.batch_idx += 1
+
+
 class ActivationLayer(Layer):
     """
     Just applies an activation to the inputs.
@@ -365,6 +391,48 @@ class ActivationLayer(Layer):
                                    self.skip_act)
         if self.deltas is not None:
             self.deltas[:] = error
+
+
+class SliceLayer(ActivationLayer):
+    """
+    Just takes a portion of the inputs and passes it on
+    Useful for limitations of the GPU convolutional layer
+    for a local layer, takes 0:end_idx feature maps
+    for a flat layer, takes 0:end_idx inputs
+    """
+    def __init__(self, **kwargs):
+        super(SliceLayer, self).__init__(**kwargs)
+        req_param(self, ['end_idx'])
+
+    def set_previous_layer(self, pl):
+        if pl.is_local:
+            self.is_local = True
+            self.ifmshape = pl.ofmshape
+            self.ofmshape = pl.ofmshape
+            self.nifm = pl.nofm
+            self.nin = pl.nofm * np.prod(pl.ofmshape)
+            self.nofm = self.end_idx
+        else:
+            self.nin = pl.nout
+        self.prev_layer = pl
+
+    def initialize(self, kwargs):
+        self.__dict__.update(kwargs)
+        req_param(self, ['backend', 'batch_size'])
+        self.output = None
+        self.deltas = None
+        if self.is_local:
+            self.nofm = self.end_idx
+            self.end_idx = np.prod(self.ifmshape) * self.end_idx
+        self.nout = self.end_idx
+        self.allocate_output_bufs()
+
+    def fprop(self, inputs):
+        self.output[:] = inputs[:self.end_idx]
+
+    def bprop(self, error):
+        self.deltas.fill(0.0)
+        self.deltas[:self.end_idx] = error
 
 
 class WeightLayer(Layer):

@@ -41,7 +41,7 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 1,
+    num_epochs: 10,
     batch_size: &bs 128,
     half_precision: *hp,
     batch_norm: &bn False,        #           for this to work well, need to reduce lr 10x ?
@@ -130,7 +130,7 @@
   #   DEBUG    10
   #   NOTSET    0
   logging: {
-    level: 10,
+    level: 20,
     format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
   },
 }

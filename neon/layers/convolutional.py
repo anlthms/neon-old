@@ -8,7 +8,7 @@ Neural network layers involving the application of convolutional filters.
 import logging
 from neon.backends.cpu import CPU
 from neon.layers.layer import WeightLayer
-from neon.util.param import opt_param
+from neon.util.param import opt_param, req_param
 
 logger = logging.getLogger(__name__)
 
@@ -137,5 +137,68 @@ class ConvLayer(WeightLayer):
             self.backend.add(upm[u_idx], self.updates[u_idx],
                              out=self.updates[u_idx])
             if self.use_biases is True:
-                self.backend.add(upm[u_idx+1], self.updates[u_idx+1],
-                                 out=self.updates[u_idx+1])
+                self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+
+
+class SubConvLayer(ConvLayer):
+    """
+    Convolutional layer with workaround for modulo 16 number of filters
+    """
+    def __init__(self, **kwargs):
+        super(SubConvLayer, self).__init__(**kwargs)
+        req_param(self, ['endidx'])
+
+    def initialize(self, kwargs):
+        super(SubConvLayer, self).initialize(kwargs)
+        self.rowendidx = self.endidx * self.ofmsize
+        self.bigoutput = self.output
+        self.suboutput = self.backend.zeros(
+            (self.rowendidx, self.batch_size), self.output_dtype)
+
+    def fprop(self, inputs):
+        self.output = self.bigoutput
+        super(SubConvLayer, self).fprop(inputs)
+        self.suboutput.fill(0.0)
+        self.suboutput[:] = self.output[:self.rowendidx, :]
+        self.output = self.suboutput
+
+    def bprop(self, error):
+        inputs = self.prev_layer.output
+        if self.activation is not None:
+            self.backend.multiply(error, self.pre_act[:self.rowendidx],
+                                  out=self.pre_act[:self.rowendidx])
+        self.pre_act[self.rowendidx:] = 0.
+        self.weights[self.endidx:] = 0.
+        error = self.pre_act
+        if self.deltas is not None:
+            self.backend.bprop_conv(out=self.deltas, weights=self.weights,
+                                    deltas=error, ofmshape=self.ofmshape,
+                                    ofmsize=self.ofmsize,
+                                    ofmlocs=self.ofmlocs,
+                                    ifmshape=self.ifmshape, links=self.links,
+                                    padding=self.pad, stride=self.stride,
+                                    nifm=self.nifm, ngroups=1,
+                                    bpropbuf=self.bpropbuf,
+                                    local=self.local_conv)
+
+        upm = self.utemp if self.accumulate else self.updates
+
+        self.backend.update_conv(out=upm[0], inputs=inputs,
+                                 weights=self.weights, deltas=error,
+                                 ofmshape=self.ofmshape,
+                                 ofmsize=self.ofmsize,
+                                 ofmlocs=self.ofmlocs,
+                                 ifmshape=self.ifmshape, links=self.links,
+                                 nifm=self.nifm, padding=self.pad,
+                                 stride=self.stride, ngroups=1,
+                                 fwidth=self.fshape[-1],
+                                 updatebuf=self.updatebuf,
+                                 local=self.local_conv,
+                                 layer=self)
+
+        if self.use_biases is True:
+            self.backend.sum(error, axes=1, out=upm[1])
+        if self.accumulate:
+            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            if self.use_biases is True:
+                self.backend.add(upm[1], self.updates[1], out=self.updates[1])

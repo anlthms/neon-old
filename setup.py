@@ -63,7 +63,7 @@ class NeonCommand(Command):
                                                    'scikit-learn>=0.15.2',
                                                    'matplotlib>=1.4.0']
         if self.gpu == "1":
-            self.distribution.install_requires += ['cudanet>=0.2.3']
+            self.distribution.install_requires += ['cudanet>=0.2.4']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'

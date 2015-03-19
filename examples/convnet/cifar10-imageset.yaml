@@ -1,20 +1,28 @@
-# Experiment settings to train/test a CNN on CIFAR10.
+# Experiment settings to train/test a CNN on MNIST.
 
-!obj:experiments.FitPredictErrorExperiment {
+!obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:datasets.CIFAR10 {
+  dataset: &ds !obj:datasets.Imageset {
     repo_path: '/usr/local/data',
-    sample_pct: 100,
+    save_dir: '/usr/local/data/CIFAR10/cifar-macro/train',
+    cropped_image_size: &cis 32,
+    output_image_size: *cis,
+    # max_tar_file: &mtf 1000,
+    output_batch_size: 10000,
+    ring_buffer_size: 3,
+    num_processes: 3,
+    num_train_macro_batches: 5, #max available train macro_batches
+    num_val_macro_batches: 1, #max available val macro batches
+    # macro batch start and end indices to use for train and val datasets
+    start_train: 1,
+    end_train: 2,
+    start_val: 0,
+    end_val: 1,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
     low: -0.1,
     high: 0.1,
-  },
-
-  weight_inits: &wt_init0 !obj:params.GaussianValGen {
-    scale: .01,
-    bias_init: 0.0,
   },
 
   lrule: &gdm {
@@ -27,13 +35,14 @@
       },
     },
   },
+
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 5,
+    num_epochs: 10,
     batch_size: &bs 100,
     layers: [
-      &datalayer !obj:layers.DataLayer {
+      &datalayer !obj:layers.ImageDataLayer {
         name: d0,
         is_local: True,
         nofm: 3,
@@ -42,7 +51,7 @@
       !obj:layers.ConvLayer {
         name: layer1,
         lrule_init: *gdm,
-        weight_init: *wt_init0,
+        weight_init: *wt_init,
         nofm: 16,
         fshape: [5, 5],
       },
@@ -63,7 +72,7 @@
         lrule_init: *gdm,
         nofm: 32,
         fshape: [5, 5],
-        weight_init: *wt_init0,
+        weight_init: *wt_init,
       },
       !obj:layers.PoolingLayer {
         name: layer5,
@@ -94,6 +103,8 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
+        ref_label: 'labels',
+        raw_label: True,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],

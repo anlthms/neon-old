@@ -163,8 +163,8 @@ class MLP(MLP_old):
             while self.data_layer.has_more_data():
                 self.fprop()
                 probs = self.get_classifier_output()
-                targets = self.data_layer.targets
-                ms.misclass_sum(self.backend, probs, targets, predlabels,
+                reference = self.cost_layer.get_reference()
+                ms.misclass_sum(self.backend, reference, probs, predlabels,
                                 labels, misclass, batch_sum)
                 self.backend.add(misclass_sum, batch_sum, misclass_sum)
             self.print_test_error(setname, misclass_sum, nrecs)
@@ -179,7 +179,10 @@ class MLP(MLP_old):
         self.data_layer.reset_counter()
         nrecs = self.batch_size * self.data_layer.num_batches
         outputs = self.backend.empty((self.class_layer.nout, nrecs))
-        targets = self.backend.empty(outputs.shape)
+        if self.data_layer.has_labels:
+            reference = self.backend.empty((1, nrecs))
+        else:
+            reference = self.backend.empty(outputs.shape)
         batch = 0
 
         for ll in self.layers:
@@ -190,32 +193,32 @@ class MLP(MLP_old):
             start = batch * self.batch_size
             end = start + self.batch_size
             outputs[:, start:end] = self.get_classifier_output()
-            targets[:, start:end] = self.data_layer.targets
+            reference[:, start:end] = self.cost_layer.get_reference()
             batch += 1
 
         self.data_layer.cleanup()
-        return outputs, targets
+        return outputs, reference
 
-    def report(self, targets, outputs, metric):
+    def report(self, reference, outputs, metric):
         nrecs = outputs.shape[1]
         if metric == 'misclass rate':
             retval = self.backend.empty((1, 1))
             labels = self.backend.empty((1, nrecs))
             preds = self.backend.empty(labels.shape)
             misclass = self.backend.empty(labels.shape)
-            ms.misclass_sum(self.backend, targets, outputs,
+            ms.misclass_sum(self.backend, reference, outputs,
                             preds, labels, misclass, retval)
             misclassval = retval.asnumpyarray() / nrecs
             return misclassval * 100
 
         if metric == 'auc':
-            return ms.auc(self.backend, targets[0], outputs[0])
+            return ms.auc(self.backend, reference[0], outputs[0])
 
         if metric == 'log loss':
             retval = self.backend.empty((1, 1))
             sums = self.backend.empty((1, outputs.shape[1]))
             temp = self.backend.empty(outputs.shape)
-            ms.logloss(self.backend, targets, outputs, sums, temp, retval)
+            ms.logloss(self.backend, reference, outputs, sums, temp, retval)
             self.backend.multiply(retval, -1, out=retval)
             self.backend.divide(retval, nrecs, out=retval)
             return retval.asnumpyarray()
