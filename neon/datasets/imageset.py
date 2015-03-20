@@ -15,7 +15,6 @@ from neon.util.persist import deserialize
 import sys
 import imgworker
 
-from multiprocessing import Pool
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class Imageset(Dataset):
 
     def get_macro_batch(self):
         self.macro_idx = (self.macro_idx + 1 - self.startb) \
-                            % self.nmacros + self.startb
+            % self.nmacros + self.startb
         fname = os.path.join(self.batch_dir,
                              'data_batch_{:d}'.format(self.macro_idx))
         return deserialize(os.path.expanduser(fname), False)

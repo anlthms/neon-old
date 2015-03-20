@@ -9,7 +9,7 @@ import yaml
 from glob import glob
 from multiprocessing import Pool
 from neon.util.compat import range, StringIO
-from neon.util.param import opt_param, req_param
+from neon.util.param import opt_param
 from neon.util.persist import serialize
 from time import time
 
@@ -18,6 +18,7 @@ TARGET_SIZE = None
 SQUARE_CROP = True
 
 logger = logging.getLogger(__name__)
+
 
 # NOTE: We have to leave this helper function out of the class and use the
 #       global variable hack so that we can use multiprocess pool.map
@@ -114,8 +115,7 @@ class BatchWriter(object):
                    'val_start': self.val_start,
                    'macro_size': self.batch_size,
                    'train_mean': self.train_mean,
-                   'val_mean': self.val_mean},
-                   self.stats)
+                   'val_mean': self.val_mean}, self.stats)
 
     def parse_file_list(self, infile):
         import pandas as pd
@@ -192,7 +192,6 @@ class BatchWriterDepth(BatchWriter):
 
     def write_batches(self, name, start, labels, imfiles, targets=None):
         psz = self.batch_size
-        osz = self.output_image_size
         npts = (len(imfiles) + psz - 1) / psz
 
         imfiles = [imfiles[i*psz: (i+1)*psz] for i in range(npts)]
@@ -222,7 +221,6 @@ class BatchWriterDepth(BatchWriter):
                       bfile)
             logger.info("Wrote to %s (%s batch %d of %d) (%.2f sec)",
                         self.out_dir, name, i + 1, len(imfiles), time() - t)
-
 
     def run(self):
         self.write_csv_files()
