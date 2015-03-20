@@ -121,8 +121,6 @@ class AutoUniformValGen(UniformValGen):
         Returns:
             neon.backends.Tensor: newly initialized data structure.
         """
-        logger.info("Generating {cl_nm} values of shape {shape}".format(
-                    cl_nm=self.__class__.__name__, shape=shape))
         if self.islocal:
             self.low = - 1.0 / math.sqrt(shape[0])
         else:
