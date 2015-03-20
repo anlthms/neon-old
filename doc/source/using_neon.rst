@@ -142,9 +142,9 @@ For MPI based distributed implementations, on a single node:
 
 .. code-block:: bash
 
-    # mpirun -np <number_of_processes> -x <env_vars_to_export> neon examples/<path_to.yaml>
+    # mpirun -np <number_of_processes> -x <env_vars_to_export> neon [--datapar, --modelpar] examples/<path_to.yaml>
     # where PYTHONPATH includes ./
-    mpirun -np 4 -x PYTHONPATH bin/neon examples/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+    mpirun -np 4 -x PYTHONPATH bin/neon --datapar examples/convnet/mnist-small.yaml
 
 In distributed environments with multiple nodes full paths might be needed
 for ``mpirun`` and ``neon``, for e.g.:
@@ -152,8 +152,8 @@ for ``mpirun`` and ``neon``, for e.g.:
 .. code-block:: bash
 
     /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts
-        /<full_path_to_neon>/neon
-        /<full_path_to_examples>/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+        /<full_path_to_neon>/neon --datapar
+        /<full_path_to_examples>/convnet/mnist-small.yaml
 
 ``LD_LIBRARY_PATH`` should point to ``/<path_to_openmpi>/lib``. A common file
 system is assumed.
