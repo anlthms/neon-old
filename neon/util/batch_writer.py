@@ -245,5 +245,4 @@ if __name__ == "__main__":
     with open(args.config) as f:
         ycfg = yaml.load(f)[args.dataset]
     bw = BatchWriter(**ycfg)
-    print bw
     bw.run()
