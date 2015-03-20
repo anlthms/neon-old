@@ -1016,7 +1016,8 @@ class GPU(Backend):
     def min(self, tsr, axes, out):
         """
         Calculates the minimal element value along the specified axes.
-
+	
+	Arguments:
             tsr (GPUTensor): the GPUTensor on which to compute the minimum
             axes (int, list, optional): the dimension(s) along which to find
                                         the minimum.  If set to None, we will
@@ -1520,7 +1521,6 @@ class GPU(Backend):
 
         Arguments:
             out (GPUTensor): Where to store the forward propagated results.
-            inputs (GPUTensor): Will be either the dataset input values (first
             inputs (GPUTensor): Will be either the dataset input values (first
                                 layer), or the outputs from the previous layer.
             weights (GPUTensor): The weight coefficient values for this layer.
