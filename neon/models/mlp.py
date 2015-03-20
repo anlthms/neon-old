@@ -105,7 +105,7 @@ class MLP(MLP_old):
                         self.epochs_complete, errorval)
 
     def print_test_error(self, setname, misclass, nrecs):
-        redmisclass = self.backend.reduce_tensor(misclass)
+        redmisclass = misclass[0,0] # self.backend.reduce_tensor(misclass)
         if self.backend.rank() != 0:
             return
 
@@ -145,7 +145,7 @@ class MLP(MLP_old):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        misclass_sum = self.backend.empty((1, 1))
+        misclass_sum = self.backend.empty((1, 1)).asnumpyarray().astype(float)
         batch_sum = self.backend.empty((1, 1))
 
         return_err = dict()
@@ -166,7 +166,9 @@ class MLP(MLP_old):
                 reference = self.cost_layer.get_reference()
                 ms.misclass_sum(self.backend, reference, probs, predlabels,
                                 labels, misclass, batch_sum)
-                self.backend.add(misclass_sum, batch_sum, misclass_sum)
+                #import pdb; pdb.set_trace()
+                #self.backend.add(misclass_sum, batch_sum, misclass_sum)
+                misclass_sum += batch_sum.asnumpyarray()
             self.print_test_error(setname, misclass_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result

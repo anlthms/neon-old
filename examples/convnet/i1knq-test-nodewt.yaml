@@ -40,7 +40,7 @@
     },
     &wt_initout !obj:params.AutoUniformValGen {
       relu: True,
-      bias_init: -7.0,
+      bias_init: -7.0,  # -7 for softmax
     },
   ],
 
@@ -86,10 +86,10 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 60,
+    num_epochs: 1,
     batch_size: &bs 128,
     step_print: 24,
-    serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
+    # serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -227,7 +227,7 @@
         brule_init: *gdm,
         weight_init: *wt_initout,
         nout: *mtf,
-        activation: !obj:transforms.Softmax {},
+        activation: !obj:transforms.Logistic {},  # was Softmax Logistic
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,

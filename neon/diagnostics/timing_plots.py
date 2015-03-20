@@ -24,11 +24,13 @@ def print_performance_stats(backend, logger):
     total_time = 0
     total_tflop = 0
     for call in call_list:
-        logger.info("Performed %2.2f GFLOP \tin %2.2fs \t(%d %s calls)",
-                    sum(backend.flop_dict[call]) / 1e9,
+        logger.info("Performed %s calls in %2.2fs:" +
+                    " %0.2fTFLOPS from %2.0fGFLOP",
+                    (str(len(backend.flop_dict[call]))+" "+call).ljust(15),
                     sum(backend.time_dict[call]),
-                    len(backend.flop_dict[call]),
-                    call)
+                    sum(backend.flop_dict[call])
+                    / sum(backend.time_dict[call]) / 1e12,
+                    sum(backend.flop_dict[call]) / 1e9)
 
         # Histogram of where the time is spent.
         tflop_array = np.array(backend.flop_dict[call]) / 1e12
@@ -47,7 +49,7 @@ def print_performance_stats(backend, logger):
     lfs, lts, soumith_stash = get_flops_times(used_call_list, backend)
 
     # plot the plots
-    sufx = 'test'
+    sufx = 'test' + backend.__module__
     fname1 = 'figure1_'+sufx+'.pdf'
     fname2 = 'figure2_'+sufx+'.pdf'
     first_fig(paren_stash, timed_calls, timed_times, total_time,
@@ -135,7 +137,7 @@ def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
               % (total_time, total_tflop/1000., total_tflop/total_time))
     plt.xlabel('TFLOPS')
     plt.ylabel('op count / GFLOP')
-    plt.xlim((0, 5500))
+    plt.xlim((0, 5.5))
     plt.ylabel('Time (s)')
     plt.legend(paren_stash.keys(), prop={'size':6})
     plt.savefig(fname, dpi=500)   # savefig overrides dpi value
@@ -158,7 +160,7 @@ def second_fig(layer_flops_stash, layer_time_stash, fname):
     plt.yticks(range(len(layer_flops_stash)), layer_flops_stash.keys())
     plt.title(r'Breakdown of MOP calls by layer')
     plt.xlim((0, 5500))
-    plt.xlabel('TFLOPS')
+    plt.xlabel('GFLOPS')
 
     # second plot: time per call
     plt.subplot(1, 2, 2)

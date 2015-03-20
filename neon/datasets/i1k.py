@@ -587,7 +587,7 @@ class I1K(Dataset):
             self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
                                           batch_size=batch_size,
                                           num_targets=self.nclasses,
-                                          dtype=self.bdtype,)
+                                          dtype=self.bdtype,
                                           num_input_dims=self.npixels)
         self.file_name_queue = queue.Queue()
         self.macro_batch_queue = queue.Queue()

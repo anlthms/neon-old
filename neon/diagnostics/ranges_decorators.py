@@ -13,7 +13,7 @@ import traceback  # for tracing back where the function was called from
 from functools import wraps
 
 logger = logging.getLogger(__name__)
-
+np.set_printoptions(precision=4)
 
 class Decorators(object):
 
@@ -52,20 +52,39 @@ class Decorators(object):
             retval = func(*arguments, **kwargs)
 
             # new plotting stuff
-            logger.debug("\nbackend call to %s from %s", func_name, parent_func_name)
-            for item in ['weights', 'deltas', 'out', 'inputs']:
+            name_name = kwargs['weights'].name if 'weights' in kwargs else '0'
+            logger.info("backend call to %s from %s", func_name, name_name)
+            for item in ['weights', 'inputs', 'deltas', 'out']:
                 if item in kwargs:
                     the_min = be.zeros((1, 1))
                     the_max = be.zeros((1, 1))
                     be.min(kwargs[item], axes=None, out=the_min)
                     be.max(kwargs[item], axes=None, out=the_max)
-                    logger.debug("%s:\tstd %s \traw %s \tmin %s \tmax %s",
-                                 item,
-                                 kwargs[item][0:3].asnumpyarray().astype(
-                                    np.float32).std(1).__str__(),
-                                 kwargs[item][0, 0:3].asnumpyarray().__str__(),
-                                 the_min.asnumpyarray().__str__(),
-                                 the_max.asnumpyarray().__str__())
+                    logger.info("%s: std=%s raw=%s min=%s max=%s",
+                                 item.ljust(7),
+                                 kwargs[item][0:2].asnumpyarray().astype(
+                                    np.float32).std(1).__str__().ljust(28),
+                                 kwargs[item][0, 0:2].asnumpyarray(
+                                    )[0,:].__str__().ljust(28),
+                                 the_min.asnumpyarray()[0,0].__str__(),
+                                 the_max.asnumpyarray()[0,0].__str__())
 
             return retval
         return func_wrapper
+
+"""
+                    the_min = be.zeros((1, 1))
+                    the_max = be.zeros((1, 1))
+                    the_std = kwargs[item][0:2].asnumpyarray()
+                    the_std = the_std.astype(np.float32).std(1)
+                    the_raw = kwargs[item][0, 0:2].asnumpyarray()
+                    be.min(kwargs[item], axes=None, out=the_min)
+                    be.max(kwargs[item], axes=None, out=the_max)
+                    logger.info("%s: std %2.3f %2.3f \traw %2.3f %2.3f \tmin %s max %s",
+                                 item.ljust(7),
+                                 the_std[0], the_std[1],
+                                 the_raw[0,0], the_raw[0,1],
+                                 the_min.asnumpyarray()[0,0].__str__(),
+                                 the_max.asnumpyarray()[0,0].__str__())
+
+"""

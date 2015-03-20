@@ -60,7 +60,9 @@ class I1Knq(Dataset):
         self.start_val_batch = -1
         self.end_val_batch = -1
         self.preprocess_done = False
+        self.half_precision = False
         self.__dict__.update(kwargs)
+        self.dtype = np.float16 if self.half_precision is True else np.float32
         self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
 
         if not hasattr(self, 'save_dir'):
@@ -161,7 +163,7 @@ class I1Knq(Dataset):
 
         self.npixels = self.cropped_image_size * self.cropped_image_size * 3
         self.targets_macro = np.zeros((self.nclasses, self.output_batch_size),
-                                      dtype=np.float32)
+                                      dtype=self.dtype)
         self.img_macro = np.zeros(
             (self.output_batch_size, self.npixels), dtype=np.uint8)
 
@@ -184,7 +186,7 @@ class I1Knq(Dataset):
 
             labels = self.jpeg_strings['labels']
             labels = [item for sublist in labels for item in sublist]
-            labels = np.asarray(labels, dtype=np.float32)
+            labels = np.asarray(labels, dtype=self.dtype)
             for col in range(self.nclasses):
                 self.targets_macro[col] = labels == col
 
@@ -199,9 +201,9 @@ class I1Knq(Dataset):
 
         # This is what we transfer over
         self.inputs_be.copy_from(
-            self.img_macro[startidx:endidx].T.astype(np.float32, order='C'))
+            self.img_macro[startidx:endidx].T.astype(self.dtype, order='C'))
         self.targets_be.copy_from(
-            self.targets_macro[:, startidx:endidx].astype(np.float32))
+            self.targets_macro[:, startidx:endidx].astype(self.dtype))
 
         self.backend.subtract(self.inputs_be, self.mean_be, self.inputs_be)
 

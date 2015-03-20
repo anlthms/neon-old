@@ -8,7 +8,7 @@ the NervanaLib class, and FloatArray is taken from there.
 import logging
 
 from neon.backends.backend import Backend
-from nervana_lib import NervanaLib, FloatArray
+from flexgpu.nervana_lib import NervanaLib, FloatArray
 import pycuda.driver as drv
 import numpy as np
 
@@ -25,8 +25,7 @@ class MAX(Backend):
     Everything in here is a reduction.
     """
     def __init__(self, rng_seed, stochastic_round=False, device_id=0):
-        self.nl = NervanaLib(stochastic_round=stochastic_round,
-                             cubin_path="../flexgpu/hgemm_kernels")
+        self.nl = NervanaLib(stochastic_round=stochastic_round)
         logger.info("Initialized NervanaLib with stochastic_round=%s",
                     stochastic_round)
         self.rng_seed = rng_seed
