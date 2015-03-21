@@ -7,13 +7,12 @@ overflow and underflow when using limited precision formats.
 """
 
 import logging
-
 import numpy as np
-import traceback  # for tracing back where the function was called from
 from functools import wraps
 
 logger = logging.getLogger(__name__)
 np.set_printoptions(precision=4)
+
 
 class Decorators(object):
 
@@ -46,7 +45,6 @@ class Decorators(object):
 
         @wraps(func)
         def func_wrapper(*arguments, **kwargs):
-            parent_func_name = traceback.extract_stack(limit=2)[-2][2]
             be = self.backend
             # orig. function call
             retval = func(*arguments, **kwargs)
@@ -61,13 +59,13 @@ class Decorators(object):
                     be.min(kwargs[item], axes=None, out=the_min)
                     be.max(kwargs[item], axes=None, out=the_max)
                     logger.info("%s: std=%s raw=%s min=%s max=%s",
-                                 item.ljust(7),
-                                 kwargs[item][0:2].asnumpyarray().astype(
+                                item.ljust(7),
+                                kwargs[item][0:2].asnumpyarray().astype(
                                     np.float32).std(1).__str__().ljust(28),
-                                 kwargs[item][0, 0:2].asnumpyarray(
-                                    )[0,:].__str__().ljust(28),
-                                 the_min.asnumpyarray()[0,0].__str__(),
-                                 the_max.asnumpyarray()[0,0].__str__())
+                                kwargs[item][0, 0:2].asnumpyarray(
+                                    )[0, :].__str__().ljust(28),
+                                the_min.asnumpyarray()[0, 0].__str__(),
+                                the_max.asnumpyarray()[0, 0].__str__())
 
             return retval
         return func_wrapper

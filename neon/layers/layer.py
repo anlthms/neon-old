@@ -268,7 +268,8 @@ class CostLayer(Layer):
 
     def get_cost(self):
         self.set_reference()
-        scale_cost = True if hasattr(self.backend, 'nl') else False
+        scale_cost = (True if self.backend.__module__ == 'neon.backends.max'
+                      else False)
         result = self.cost.apply_function(self.reference,
                                           scale_by_batchsize=scale_cost)
         if not scale_cost:  # Check for fp16 backend and use scaling

@@ -33,7 +33,7 @@ class PoolingLayer(Layer):
         self.tempbuf = None
         self.initialize_local()
         self.allocate_output_bufs()
-        if hasattr(self.backend, 'nl'):
+        if self.backend.__module__ == 'neon.backends.max':
             self.pool_params = self.backend.nl.pool_layer(
                 op=self.op, N=self.batch_size, C=self.nifm,
                 D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
