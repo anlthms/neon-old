@@ -107,6 +107,8 @@ class GradientDescentMomentum(GradientDescent):
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            # temporarily making backend dependent checks until we completely
+            # switch MOP over to optree approach
             if self.backend.__module__ == 'neon.backends.max':
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdm_compound(ps_item, us_item, vs_item,
@@ -207,6 +209,8 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
+            # temporarily making backend dependent checks until we completely
+            # switch MOP over to optree approach
             if self.backend.__module__ == 'neon.backends.max':
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdmwd_compound(ps_item, us_item, vs_item,

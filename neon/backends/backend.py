@@ -498,18 +498,20 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def var(self, tsr, mean, axes, out):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the variance of the elements along the specified
         axes.
 
         Arguments:
             tsr (Tensor): the Tensor on which to compute the variance
-            mean (Tensor): the Tensor containing mean of tsr
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
             out (Tensor): where the result will be stored.
+            mean (Tensor, optional): the Tensor containing mean of tsr.  If not
+                                     specified, mean will be computed
+                                     internally.
 
         Returns:
             Tensor: reference to out
@@ -630,6 +632,50 @@ class Backend(YAMLable):
         """
         Perform random number initialization.
 
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_init(self, decorate_fc, decorate_conv, decorate_ew):
+        """
+        Initialize FLOP timing.  Wraps the specified MOP calls via a decorator
+        to record elapsed time and number of operations.
+
+        Arguments:
+           decorate_fc (list): string giving the function names of fully
+                               connected layer forward/backward/update calls
+                               to time.
+           decorate_conv (list): string giving the function names of
+                                 convolutional layer forward/backward/update
+                                 calls to time.
+           decorate_ew (list): string giving the function names of element-wise
+                               calls to time.
+
+        Notes:
+            Must be called prior to first flop_timing_start call
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_start(self):
+        """
+        Start FLOP timing
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_finish(self, start_time):
+        """
+        Finish FLOP timing
+
+        Arguments:
+            start_time (float, optional): value returned by last call to
+                                          flop_timing_start
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """

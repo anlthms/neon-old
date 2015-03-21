@@ -6,14 +6,16 @@ Our GPU based backend interface and tensor data structure.  Our implementation
 is derived from `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_
 """
 
+from collections import defaultdict
 import cudanet
 import logging
 import numpy
+from time import time as now
 
 from neon.backends.backend import Backend, Tensor
+from neon.diagnostics.timing_decorators import FlopsDecorator
 from neon.util.compat import range
 from neon.util.error import TooSlowToImplementError
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -418,10 +420,6 @@ class GPU(Backend):
         cudanet.cublas_init()
         self.rng_init()
 
-        # output dictionaries where the timing diagnostics are stored
-        self.time_dict = defaultdict(list)
-        self.flop_dict = defaultdict(list)
-
     def default_dtype_if_missing(self, in_dtype):
         if in_dtype is None:
             in_dtype = self.default_dtype
@@ -541,16 +539,6 @@ class GPU(Backend):
         assert type(tsr) == self.tensor_cls
         return self.tensor_cls(tsr._tensor.copy())
 
-    def copy_from(self, a, src):
-        """
-        Copy contents from src to a
-
-        Arguments:
-            a: GPUTensor
-            src (numpy.ndarray): the host-resident object to copy from
-        """
-        a._tensor.copy_from(src)
-
     def clip(self, a, a_min, a_max, out=None):
         if out is None:
             out = self.tensor_cls(cudanet.empty((a.shape[0], a.shape[1])),
@@ -570,6 +558,53 @@ class GPU(Backend):
                 logger.warn("Must seed random number generator with an "
                             "integer.  You specified: %s", str(seed))
             cudanet.cudanet_init_random(0)
+
+    def flop_timing_init(self, decorate_fc, decorate_conv, decorate_ew):
+        """
+        Initialize FLOP timing.  Wraps the specified MOP calls via a decorator
+        to record elapsed time and number of operations.
+
+        Arguments:
+           decorate_fc (list): string giving the function names of fully
+                               connected layer forward/backward/update calls
+                               to time.
+           decorate_conv (list): string giving the function names of
+                                 convolutional layer forward/backward/update
+                                 calls to time.
+           decorate_ew (list): string giving the function names of element-wise
+                               calls to time.
+
+        Notes:
+            Must be called prior to first flop_timing_start call
+        """
+        # output dictionaries where the timing diagnostics are stored
+        self.time_dict = defaultdict(list)
+        self.flop_dict = defaultdict(list)
+        self.sync = cudanet.sync_stream
+        self.flop_timer = FlopsDecorator()
+        self.flop_timer.decorate(decorate_fc, decorate_conv, decorate_ew)
+
+    def flop_timinig_start(self):
+        """
+        Start a new FLOP timer.
+
+        Returns:
+            float: timestamp.
+        """
+        return now()
+
+    def flop_timing_finish(self, start_time):
+        """
+        Complete current FLOP timing.
+
+        Arguments:
+            start_time (float): value returned from flop_timing_start
+
+        Returns:
+            float: elapsed time in seconds since prior flop_timing_start call.
+        """
+        cudanet.sync_stream()
+        return 1000. * (now() - start_time)
 
     def uniform(self, low=0.0, high=1.0, size=1, dtype=None):
         """
@@ -1020,22 +1055,25 @@ class GPU(Backend):
             tsr._tensor.mean(axis=axes, target=out._tensor)
         return out
 
-    def var(self, tsr, mean, axes, out):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the variance of the elements along the specified
         axes.
 
         Arguments:
-            tsr  (Tensor): the Tensor on which to compute the variance
-            mean (Tensor): the Tensor containing mean of tsr
+            tsr  (GPUTensor): the Tensor on which to compute the variance
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
-            out (Tensor): where the result will be stored.
+            out (GPUTensor): where the result will be stored.
+            mean (GPUTensor): the Tensor containing mean of tsr
 
         Returns:
             Tensor: reference to out
         """
+        if mean is None:
+            logger.error("GPUTensor requires mean to be specified.")
+            raise ValueError("mean not specified")
         if isinstance(axes, (tuple, list)):
             logger.warn("GPUTensor only supports single axis for var.  "
                         "You specified: %s", str(axes))
@@ -1268,7 +1306,7 @@ class GPU(Backend):
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
                     ofmlocs, ifmshape, links, nifm, padding, stride, ngroups,
-                    fwidth, updatebuf, local=False, layer=None, sumwidth = 4):
+                    fwidth, updatebuf, local=False, layer=None):
         """
         Compute the updated gradient for a convolutional network layer.
 
@@ -1299,9 +1337,6 @@ class GPU(Backend):
             local (bool, optional): Whether to do local filtering (True) or
                                     convolution (False, the default)
             layer (Layer): The layer object.
-            sumwidth (int): Reshapes the features maps for update_conv.
-                            There is no hard and fast rule for setting it,
-                            generally 4 is good.
         """
         sumwidth = 3 if ofmshape[-2] < 32 else 4
         cudanet.deconvolve_wts(

@@ -9,13 +9,12 @@ import logging
 
 import traceback  # for tracing back where the function was called from
 from functools import wraps
-from time import time as now
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 
-class Decorators(object):
+class FlopsDecorator(object):
     # things that are mulitplied together to compute number of operations
     shapes = {'fprop_fc':  [('inputs', 0), ('inputs', 1), ('weights', 0)],
               'bprop_fc':  [('deltas', 0), ('deltas', 1), ('weights', 1)],
@@ -47,21 +46,21 @@ class Decorators(object):
         backend.layer_dic = defaultdict(list)
         self.backend = backend
 
-    def decorate(self, function_list):
+    def decorate(self, **kwargs):
         """
         Replaces the @decorators in the backend function. Go through the list
         of functions to be decorated and wrap them with the correct parameters
         """
-        logger.info("wrapping %d sets of calls for timing", len(function_list))
-        for call in function_list['decorate_fc']:
+        logger.info("wrapping %d sets of calls for timing", len(kwargs))
+        for call in kwargs['decorate_fc']:
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_fc(orig_func)
             setattr(self.backend, call, wrapped_func)
-        for call in function_list['decorate_conv']:
+        for call in kwargs['decorate_conv']:
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_conv(orig_func)
             setattr(self.backend, call, wrapped_func)
-        for call in function_list['decorate_ew']:
+        for call in kwargs['decorate_ew']:
             orig_func = getattr(self.backend, call)
             wrapped_func = self.record_flops_ew(orig_func)
             setattr(self.backend, call, wrapped_func)
@@ -84,11 +83,11 @@ class Decorators(object):
             else:
                 layer_name = 'undefined'
             #####################
-            tic = self.start_me()
+            tic = self.backend.flop_timinig_start()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            msecs = self.stop_me(tic)
+            msecs = self.backend.flop_timing_finish(tic)
             #####################
             flop = self.multipliers[func_name]
             for (matrix, dim) in self.shapes[func_name]:
@@ -112,11 +111,11 @@ class Decorators(object):
         def func_wrapper(*arguments, **kwargs):
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
             layer_name = kwargs['weights'].name
-            tic = self.start_me()
+            tic = self.backend.flop_timinig_start()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            msecs = self.stop_me(tic)
+            msecs = self.backend.flop_timing_finish(tic)
             if func_name == 'fprop_conv':
                 '''
                 fprop: convolution between input and filter.
@@ -181,11 +180,11 @@ class Decorators(object):
             else:
                 layer_name = 'anon'
             parent_func_name = traceback.extract_stack(limit=2)[-2][2]
-            tic = self.start_me()
+            tic = self.backend.flop_timinig_start()
             #####################
             retval = func(*arguments, **kwargs)
             #####################
-            msecs = self.stop_me(tic)
+            msecs = self.backend.flop_timing_finish(tic)
             array_arg = 1 if (type(arguments[0]) is float) else 0
 
             flop = (self.ew_mult_pos[func_name] *
@@ -197,51 +196,3 @@ class Decorators(object):
             func.__self__.layer_dic[func_name].append(layer_name)
             return retval
         return func_wrapper
-
-
-class MaxDecorators(Decorators):
-    """
-    These are max-backend specific decorators that use pycuda for timing.
-    """
-
-    def __init__(self, **kwargs):
-        '''init used to hide import until we have a backend'''
-        import pycuda.driver as drv  # for timing.
-
-        self.start = drv.Event()
-        self.end = drv.Event()
-
-        super(MaxDecorators, self).__init__(**kwargs)
-
-    def start_me(self):
-        #
-        tic = self.start.record()
-        return tic
-
-    def stop_me(self, tic):
-        self.end.record()
-        self.end.synchronize()
-        msecs = self.end.time_since(self.start)
-        return msecs
-
-
-class CudanetDecorators(Decorators):
-    """
-    decorators for cudanet (TODO: Update for new format)
-    """
-
-    def __init__(self, **kwargs):
-        '''init used to hide import until we have a backend'''
-        import cudanet
-        self.sync = cudanet.sync_stream
-
-        super(CudanetDecorators, self).__init__(**kwargs)
-
-    def start_me(self):
-        tic = now()
-        return tic
-
-    def stop_me(self, tic):
-        self.sync()  # syncstream is a GPU backend function.
-        msecs = 1000. * (now() - tic)
-        return msecs

@@ -37,11 +37,11 @@ def print_performance_stats(backend, logger):
         time_array = np.array(backend.time_dict[call])
         total_time += time_array.sum()
         total_tflop += tflop_array.sum()
-        flop_per_s = tflop_array / time_array  # in GFLOP/s
+        tflop_per_s = tflop_array / time_array  # in GFLOP/s
         # plot only the biggest contributors
         if time_array.sum() > .001:
             used_call_list.append(call)
-            timed_calls.append(flop_per_s)
+            timed_calls.append(tflop_per_s)
             timed_times.append(time_array)
 
     # gather data for plots
@@ -52,8 +52,8 @@ def print_performance_stats(backend, logger):
     sufx = 'test' + backend.__module__
     fname1 = 'figure1_'+sufx+'.pdf'
     fname2 = 'figure2_'+sufx+'.pdf'
-    first_fig(paren_stash, timed_calls, timed_times, total_time,
-              total_tflop, fname1)
+    first_fig(paren_stash, used_call_list, timed_calls,
+              timed_times, total_time, total_tflop, fname1)
     second_fig(lfs, lts, fname2)
 
 
@@ -101,19 +101,20 @@ def get_flops_times(used_call_list, backend):
     return (layer_flops_stash, layer_time_stash, soumith_stash)
 
 
-def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
-              fname):
+def first_fig(paren_stash, used_call_list, timed_calls, timed_times,
+              total_time, total_tflop, fname):
     """
     First figure:
     a) one bar plot of time by function call and parent function.
     b) one histogram of Time spent vs. FLOPS achieved
     """
 
-    paren_col_stash = ['b' if 'sub' in k else
-                       'g' if 'mul' in k else
-                       'r' if 'fprop_fc' in k else
-                       'c' if 'add' in k else
-                       'm' if 'te_fc' in k else
+    paren_col_stash = ['b' if 'fprop_fc' in k else
+                       'g' if 'bprop_fc' in k else
+                       'r' if 'update_fc' in k else
+                       'c' if 'fprop_conv' in k else
+                       'm' if 'bprop_conv' in k else
+                       'y' if 'date_conv' in k else
                        'k' for k in paren_stash.keys()]
 
     plt.figure(1, figsize=(12, 6), dpi=120, facecolor='w', edgecolor='k')
@@ -127,19 +128,27 @@ def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
     plt.xlabel('Time/s')
 
     # Second plot: speed vs. time
+
+    stuof_col_stash = ['b' if 'fprop_fc' in k else
+                       'g' if 'bprop_fc' in k else
+                       'r' if 'update_fc' in k else
+                       'c' if 'fprop_conv' in k else
+                       'm' if 'bprop_conv' in k else
+                       'y' if 'date_conv' in k else
+                       'k' for k in used_call_list]
+
     plt.subplot(1, 2, 2)
     num_bins = 30
     n, bins, patches = plt.hist(timed_calls, num_bins,
-                                weights=timed_times, range=(0, 5000),
-                                color=['g' for i in timed_calls],
+                                weights=timed_times, range=(0, 7.5),
+                                color = stuof_col_stash, #color=['g' for i in timed_calls],
                                 histtype='barstacked', normed=0, alpha=0.5)
     plt.title(r'Total %2.1fs %2.0fTF average %2.1fTFLOP/s'
               % (total_time, total_tflop, total_tflop/total_time))
     plt.xlabel('TFLOPS')
-    plt.ylabel('op count / GFLOP')
-    #plt.xlim((0, 5.5))
+    plt.xlim((0, 7.5))
     plt.ylabel('Time (s)')
-    plt.legend(paren_stash.keys(), prop={'size': 6})
+    plt.legend(used_call_list, prop={'size': 6})
     plt.savefig(fname, dpi=500)   # savefig overrides dpi value
 
 

@@ -61,7 +61,7 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                       of the instantiated backend.  Defaults to
                                       None, which doesn't explicitly seed (so
                                       each run will be different)
-        half (bool, optional): If True, attemt to utizize a Maxwell class GPU
+        half (bool, optional): If True, attemt to utilize a Maxwell class GPU
                                with the float16 FlexGPU library.
         stochastic_round (numeric, optional): Only affects the max backend. If
                                               1, perform stochastic rounding.
@@ -138,7 +138,7 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
         be_name = 'GPU'
         be = GPU(rng_seed=rng_seed, device_id=device_id)
     elif half:
-        import pycuda.autoinit  # create the context
+        import pycuda.autoinit  # create the context  # noqa
         from neon.backends.max import MAX
         be_name = 'MAX_FP16'
         be = MAX(rng_seed=rng_seed, stochastic_round=stochastic_round,

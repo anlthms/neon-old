@@ -33,6 +33,9 @@ These provide additional functionality, and assist developers
 * [Nervana cuda-convnet2](http://github.com/NervanaSystems/cuda-convnet2/)
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
   that powers our GPU backend.
+* [pycuda](http://mathema.tician.de/software/pycuda/) required for our fp16 GPU
+  backend
+* flexgpu (private repo) for fp16 GPU backend
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
 * [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
   calculations

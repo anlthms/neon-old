@@ -35,6 +35,14 @@ GPU
 
    neon.backends.gpu.GPU
 
+.. FlexGPU
+.. -------
+..
+.. .. autosummary::
+..   :toctree: generated/
+..
+..   neon.backends.max.MAX
+
 Flexpoint™
 ----------
 

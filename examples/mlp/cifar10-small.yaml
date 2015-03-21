@@ -7,7 +7,7 @@
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '~/data',
-    sample_pct: 100,
+    sample_pct: 10,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {
@@ -36,14 +36,7 @@
       },
       !obj:layers.FCLayer {
         name: h0,
-        nout: 2048,
-        lrule_init: *gdm,
-        weight_init: *wt_init,
-        activation: !obj:transforms.RectLin {},
-      },
-      !obj:layers.FCLayer {
-        name: h0,
-        nout: 1024,
+        nout: 200,
         lrule_init: *gdm,
         weight_init: *wt_init,
         activation: !obj:transforms.RectLin {},

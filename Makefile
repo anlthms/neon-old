@@ -56,7 +56,8 @@ ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.1'
+    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.1' \
+		'pycuda>=2014.1'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'

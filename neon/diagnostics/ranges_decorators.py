@@ -71,20 +71,3 @@ class Decorators(object):
 
             return retval
         return func_wrapper
-
-"""
-                    the_min = be.zeros((1, 1))
-                    the_max = be.zeros((1, 1))
-                    the_std = kwargs[item][0:2].asnumpyarray()
-                    the_std = the_std.astype(np.float32).std(1)
-                    the_raw = kwargs[item][0, 0:2].asnumpyarray()
-                    be.min(kwargs[item], axes=None, out=the_min)
-                    be.max(kwargs[item], axes=None, out=the_max)
-                    logger.info("%s: std %2.3f %2.3f \traw %2.3f %2.3f \tmin %s max %s",
-                                 item.ljust(7),
-                                 the_std[0], the_std[1],
-                                 the_raw[0,0], the_raw[0,1],
-                                 the_min.asnumpyarray()[0,0].__str__(),
-                                 the_max.asnumpyarray()[0,0].__str__())
-
-"""
