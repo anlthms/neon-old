@@ -7,9 +7,9 @@ Logging and visalization for the data collected from backend timing decorators
 
 import numpy as np
 import logging
-from matplotlib import pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # not for plotting but write to file.
+from matplotlib import pyplot as plt  # with a middlefinger to pep8: # noqa
 matplotlib.rcParams['pdf.fonttype'] = 42  # TTF to be editable
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
              color=paren_col_stash, align='center', alpha=0.5)
     plt.yticks(range(len(paren_stash)), paren_stash.keys())
     plt.title(r'Breakdown of MOP calls by parent')
-    plt.xlabel('time/s')
+    plt.xlabel('Time/s')
 
     # Second plot: speed vs. time
     plt.subplot(1, 2, 2)
@@ -133,13 +133,13 @@ def first_fig(paren_stash, timed_calls, timed_times, total_time, total_tflop,
                                 weights=timed_times, range=(0, 5000),
                                 color=['g' for i in timed_calls],
                                 histtype='barstacked', normed=0, alpha=0.5)
-    plt.title(r'Total %2.1fs %2.0fTF average %2.0fTFLOP/s'
-              % (total_time, total_tflop/1000., total_tflop/total_time))
+    plt.title(r'Total %2.1fs %2.0fTF average %2.1fTFLOP/s'
+              % (total_time, total_tflop, total_tflop/total_time))
     plt.xlabel('TFLOPS')
     plt.ylabel('op count / GFLOP')
-    plt.xlim((0, 5.5))
+    #plt.xlim((0, 5.5))
     plt.ylabel('Time (s)')
-    plt.legend(paren_stash.keys(), prop={'size':6})
+    plt.legend(paren_stash.keys(), prop={'size': 6})
     plt.savefig(fname, dpi=500)   # savefig overrides dpi value
 
 
@@ -159,8 +159,8 @@ def second_fig(layer_flops_stash, layer_time_stash, fname):
              color=layer_col_stash, align='center', alpha=0.5)
     plt.yticks(range(len(layer_flops_stash)), layer_flops_stash.keys())
     plt.title(r'Breakdown of MOP calls by layer')
-    plt.xlim((0, 5500))
-    plt.xlabel('GFLOPS')
+    #plt.xlim((0, 5.5))
+    plt.xlabel('TFLOPS')
 
     # second plot: time per call
     plt.subplot(1, 2, 2)

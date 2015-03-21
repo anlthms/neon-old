@@ -1,0 +1,278 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
+# Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
+
+# new pf16 test file based on Alex's new nq dataset and nodewt initialization
+
+
+!obj:experiments.FitPredictErrorExperiment {
+
+
+  diagnostics: {
+    timing: True,
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+                  # sum must not be decorated at this time, it will fail
+
+    ranges: False,  # Need logging level debug for these to display
+    decorate_ranges: [fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+  },
+
+  dataset: &ds !obj:datasets.I1Knq {
+    load_path: '/usr/local/data', #directory where .tar files are stored
+    repo_path: '/usr/local/data', #directory to use for writing files
+    output_image_size: &ois 256,
+    cropped_image_size: &cis 224,
+    max_tar_file: &mtf 1000,
+    output_batch_size: 3072,
+    ring_buffer_size: 3, #buffer that transfers from device to host
+    num_train_macro_batches: 25, #max available train macro_batches
+    num_val_macro_batches: 5, #max available val macro batches
+    #number of cpu processes for image resizing and decompression
+    num_processes: 4, #not impl yet
+    # macro batch start and end indices to use  for train and val datasets
+    start_train_batch: 0,
+    end_train_batch: 1, # 24
+    start_val_batch: 0,
+    end_val_batch: 1,  # was 4, or 15
+    half_precision: &hp True,
+  },
+
+  weight_inits: [
+    # Init for the two FC layers
+    &wt_init_fc !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: 1.0,
+    },
+    # used for lastlayer
+    &wt_initout !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: -7.0,
+    },
+    #&skinit !obj:params.OrthoNormalizedValGen,
+  ],
+
+  lrule: &gdm {
+    type: gradient_descent_momentum,
+    half_precision: *hp,
+    lr_params: {
+      learning_rate: 0.02,
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+
+  lrule: &gdmwd {
+    type: gradient_descent_momentum_weight_decay,
+    lr_params: {
+      learning_rate: 0.01,
+      weight_decay: .0005,
+      schedule: {
+              type: step,
+              ratio: 0.1,
+              step_epochs: 20,
+      },
+      momentum_params: {
+        type: constant,
+        initial_coef: 0.90,
+      },
+    },
+  },
+
+  # OrthoNormalizedValGen does not see to work so well
+
+  model: !obj:models.MLP {
+    half_precision: *hp,
+    num_epochs: 1, # was 60
+    batch_size: &bs 128,
+    step_print: 24,  # was 24
+    #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
+    layers: [
+      &datalayer !obj:layers.DataLayer {
+        name: d0,
+        is_local: True,
+        nofm: 3,
+        ofmshape: [*cis, *cis],
+      },
+      !obj:layers.ConvLayer {
+        half_precision: *hp,
+        name: conv1,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 0.0,
+        },
+        nofm: 64,
+        fshape: [11, 11],
+        stride: 4,
+        pad: 3,
+        activation: !obj:transforms.RectLin {},
+      },
+      # !obj:layers.CrossMapResponseNormLayer {
+      #   name: rnorm1,
+      #   ksize: 5,
+      #   alpha: 0.0001,
+      #   beta: 0.75,
+      # },
+      !obj:layers.PoolingLayer {
+        name: pool1,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv2,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
+        },
+        nofm: 192,
+        fshape: [5, 5],
+        pad: 2,
+        activation: !obj:transforms.RectLin {},
+      },
+      # !obj:layers.CrossMapResponseNormLayer {
+      #   name: rnorm2,
+      #   ksize: 5,
+      #   alpha: 0.0001,
+      #   beta: 0.75,
+      # },
+      !obj:layers.PoolingLayer {
+        name: pool2,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.ConvLayer {
+        name: conv3,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 0.0,
+        },
+        nofm: 384,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv4,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
+        },
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.ConvLayer {
+        name: conv5,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
+        },
+        nofm: 256,
+        fshape: [3, 3],
+        pad: 1,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.PoolingLayer {
+        name: pool3,
+        half_precision: *hp,
+        op: 'max',
+        fshape: [3, 3],
+        stride: 2,
+      },
+      !obj:layers.FCLayer {
+        name: fc4096a,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: *wt_init_fc,
+        nout: 4096,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout1,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      !obj:layers.FCLayer {
+        name: fc4096b,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: *wt_init_fc,
+        nout: 4096,
+        activation: !obj:transforms.RectLin {},
+      },
+      !obj:layers.DropOutLayer {
+        name: dropout2,
+        half_precision: *hp,
+        keep: 0.5,
+      },
+      &lastlayer !obj:layers.FCLayer {
+        name: fc1000,
+        half_precision: *hp,
+        lrule_init: *gdmwd,
+        brule_init: *gdm,
+        weight_init: *wt_initout,
+        nout: *mtf,
+        activation: !obj:transforms.Logistic  {}, # Logistic , Softmax
+      },
+      &costlayer !obj:layers.CostLayer {
+        name: cost,
+        ref_layer: *datalayer,
+        # ref_label: 'targets',
+        # raw_label: True,
+        cost: !obj:transforms.CrossEntropy {
+          half_precision: *hp,
+          epsilon: 0.0005,
+        },
+      },
+    ],
+  },
+
+  # logging options that are passed to logging.basicConfig
+  # level value thresholds (set level lower to display them):
+  #   CRITICAL 50
+  #   ERROR    40
+  #   WARNING  30
+  #   INFO     20
+  #   DEBUG    10
+  #   NOTSET    0
+  logging: {
+    level: 20,
+    format: '%(asctime)-15s %(levelname)s:%(module)s - %(message)s'
+  },
+}
