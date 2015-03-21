@@ -581,8 +581,10 @@ class GPU(Backend):
         self.time_dict = defaultdict(list)
         self.flop_dict = defaultdict(list)
         self.sync = cudanet.sync_stream
-        self.flop_timer = FlopsDecorator()
-        self.flop_timer.decorate(decorate_fc, decorate_conv, decorate_ew)
+        self.flop_timer = FlopsDecorator(self)
+        self.flop_timer.decorate(decorate_fc=decorate_fc,
+                                 decorate_conv=decorate_conv,
+                                 decorate_ew=decorate_ew)
 
     def flop_timinig_start(self):
         """

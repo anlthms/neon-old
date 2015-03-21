@@ -63,7 +63,7 @@ class Decorators(object):
                                 kwargs[item][0:2].asnumpyarray().astype(
                                     np.float32).std(1).__str__().ljust(28),
                                 kwargs[item][0, 0:2].asnumpyarray(
-                                    )[0, :].__str__().ljust(28),
+                                    ).__str__().ljust(28),
                                 the_min.asnumpyarray()[0, 0].__str__(),
                                 the_max.asnumpyarray()[0, 0].__str__())
 
