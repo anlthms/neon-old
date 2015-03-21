@@ -5,7 +5,7 @@ from nose.plugins.attrib import attr
 import numpy as np
 
 from neon.backends.cpu import CPU, CPUTensor
-from neon.transforms.leaky import RectLeaky
+from neon.transforms.rectified import RectLeaky
 from neon.util.testing import assert_tensor_equal
 
 
