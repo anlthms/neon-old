@@ -170,11 +170,12 @@ class MLP(MLP_old):
                 reference = self.cost_layer.get_reference()
                 ms.misclass_sum(self.backend, reference, probs, predlabels,
                                 labels, misclass, batch_sum)
-                misclass_sum[0,i] = batch_sum
+                misclass_sum[0, i] = batch_sum
                 i += 1
             # this is a workaround since fp16 cannot accumulate past 65k
             if self.backend.__module__ == 'neon.backends.max':
-                fubar = misclass_sum.asnumpyarray().astype('float').sum(1).reshape(1,1)
+                fubar = misclass_sum.asnumpyarray(
+                    ).astype('float').sum(1).reshape(1, 1)
             else:
                 fubar = self.backend.empty((1, 1))
                 self.backend.sum(misclass_sum, axes=1, out=fubar)

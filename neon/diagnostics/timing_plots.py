@@ -129,7 +129,7 @@ def first_fig(paren_stash, used_call_list, timed_calls, timed_times,
 
     # Second plot: speed vs. time
 
-    stuof_col_stash = ['b' if 'fprop_fc' in k else
+    times_col_stash = ['b' if 'fprop_fc' in k else
                        'g' if 'bprop_fc' in k else
                        'r' if 'update_fc' in k else
                        'c' if 'fprop_conv' in k else
@@ -141,7 +141,7 @@ def first_fig(paren_stash, used_call_list, timed_calls, timed_times,
     num_bins = 30
     n, bins, patches = plt.hist(timed_calls, num_bins,
                                 weights=timed_times, range=(0, 7.5),
-                                color = stuof_col_stash, #color=['g' for i in timed_calls],
+                                color = times_col_stash,
                                 histtype='barstacked', normed=0, alpha=0.5)
     plt.title(r'Total %2.1fs %2.0fTF average %2.1fTFLOP/s'
               % (total_time, total_tflop, total_tflop/total_time))
@@ -168,7 +168,7 @@ def second_fig(layer_flops_stash, layer_time_stash, fname):
              color=layer_col_stash, align='center', alpha=0.5)
     plt.yticks(range(len(layer_flops_stash)), layer_flops_stash.keys())
     plt.title(r'Breakdown of MOP calls by layer')
-    #plt.xlim((0, 5.5))
+    # plt.xlim((0, 5.5))
     plt.xlabel('TFLOPS')
 
     # second plot: time per call
