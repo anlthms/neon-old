@@ -49,14 +49,22 @@ class FitPredictErrorExperiment(FitExperiment):
     def run(self):
         """
         Actually carry out each of the experiment steps.
-        """
 
+        Returns:
+            dict: of inference_metric names, each entry of which is a dict
+                  containing inference_set name keys, and actual metric values
+        """
+        result = dict()
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
+        # TODO: cleanup the call below to remove duplication with other
+        # reporting.
         self.model.predict_and_report(self.dataset)
 
         # Report error metrics.
         for setname in self.inference_sets:
+            if not self.dataset.has_set(setname):
+                continue
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           setname)
             self.save_results(self.dataset, setname, outputs, 'inference')
@@ -64,3 +72,7 @@ class FitPredictErrorExperiment(FitExperiment):
             for metric in self.inference_metrics:
                 val = self.model.report(targets, outputs, metric=metric)
                 logger.info('%s set %s %.5f', setname, metric, val)
+                if metric not in result:
+                    result[metric] = dict()
+                result[metric][setname] = val
+        return result

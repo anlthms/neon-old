@@ -7,14 +7,17 @@ Driver script for running neon model experiments.
 """
 
 import argparse
+import datetime
 import logging
-import yaml
 import sys
+from timeit import default_timer
+import yaml
 
 import neon
 from neon.backends import gen_backend
 from neon.util.persist import deserialize
 from neon.util.trace import Tracer
+from neon.util.metrics import dump_metrics
 
 
 def parse_args():
@@ -59,6 +62,10 @@ def parse_args():
     parser.add_argument('-s', '--profile', action='store',
                         help=('Collect and write profiling stats to the file '
                               'specified.  Or stdout if empty string.'))
+    parser.add_argument('-o', '--output', action='store',
+                        help=('Collect and write timing and a set of metrics '
+                              'to the file specified.  Or stdout if empty '
+                              'string.  We append if file exists'))
     parser.add_argument('-d', '--debug', action='store_true',
                         help='call ipython debugger on uncaught exception')
     parser.add_argument('-t', '--trace', action='store', nargs=2,
@@ -85,6 +92,11 @@ def main():
                      args.profile if args.profile != "" else "stdout")
     if args.trace is not None:
         tracer = Tracer.setup(args.trace[0], args.trace[1])
+    if args.output is not None:
+        start_date = str(datetime.datetime.now())
+        start_time = default_timer()
+        logging.info("Outputting timing and metrics to: %s",
+                     args.output if args.output != "" else "stdout")
     if args.cloud:
         # TODO: kick-off cloud job
         logging.warning('Sorry!  We still need to add hooks for the Nervana '
@@ -108,6 +120,10 @@ def main():
                 logging.warn("setting log level to: %d",
                              experiment.logging["level"])
                 logger.setLevel(experiment.logging["level"])
+        if args.output is not None:
+            # compute a standard set of metrics
+            experiment.inference_sets = ["train", "test", "validation"]
+            experiment.inference_metrics = ["misclass rate", "auc", "log loss"]
         # carry out the experiment
         if not hasattr(experiment, 'backend') or experiment.backend is None:
             backend = gen_backend(model=experiment.model, gpu=args.gpu,
@@ -128,7 +144,19 @@ def main():
                 p.print_stats("tottime")
             else:
                 p.dump_stats(args.profile)
-        return experiment, result
+        if args.output is not None:
+            # fill in any missing metric values
+            if result is None:
+                result = dict()
+            for metric in experiment.inference_metrics:
+                if metric not in result:
+                    result[metric] = dict()
+                for dset in experiment.inference_sets:
+                    if dset not in result[metric]:
+                        result[metric][dset] = float("nan")
+            dump_metrics(args.output, args.yaml_file.name,
+                         start_date, default_timer() - start_time, result)
+        return experiment, result, 0
     except Exception as e:
         if args.debug:
             import ipdb, traceback
@@ -138,5 +166,5 @@ def main():
             raise
 
 if __name__ == '__main__':
-    experiment, result = main()
-    sys.exit(result)
+    experiment, result, status = main()
+    sys.exit(status)
