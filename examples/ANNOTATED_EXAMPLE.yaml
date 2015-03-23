@@ -82,15 +82,12 @@
   #                                     based updates
   #         adadelta - Adadelta based updates.  See Zeiler2012
   # model - the type of machine learning algorithm to employ.  types:
-  #         MLP, MLPDist - feed-forward multi-layer perceptron neural
-  #                        network
+  #         MLP - feed-forward multi-layer perceptron neural network
   #         RBM - restricted Boltzmann machine
   #         RNN - Recurrent neural network
   #         Balance - Balance network
   #         Autoencoder - stacked autoencoder
   #         DBN - deep belief network
-  #         GB, GBDist - "google brain" style sparse autoencoder network
-  #         ConvnetDist - Halo parallel distributed convolutional network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
   

@@ -142,9 +142,9 @@ For MPI based distributed implementations, on a single node:
 
 .. code-block:: bash
 
-    # mpirun -np <number_of_processes> -x <env_vars_to_export> neon examples/<path_to.yaml>
+    # mpirun -np <number_of_processes> -x <env_vars_to_export> neon [--datapar, --modelpar] examples/<path_to.yaml>
     # where PYTHONPATH includes ./
-    mpirun -np 4 -x PYTHONPATH bin/neon examples/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+    mpirun -np 4 -x PYTHONPATH bin/neon --datapar examples/convnet/mnist-small.yaml
 
 In distributed environments with multiple nodes full paths might be needed
 for ``mpirun`` and ``neon``, for e.g.:
@@ -152,8 +152,8 @@ for ``mpirun`` and ``neon``, for e.g.:
 .. code-block:: bash
 
     /<full_path_to_mpirun>/mpirun -np 4 -x LD_LIBRARY_PATH -hostfile hosts
-        /<full_path_to_neon>/neon
-        /<full_path_to_examples>/mnist_distarray_cpu_cnn-20-50-500-10.yaml
+        /<full_path_to_neon>/neon --datapar
+        /<full_path_to_examples>/convnet/mnist-small.yaml
 
 ``LD_LIBRARY_PATH`` should point to ``/<path_to_openmpi>/lib``. A common file
 system is assumed.
@@ -165,7 +165,7 @@ and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
 with neon. We currently offer support for Spearmint, available as a fork 
 at https://github.com/ursk/spearmint/. The package depends on google
-protobuf and uses the flask webserver for visualizing results.
+protobuf and scipy and uses the flask webserver for visualizing results.
 
 To perform a search over a set of hyperparameters specified in a neon yaml
 file, create a new yaml file with the top level experiment of type
@@ -211,7 +211,7 @@ example:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt init -y examples/hyper_iris_small.yaml
+    PYTHONPATH=`pwd` bin/hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
 
 this creates a spearmint configuration file in proptobuf format in the
 ``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
@@ -220,7 +220,7 @@ be generated, for example:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt run -p 50000
+    PYTHONPATH=`pwd` bin/hyperopt run -p 50000
 
 The output can be viewed in the browser at http://localhost:50000, or by
 directly inspecting the files in the ``neon/hyperopt/expt`` directory. The
@@ -230,6 +230,6 @@ start a new experiment, reset the previous one first by running:
 
 .. code-block:: bash
 
-    PYTHONPATH='`pwd`' bin/hyperopt reset
+    PYTHONPATH=`pwd` bin/hyperopt reset
 
 or manually deleting the contents of the ``neon/hyperopt/expt`` directory.

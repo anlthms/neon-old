@@ -56,7 +56,7 @@ class NeonCommand(Command):
             self.distribution.install_requires += ['nose>=1.3.0',
                                                    'cython>=0.19.1']
         if self.gpu == "1":
-            self.distribution.install_requires += ['cudanet>=0.2.1']
+            self.distribution.install_requires += ['cudanet>=0.2.2']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'

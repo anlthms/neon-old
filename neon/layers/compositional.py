@@ -24,8 +24,16 @@ class CompositeLayer(Layer):
     def initialize(self, kwargs):
         super(CompositeLayer, self).initialize(kwargs)
         req_param(self, ['sublayers'])
-        for l in self.sublayers:
-            l.initialize(kwargs)
+        for subl in self.sublayers:
+            subl.initialize(kwargs)
+
+    def __str__(self):
+        ret = '{} {}: {} nodes'.format(self.__class__.__name__,
+                                       self.name, self.nout)
+        ret += ':\n'
+        for subl in self.sublayers:
+            ret += '\t' + str(subl) + '\n'
+        return ret
 
     def __str__(self):
         ret = '{} {}: {} nodes'.format(self.__class__.__name__,
@@ -36,12 +44,12 @@ class CompositeLayer(Layer):
         return ret
 
     def update(self, epoch):
-        for l in self.sublayers:
-            l.update(epoch)
+        for subl in self.sublayers:
+            subl.update(epoch)
 
     def set_train_mode(self, mode):
-        for sublayer in self.sublayers:
-            sublayer.set_train_mode(mode)
+        for subl in self.sublayers:
+            subl.set_train_mode(mode)
 
 
 class BranchLayer(CompositeLayer):
@@ -59,11 +67,11 @@ class BranchLayer(CompositeLayer):
 
     def set_previous_layer(self, pl):
         super(BranchLayer, self).set_previous_layer(pl)
-        for l in self.sublayers:
-            l.set_previous_layer(pl)
+        for subl in self.sublayers:
+            subl.set_previous_layer(pl)
         self.nout = reduce(lambda x, y: x + y.nout, self.sublayers, 0)
         if pl is not None:
-            self.nin = reduce(lambda x, y: x + y.nin, self.sublayers, 0)
+            self.nin = pl.nout
 
     def initialize(self, kwargs):
         super(BranchLayer, self).initialize(kwargs)
@@ -106,13 +114,28 @@ class BranchLayer(CompositeLayer):
             self.output[si:ei] = s_l.output
         self.targets = self.sublayers[0].targets
 
-    def bprop(self, error):
-        for (s_l, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
-            s_l.bprop(error[si:ei])
+    def set_deltas_buf(self, delta_pool, offset):
+        if self.prev_layer is None:
+            return
+        if self.prev_layer.is_data:
+            return
 
+        self.deltas = self.backend.zeros(self.delta_shape, self.deltas_dtype)
+        for subl in self.sublayers:
+            subl.set_deltas_buf(delta_pool, offset)
+
+    def fprop(self, inputs):
+        for (subl, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            subl.fprop(inputs)
+            self.output[si:ei] = subl.output
+        self.targets = self.sublayers[0].targets
+
+    def bprop(self, error):
         if self.deltas is not None:
             self.deltas.fill(0.0)
-            for subl in self.sublayers:
+        for (subl, si, ei) in zip(self.sublayers, self.startidx, self.endidx):
+            subl.bprop(error[si:ei])
+            if self.deltas is not None:
                 self.backend.add(self.deltas, subl.deltas, out=self.deltas)
 
 
@@ -125,9 +148,9 @@ class ListLayer(CompositeLayer):
     """
     def set_previous_layer(self, pl):
         super(ListLayer, self).set_previous_layer(pl)
-        for l in self.sublayers:
-            l.set_previous_layer(pl)
-            pl = l
+        for subl in self.sublayers:
+            subl.set_previous_layer(pl)
+            pl = subl
         self.nout = self.sublayers[-1].nout
 
     def initialize(self, kwargs):
@@ -168,3 +191,30 @@ class ListLayer(CompositeLayer):
         for l in reversed(self.sublayers):
             l.bprop(error)
             error = l.deltas
+=======
+    def set_deltas_buf(self, delta_pool, offset):
+        self.ninmax = max(map(lambda x: x.nin, self.sublayers))
+        delta_shape = (2 * self.ninmax, self.batch_size)
+        assert len(self.sublayers) > 1
+        delta_type = self.sublayers[1].deltas_dtype
+        self.delta_pool = self.backend.zeros(delta_shape, delta_type)
+        for idx, subl in enumerate(self.sublayers):
+            offset = (idx % 2) * self.ninmax
+            subl.set_deltas_buf(self.delta_pool, offset)
+
+        if self.prev_layer is None:
+            return
+        if self.prev_layer.is_data:
+            return
+        self.deltas = self.sublayers[0].deltas
+
+    def fprop(self, inputs):
+        for subl in self.sublayers:
+            subl.fprop(inputs)
+            inputs = subl.output
+
+    def bprop(self, error):
+        for subl in reversed(self.sublayers):
+            subl.bprop(error)
+            error = subl.deltas
+>>>>>>> cf716c88b86600e17abc1960201b2f65da08b97e

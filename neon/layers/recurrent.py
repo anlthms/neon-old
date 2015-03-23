@@ -38,9 +38,10 @@ class RecurrentLayer(WeightLayer):
                            [make_zbuf(self.out_shape, self.output_dtype)
                             for k in range(1, self.unrolls)]
 
+    def set_deltas_buf(self, delta_pool, offset):
         # create deltas buffer no matter what position relative to the data
         # layer we are. In the RNN even the first layer needs deltas.
-        self.deltas = make_zbuf(self.delta_shape, self.deltas_dtype)
+        self.deltas = self.backend.zeros(self.delta_shape, self.deltas_dtype)
 
     def grad_log(self, ng, val):
         logger.info("%s.bprop inc '%s' by %f", self.__class__.__name__, ng,

@@ -6,8 +6,8 @@ Generic Dataset interface.  Defines the operations any dataset should support.
 """
 
 import logging
-import os
 import numpy as np
+import os
 
 from neon.backends.cpu import CPU
 from neon.util.compat import PY3, range
@@ -83,10 +83,9 @@ class Dataset(object):
         """
         Fetches the dataset to a local repository for future use.
 
-        :param url: The external URI to a specific dataset
-        :type url: str
-        :param repo_path: The local path to write the fetched dataset to
-        :type repo_path: str
+        Arguments:
+            url (str): The external URI to a specific dataset
+            repo_path (str): The local path to write the fetched dataset to.
         """
         repo_path = os.path.expandvars(os.path.expanduser(repo_path))
         logger.info("fetching: %s, saving to: %s", url, repo_path)
@@ -99,7 +98,7 @@ class Dataset(object):
         Loads and returns one or more input datasets.
 
         Arguments:
-            backend (neon.backends.backend.Backend, None): The underlying
+            backend (neon.backends.backend.Backend, optional): The underlying
                     data structure type used to hold this data once loaded.
                     If None will use whatever is set for this class
             train (bool, optional): load a training target outcome dataset.
@@ -162,10 +161,15 @@ class Dataset(object):
         return res
 
     def sample_training_data(self):
+        """
+        Carries out actual downsampling of data, to the percentage specified in
+        self.sample_pct.
+        """
         if self.sample_pct != 100:
             train_idcs = np.arange(self.inputs['train'].shape[0])
             ntrain_actual = (self.inputs['train'].shape[0] *
                              int(self.sample_pct) / 100)
+            np.random.seed(self.backend.rng_seed)
             np.random.shuffle(train_idcs)
             train_idcs = train_idcs[0:ntrain_actual]
             self.inputs['train'] = self.inputs['train'][train_idcs]
@@ -173,7 +177,14 @@ class Dataset(object):
 
     def transpose_batches(self, data):
         """
-        Transpose each minibatch within the dataset.
+        Transpose and distribute each minibatch within a dataset.
+
+        Arguments:
+            data (ndarray): Dataset to be sliced into mini batches,
+                            transposed, and loaded to appropriate device
+                            memory.
+        Returns:
+            list: List of device loaded mini-batches of data.
         """
         bs = self.backend.actual_batch_size
         if data.shape[0] % bs != 0:
@@ -202,28 +213,87 @@ class Dataset(object):
                     dataset[key] = self.transpose_batches(item)
 
     def get_batch(self, data, batch):
+        """
+        Extract and return a single batch from the data specified.
+
+        Arguments:
+            data (list): List of device loaded batches of data
+            batch (int): 0-based index specifying the batch number to get
+
+        Returns:
+            neon.backends.Tensor: Single batch of data
+
+        See Also:
+            transpose_batches
+        """
         return data[batch]
 
     def has_set(self, setname):
+        """
+        Indicate whether the specified setname type is part of this dataset.
+
+        Arguments:
+            setname (str): The type of data to look for. Typically this is one
+                           of 'train', 'test', 'validation'.
+
+        Returns:
+            bool: True if this dataset contains setname type of data, and False
+                  otherwise.
+        """
         inputs_dic = self.get_inputs(train=True, validation=True,
                                      test=True)
         return True if (setname in inputs_dic) else False
 
     def init_mini_batch_producer(self, batch_size, setname, predict):
-        # this is the implementation for non-macro batched data
-        # macro-batched datasets will overwrite this (e.g. ImageNet)
+        """
+        Setup the ability to generate mini-batches.
+
+        Arguments:
+            batch_size (int): The number of data examples will be contained in
+                              each mini-batch
+            setname (str): The type of data to produce mini-batches for:
+                           'train', 'test', 'validation'
+            predict (bool): Set this to False when training a model, or True
+                            when generating batches to be used for prediction.
+
+        Returns:
+            int: The total number of examples to be mini-batched.
+
+        Notes:
+            This is the implementation for non-macro batched data.
+            macro-batched datasets will override this (e.g. ImageNet)
+        """
         self.cur_inputs = self.get_inputs(train=True, validation=True,
                                           test=True)[setname]
         self.cur_tgts = self.get_targets(train=True, validation=True,
                                          test=True)[setname]
+        self.predict_mode = predict
         return len(self.inputs[setname])
 
     def get_mini_batch(self, batch_idx):
-        # this is the implementation for non-macro batched data
-        # macro-batched datasets will overwrite this (e.g. ImageNet)
+        """
+        Return the specified mini-batch of input and target data.
+
+        Arguments:
+            batch_idx (int): 0-based index specifying the mini-batch number to
+                             retrieve.
+
+        Returns:
+            tuple: 2-tuple of neon.backend.Tensor objects containing the
+                   corresponding input, and target mini-batches.
+
+        Notes:
+            This is the implementation for non-macro batched data.
+            macro-batched datasets will override this (e.g. ImageNet)
+        """
         return self.get_batch(self.cur_inputs, batch_idx), self.get_batch(
             self.cur_tgts, batch_idx)
 
     def del_mini_batch_producer(self):
-        # Implement for macro batched data
+        """
+        Perform any cleanup needed once all mini-batches have been produced.
+
+        Notes:
+            macro-batched datasets will likely override this
+        """
         pass
