@@ -14,11 +14,26 @@ class BatchNorm(Activation):
 
     """
     Embodiment of a BatchNormalization Transform
+
+    Forward pass: (gamma/beta are scalar parameters for each unit.)
+    x' <- (x-mean)/sqrt(var+eps)
+    y <- gamma * x' + beta
+
+    Backward pass:
+    dy/dx = dy/dx' * dx'/dx
+          = gamma * [ 1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
+          = gamma * [ 1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
+    but this simplifies a lot.
     """
     def initialize(self, kwargs):
+        """
+        Is called from WeightLayer.initialize
+        with a reference to the layer.
+        """
         self.__dict__.update(kwargs)
         self.dtype = self.layer.weight_dtype
-        opt_param(self, ['_iscale', 'ishift'])
+        self.bigtype =  np.float32 if self.dtype is np.float16 else self.dtype # self.dtype # TODO: EW in 32 should help but does not
+        opt_param(self, ['_iscale', '_ishift'])
         opt_param(self, ['_eps'], 1e-6)
         req_param(self, ['layer'])
 
@@ -39,36 +54,42 @@ class BatchNorm(Activation):
 
         self._xhat = self.backend.zeros(self.in_shape, dtype=self.dtype)
 
-        self._mean = self.backend.zeros(self.in1d, dtype=self.dtype)
-        self._vars = self.backend.zeros(self.in1d, dtype=self.dtype)
+        self._mean = self.backend.zeros(self.in1d, dtype=self.bigtype)
+        self._vars = self.backend.zeros(self.in1d, dtype=self.bigtype)
 
         # Global mean and var to be used during inference
-        self._gmean = self.backend.zeros(self.in1d, dtype=self.dtype)
-        self._gvars = self.backend.zeros(self.in1d, dtype=self.dtype)
+        self._gmean = self.backend.zeros(self.in1d, dtype=self.bigtype)
+        self._gvars = self.backend.zeros(self.in1d, dtype=self.bigtype)
 
         # learned params and their update buffers
-        self._beta = self.backend.zeros(self.in1d, dtype=self.dtype)
-        self._gamma = self.backend.ones(self.in1d, dtype=self.dtype)
+        self._beta = self.backend.zeros(self.in1d, dtype=self.bigtype)
+        self._gamma = self.backend.ones(self.in1d, dtype=self.bigtype)
         self.layer.params.extend([self._beta, self._gamma])
 
-        self._beta_updates = self.backend.zeros(self.in1d, dtype=self.dtype)
-        self._gamma_updates = self.backend.zeros(self.in1d, dtype=self.dtype)
+        self._beta_updates = self.backend.zeros(self.in1d, dtype=self.bigtype)
+        self._gamma_updates = self.backend.zeros(self.in1d, dtype=self.bigtype)
         self.layer.updates.extend([self._beta_updates, self._gamma_updates])
 
     def set_inference_mode(self):
+        """
+        Appears to have a bug. Urs went through the code and everything matches
+        the paper.
+        """
         self.train_mode = False
         if self._iscale is None:
+            # normalize global variance -- inference scaling factor
             self.backend.divide(self._gvars, self.nbatches, self._gvars)
             m = self.batch_size
             if self.is_local:
                 m *= self.ofmsize
-            unbiaser = np.float32(m / (m - 1.))
+            unbiaser = float(m / (m - 1.))                                      # np.float32 ok for MAX?
             self.backend.multiply(self._gvars, unbiaser, self._gvars)
             self.backend.add(self._gvars, self._eps, self._gvars)
             self.backend.sqrt(self._gvars, out=self._gvars)
             self.backend.divide(self._gamma, self._gvars, self._gvars)
             self._iscale = self._gvars
 
+            # normalize global mean -- inference shiting factor
             self.backend.divide(self._gmean, self.nbatches, self._gmean)
             self.backend.multiply(self._gmean, self._gvars, self._gmean)
             self.backend.subtract(self._beta, self._gmean, self._gmean)
@@ -83,6 +104,10 @@ class BatchNorm(Activation):
     def fprop_func(self, backend, inputs, outputs):
         """
         Applies BatchNorm function and its derivative to the dataset passed.
+        For a fully connected layer, this is done by computing the mean and
+        variance of the `inputs` over the mini-batch dimension,
+        Mean and variance are also accumulated into a global estimate that is
+        used for
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -97,9 +122,8 @@ class BatchNorm(Activation):
 
         if self.train_mode:
             # Calc batch statistics
-            backend.mean(inputs, axes=1, out=self._mean)
+            backend.mean(inputs, axes=1, out=self._mean)  # includes mean over filter positions
             backend.variance(inputs, axes=1, out=self._vars, mean=self._mean)
-
             # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)
             backend.add(self._gmean, self._mean, self._gmean)
@@ -109,12 +133,13 @@ class BatchNorm(Activation):
             backend.add(self._vars, self._eps, self._vars)
             backend.sqrt(self._vars, out=self._vars)
 
-            # Every operation below uses broadcasting over minibatch dim
+           # Every operation below uses broadcasting over minibatch dim
             backend.subtract(inputs, self._mean, out=self._xhat)
             backend.divide(self._xhat, self._vars, out=self._xhat)
             backend.multiply(self._xhat, self._gamma, out=outputs)
             backend.add(outputs, self._beta, out=outputs)
         else:
+            # Inference mode: Using accumulated scale and shift
             backend.multiply(inputs, self._iscale, out=outputs)
             backend.add(outputs, self._ishift, out=outputs)
 
@@ -124,22 +149,23 @@ class BatchNorm(Activation):
 
     def bprop_func(self, backend, pre_act, error, skip_act=False):
         if self.is_local:
-            pre_act = pre_act.reshape(self.in_shape)
+            pre_act = pre_act.reshape(self.in_shape)  # Note: Not allowed to look at it until it's reshaped back.
             error = error.reshape(self.in_shape)
 
         backend.multiply(self._xhat, error, out=pre_act)
-        backend.sum(pre_act, axes=1, out=self._gamma_updates)
+        backend.sum(pre_act, axes=1, out=self._gamma_updates) # sum 12800 elements
         backend.sum(error, axes=1, out=self._beta_updates)
 
-        # Compute the backpropagated error into error
+       # Compute the backpropagated error into error
         backend.multiply(self._xhat, self._gamma_updates, out=self._xhat)
         backend.add(self._xhat, self._beta_updates, out=self._xhat)
-        backend.divide(self._xhat, np.float32(self._xhat.shape[1]),
-                       out=self._xhat)
+        backend.divide(self._xhat, float(self._xhat.shape[1]), out=self._xhat)  # np.float32 ok for MAX?
         backend.subtract(error, self._xhat, out=error)
         backend.multiply(error, self._gamma, out=error)
-        backend.multiply(error, self._vars, out=error)
+        backend.divide(error, self._vars, out=error)  # bugfix: was multiply
 
         if self.is_local:
             pre_act = pre_act.reshape(self.orig_shape)
             error = error.reshape(self.orig_shape)
+
+

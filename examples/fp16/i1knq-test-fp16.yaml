@@ -35,9 +35,9 @@
     num_processes: 4, #not impl yet
     # macro batch start and end indices to use  for train and val datasets
     start_train_batch: 0,
-    end_train_batch: 1, # 24
+    end_train_batch: 24, # 24
     start_val_batch: 0,
-    end_val_batch: 1,  # was 4, or 15
+    end_val_batch: 15,  # was 4, or 15
     half_precision: &hp True,
   },
 
@@ -93,7 +93,8 @@
 
   model: !obj:models.MLP {
     half_precision: *hp,
-    num_epochs: 1, # was 60
+    batch_norm: &bn False,   ###################### BATCH NORM ###############
+    num_epochs: 10, # 1 or 10 or 60
     batch_size: &bs 128,
     step_print: 24,  # was 24
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
@@ -105,8 +106,9 @@
         ofmshape: [*cis, *cis],
       },
       !obj:layers.ConvLayer {
-        half_precision: *hp,
         name: conv1,
+        half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -136,6 +138,7 @@
       !obj:layers.ConvLayer {
         name: conv2,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -164,6 +167,7 @@
       !obj:layers.ConvLayer {
         name: conv3,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -179,6 +183,7 @@
       !obj:layers.ConvLayer {
         name: conv4,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -194,6 +199,7 @@
       !obj:layers.ConvLayer {
         name: conv5,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -216,6 +222,7 @@
       !obj:layers.FCLayer {
         name: fc4096a,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
@@ -230,6 +237,7 @@
       !obj:layers.FCLayer {
         name: fc4096b,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
@@ -248,7 +256,7 @@
         brule_init: *gdm,
         weight_init: *wt_initout,
         nout: *mtf,
-        activation: !obj:transforms.Logistic  {}, # Logistic , Softmax
+        activation: !obj:transforms.Softmax  {}, # Logistic , Softmax
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,

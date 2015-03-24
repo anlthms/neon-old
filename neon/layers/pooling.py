@@ -26,6 +26,7 @@ class PoolingLayer(Layer):
         self.is_local = True
         super(PoolingLayer, self).__init__(**kwargs)
         req_param(self, ['op'])
+        opt_param(self, ['maxout'], 1)
 
     def initialize(self, kwargs):
         super(PoolingLayer, self).initialize(kwargs)
@@ -36,8 +37,8 @@ class PoolingLayer(Layer):
         if self.backend.__module__ == 'neon.backends.max':
             self.pool_params = self.backend.nl.pool_layer(
                 op=self.op, N=self.batch_size, C=self.nifm,
-                D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
-                R=self.fshape[0], S=self.fshape[1],
+                D=1, H=self.ifmshape[0], W=self.ifmshape[1], J=self.maxout,  # J is maxout!!
+                T=1, R=self.fshape[0], S=self.fshape[1],
                 pad_d=0, pad_h=self.pad, pad_w=self.pad,
                 str_d=1, str_h=self.stride, str_w=self.stride)
             self.outputbuf = self.deltasbuf = self.pool_params
@@ -85,7 +86,8 @@ class UnPoolingLayer(PoolingLayer):
     def set_previous_layer(self, pl):
         if pl.is_local:
             self.ifmshape = pl.ofmshape
-            self.nifm = pl.nofm
+            print "correcting nifm for pl maxout!"
+            self.nifm = pl.nofm / self.maxout
             self.nin = pl.nofm * reduce(lambda x, y: x * y, pl.ofmshape)
         else:
             if not hasattr(self, 'ifmshape'):

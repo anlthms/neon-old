@@ -14,7 +14,7 @@
                   # sum must not be decorated at this time, it will fail
 
     ranges: False,  # Need logging level debug for these to display
-    decorate_ranges: [fprop_fc], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+    decorate_ranges: [fprop_fc , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv], # [fprop_fc , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
   dataset: &ds !obj:datasets.CIFAR10 {
@@ -35,7 +35,7 @@
       learning_rate: 0.01,
       momentum_params: {
         type: constant,
-        coef: 0.90,
+        coef: 0.0, # 0.90
       },
     },
   },
@@ -44,7 +44,7 @@
     num_epochs: 10,
     batch_size: &bs 128,
     half_precision: *hp,
-    batch_norm: &bn False,        #           for this to work well, need to reduce lr 10x ?
+    batch_norm: &bn True,           #  works a bit then blows up later
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -64,6 +64,7 @@
       !obj:layers.PoolingLayer {
         half_precision: *hp,
         name: pool1,
+        maxout: &mo 1, # problem: takes away 64-4+1=61 leading to mismatch.
         op: 'max',
         fshape: [2, 2],
         stride: 2,
@@ -82,6 +83,7 @@
       !obj:layers.PoolingLayer {
         half_precision: *hp,
         name: pool2,
+        maxout: *mo,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
@@ -99,7 +101,7 @@
       !obj:layers.DropOutLayer {
         half_precision: *hp,
         name: dropout1,
-        keep: 0.25, # was .5, but .25 gets from 34 to 30%
+        keep: 0.5, # make it deterministic
       },
       &lastlayer !obj:layers.FCLayer {
         half_precision: *hp,

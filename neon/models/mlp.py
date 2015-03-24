@@ -105,10 +105,7 @@ class MLP(MLP_old):
                         self.epochs_complete, errorval)
 
     def print_test_error(self, setname, misclass, nrecs):
-        if self.backend.__module__ == 'neon.backends.max':
-            redmisclass = misclass  # already in numpy
-        else:
-            redmisclass = self.backend.reduce_tensor(misclass)
+        redmisclass = self.backend.reduce_tensor(misclass)
         if self.backend.rank() != 0:
             return
 
@@ -148,7 +145,10 @@ class MLP(MLP_old):
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        misclass_sum = self.backend.empty((1, self.data_layer.num_batches))
+        misclass_sum = self.backend.empty((1, 1))
+        if self.backend.__module__ == 'neon.backends.max':
+            import numpy as np
+            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
         batch_sum = self.backend.empty((1, 1))
 
         return_err = dict()
@@ -163,23 +163,15 @@ class MLP(MLP_old):
             self.data_layer.reset_counter()
             misclass_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
-            i = 0
             while self.data_layer.has_more_data():
                 self.fprop()
                 probs = self.get_classifier_output()
                 reference = self.cost_layer.get_reference()
                 ms.misclass_sum(self.backend, reference, probs, predlabels,
                                 labels, misclass, batch_sum)
-                misclass_sum[0, i] = batch_sum
-                i += 1
+                self.backend.add(misclass_sum, batch_sum, out=misclass_sum)
             # this is a workaround since fp16 cannot accumulate past 65k
-            if self.backend.__module__ == 'neon.backends.max':
-                fubar = misclass_sum.asnumpyarray(
-                    ).astype('float').sum(1).reshape(1, 1)
-            else:
-                fubar = self.backend.empty((1, 1))
-                self.backend.sum(misclass_sum, axes=1, out=fubar)
-            self.print_test_error(setname, fubar, nrecs)
+            self.print_test_error(setname, misclass_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
