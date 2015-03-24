@@ -722,13 +722,12 @@ class CPU(Backend):
         return out
 
     def rectleaky(self, x, slope, out):
-        # where doesn't take an output arg in 1.8 but does in 1.9
         out._tensor = np.where(x._tensor > 0, x._tensor, x._tensor * slope)
         return out
 
     def rectleaky_derivative(self, x, slope, out):
-        # slope is float64 otherwise
-        out._tensor = np.asarray(np.where(x._tensor > 0, 1, slope), dtype='float32')
+        result = np.where(x._tensor > 0, 1, slope)
+        out._tensor = np.asarray(result, dtype='float32')
         return out
 
     def sum(self, tsr, axes, out):

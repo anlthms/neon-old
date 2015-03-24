@@ -144,4 +144,3 @@ class RectLeaky(Activation):
             skip_act (Boolean): whether to skip the multiplication
         """
         super(RectLeaky, self).bprop_func(backend, pre_act, error, skip_act)
-
