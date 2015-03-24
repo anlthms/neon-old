@@ -1514,7 +1514,6 @@ class CPU(Backend):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
 
-        NOTE:  Returns a tuple of python values, not CPUTensors
         Arguments:
             reference (CPUTensor): The true labels ( 1 x num_samples)
             probs (CPUTensor): The normalized output ( num_class x num_samples)
@@ -1534,6 +1533,11 @@ class CPU(Backend):
                                      (1 x num_samples)
             topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
+
+        Returns:
+            tuple: 3 python scalars/arrays (not CPUTensors) containing the
+                   logloss, top1 misclassification rate, topk misclassification
+                   rate
         """
         ns = reference.shape[1]
         labels = np.array(reference._tensor, dtype=np.int32)

@@ -1579,7 +1579,6 @@ class GPU(Backend):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
 
-        NOTE:  Returns a tuple of python values, not GPUTensors
         Arguments:
             reference (GPUTensor): The true labels ( 1 x num_samples)
             probs (GPUTensor): The normalized output ( num_class x num_samples)
@@ -1599,6 +1598,11 @@ class GPU(Backend):
                                      (1 x num_samples)
             topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
+
+        Returns:
+            tuple: 3 python scalars/arrays (not GPUTensors) containing the
+                   logloss, top1 misclassification rate, topk misclassification
+                   rate
         """
 
         cudanet.multi_way_error(probs=probs, labels=reference,
