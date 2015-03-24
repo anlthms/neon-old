@@ -17,6 +17,7 @@ Available Transforms
    :toctree: generated/
 
    neon.transforms.rectified.RectLin
+   neon.transforms.rectified.RectLeaky
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
 
