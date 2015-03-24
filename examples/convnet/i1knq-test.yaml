@@ -7,8 +7,8 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.I1Knq {
-    load_path: '/usr/local/data', #directory where .tar files are stored
-    repo_path: '/usr/local/data', #directory to use for writing files
+    load_path: '~/data', #directory where .tar files are stored
+    repo_path: '~/data', #directory to use for writing files
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     max_tar_file: &mtf 1000,

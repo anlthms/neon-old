@@ -2,7 +2,7 @@ import os
 from glob import glob
 import gzip
 
-TOPDIR = '/usr/local/data/MULTIPIE'
+TOPDIR = os.path.expanduser('~/data/MULTIPIE')
 OUTDIR = TOPDIR + '/batch_data'
 CAMS = ['11_0', '12_0', '09_0', '08_0', '13_0', '14_0', '051', '05_0', '041',
         '19_0', '20_0', '01_0', '24_0']

@@ -1070,7 +1070,7 @@ class Backend(YAMLable):
         Arguments:
             reference (Tensor): The true labels ( 1 x num_samples)
             probs (Tensor): The normalized output ( num_class x num_samples)
-                            The sum for each colum should be 1.
+                            The row-wise sum for each column should be 1.
                             Each column represents a sample and the
                             values in the column represent the probability
                             of that class being the correct one as

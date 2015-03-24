@@ -12,8 +12,8 @@
   # figure_filename: 'ofn.png',
 
   dataset: &ds !obj:datasets.Imageset {
-    repo_path: '/usr/local/data',
-    save_dir: '/usr/local/data/MULTIPIE-frontal/batch_data/',
+    repo_path: '~/data',
+    save_dir: '~/data/MULTIPIE-frontal/batch_data/',
     label_list: ['l_sub', 'l_exp', 'l_ill', 'l_cam'],
     cropped_image_size: &cis 96,
     output_image_size: *cis,

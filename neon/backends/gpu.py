@@ -1582,7 +1582,7 @@ class GPU(Backend):
         Arguments:
             reference (GPUTensor): The true labels ( 1 x num_samples)
             probs (GPUTensor): The normalized output ( num_class x num_samples)
-                               The sum for each colum should be 1.
+                               The row-wise sum for each column should be 1.
                                Each column represents a sample and the
                                values in the column represent the probability
                                of that class being the correct one as
