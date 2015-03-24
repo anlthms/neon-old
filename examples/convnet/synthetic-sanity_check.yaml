@@ -64,6 +64,13 @@
         activation: !obj:transforms.RectLin {},
         weight_init: *wt_initb,
       },
+      !obj:layers.FCLayer {
+        name: layer7,
+        lrule_init: *gdm,
+        nout: 100,
+        activation: !obj:transforms.RectLeaky {},
+        weight_init: *wt_initb,
+      },
       &lastlayer !obj:layers.FCLayer {
         name: output,
         lrule_init: *gdm,
