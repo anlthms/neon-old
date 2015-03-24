@@ -722,12 +722,14 @@ class CPU(Backend):
         return out
 
     def rectleaky(self, x, slope, out):
-        out._tensor = np.where(x._tensor > 0, x._tensor, x._tensor * slope)
+        self.multiply(x, slope, out=out)
+        np.maximum(x._tensor, out._tensor, out._tensor)
         return out
 
     def rectleaky_derivative(self, x, slope, out):
-        result = np.where(x._tensor > 0, 1, slope)
-        out._tensor = np.asarray(result, dtype='float32')
+        self.greater(x, 0, out=out)
+        self.multiply(out, (1.0 - slope), out=out)
+        self.add(out, slope, out=out)
         return out
 
     def sum(self, tsr, axes, out):

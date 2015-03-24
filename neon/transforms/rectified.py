@@ -9,7 +9,6 @@ from neon.transforms.activation import Activation
 
 
 class RectLin(Activation):
-
     """
     Embodiment of a rectified linear activation function.
     """
@@ -78,9 +77,12 @@ class RectLin(Activation):
 
 
 class RectLeaky(Activation):
-
     """
-    Embodiment of a leaky rectified linear activation function.
+    Embodiment of a leaky rectified linear activation function.  Instead of
+    the hard zero gradient for all non-active values, a small, non-zero
+    gradient exists instead.
+
+    See Maas2013 for details.
     """
 
     def __init__(self, slope=0.01, **kwargs):
