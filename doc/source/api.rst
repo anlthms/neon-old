@@ -257,6 +257,7 @@ Activation Functions
    :toctree: generated/
 
    neon.transforms.rectified.RectLin
+   neon.transforms.rectified.RectLeaky
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
    neon.transforms.softmax.Softmax
@@ -319,6 +320,7 @@ ImageNet
    :toctree: generated/
 
    neon.datasets.i1k.I1K
+   neon.datasets.i1knq.I1Knq
 
 Mobydick
 --------
@@ -328,13 +330,13 @@ Mobydick
 
    neon.datasets.mobydick.MOBYDICK
 
-Toronto Face
-------------
+Imageset
+--------
 
 .. autosummary::
    :toctree: generated/
 
-   neon.datasets.tfd.TFD
+   neon.datasets.imageset.Imageset
 
 Synthetic
 ---------

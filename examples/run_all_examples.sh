@@ -2,7 +2,7 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Run all examples in this directory consecutively, while collecting timing and
+# Run all examples in this directory sequentially, while collecting timing and
 # performance information.  Stats against prior runs are compared as well as
 # appended to the named file.
 THIS_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
@@ -18,6 +18,11 @@ for dir in autoencoder balance convnet mlp recurrent
 do
   for f in ${dir}/*.yaml
   do
+    if [[ "$f" == *"hyperopt"* ]]
+    then
+      # skip hyperopt examples since they need to be run by bin/hyperopt
+      continue
+    fi
     echo "$(date) - Running: $f ..." | tee -a "$LOG_FILE"
     PYTHONPATH="${THIS_DIR}/..:${PYTHONPATH}" $NEON_EXE $NEON_OPTS "$f" \
         >> "$LOG_FILE" 2>&1

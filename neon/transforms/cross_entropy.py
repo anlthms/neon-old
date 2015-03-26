@@ -143,7 +143,8 @@ class CrossEntropy(Cost):
 
     def initialize(self, kwargs):
         opt_param(self, ['shortcut_deriv'], True)
-
+        # raw label indicates whether the reference labels are indexes (raw)
+        # or one-hot (default)
         super(CrossEntropy, self).initialize(kwargs)
         if isinstance(self.olayer.activation, Softmax):
             self.ce_function = cross_entropy_multi
@@ -164,27 +165,38 @@ class CrossEntropy(Cost):
             self.cd_function = cross_entropy_derivative
 
     def __str__(self):
-        return ("Cost Function: {bnry} {shrtct}\n".format(
-                bnry=self.use_binary, shrtct=self.shortcut_deriv))
+        return ("Cost Function: {shrtct} {rl}\n".format(
+                shrtct=self.shortcut_deriv, rl=self.raw_label))
 
     def set_outputbuf(self, databuf):
+        temp_dtype = self.temp_dtype
         if not self.outputbuf or self.outputbuf.shape != databuf.shape:
-            tempbuf1 = self.backend.empty(databuf.shape, self.temp_dtype)
-            tempbuf2 = self.backend.empty(databuf.shape, self.temp_dtype)
-            tempbuf3 = self.backend.empty((1, databuf.shape[1]),
-                                          self.temp_dtype)
-            self.temp = [tempbuf1, tempbuf2, tempbuf3]
+            tempbuf1 = self.backend.zeros(databuf.shape, temp_dtype)
+            tempbuf2 = self.backend.zeros(databuf.shape, temp_dtype)
+            tempbuf3 = self.backend.zeros((1, databuf.shape[1]), temp_dtype)
+            tempbuf4 = self.backend.zeros(databuf.shape, temp_dtype)
+            self.temp = [tempbuf1, tempbuf2, tempbuf3, tempbuf4]
         self.outputbuf = databuf
 
     def get_deltabuf(self):
         # used by layer2 only.
         return self.temp[0]
 
+    def raw_to_onehot(self, labels):
+        self.temp[3].fill(0.0)
+        for row in range(self.outputbuf.shape[0]):
+            self.backend.equal(labels, row, self.temp[3][row])
+        # print labels.asnumpyarray()[0,:10]
+        # print self.temp[3].asnumpyarray()[:,:10]
+        return self.temp[3]
+
     def apply_logloss(self, targets, eps=1e-15):
         """
         Logloss function -- does normalization prior to computing multiclass
         log loss function if the output layer is not softmax
         """
+        if self.raw_label:
+            targets = self.raw_to_onehot(targets)
         if isinstance(self.olayer.activation, Softmax):
             return self.ce_function(self.backend, self.outputbuf, targets,
                                     self.temp)
@@ -207,6 +219,8 @@ class CrossEntropy(Cost):
         """
         Apply the cross entropy cost function to the datasets passed.
         """
+        if self.raw_label:
+            targets = self.raw_to_onehot(targets)
         result = self.ce_function(self.backend, self.outputbuf, targets,
                                   self.temp)
         self.backend.multiply(result, self.scale, out=result)
@@ -217,5 +231,7 @@ class CrossEntropy(Cost):
         Apply the derivative of the cross entropy cost function to the datasets
         passed.
         """
+        if self.raw_label:
+            targets = self.raw_to_onehot(targets)
         return self.cd_function(self.backend, self.outputbuf,
                                 targets, self.temp, self.scale)

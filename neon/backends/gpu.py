@@ -958,6 +958,15 @@ class GPU(Backend):
     def rectlin_derivative(self, x, out):
         self.greater(x, 0, out=out)
 
+    def rectleaky(self, x, slope, out):
+        self.multiply(x, slope, out)
+        cudanet.maximum(x._tensor, out._tensor, out._tensor)
+
+    def rectleaky_derivative(self, x, slope, out):
+        self.greater(x, 0, out=out)
+        self.multiply(out, (1.0 - slope), out=out)
+        self.add(out, slope, out=out)
+
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
@@ -1258,10 +1267,11 @@ class GPU(Backend):
                                     convolution (False, the default)
             layer (Layer): The layer object.
         """
+        sumwidth = 3 if ofmshape[-2] < 32 else 4
         cudanet.deconvolve_wts(
             deltas._tensor, inputs._tensor, out._tensor,
             ifmshape[-2], ofmshape[-2], ofmshape[-1], fwidth,
-            padding, stride, nifm, ngroups, ofmshape[-2], local)
+            padding, stride, nifm, ngroups, sumwidth, local)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
                    ifmshape, links, nifm, padding, stride, fpropbuf):
@@ -1563,6 +1573,49 @@ class GPU(Backend):
                                 ds_item._tensor, ls_item._tensor, rho,
                                 epsilon)
         self.add(ps_item, ls_item, out=ps_item)
+
+    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
+                             topkcorrect, topk):
+        """
+        Compute the accumulated logloss and number of top1 and topk errors.
+
+        Arguments:
+            reference (GPUTensor): The true labels ( 1 x num_samples)
+            probs (GPUTensor): The normalized output ( num_class x num_samples)
+                               The row-wise sum for each column should be 1.
+                               Each column represents a sample and the
+                               values in the column represent the probability
+                               of that class being the correct one as
+                               hypothesized by the model.
+            labellogprob (GPUTensor): (OUTPUT) the logprob of the true
+                                      label for each column.
+                                      (1 x num_samples)
+            top1correct (GPUTensor): (OUTPUT) whether the true label occurs
+                                     as the top1 prob
+                                     (1 x num_samples)
+            topkcorrect (GPUTensor): (OUTPUT) whether the true label occurs
+                                     as one of the topk probs
+                                     (1 x num_samples)
+            topk (int): Parameter determining which of the top k to use for
+                        determining topkcorrect
+
+        Returns:
+            tuple: 3 python scalars/arrays (not GPUTensors) containing the
+                   logloss, top1 misclassification rate, topk misclassification
+                   rate
+        """
+
+        cudanet.multi_way_error(probs=probs, labels=reference,
+                                labellogprob=labellogprob,
+                                top1probs=top1correct, topkprobs=topkcorrect,
+                                topk=topk)
+
+        num_samples = reference.shape[1]
+        logloss = labellogprob._tensor.sum().asarray()
+        top1misclass = num_samples - top1correct._tensor.sum().asarray()
+        topkmisclass = num_samples - topkcorrect._tensor.sum().asarray()
+
+        return (logloss, top1misclass, topkmisclass)
 
     def sync_stream(self):
         cudanet.sync_stream()

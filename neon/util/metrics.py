@@ -15,29 +15,29 @@ from neon.util.compat import range
 from neon.util.persist import ensure_dirs_exist
 
 
-def misclass_sum(backend, targets, outputs, predlabels, labels,
-                 misclass, retval):
-    backend.argmax(targets, axis=0, out=labels)
+def misclass_sum(backend, reference, outputs, predlabels, labels, misclass,
+                 retval, topk=1):
+    if reference.shape[0] == 1:
+        labels[:] = reference
+    else:
+        backend.argmax(reference, axis=0, out=labels)
     backend.argmax(outputs, axis=0, out=predlabels)
     backend.not_equal(predlabels, labels, misclass)
     backend.sum(misclass, axes=None, out=retval)
 
 
-def auc(backend, targets, outputs):
+def auc(backend, reference, outputs):
     from sklearn import metrics
-    return metrics.roc_auc_score(targets.asnumpyarray().ravel(),
+    return metrics.roc_auc_score(reference.asnumpyarray().ravel(),
                                  outputs.asnumpyarray().ravel())
 
 
-def logloss(backend, targets, outputs, sums, temp, retval, eps=1e-15):
+def logloss(backend, reference, outputs, sums, temp, retval, eps=1e-15):
     backend.clip(outputs, eps, 1.0 - eps, out=outputs)
     backend.sum(outputs, axes=0, out=sums)
-    # XXX: work around lack of broadcasting in gpu backend.
-    for row in range(temp.shape[0]):
-        temp[row] = sums
-    backend.divide(outputs, temp, out=temp)
+    backend.divide(outputs, sums, out=temp)
     backend.log(temp, out=temp)
-    backend.multiply(targets, temp, out=temp)
+    backend.multiply(reference, temp, out=temp)
     backend.sum(temp, axes=None, out=retval)
 
 
@@ -96,7 +96,7 @@ def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
 
 
 def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
-                    escape_colors=True):
+                    escape_colors=True, color_threshold=.01):
     """
     Compares the most recent run of experiment_file with up to max_comps
     previous runs based on data collected in dump_file.  Results are displayed
@@ -113,6 +113,12 @@ def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
                                    dump_file.  Defaults to tab character.
         escape_colors (bool, optional): Should we dump diffs in a different
                                         color?  Default is true
+        color_threshold (float, optional): How different does a value have to
+                                           be from the comp mean to warrant
+                                           being colored?  Specifiy as a
+                                           percentage of the mean (as a value
+                                           between 0 and 1).  Defaults to .01
+                                           (i.e. 1%)
     """
     def make_red(string):
         return "\033[31m%s\033[0m" % string
@@ -158,23 +164,36 @@ def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
         else:
             comp_mean = comp_sum / comp_count
         if latest[idx] == "nan":
-            val = make_yellow("nan")
-        elif val < comp_mean:
+            val = make_yellow("nan") if escape_colors else "nan"
+        elif escape_colors and (comp_mean - val) > color_threshold * comp_mean:
+            # val has dropped substantially enough to warrant coloring
             if header[idx] in ("auc"):
                 val = make_red(latest[idx])
             else:
                 val = make_green(latest[idx])
-        elif val > comp_mean:
+        elif escape_colors and (val - comp_mean) > color_threshold * comp_mean:
+            # val has increased substantially enough to warrant coloring
             if header[idx] in ("auc"):
                 val = make_green(latest[idx])
             else:
                 val = make_red(latest[idx])
         else:
+            # no coloring needed
             val = latest[idx]
         if comp_count == 0:
-            comp_mean = make_yellow("nan")
+            comp_mean = make_yellow("nan") if escape_colors else "nan"
         else:
             comp_mean = "%0.5f" % comp_mean
         print(field_sep + field_sep.join([header[idx] + ":", val,
-                                          ", prior mean:", comp_mean]))
+                                          ", prior " + str(comp_count) +
+                                          " item mean:", comp_mean]))
     return 0
+
+
+def logloss_and_misclass(backend, reference, outputs, labellogprob, top1error,
+                         topkerror, topk, sums, eps=1e-15):
+    backend.clip(outputs, eps, 1.0 - eps, out=outputs)
+    backend.sum(outputs, axes=0, out=sums)
+    backend.divide(outputs, sums, outputs)
+    backend.logloss_and_misclass(reference, outputs, labellogprob, top1error,
+                                 topkerror, topk)
