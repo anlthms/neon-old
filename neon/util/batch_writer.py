@@ -82,7 +82,7 @@ class BatchWriter(object):
         subdirs = glob(os.path.join(self.in_dir, '*'))
         labels = sorted(map(lambda x: os.path.basename(x), subdirs))
         indexes = range(len(labels))
-        self.labels_dict = {k:v for k, v in zip(labels, indexes)}
+        self.labels_dict = {k: v for k, v in zip(labels, indexes)}
 
         tlines = []
         vlines = []
@@ -201,6 +201,7 @@ class BatchWriter(object):
                 logger.info('Skipping %s, file missing', sname)
         self.save_meta()
 
+
 class BatchWriterImagenet(BatchWriter):
 
     # code below adapted from Alex Krizhevsky's cuda-convnet2 library,
@@ -267,14 +268,14 @@ class BatchWriterImagenet(BatchWriter):
 
         with self.open_tar(validation_tar, 'validation tar') as tf:
             v_jpegfiles = sorted([tf.extractfile(m) for m in tf.getmembers()],
-                                  key=lambda x: x.name)
+                                 key=lambda x: x.name)
             num_val_files = len(v_jpegfiles)
 
             self.nval = (num_val_files + bsz - 1) / bsz
             self.val_start = 10 ** int(np.log10(self.ntrain) + 1)
             val_labels = {'l_id': np.array(val_labels, dtype=np.int32)}
             self.write_batches('validation', self.val_start, val_labels,
-                                v_jpegfiles, targets=None, is_tar=True)
+                               v_jpegfiles, targets=None, is_tar=True)
         self.save_meta()
 
     def open_tar(self, path, name):

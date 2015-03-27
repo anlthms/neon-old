@@ -40,8 +40,8 @@ class Imageset(Dataset):
     def __init__(self, **kwargs):
 
         opt_param(self, ['preprocess_done', 'dist_flag'], False)
-        opt_param(self, ['dotransforms', 'square_crop', 'zero_center'], False)
-        opt_param(self, ['mean_norm'], False)
+        opt_param(self, ['dotransforms', 'square_crop'], False)
+        opt_param(self, ['mean_norm', 'unit_norm'], False)
 
         opt_param(self, ['tdims'], 0)
         opt_param(self, ['label_list'], ['l_id'])
@@ -53,8 +53,12 @@ class Imageset(Dataset):
         self.__dict__.update(kwargs)
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
-        self.image_dir = os.path.join(self.repo_path, self.imageset)
+
+        opt_param(self, ['image_dir'], os.path.join(self.repo_path,
+                                                    self.imageset))
+
         self.rgb = True if self.num_channels == 3 else False
+        self.norm_factor = 128. if self.mean_norm else 256.
 
     def load(self):
         bdir = os.path.expanduser(self.save_dir)
@@ -69,9 +73,10 @@ class Imageset(Dataset):
                 else:
                     self.bw = BatchWriter(**self.__dict__)
                 self.bw.run()
+                logger.info('Done writing batches -- please rerun to train.')
             else:
                 logger.info('Exiting...')
-                sys.exit()
+            sys.exit()
         cstats = deserialize(cachefile, verbose=False)
         if cstats['macro_size'] != self.macro_size:
             raise NotImplementedError("Cached macro size %d different from "
@@ -145,6 +150,7 @@ class Imageset(Dataset):
     def get_mini_batch(self, batch_idx):
         # batch_idx is ignored
         betype = self.backend_type
+        bsz = self.batch_size
         self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
 
         if self.mini_idx == 0:
@@ -155,6 +161,7 @@ class Imageset(Dataset):
             self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
 
             imgworker.decode_list(jpglist=jdict['data'],
+                                  # tgt=self.img_macro,
                                   tgt=self.img_macro[:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
@@ -164,17 +171,19 @@ class Imageset(Dataset):
             if mac_sz < self.macro_size:
                 self.img_macro[mac_sz:] = 0
 
-        s_idx = self.mini_idx * self.batch_size
-        e_idx = (self.mini_idx + 1) * self.batch_size
+            self.minis_per_macro = (mac_sz + bsz - 1) / bsz
+
+        s_idx = self.mini_idx * bsz
+        e_idx = (self.mini_idx + 1) * bsz
 
         self.inp_be.copy_from(
             self.img_macro[s_idx:e_idx].T.astype(betype, order='C'))
 
-        if self.zero_center:
+        if self.mean_norm:
             self.backend.subtract(self.inp_be, self.mean_be, self.inp_be)
-            self.backend.divide(self.inp_be, 128., self.inp_be)
-        else:
-            self.backend.divide(self.inp_be, 255., self.inp_be)
+
+        if self.unit_norm:
+            self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
             self.lbl_be[lbl].copy_from(

@@ -6,23 +6,18 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-  dataset: &ds !obj:datasets.I1K {
-    load_path: '~/data', #directory where .tar files are stored
-    repo_path: '~/data', #directory to use for writing files
+  dataset: &ds !obj:datasets.Imageset {
+    repo_path: '~/data',
+    imageset: 'I1K',
+    square_crop: True,
+    save_dir: '~/data/I1K/imageset_batches',
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
-    max_tar_file: &mtf 1000,
-    output_batch_size: 3072,
-    ring_buffer_size: 3,
-    num_train_macro_batches: 417, #max available train macro_batches
-    num_val_macro_batches: 16, #max available val macro batches
-    #number of cpu processes for image resizing and decompression
-    num_processes: 4, #not impl yet
-    # macro batch start and end indices to use for train and val datasets
-    start_train_batch: 0,
-    end_train_batch: 24,
-    start_val_batch: 0,
-    end_val_batch: 4,
+    macro_size: 3072,
+    num_channels: 3,
+    mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
+    ntrain: 24,
+    nval: 4,
   },
 
   weight_inits: [
@@ -80,7 +75,7 @@
     reuse_deltas: True,
     #serialized_path: '~/data/I1K/I1K_vgg_model.pkl',
     layers: [
-      &datalayer !obj:layers.DataLayer {
+      &datalayer !obj:layers.ImageDataLayer {
         name: d0,
         is_local: True,
         nofm: 3,
@@ -251,6 +246,8 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
+        ref_label: 'labels',
+        raw_label: True,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],

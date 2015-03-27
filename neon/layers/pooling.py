@@ -6,7 +6,6 @@ Single neural network layer that performs a pooling or subsampling operation.
 """
 
 import logging
-import math
 from neon.backends.cpu import CPU
 from neon.layers.layer import Layer, WeightLayer
 from neon.util.param import req_param, opt_param
@@ -56,62 +55,6 @@ class PoolingLayer(Layer):
                                     nifm=self.nifm, padding=0,
                                     stride=self.stride,
                                     bpropbuf=self.deltasbuf)
-
-
-class UnPoolingLayer(PoolingLayer):
-    """
-    Attributes:
-        op (string): The type of pooling to perform.  We currently implement
-                     "max", "avg", or "l2".
-    """
-    def __init__(self, **kwargs):
-        self.is_local = True
-        self.op = 'unpool'
-        super(UnPoolingLayer, self).__init__(**kwargs)
-
-    def initialize(self, kwargs):
-        super(UnPoolingLayer, self).initialize(kwargs)
-        if isinstance(self.backend, CPU):
-            raise NotImplementedError('Unpooling not implemented for cpu')
-
-    def set_previous_layer(self, pl):
-        if pl.is_local:
-            self.ifmshape = pl.ofmshape
-            self.nifm = pl.nofm
-            self.nin = pl.nofm * reduce(lambda x, y: x * y, pl.ofmshape)
-        else:
-            if not hasattr(self, 'ifmshape'):
-                sqdim = int(math.sqrt(pl.nout))
-                self.ifmshape = (sqdim, sqdim)
-                self.nifm = 1
-            else:
-                self.nifm = pl.nout / (self.ifmshape[0] * self.ifmshape[1])
-            self.nin = pl.nout
-        self.prev_layer = pl
-        self.link_local()
-
-    def link_local(self):
-        req_param(self, ['nifm', 'ifmshape', 'fshape'])
-        opt_param(self, ['ofmlocs', 'links'])
-        opt_param(self, ['deltasbuf', 'outputbuf'])
-        opt_param(self, ['nofm'], self.nifm)
-
-        # Let's not mess around with the general case
-        (self.stride, self.pad) = 1, 0
-        assert len(self.ifmshape) == len(self.fshape)
-        ofmshape = []
-        for dim in range(len(self.ifmshape)):
-            assert self.ifmshape[dim] >= self.fshape[dim]
-            num = self.ifmshape[dim] * self.fshape[dim]
-            ofmshape.extend([num])
-        self.ofmshape = tuple(ofmshape)
-        self.ifmsize = reduce(lambda x, y: x * y, self.ifmshape)
-        self.ofmsize = reduce(lambda x, y: x * y, self.ofmshape)
-        self.fpsize = reduce(lambda x, y: x * y, self.fshape)
-        self.fsize = self.nifm * self.fpsize
-        self.nout = self.nofm * self.ofmsize
-        logger.debug('name=%s, nifm=%d, ifmshape=%s, ofmshape=%s',
-                     self.name, self.nifm, self.ifmshape, self.ofmshape)
 
 
 class CrossMapPoolingLayer(WeightLayer):
