@@ -9,20 +9,12 @@
   dataset: &ds !obj:datasets.I1Knq {
     load_path: '~/data', #directory where .tar files are stored
     repo_path: '~/data', #directory to use for writing files
-    output_image_size: &ois 256,
-    cropped_image_size: &cis 224,
-    max_tar_file: &mtf 1000,
-    output_batch_size: 3072,
-    ring_buffer_size: 3, #buffer that transfers from device to host
-    num_train_macro_batches: 25, #max available train macro_batches
-    num_val_macro_batches: 5, #max available val macro batches
-    #number of cpu processes for image resizing and decompression
-    num_processes: 4, #not impl yet
-    # macro batch start and end indices to use  for train and val datasets
-    start_train_batch: 0,
-    end_train_batch: 24,
-    start_val_batch: 0,
-    end_val_batch: 4,
+    square_crop: True,
+    image_dir: 'I1K',
+    save_dir: '~/data/I1K/alex',
+    output_image_size: &ois 128,
+    cropped_image_size: &cis 100,
+    macro_size: 3072,
   },
 
   weight_inits: [
@@ -226,7 +218,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_initout,
-        nout: *mtf,
+        nout: 1000,
         activation: !obj:transforms.Softmax {},
       },
       &costlayer !obj:layers.CostLayer {

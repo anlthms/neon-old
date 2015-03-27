@@ -9,7 +9,7 @@ import logging
 import numpy as np
 import os
 from neon.datasets.dataset import Dataset
-from neon.util.batch_writer import BatchWriter
+from neon.util.batch_writer import BatchWriter, BatchWriterImagenet
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
 import sys
@@ -52,41 +52,47 @@ class Imageset(Dataset):
 
         self.__dict__.update(kwargs)
         req_param(self, ['cropped_image_size', 'output_image_size',
-                         'image_dir', 'batch_dir', 'macro_size'])
-        opt_param(self, ['repo_path'], self.batch_dir)
+                         'imageset', 'save_dir', 'repo_path', 'macro_size'])
+        self.image_dir = os.path.join(self.repo_path, self.imageset)
+        self.rgb = True if self.num_channels == 3 else False
 
     def load(self):
-        bdir = os.path.expanduser(self.batch_dir)
+        bdir = os.path.expanduser(self.save_dir)
         cachefile = os.path.join(bdir, 'dataset_cache.pkl')
         if not os.path.exists(cachefile):
             logger.info("Batch dir cache not found in %s:", cachefile)
             # response = 'Y'
             response = raw_input("Press Y to create, otherwise exit: ")
             if response == 'Y':
-                self.bw = BatchWriter(**self.__dict__)
+                if self.imageset.startswith('I1K'):
+                    self.bw = BatchWriterImagenet(**self.__dict__)
+                else:
+                    self.bw = BatchWriter(**self.__dict__)
                 self.bw.run()
             else:
                 logger.info('Exiting...')
                 sys.exit()
-        cstats = deserialize(cachefile, False)
+        cstats = deserialize(cachefile, verbose=False)
         if cstats['macro_size'] != self.macro_size:
             raise NotImplementedError("Cached macro size %d different from "
-                                      "specified %d, delete batch_dir %s "
+                                      "specified %d, delete save_dir %s "
                                       "and try again.",
                                       cstats['macro_size'],
                                       self.macro_size,
-                                      self.batch_dir)
+                                      self.save_dir)
+
+        # Make sure only those properties not by yaml are updated
+        cstats.update(self.__dict__)
         self.__dict__.update(cstats)
-        # Make sure these properties are set by the cachefile
         req_param(self, ['ntrain', 'nval', 'train_start', 'val_start',
-                         'train_mean', 'val_mean'])
+                         'train_mean', 'val_mean', 'labels_dict'])
 
     def get_macro_batch(self):
         self.macro_idx = (self.macro_idx + 1 - self.startb) \
             % self.nmacros + self.startb
-        fname = os.path.join(self.batch_dir,
+        fname = os.path.join(self.save_dir,
                              'data_batch_{:d}'.format(self.macro_idx))
-        return deserialize(os.path.expanduser(fname), False)
+        return deserialize(os.path.expanduser(fname), verbose=False)
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         # local shortcuts
@@ -103,7 +109,6 @@ class Imageset(Dataset):
         nrecs = self.macro_size * self.nmacros
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
         self.mean_img = getattr(self, sn + '_mean')
-
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
@@ -144,14 +149,20 @@ class Imageset(Dataset):
 
         if self.mini_idx == 0:
             jdict = self.get_macro_batch()
+            # This macro could be smaller than macro_size for last macro
+            mac_sz = len(jdict['data'])
             self.tgt_macro = jdict['targets'] if 'targets' in jdict else None
             self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
 
-            imgworker.decode_list(jpglist=jdict['data'], tgt=self.img_macro,
+            imgworker.decode_list(jpglist=jdict['data'],
+                                  tgt=self.img_macro[:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
                                   center=self.predict, flip=True,
+                                  rgb=self.rgb,
                                   nthreads=self.num_workers)
+            if mac_sz < self.macro_size:
+                self.img_macro[mac_sz:] = 0
 
         s_idx = self.mini_idx * self.batch_size
         e_idx = (self.mini_idx + 1) * self.batch_size

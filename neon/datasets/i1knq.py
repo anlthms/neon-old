@@ -14,25 +14,14 @@ import imgworker as iw
 import numpy as np
 
 from neon.datasets.dataset import Dataset
-from neon.util.compat import range, pickle
+from neon.util.batch_writer import BatchWriterImagenet
+from neon.util.compat import range
+from neon.util.persist import deserialize
 
 logger = logging.getLogger(__name__)
 
 # prefix for directory name where macro_batches are stored
 prefix_macro = 'macro_batches_'
-
-
-def my_pickle(filename, data):
-    with open(filename, "w") as fo:
-        pickle.dump(data, fo, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def my_unpickle(filename):
-    fo = open(filename, 'r')
-    contents = pickle.load(fo)
-    fo.close()
-    return contents
-
 
 class I1Knq(Dataset):
 
@@ -40,7 +29,6 @@ class I1Knq(Dataset):
     Sets up a ImageNet-1000 dataset.
 
     Attributes:
-        url (str): where to find the source data
         backend (neon.backends.Backend): backend used for this data
         inputs (dict): structure housing the loaded train/test/validation
                        input data
@@ -51,7 +39,6 @@ class I1Knq(Dataset):
         repo_path (str, optional): where to locally host this dataset on disk
 
     """
-    url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
         self.dist_flag = False
@@ -62,7 +49,7 @@ class I1Knq(Dataset):
         self.preprocess_done = False
         self.__dict__.update(kwargs)
         self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
-
+        self.image_dir = self.load_path
         if not hasattr(self, 'save_dir'):
             self.save_dir = os.path.join(self.repo_path, 'I1K')
 
@@ -94,11 +81,22 @@ class I1Knq(Dataset):
                 self.load_path))
             self.save_dir = os.path.expandvars(os.path.expanduser(
                 self.save_dir))
+            self.batch_dir = os.path.join(self.save_dir, prefix_macro + str(
+                    self.output_image_size))
             save_dir = self.save_dir
-            if os.path.exists(os.path.join(save_dir, prefix_macro + str(
-                    self.output_image_size))):
+            if os.path.exists(self.batch_dir):
                 # delete load_dir if want to reload/reprocess dataset
                 return
+            else:
+                logger.info("Creating dataset from tar")
+                # response = raw_input("Press Y to create, otherwise exit: ")
+                response = 'Y'
+                if response == 'Y':
+                    self.bw = BatchWriterImagenet(**self.__dict__)
+                    self.bw.run()
+                else:
+                    logger.info('Exiting...')
+                    sys.exit()
 
     def preprocess_images(self):
         # Depends on mean being saved to a cached file in the data directory
@@ -110,7 +108,7 @@ class I1Knq(Dataset):
                                  'i1kmean.pkl')
 
         try:
-            self.mean_img = my_unpickle(mean_path)
+            self.mean_img = deserialize(mean_path, verbose=False)
             self.mean_img.shape = (3, osz, osz)
             pad = (osz - csz) / 2
             self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
@@ -130,11 +128,9 @@ class I1Knq(Dataset):
         if self.macro_idx > self.endb:
             self.macro_idx = self.startb
         batch_fname = '{}_batch_{:d}'.format(self.batch_type, self.macro_idx)
-        batch_path = os.path.join(
-            self.save_dir, prefix_macro + str(self.output_image_size),
-            batch_fname)
+        batch_path = os.path.join(self.batch_dir, batch_fname)
         macro_fname = os.path.join(batch_path, batch_fname + '.0')
-        return my_unpickle(macro_fname)
+        return deserialize(macro_fname, verbose=False)
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         sn = 'val' if (setname == 'validation') else setname

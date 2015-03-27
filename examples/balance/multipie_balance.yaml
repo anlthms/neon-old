@@ -13,6 +13,7 @@
 
   dataset: &ds !obj:datasets.Imageset {
     repo_path: '~/data',
+    image_dir: 'MULTIPIE',
     save_dir: '~/data/MULTIPIE-frontal/batch_data/',
     label_list: ['l_sub', 'l_exp', 'l_ill', 'l_cam'],
     cropped_image_size: &cis 96,
