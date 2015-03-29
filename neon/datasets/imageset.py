@@ -118,7 +118,8 @@ class Imageset(Dataset):
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
         self.mean_be = sbe((self.npixels, 1))
-        self.mean_be.copy_from(self.mean_crop.reshape(-1).astype(np.float32))
+        self.mean_be.copy_from(self.mean_crop.reshape(
+            (self.npixels, 1)).astype(np.float32))
 
         self.batch_size = batch_size
         self.predict = predict
@@ -161,7 +162,6 @@ class Imageset(Dataset):
             self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
 
             imgworker.decode_list(jpglist=jdict['data'],
-                                  # tgt=self.img_macro,
                                   tgt=self.img_macro[:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
@@ -170,12 +170,13 @@ class Imageset(Dataset):
                                   nthreads=self.num_workers)
             if mac_sz < self.macro_size:
                 self.img_macro[mac_sz:] = 0
-
-            self.minis_per_macro = (mac_sz + bsz - 1) / bsz
+            # Leave behind the partial minibatch
+            self.minis_per_macro = mac_sz / bsz
 
         s_idx = self.mini_idx * bsz
         e_idx = (self.mini_idx + 1) * bsz
 
+        # See if we are a partial minibatch
         self.inp_be.copy_from(
             self.img_macro[s_idx:e_idx].T.astype(betype, order='C'))
 
