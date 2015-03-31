@@ -96,6 +96,15 @@ class CPUTensor(Tensor):
         """
         return self._tensor
 
+    def asmpibuffer(self):
+        """
+        Returns a buffer interface for use by mpi (just numpy for cpu backend)
+
+        Returns:
+            numpy.ndarray view or copy of the CPUTensor data.
+        """
+        return self._tensor
+
     def __getitem__(self, key):
         """
         Extract a subset view of the items via slice style indexing

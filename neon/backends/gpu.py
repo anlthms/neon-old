@@ -159,6 +159,15 @@ class GPUTensor(Tensor):
         self._tensor.copy_to_host()
         return self._tensor.numpy_array
 
+    def asmpibuffer(self):
+        """
+        Returns a buffer interface to the device data for use by mpi
+
+        Returns:
+            numpy.ndarray view or copy of the GPUTensor data.
+        """
+        return self._tensor.get_gpu_pythonbuf()
+
     def __getitem__(self, key):
         """
         Extract a subset view of the items via slice style indexing

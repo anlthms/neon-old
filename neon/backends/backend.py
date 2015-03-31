@@ -1094,8 +1094,8 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def distribute(self, data):
-        return self.par.distribute(data)
+    def distribute(self, src, dest=None):
+        return self.par.distribute(src, dest)
 
     def rank(self):
         return self.par.rank()
@@ -1103,6 +1103,8 @@ class Backend(YAMLable):
     def reduce_tensor(self, tensor):
         return self.par.reduce_tensor(tensor)
 
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.par.allocate_fragment(buf_shape, dtype=dtype)
 
 class Tensor(object):
     """

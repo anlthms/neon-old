@@ -18,14 +18,21 @@ class NoPar(object):
         backend.par = self
         self.backend = backend
 
-    def distribute(self, batchdata):
-        return self.backend.array(batchdata)
+    def distribute(self, src, dest=None):
+        if dest is None:
+            return self.backend.array(src)
+        else:
+            dest.copy_from(src)
+            return dest
 
     def reduce_tensor(self, tensor):
-        return tensor.asnumpyarray()
+        return tensor.asmpibuffer()
 
     def rank(self):
         return 0
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.backend.empty(buf_shape, dtype=dtype)
 
 
 class BasePar(object):
@@ -69,6 +76,9 @@ class BasePar(object):
     def reduce_tensor(self, tensor):
         raise NotImplementedError()
 
+    def allocate_fragment(self, buf_shape, dtype=None):
+        raise NotImplementedError()
+
     def distributable(self, layer):
         if hasattr(layer, 'distributable'):
             return layer.distributable
@@ -109,9 +119,9 @@ class ModelPar(BasePar):
                 conf.end = conf.start + nin
             bs = model.batch_size
             bufshape = (layer.nout, bs)
-            conf.fpropbuf = np.empty(bufshape, dtype=np.float32)
+            conf.fpropbuf = backend.empty(bufshape, dtype=np.float32)
             bufshape = (layer.nin, bs)
-            conf.bpropbuf = np.empty(bufshape, dtype=np.float32)
+            conf.bpropbuf = backend.empty(bufshape, dtype=np.float32)
             conf.rcount = np.empty(self.mpi_size, dtype=np.int32)
             conf.rcount.fill(nin)
             conf.scount = conf.end - conf.start
@@ -132,16 +142,23 @@ class ModelPar(BasePar):
         backend.bprop_fc = self.bprop_fc
         backend.update_fc = self.update_fc
 
-    def distribute(self, batchdata):
-        return self.backend.array(batchdata)
+    def distribute(self, src, dest=None):
+        if dest is None:
+            return self.backend.array(src)
+        else:
+            dest.copy_from(src)
+            return dest
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.backend.empty(buf_shape, dtype=dtype)
 
     def reduce_tensor(self, tensor):
-        return tensor.asnumpyarray()
+        return tensor.asmpibuffer()
 
     def fprop_fc(self, out, inputs, weights, layer):
         conf = layer.parconf
         self.orig_fprop_fc(out, inputs[conf.start:conf.end], weights)
-        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
+        sendbuf = [out.asmpibuffer(), self.mpi.FLOAT]
         recvbuf = [conf.fpropbuf, self.mpi.FLOAT]
         self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
         self.comm.Bcast(buf=[conf.fpropbuf, self.mpi.FLOAT])
@@ -150,7 +167,7 @@ class ModelPar(BasePar):
     def bprop_fc(self, out, weights, deltas, layer):
         conf = layer.parconf
         self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
-        outbuf = out.asnumpyarray()[conf.start:conf.end]
+        outbuf = out.asmpibuffer()[conf.start:conf.end]
         sendbuf = [outbuf, conf.scount, self.mpi.FLOAT]
         recvbuf = [conf.bpropbuf, conf.rcount,
                    conf.displ, self.mpi.FLOAT]
@@ -172,7 +189,6 @@ class DataPar(BasePar):
         if self.mpi_rank == 0:
             logger.info('Data-parallel mode. Number of nodes = %d.',
                         self.mpi_size)
-        self.reducebuf = np.empty((1, 1), dtype=np.float32)
 
     def init_model(self, model, backend):
         super(DataPar, self).init_model(model, backend)
@@ -189,7 +205,8 @@ class DataPar(BasePar):
             assert hasattr(layer, 'nin')
             assert not hasattr(layer, 'parconf')
             conf = DataPar.Config()
-            conf.updatebuf = np.empty(layer.weight_shape, dtype=np.float32)
+            conf.updatebuf = backend.empty(layer.weight_shape,
+                                           dtype=np.float32)
             layer.parconf = conf
 
     def associate(self, backend):
@@ -198,12 +215,30 @@ class DataPar(BasePar):
         self.orig_update_conv = backend.update_conv
         backend.update_fc = self.update_fc
         backend.update_conv = self.update_conv
+        self.reducebuf = backend.empty((1, 1), dtype=np.float32)
 
-    def distribute(self, batchdata):
-        return self.backend.array(batchdata[:, self.start:self.end])
+    def distribute(self, src, dest=None):
+        if dest is None:
+            return self.backend.array(src[:, self.start:self.end])
+        else:
+            dest.copy_from(src[:, self.start:self.end])
+            return dest
+
+    def scatter(self, src, dest):
+        self.comm.Scatter([src.asmpibuffer(), self.mpi.FLOAT],
+                          [dest.asmpibuffer(), self.mpi.FLOAT], root=0)
+
+            return self.backend.array(src[:, self.start:self.end])
+        else:
+            dest.copy_from(src[:, self.start:self.end])
+            return dest
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        fragment_buf_shape = (buf_shape[0], self.batch_size)
+        return self.backend.empty(fragment_buf_shape, dtype=dtype)
 
     def reduce_tensor(self, tensor):
-        self.comm.Reduce([tensor.asnumpyarray(), self.mpi.FLOAT],
+        self.comm.Reduce([tensor.asmpibuffer(), self.mpi.FLOAT],
                          [self.reducebuf, self.mpi.FLOAT], op=self.mpi.SUM)
         if self.mpi_rank == 0:
             return self.reducebuf / self.mpi_size
@@ -215,7 +250,7 @@ class DataPar(BasePar):
         # until the updates are to be applied to the weights (the
         # weights are updated after the gradients are propagated
         # all the way back).
-        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
+        sendbuf = [out.asmpibuffer(), self.mpi.FLOAT]
         recvbuf = [conf.updatebuf, self.mpi.FLOAT]
         self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
         self.comm.Bcast(buf=[conf.updatebuf, self.mpi.FLOAT])
