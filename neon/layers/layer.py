@@ -137,6 +137,18 @@ class Layer(YAMLable):
                                                       self.output,
                                                       self.pre_act_dtype)
 
+    def reallocate_output_bufs(self, new_batch_size):
+        # Not ideal -- would probably just want to slice the output
+        # buffer shape to just use less of the allocated space but still have
+        # room for more if we wanted to size back up
+        make_zbuf = self.backend.zeros
+        self.batch_size = new_batch_size
+        self.out_shape = (self.nout, self.batch_size)
+        self.output = make_zbuf(self.out_shape, self.output_dtype)
+        self.pre_act = self.activation.pre_act_buffer(self.backend,
+                                                      self.output,
+                                                      self.pre_act_dtype)
+
     def set_deltas_buf(self, delta_pool, offset):
         self.deltas = None
         if self.prev_layer is None:

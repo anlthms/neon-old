@@ -4,7 +4,7 @@
 # Experiment settings to train/test a small 1 hidden layer x 100 hidden node
 # fully connected feed-forward neural network on the full MNIST dataset.
 
-!obj:experiments.FitPredictErrorExperiment {
+!obj:experiments.InferenceServer {
 
   dataset: &ds !obj:datasets.MNIST {
     repo_path: '~/data',
@@ -32,13 +32,6 @@
           type: constant,
           coef: 0.0,
         },
-      },
-    },
-    &ada {
-      type: adadelta,
-      lr_params: {
-        rho: &ro 0.95,
-        epsilon: &eps 0.000001,
       },
     },
   ],

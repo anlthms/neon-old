@@ -59,6 +59,11 @@ class MLP(MLP_old):
 
         self.initialized = True
 
+    def fprop_skip_data_layer(self, input_data):
+        for ll, pl in zip(self.layers[1:], [None] + self.layers[1:-1]):
+            y = input_data if pl is None else pl.output
+            ll.fprop(y)
+
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             y = None if pl is None else pl.output
