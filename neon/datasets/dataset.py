@@ -76,7 +76,7 @@ class Dataset(object):
         """
         raise NotImplementedError()
 
-    def close(self):
+    def unload(self):
         """
         Perform cleanup tasks if any are required.
         """

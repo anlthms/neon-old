@@ -41,6 +41,15 @@ class FitPredictErrorExperiment(FitExperiment):
             raise AttributeError('inference_metrics specified without '
                                  'inference_sets')
 
+    def initialize(self, backend):
+        if self.live:
+            if not hasattr(self.dataset, 'live'):
+                raise AttributeError('This dataset does not support '
+                                     'live inference')
+            self.model.batch_size = 1
+            self.dataset.live = True
+        super(FitPredictErrorExperiment, self).initialize(backend)
+
     def save_results(self, dataset, setname, data, dataname):
         out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
         if hasattr(dataset, 'save_dir'):
@@ -59,8 +68,11 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
-        self.model.predict_and_report(self.dataset)
+        if self.live:
+            self.predict_live()
+            return
 
+        self.model.predict_and_report(self.dataset)
         # Report error metrics.
         for setname in self.inference_sets:
             outputs, targets = self.model.predict_fullset(self.dataset,
@@ -70,3 +82,15 @@ class FitPredictErrorExperiment(FitExperiment):
             for metric in self.inference_metrics:
                 val = self.model.report(targets, outputs, metric=metric)
                 logger.info('%s set %s %.5f', setname, metric, val)
+
+    def predict_live(self):
+        self.model.predict_live_init(self.dataset)
+        logger.info('Ready to perform live inference')
+        while True:
+            try:
+                result = self.model.predict_live()
+                logger.info(result)
+            except KeyboardInterrupt:
+                logger.info('Execution interrupted.')
+                self.dataset.unload()
+                break

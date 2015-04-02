@@ -39,6 +39,7 @@ class FitExperiment(Experiment):
         self.__dict__.update(kwargs)
         req_param(self, ['dataset', 'model'])
         opt_param(self, ['backend'])
+        opt_param(self, ['live'], False)
 
     def initialize(self, backend):
         if self.initialized:
@@ -69,8 +70,12 @@ class FitExperiment(Experiment):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
-        if self.model.epochs_complete < self.model.num_epochs:
-            self.model.fit(self.dataset)
+        if self.model.epochs_complete >= self.model.num_epochs:
+            return
+        if self.live:
+            return
+
+        self.model.fit(self.dataset)
         if hasattr(self.model, 'serialized_path'):
             self.model.uninitialize()
             if (hasattr(self.dataset, 'dist_flag') and

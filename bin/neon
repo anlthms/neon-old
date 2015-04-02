@@ -44,6 +44,8 @@ def parse_args():
     parser.add_argument('-m', '--modelpar', action='store_true',
                         help='Use parallelization to partition the model over '
                              'multiple nodes')
+    parser.add_argument('-l', '--live', action='store_true',
+                        help='Perform inference on live data')
     parser.add_argument('-f', '--flexpoint', action='store_true',
                         help='Attempt to run a Nervana FlexPoint(TM) capable '
                              'backend')
@@ -92,6 +94,8 @@ def main():
                         'locally.')
     try:
         experiment = deserialize(args.yaml_file)
+        if hasattr(experiment, 'live'):
+            experiment.live = args.live
         if hasattr(experiment, 'logging'):
             logger = logging.getLogger()
             handler = logger.handlers[0]

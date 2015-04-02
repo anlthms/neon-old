@@ -447,7 +447,7 @@ class WeightLayer(Layer):
         self.weight_init.initialize(self.backend)
 
     def allocate_param_bufs(self):
-        if self.params_initialized == True:
+        if self.params_initialized:
             return
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,
