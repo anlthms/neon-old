@@ -330,6 +330,7 @@ class DataLayer(Layer):
         self.batch_idx = 0
 
     def fprop(self, inputs):
+        import pdb; pdb.set_trace()
         self.output, self.targets = self.dataset.get_mini_batch(self.batch_idx)
         self.batch_idx += 1
 

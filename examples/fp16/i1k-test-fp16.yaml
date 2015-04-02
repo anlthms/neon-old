@@ -1,61 +1,78 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the FULL version of AlexNet CNN on ImageNet.
+# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
 
-# Changed the initialization to He ... Ren (PReLu paper)
+# new pf16 test file based on Alex's new nq dataset and nodewt initialization
 
-!obj:experiments.FitPredictErrorExperiment {
+
+!obj:experiments.FitPredictErrorExperiment {  # WriteErrorToFile
+  # filename: i1k-hyperopt,
+  # item: train,
 
   diagnostics: {
     timing: True,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
-    decorate_ew: [logistic, rectlin, sum, mean, var, sqrt, add, subtract,
-                  multiply, divide, greater, not_equal, clip, log, argmax,
-                  softmax, gdm_compound, gdmwd_compound],
-    ranges: False,
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+                  # sum must not be decorated at this time, it will fail
+
+    ranges: True,  # Need logging level debug for these to display
+    silent: True,
+    decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
 
-
-  dataset: &ds !obj:datasets.I1K {
-    half_precision: &hp True,
-    load_path: '/usr/local/data', #directory where .tar files are stored
-    repo_path: '/usr/local/data', #directory to use for writing files
+  dataset: &ds !obj:datasets.Imageset {
+    repo_path: '~/data',
+    imageset: 'I1K',
+    square_crop: True,
+    save_dir: '~/data/I1K/imageset_batches',
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
-    max_tar_file: &mtf 1000,
-    output_batch_size: 3072,
-    ring_buffer_size: 3,
-    num_train_macro_batches: 417, #max available train macro_batches
-    num_val_macro_batches: 16, #max available val macro batches
-    #number of cpu processes for image resizing and decompression
-    num_processes: 4, #not impl yet
-    # macro batch start and end indices to use for train and val datasets
-    start_train_batch: 0,
-    end_train_batch: 24, #24 mini 416 full,
-    start_val_batch: 0,
-    end_val_batch: 15, #4 mini 15 full,
+    macro_size: 3072,
+    num_channels: 3,
+    mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
+    unit_norm: False, # This norms magnitude to 1
+    ntrain: 24, # Delete this line to use entire dataset for training
+    half_precision: &hp False, ###################### HALF ###############
   },
 
+  # dataset: &ds !obj:datasets.I1Knq {
+  #   load_path: '/usr/local/data', #directory where .tar files are stored
+  #   repo_path: '/usr/local/data', #directory to use for writing files
+  #   output_image_size: &ois 256,
+  #   cropped_image_size: &cis 224,
+  #   max_tar_file: &mtf 1000,
+  #   output_batch_size: 3072,
+  #   ring_buffer_size: 3, #buffer that transfers from device to host
+  #   num_train_macro_batches: 25, #max available train macro_batches
+  #   num_val_macro_batches: 5, #max available val macro batches
+  #   #number of cpu processes for image resizing and decompression
+  #   num_processes: 4, #not impl yet
+  #   # macro batch start and end indices to use  for train and val datasets
+  #   start_train_batch: 0,
+  #   end_train_batch: 24, # 24
+  #   start_val_batch: 0,
+  #   end_val_batch: 15,  # was 4, or 15
+  #   half_precision: &hp False, ###################### HALF ###############
+  # },
+
   weight_inits: [
-    &wt_init0 !obj:params.GaussianValGen {
-      scale: .01,
-      bias_init: 0.0,
+    # Init for the two FC layers
+    &wt_init_fc !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: 1.0,
     },
-    &wt_init1 !obj:params.GaussianValGen {
-      scale: .01,
-      bias_init: 0.1,
+    # used for lastlayer
+    &wt_initout !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: -7.0,
     },
-    &wt_init_fc !obj:params.GaussianValGen {
-      scale: .005,
-      bias_init: 0.1,
-    },
+    #&skinit !obj:params.OrthoNormalizedValGen,
   ],
 
-  # used for bias rule
   lrule: &gdm {
     type: gradient_descent_momentum,
     half_precision: *hp,
@@ -73,12 +90,10 @@
     },
   },
 
-  # used for weight rule
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
-    half_precision: *hp,
     lr_params: {
-      learning_rate: 0.01,
+      learning_rate: 0.01, # !hyperopt lr FLOAT 0.001 0.01, # 0.01,
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -92,12 +107,15 @@
     },
   },
 
+  # OrthoNormalizedValGen does not see to work so well
+
   model: !obj:models.MLP {
-    num_epochs: 50,  # was 90. Alex: 50 is enough to get 80% top 1 error
     half_precision: *hp,
+    batch_norm: &bn False,   ###################### BATCH NORM ###############
+    num_epochs: 10, # 1 or 10 or 60
     batch_size: &bs 128,
-    step_print: 24,
-    #serialized_path: '~/data/I1K/I1K_alexnet_model.pkl',
+    step_print: 24,  # was 24
+    #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -108,11 +126,13 @@
       !obj:layers.ConvLayer {
         name: conv1,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .05, # sqrt(2/n), n = k^2 c = 11**2 * 3 = 363 -> a .07 or b .016
-          bias_init: 0.0, # zero
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 0.0,
         },
         nofm: 64,
         fshape: [11, 11],
@@ -136,11 +156,13 @@
       !obj:layers.ConvLayer {
         name: conv2,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .035, # sqrt(2/n), n = k^2 c = 5**2 * 64 = 1600 -> a .035 or b .02
-          bias_init: 0.0, # zero
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
         },
         nofm: 192,
         fshape: [5, 5],
@@ -163,11 +185,13 @@
       !obj:layers.ConvLayer {
         name: conv3,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .034, # sqrt(2/n), n = k^2 c = 3**2 * 192 = 1728 -> a .034 or b .024
-          bias_init: 0.0, # zero
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 0.0,
         },
         nofm: 384,
         fshape: [3, 3],
@@ -177,11 +201,13 @@
       !obj:layers.ConvLayer {
         name: conv4,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .024, # sqrt(2/n), n = k^2 c = 3**2 * 384 = 3456 -> a .024 or b .03
-          bias_init: 0.0, # zero
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],
@@ -191,11 +217,13 @@
       !obj:layers.ConvLayer {
         name: conv5,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .03, # MANUAL 2x OVERRIDE  sqrt(2/n), n = k^2 c = 3**2 * 256 = 2304 -> a .03 or b .03
-          bias_init: 0.0, # zero
+        weight_init: !obj:params.AutoUniformValGen {
+          relu: True,
+          islocal: True,
+          bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],
@@ -212,12 +240,10 @@
       !obj:layers.FCLayer {
         name: fc4096a,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .015, # MANUAL 2x OVERRIDE   sqrt(2/n), n = 256*6*6 = 9216  or 6*6*2048 # trying shit out. -> a .015 or b .005
-          bias_init: 0.0, # zero
-        },
+        weight_init: *wt_init_fc,
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
@@ -229,12 +255,10 @@
       !obj:layers.FCLayer {
         name: fc4096b,
         half_precision: *hp,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .03,  # sqrt(2/n), n 1*1*2048 = 2048  # trying shit out. -> a .03 or b .03 (using effective 2048 due to dropout, otherwise .02)
-          bias_init: 0.0, # zero
-        },
+        weight_init: *wt_init_fc,
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
@@ -248,17 +272,15 @@
         half_precision: *hp,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: !obj:params.GaussianValGen {
-          scale: .05, # was 0.01, but n 1*1*1000 -> .05
-          bias_init: 0.0, # zero
-        },
-        nout: *mtf,
-        activation: !obj:transforms.Logistic {},  # SuperVision: Softmax or WeirdTrick: Logistic
+        weight_init: *wt_initout,
+        nout: 1000,
+        activation: !obj:transforms.Softmax  {}, # Logistic , Softmax
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
-        half_precision: *hp,
         ref_layer: *datalayer,
+        # ref_label: 'targets',
+        # raw_label: True,
         cost: !obj:transforms.CrossEntropy {
           half_precision: *hp,
           epsilon: 0.0005,
