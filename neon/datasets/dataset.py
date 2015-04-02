@@ -76,6 +76,12 @@ class Dataset(object):
         """
         raise NotImplementedError()
 
+    def close(self):
+        """
+        Perform cleanup tasks if any are required.
+        """
+        pass
+
     def download_to_repo(self, url, repo_path):
         """
         Fetches the dataset to a local repository for future use.

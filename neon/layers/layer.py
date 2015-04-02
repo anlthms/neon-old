@@ -73,6 +73,15 @@ class Layer(YAMLable):
         self.deltas = None
         self.initialized = True
 
+    def uninitialize(self):
+        self.initialized = False
+        self.delattr('out_shape')
+        self.delattr('delta_shape')
+
+    def delattr(self, attr):
+        if hasattr(self, attr):
+            delattr(self, attr)
+
     def set_weight_shape(self):
         pass
 
@@ -429,6 +438,7 @@ class WeightLayer(Layer):
     def __init__(self, **kwargs):
         super(WeightLayer, self).__init__(**kwargs)
         self.distributable = True
+        self.params_initialized = False
 
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
@@ -437,6 +447,8 @@ class WeightLayer(Layer):
         self.weight_init.initialize(self.backend)
 
     def allocate_param_bufs(self):
+        if self.params_initialized == True:
+            return
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,
                                                  self.weight_dtype)
@@ -467,6 +479,7 @@ class WeightLayer(Layer):
             self.learning_rule.allocate_state([self.weight_updates])
         else:
             self.learning_rule.allocate_state(self.updates)
+        self.params_initialized = True
 
     def update(self, epoch):
         if self.bias_rule is None:

@@ -72,6 +72,7 @@ class FitExperiment(Experiment):
         if self.model.epochs_complete < self.model.num_epochs:
             self.model.fit(self.dataset)
         if hasattr(self.model, 'serialized_path'):
+            self.model.uninitialize()
             if (hasattr(self.dataset, 'dist_flag') and
                self.dataset.dist_flag and
                self.dataset.dist_mode == 'datapar'):
