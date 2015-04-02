@@ -86,8 +86,7 @@ class UnPoolingLayer(PoolingLayer):
     def set_previous_layer(self, pl):
         if pl.is_local:
             self.ifmshape = pl.ofmshape
-            print "correcting nifm for pl maxout!"
-            self.nifm = pl.nofm / self.maxout
+            self.nifm = pl.nofm / self.maxout  # correcting nifm for pl maxout
             self.nin = pl.nofm * reduce(lambda x, y: x * y, pl.ofmshape)
         else:
             if not hasattr(self, 'ifmshape'):
