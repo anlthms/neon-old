@@ -3,8 +3,8 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '/usr/local/data',
-    sample_pct: 100,
+    repo_path: '~/data',
+    sample_pct: 10,
   },
 
   weight_inits: &wt_init !obj:params.UniformValGen {

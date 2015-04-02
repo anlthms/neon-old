@@ -3,8 +3,8 @@
 !obj:neon.experiments.fit_predict_err.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.Imageset {
-    repo_path: '/usr/local/data',
-    save_dir: '/usr/local/data/CIFAR10/cifar-macro/train',
+    repo_path: '~/data',
+    save_dir: '~/data/CIFAR10/cifar-macro/train',
     cropped_image_size: &cis 32,
     output_image_size: *cis,
     # max_tar_file: &mtf 1000,

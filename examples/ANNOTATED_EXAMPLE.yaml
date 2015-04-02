@@ -55,10 +55,11 @@
   #           MNIST - handwritten digit image dataset
   #           CIFAR10 - 10 class object image dataset
   #           I1K - Imagenet 1000 class image dataset
+  #           I1Knq - Imagenet 1000 class image dataset (non-queueing)
   #           SPARSENET - small natural image dataset (Olshausen and Field)
+  #           Imageset - Generic macro batched image dataset support
   #           Iris - RA Fisher's 3 class flower dataset
   #           MOBYDICK - Content of the book Moby Dick
-  #           TFD - Toronto Face image dataset
   #           UniformRandom - synthetic random data
   #           ToyImages - synthetic image classification dataset
   # weight_init - controls initial value setup for the model weights.  types:

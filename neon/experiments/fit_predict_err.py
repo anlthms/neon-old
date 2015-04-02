@@ -43,7 +43,13 @@ class FitPredictErrorExperiment(FitExperiment):
                                  'inference_sets')
 
     def save_results(self, dataset, setname, data, dataname):
-        filename = os.path.join(dataset.repo_path, dataset.__class__.__name__,
+        out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
+        if hasattr(dataset, 'save_dir'):
+            out_dir = dataset.save_dir
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        filename = os.path.join(out_dir, dataset.__class__.__name__,
                                 '{}-{}.pkl'.format(setname, dataname))
         serialize(data.asnumpyarray().T, filename)
 

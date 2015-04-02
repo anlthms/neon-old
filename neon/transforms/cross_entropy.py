@@ -192,10 +192,10 @@ class CrossEntropy(Cost):
 
     def raw_to_onehot(self, labels):
         self.temp[3].fill(0.0)
+
         for row in range(self.outputbuf.shape[0]):
-            self.backend.equal(labels, row, self.temp[3][row])
-        # print labels.asnumpyarray()[0,:10]
-        # print self.temp[3].asnumpyarray()[:,:10]
+            self.backend.equal(labels, row, self.temp[3][row:(row+1)])
+
         return self.temp[3]
 
     def apply_logloss(self, targets, eps=1e-15):
@@ -210,16 +210,8 @@ class CrossEntropy(Cost):
                                     self.temp)
         self.backend.clip(self.outputbuf, eps, 1.0 - eps, out=self.temp[0])
         self.backend.sum(self.temp[0], axes=0, out=self.temp[2])
+        self.backend.divide(self.temp[0], self.temp[2], out=self.temp[0])
 
-        # XXX: work around lack of broadcasting in gpu backend.
-        temp1 = self.temp[1].asnumpyarray()
-        size = self.temp[2].shape[0] * self.temp[2].shape[1]
-        broadcast_row = self.temp[2].asnumpyarray().reshape((size,))
-        for row in range(self.outputbuf.shape[0]):
-            temp1[row] = broadcast_row
-        self.temp[1] = self.backend.array(temp1)
-
-        self.backend.divide(self.temp[0], self.temp[1], out=self.temp[0])
         return cross_entropy_multi(self.backend, self.temp[0], targets,
                                    self.temp)
 

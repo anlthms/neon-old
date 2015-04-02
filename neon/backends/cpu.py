@@ -726,6 +726,17 @@ class CPU(Backend):
         self.greater(x, 0, out=out)
         return out
 
+    def rectleaky(self, x, slope, out):
+        self.multiply(x, slope, out=out)
+        np.maximum(x._tensor, out._tensor, out._tensor)
+        return out
+
+    def rectleaky_derivative(self, x, slope, out):
+        self.greater(x, 0, out=out)
+        self.multiply(out, (1.0 - slope), out=out)
+        self.add(out, slope, out=out)
+        return out
+
     def sum(self, tsr, axes, out):
         """
         Calculates the summation of the elements along the specified axes.
@@ -1528,11 +1539,10 @@ class CPU(Backend):
         """
         Compute the accumulated logloss and number of top1 and topk errors.
 
-        NOTE:  Returns a tuple of python values, not CPUTensors
         Arguments:
             reference (CPUTensor): The true labels ( 1 x num_samples)
             probs (CPUTensor): The normalized output ( num_class x num_samples)
-                               The sum for each colum should be 1.
+                               The row-wise sum for each column should be 1.
                                Each column represents a sample and the
                                values in the column represent the probability
                                of that class being the correct one as
@@ -1548,6 +1558,11 @@ class CPU(Backend):
                                      (1 x num_samples)
             topk (int): Parameter determining which of the top k to use for
                         determining topkcorrect
+
+        Returns:
+            tuple: 3 python scalars/arrays (not CPUTensors) containing the
+                   logloss, top1 misclassification rate, topk misclassification
+                   rate
         """
         ns = reference.shape[1]
         labels = np.array(reference._tensor, dtype=np.int32)
