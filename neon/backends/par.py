@@ -25,8 +25,11 @@ class NoPar(object):
             dest.copy_from(src)
             return dest
 
+    def scatter(self, src, dest):
+        dest.copy_from(src.transpose().astype(dest.dtype))
+
     def reduce_tensor(self, tensor):
-        return tensor.asmpibuffer()
+        return tensor.asnumpyarray()
 
     def rank(self):
         return 0
@@ -70,7 +73,10 @@ class BasePar(object):
         backend.par = self
         self.backend = backend
 
-    def distribute(self, batchdata):
+    def distribute(self, src, dest=None):
+        raise NotImplementedError()
+
+    def scatter(self, src, dest):
         raise NotImplementedError()
 
     def reduce_tensor(self, tensor):
@@ -149,27 +155,30 @@ class ModelPar(BasePar):
             dest.copy_from(src)
             return dest
 
+    def scatter(self, src, dest):
+        dest.copy_from(src.transpose().astype(dest.dtype))
+
     def allocate_fragment(self, buf_shape, dtype=None):
         return self.backend.empty(buf_shape, dtype=dtype)
 
     def reduce_tensor(self, tensor):
-        return tensor.asmpibuffer()
+        return tensor.asnumpyarray()
 
     def fprop_fc(self, out, inputs, weights, layer):
         conf = layer.parconf
         self.orig_fprop_fc(out, inputs[conf.start:conf.end], weights)
         sendbuf = [out.asmpibuffer(), self.mpi.FLOAT]
-        recvbuf = [conf.fpropbuf, self.mpi.FLOAT]
+        recvbuf = [conf.fpropbuf.asmpibuffer(), self.mpi.FLOAT]
         self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
-        self.comm.Bcast(buf=[conf.fpropbuf, self.mpi.FLOAT])
+        self.comm.Bcast(buf=recvbuf)
         out.copy_from(conf.fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
         conf = layer.parconf
-        self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
-        outbuf = out.asmpibuffer()[conf.start:conf.end]
-        sendbuf = [outbuf, conf.scount, self.mpi.FLOAT]
-        recvbuf = [conf.bpropbuf, conf.rcount,
+        outbuf = out[conf.start:conf.end]
+        self.orig_bprop_fc(outbuf, weights, deltas)
+        sendbuf = [outbuf.asmpibuffer(), conf.scount, self.mpi.FLOAT]
+        recvbuf = [conf.bpropbuf.asmpibuffer(), conf.rcount,
                    conf.displ, self.mpi.FLOAT]
         self.comm.Allgatherv(sendbuf, recvbuf)
         out.copy_from(conf.bpropbuf)
@@ -215,7 +224,7 @@ class DataPar(BasePar):
         self.orig_update_conv = backend.update_conv
         backend.update_fc = self.update_fc
         backend.update_conv = self.update_conv
-        self.reducebuf = backend.empty((1, 1), dtype=np.float32)
+        self.reducebuf = np.empty((1, 1), dtype=np.float32)
 
     def distribute(self, src, dest=None):
         if dest is None:
@@ -225,13 +234,16 @@ class DataPar(BasePar):
             return dest
 
     def scatter(self, src, dest):
-        self.comm.Scatter([src.asmpibuffer(), self.mpi.FLOAT],
-                          [dest.asmpibuffer(), self.mpi.FLOAT], root=0)
+        if src is not None:
+            # Assumption is that src is (batch_size * mpi_size, num_dims)
+            N = self.batch_size
+            k = self.mpi_size
+            D = src.shape[1]
+            src = src.reshape(k, N, D).transpose(
+                    0, 2, 1).reshape(k, D * N).astype(dest.dtype)
 
-            return self.backend.array(src[:, self.start:self.end])
-        else:
-            dest.copy_from(src[:, self.start:self.end])
-            return dest
+        self.comm.Scatter([src, self.mpi.FLOAT],
+                          [dest.asmpibuffer(), self.mpi.FLOAT], root=0)
 
     def allocate_fragment(self, buf_shape, dtype=None):
         fragment_buf_shape = (buf_shape[0], self.batch_size)
@@ -251,10 +263,10 @@ class DataPar(BasePar):
         # weights are updated after the gradients are propagated
         # all the way back).
         sendbuf = [out.asmpibuffer(), self.mpi.FLOAT]
-        recvbuf = [conf.updatebuf, self.mpi.FLOAT]
+        recvbuf = [conf.updatebuf.asmpibuffer(), self.mpi.FLOAT]
         self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
-        self.comm.Bcast(buf=[conf.updatebuf, self.mpi.FLOAT])
-        out.copy_from(conf.updatebuf)
+        self.comm.Bcast(buf=recvbuf)
+        out[:] = conf.updatebuf
 
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)

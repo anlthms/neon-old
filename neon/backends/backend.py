@@ -1097,6 +1097,9 @@ class Backend(YAMLable):
     def distribute(self, src, dest=None):
         return self.par.distribute(src, dest)
 
+    def scatter(self, src, dest=None):
+        return self.par.scatter(src, dest)
+
     def rank(self):
         return self.par.rank()
 

@@ -140,7 +140,7 @@ class BatchWriter(object):
         imfiles = [imfiles[i*psz: (i+1)*psz] for i in range(npts)]
 
         if targets is not None:
-            targets = [targets[i*psz: (i+1)*psz].T.copy() for i in range(npts)]
+            targets = [targets[i*psz: (i+1)*psz] for i in range(npts)]
 
         labels = [{k: v[i*psz: (i+1)*psz] for k, v in labels.iteritems()}
                   for i in range(npts)]
