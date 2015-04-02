@@ -155,7 +155,7 @@ class BatchWriter(object):
 
         accum_buf = np.zeros((osz, osz, 3), dtype=np.int32)
         batch_mean = np.zeros(self.accum.shape, dtype=np.uint8)
-        print "Writing %s batches..." % name
+        logger.info("Writing %s batches...", name)
         for i, jpeg_file_batch in enumerate(imfiles):
             t = time()
             pool = Pool(processes=self.num_workers)
@@ -167,8 +167,8 @@ class BatchWriter(object):
             my_pickle(bfile, {'data': jpeg_strings,
                               'labels': labels_batch,
                               'targets': targets_batch})
-            print "Wrote to %s (%s batch %d of %d) (%.2f sec)" % (
-                self.out_dir, name, i + 1, len(imfiles), time() - t)
+            logger.info("Wrote to %s (%s batch %d of %d) (%.2f sec)",
+                        self.out_dir, name, i + 1, len(imfiles), time() - t)
 
             # get the means and accumulate
             imgworker.calc_batch_mean(jpglist=jpeg_strings, tgt=batch_mean,
@@ -188,12 +188,12 @@ class BatchWriter(object):
         filelist = [self.train_file, self.val_file]
         startlist = [self.train_start, self.val_start]
         for sname, fname, start in zip(namelist, filelist, startlist):
-            print sname, fname, start
+            logger.info("%s %s %s", sname, fname, start)
             if fname is not None and os.path.exists(fname):
                 imgs, labels, targets = self.parse_file_list(fname)
                 self.write_batches(sname, start, labels, imgs, targets)
             else:
-                print 'Skipping {}, file missing'.format(sname)
+                logger.info('Skipping {}, file missing'.format(sname))
 
 
 class Imageset(Dataset):
