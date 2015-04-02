@@ -32,7 +32,7 @@ class BatchNorm(Activation):
         """
         self.__dict__.update(kwargs)
         self.dtype = self.layer.weight_dtype
-        self.bigtype =  np.float32 if self.dtype is np.float16 else self.dtype # self.dtype # TODO: EW in 32 should help but does not
+        self.bigtype = np.float32 if self.dtype is np.float16 else self.dtype
         opt_param(self, ['_iscale', '_ishift'])
         opt_param(self, ['_eps'], 1e-6)
         req_param(self, ['layer'])
@@ -82,7 +82,7 @@ class BatchNorm(Activation):
             m = self.batch_size
             if self.is_local:
                 m *= self.ofmsize
-            unbiaser = float(m / (m - 1.))                                      # np.float32 ok for MAX?
+            unbiaser = float(m / (m - 1.))
             self.backend.multiply(self._gvars, unbiaser, self._gvars)
             self.backend.add(self._gvars, self._eps, self._gvars)
             self.backend.sqrt(self._gvars, out=self._gvars)
@@ -122,7 +122,7 @@ class BatchNorm(Activation):
 
         if self.train_mode:
             # Calc batch statistics
-            backend.mean(inputs, axes=1, out=self._mean)  # includes mean over filter positions
+            backend.mean(inputs, axes=1, out=self._mean)
             backend.variance(inputs, axes=1, out=self._vars, mean=self._mean)
             # increment the global estimates (TODO: stop after an epoch)
             backend.add(self._gvars, self._vars, self._gvars)
@@ -133,7 +133,7 @@ class BatchNorm(Activation):
             backend.add(self._vars, self._eps, self._vars)
             backend.sqrt(self._vars, out=self._vars)
 
-           # Every operation below uses broadcasting over minibatch dim
+            # Every operation below uses broadcasting over minibatch dim
             backend.subtract(inputs, self._mean, out=self._xhat)
             backend.divide(self._xhat, self._vars, out=self._xhat)
             backend.multiply(self._xhat, self._gamma, out=outputs)
@@ -149,23 +149,21 @@ class BatchNorm(Activation):
 
     def bprop_func(self, backend, pre_act, error, skip_act=False):
         if self.is_local:
-            pre_act = pre_act.reshape(self.in_shape)  # Note: Not allowed to look at it until it's reshaped back.
+            pre_act = pre_act.reshape(self.in_shape)
             error = error.reshape(self.in_shape)
 
         backend.multiply(self._xhat, error, out=pre_act)
-        backend.sum(pre_act, axes=1, out=self._gamma_updates) # sum 12800 elements
+        backend.sum(pre_act, axes=1, out=self._gamma_updates)
         backend.sum(error, axes=1, out=self._beta_updates)
 
-       # Compute the backpropagated error into error
+        # Compute the backpropagated error into error
         backend.multiply(self._xhat, self._gamma_updates, out=self._xhat)
         backend.add(self._xhat, self._beta_updates, out=self._xhat)
-        backend.divide(self._xhat, float(self._xhat.shape[1]), out=self._xhat)  # np.float32 ok for MAX?
+        backend.divide(self._xhat, float(self._xhat.shape[1]), out=self._xhat)
         backend.subtract(error, self._xhat, out=error)
         backend.multiply(error, self._gamma, out=error)
-        backend.divide(error, self._vars, out=error)  # bugfix: was multiply
+        backend.divide(error, self._vars, out=error)
 
         if self.is_local:
             pre_act = pre_act.reshape(self.orig_shape)
             error = error.reshape(self.orig_shape)
-
-

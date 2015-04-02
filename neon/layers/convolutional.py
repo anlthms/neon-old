@@ -48,7 +48,7 @@ class ConvLayer(WeightLayer):
             self.updatebuf = self.backend.empty(self.weights.shape)
 
         if self.backend.__module__ == 'neon.backends.max':
-            self.conv_params = self.backend.nl.conv_layer(
+            self.conv_params = self.backend.ng.conv_layer(
                 N=self.batch_size, C=self.nifm, K=self.nofm,
                 D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
                 R=self.fshape[0], S=self.fshape[1],

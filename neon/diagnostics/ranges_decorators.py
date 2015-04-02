@@ -45,7 +45,7 @@ class Decorators(object):
             wrapped_func = self.print_ranges(orig_func)
             setattr(self.backend, call, wrapped_func)
 
-    def store_histograms(self, kwargs,func_name, layer_name):
+    def store_histograms(self, kwargs, func_name, layer_name):
         """
         Create a histogram of parameter values
         """
@@ -55,18 +55,18 @@ class Decorators(object):
             if item in kwargs:
                 histo, foo = np.histogram(
                                 kwargs[item].asnumpyarray().flatten(),
-                                bins = self.bins[item])
+                                bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
             elif ('ps_item' in kwargs) and (item == 'ratioup'):
                 histo, foo = np.histogram(
-                                kwargs['us_item'].asnumpyarray().flatten()/
+                                kwargs['us_item'].asnumpyarray().flatten() /
                                 kwargs['ps_item'].asnumpyarray().flatten(),
-                                bins = self.bins[item])
+                                bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
 
-    def verbose_logging(self, kwargs,func_name, layer_name):
+    def verbose_logging(self, kwargs, func_name, layer_name):
         """
         Write parameters (weight, activation, deltas, outpus ) raw, std, min
         and max to logger
@@ -89,7 +89,7 @@ class Decorators(object):
                             the_min.asnumpyarray()[0, 0].__str__(),
                             the_max.asnumpyarray()[0, 0].__str__())
 
-    def succinct_logging(self, kwargs,func_name, layer_name):
+    def succinct_logging(self, kwargs, func_name, layer_name):
         """
         Write ouput min and max to logger
         """
@@ -121,12 +121,12 @@ class Decorators(object):
             # orig. function call
             retval = func(*arguments, **kwargs)
             layer_name = kwargs['weights'].name if 'weights' in kwargs else \
-                         kwargs['ps_item'].name if ('ps_item' in kwargs) \
-                            and hasattr(kwargs['ps_item'], 'name') else 'anon'
+                kwargs['ps_item'].name if ('ps_item' in kwargs) \
+                and hasattr(kwargs['ps_item'], 'name') else 'anon'
 
             # histogram plots
             if ('epoch' in kwargs) and (kwargs['epoch'] > self.oldepoch):
-                 # new epoch
+                # new epoch
                 self.doneness = 0
                 self.oldepoch = kwargs['epoch']
             if ('epoch' in kwargs) and (self.doneness < 30):

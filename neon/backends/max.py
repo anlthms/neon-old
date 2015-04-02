@@ -106,7 +106,7 @@ class MAX(Backend):
         """
         ary = np.random.uniform(low, high, shape)
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.ng.round_mode).set(ary)
+                         rounding=self.ng.round_mode).set(ary)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None, name=None,
                allocator=drv.mem_alloc):
@@ -115,7 +115,7 @@ class MAX(Backend):
         """
         ary = np.random.normal(loc, scale, size)
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.ng.round_mode).set(ary)
+                         rounding=self.ng.round_mode).set(ary)
 
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
@@ -543,19 +543,19 @@ class MAX(Backend):
             GPUTensor: output
         """
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.ng.round_mode).set(ary)
+                         rounding=self.ng.round_mode).set(ary)
 
     def add(self, left, right, out):
         """
         Elementwise addition
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.add(left, right, out=out)
         return out
@@ -565,12 +565,12 @@ class MAX(Backend):
         Elementwise subtraction
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.subtract(left, right, out=out)
         return out
@@ -580,12 +580,12 @@ class MAX(Backend):
         Elementwise multiplication
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.multiply(left, right, out=out)
         return out
@@ -595,12 +595,12 @@ class MAX(Backend):
         Elementwise division
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.divide(left, right, out=out)
         return out
@@ -610,12 +610,12 @@ class MAX(Backend):
         Elementwise greater than testing
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.greater(left, right, out=out)
         return out
@@ -625,28 +625,28 @@ class MAX(Backend):
         Elementwise not equal testing
 
         Arguments:
-            left (CPUTensor, numeric): left-hand side operand.
-            right (CPUTensor, numeric): right-hand side operand.
-            out (CPUTensor): where the result will be stored.
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.not_equal(left, right, out=out)
         return out
 
-    def clip(self, a, a_min, a_max, out=out):
+    def clip(self, a, a_min, a_max, out):
         """
         Elementwise clipping between a range of specified values
 
         Arguments:
-            a (CPUTensor): input tensor.
+            a (GPUTensor): input tensor.
             a_min (float): floor value.
             a_max (float): ceiling value.
-            out (CPUTensor): where the result will be stored.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.clip(a, a_min, a_max, out=out)
         return out
@@ -656,11 +656,11 @@ class MAX(Backend):
         Elementwise base-e logarithm
 
         Arguments:
-            a (CPUTensor): input tensor.
-            out (CPUTensor): where the result will be stored.
+            a (GPUTensor): input tensor.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.log(a, out=out)
         return out
@@ -672,15 +672,15 @@ class MAX(Backend):
         the first are returned.
 
         Arguments:
-            tsr (CPUTensor): The CPUTensor on which to find the maximum indices
+            tsr (GPUTensor): The GPUTensor on which to find the maximum indices
             axis (int): The dimension along which to find the maximum.  If set
                         to None, find the overall maximum index of a flattened
                         representation of tsr.
-            out (CPUTensor): Where to store the result.  Should be of the
+            out (GPUTensor): Where to store the result.  Should be of the
                              appropriate type and expected shape
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         self.ng.argmax(a, out=out, axis=axis)
         return out
@@ -690,11 +690,11 @@ class MAX(Backend):
         Softmax nonlinearity. Computes exp(x-max(x)) / sum_i exp(x_i-max(x_i))
 
         Arguments:
-            x (CPUTensor): input tensor.
-            out (CPUTensor): where the result will be stored.
+            x (GPUTensor): input tensor.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
 
         vecbuf = self.mem_pool
@@ -711,12 +711,12 @@ class MAX(Backend):
         Gradient of the softmax nonlinearity.
 
         Arguments:
-            y (CPUTensor): input tensor.
-            err (CPUTensor): backpropagated error.
-            out (CPUTensor): where the result will be stored.
+            y (GPUTensor): input tensor.
+            err (GPUTensor): backpropagated error.
+            out (GPUTensor): where the result will be stored.
 
         Returns:
-            CPUTensor: reference to out
+            GPUTensor: reference to out
         """
         raise NotImplementedError("Softmax gradient should use shortcut")
         return out
@@ -726,7 +726,7 @@ class MAX(Backend):
         Create a binary mask for dropout layers.
 
         Arguments:
-            tsr (CPUTensor): Output tensor
+            tsr (GPUTensor): Output tensor
             keepthresh (float): fraction of ones
         """
         self.ng.dropout(keep=keepthresh, out=tsr)

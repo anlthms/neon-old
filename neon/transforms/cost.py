@@ -7,9 +7,6 @@ Contains cost or loss function related code.
 from neon.util.param import opt_param, req_param
 
 
-from neon.util.param import opt_param
-
-
 class Cost(object):
     """
     Abstract cost function class.  Defines operations any concrete

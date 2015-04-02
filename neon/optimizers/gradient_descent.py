@@ -110,12 +110,12 @@ class GradientDescentMomentum(GradientDescent):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
             if ((self.backend.__module__ == 'neon.backends.max') or
-                (self.backend.__module__ == 'neon.backends.gpu')):
+                    (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdm_compound(ps_item=ps_item, us_item=us_item,
                                           vs_item=vs_item,
                                           momentum_coef=momentum_coef,
-                                          learning_rate= self.learning_rate,
+                                          learning_rate=self.learning_rate,
                                           epoch=epoch)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
@@ -216,7 +216,7 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
             if ((self.backend.__module__ == 'neon.backends.max') or
-                (self.backend.__module__ == 'neon.backends.gpu')):
+                    (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdmwd_compound(ps_item=ps_item, us_item=us_item,
                                             vs_item=vs_item,

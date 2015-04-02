@@ -28,8 +28,8 @@ def print_performance_stats(backend, logger):
                     " %0.2fTFLOPS from %2.0fGFLOP",
                     (str(len(backend.flop_dict[call]))+" "+call).ljust(15),
                     sum(backend.time_dict[call]),
-                    sum(backend.flop_dict[call])
-                    / sum(backend.time_dict[call]) / 1e12,
+                    sum(backend.flop_dict[call]) /
+                    sum(backend.time_dict[call]) / 1e12,
                     sum(backend.flop_dict[call]) / 1e9)
 
         # Histogram of where the time is spent.
@@ -141,7 +141,7 @@ def first_fig(paren_stash, used_call_list, timed_calls, timed_times,
     num_bins = 30
     n, bins, patches = plt.hist(timed_calls, num_bins,
                                 weights=timed_times, range=(0, 7.5),
-                                color = times_col_stash,
+                                color=times_col_stash,
                                 histtype='barstacked', normed=0, alpha=0.5)
     plt.title(r'Total %2.1fs %2.0fTF average %2.1fTFLOP/s'
               % (total_time, total_tflop, total_tflop/total_time))

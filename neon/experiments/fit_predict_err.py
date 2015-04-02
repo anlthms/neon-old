@@ -63,7 +63,8 @@ class FitPredictErrorExperiment(FitExperiment):
         if self.diagnostics['ranges']:
             from neon.diagnostics import ranges_decorators
             rd = ranges_decorators.Decorators(backend=self.backend,
-                                              silent=self.diagnostics['silent'])
+                                              silent=self.diagnostics[
+                                                                'silent'])
             rd.decorate(function_list=self.diagnostics)
 
         # Load the data and train the model.
