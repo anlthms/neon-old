@@ -109,10 +109,14 @@ class GradientDescentMomentum(GradientDescent):
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
-            if self.backend.__module__ == 'neon.backends.max':
+            if ((self.backend.__module__ == 'neon.backends.max') or
+                (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
-                self.backend.gdm_compound(ps_item, us_item, vs_item,
-                                          momentum_coef, learning_rate)
+                self.backend.gdm_compound(ps_item=ps_item, us_item=us_item,
+                                          vs_item=vs_item,
+                                          momentum_coef=momentum_coef,
+                                          learning_rate= self.learning_rate,
+                                          epoch=epoch)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
                 self.backend.multiply(us_item, learning_rate, out=us_item)
@@ -211,11 +215,15 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
-            if self.backend.__module__ == 'neon.backends.max':
+            if ((self.backend.__module__ == 'neon.backends.max') or
+                (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
-                self.backend.gdmwd_compound(ps_item, us_item, vs_item,
-                                            momentum_coef, learning_rate,
-                                            self.weight_decay)
+                self.backend.gdmwd_compound(ps_item=ps_item, us_item=us_item,
+                                            vs_item=vs_item,
+                                            momentum_coef=momentum_coef,
+                                            learning_rate=self.learning_rate,
+                                            wd=self.weight_decay,
+                                            epoch=epoch)
             else:
                 self.backend.multiply(vs_item, momentum_coef, out=vs_item)
                 self.backend.multiply(us_item, learning_rate, out=us_item)

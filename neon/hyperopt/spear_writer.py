@@ -22,7 +22,7 @@ def write_pb(input_file, pb_file):
         with open(pb_file, 'w') as fout:
             fout.write('language: PYTHON \nname: "' + scipt_name + '"\n\n')
             for inline in fin:
-                if 'hyperopt' in inline:
+                if '!hyperopt' in inline:
                     ho_dict = parse_line(inline)
                     outline = write_block(ho_dict)
                     fout.write(outline)

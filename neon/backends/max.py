@@ -3,12 +3,12 @@
 # ----------------------------------------------------------------------------
 """
 Backend wrapper for nervana_lib. Most functions are inherited directly from
-the NervanaLib class, and FloatArray is taken from there.
+the NervanaGPU class, and GPUTensor is taken from there.
 """
 import logging
 
 from neon.backends.backend import Backend
-from flexgpu.nervana_lib import NervanaLib, FloatArray
+from nervanagpu import NervanaGPU, GPUTensor
 from neon.diagnostics.timing_decorators import FlopsDecorator
 import pycuda.driver as drv
 import numpy as np
@@ -26,8 +26,8 @@ class MAX(Backend):
     Everything in here is a reduction.
     """
     def __init__(self, rng_seed, stochastic_round=False, device_id=0):
-        self.nl = NervanaLib(stochastic_round=stochastic_round)
-        logger.info("Initialized NervanaLib with stochastic_round=%s",
+        self.ng = NervanaGPU(stochastic_round=stochastic_round)
+        logger.info("Initialized NervanaGPU with stochastic_round=%s",
                     stochastic_round)
         self.rng_seed = rng_seed
         self.rng_init()
@@ -38,7 +38,7 @@ class MAX(Backend):
         MLP creates a mempool with the size of the number of classes for
         softmax activations
         """
-        self.mem_pool = self.nl.empty(shape)
+        self.mem_pool = self.ng.empty(shape)
 
     def rng_init(self):
         seed = None
@@ -97,12 +97,12 @@ class MAX(Backend):
     def uniform(self, low=0.0, high=1.0, shape=1, dtype=None, name=None,
                 allocator=drv.mem_alloc):
         """
-        generate numpy random number and convert to a FloatArray.
+        generate numpy random number and convert to a GPUTensor.
         If called with dype=None it will probably explode
         """
         ary = np.random.uniform(low, high, shape)
-        return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.nl.round_mode).set(ary)
+        return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
+                          rounding=self.ng.round_mode).set(ary)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None, name=None,
                allocator=drv.mem_alloc):
@@ -110,8 +110,8 @@ class MAX(Backend):
         Gaussian/Normal random number sample generation
         """
         ary = np.random.normal(loc, scale, size)
-        return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.nl.round_mode).set(ary)
+        return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
+                          rounding=self.ng.round_mode).set(ary)
 
     def fprop_fc(self, out, inputs, weights, layer=None):
         """
@@ -122,25 +122,25 @@ class MAX(Backend):
             weights
 
         """
-        self.nl.dot(weights, inputs, out)
+        self.ng.dot(weights, inputs, out)
 
     def bprop_fc(self, out, weights, deltas, layer=None):
         """
-        NervanaLib dot call
+        NervanaGPU dot call
         """
-        self.nl.dot(weights.T, deltas, out)
+        self.ng.dot(weights.T, deltas, out)
 
     def update_fc(self, out, inputs, deltas, layer=None):
         """
-        NervanaLib dot call
+        NervanaGPU dot call
         """
-        self.nl.dot(deltas, inputs.T, out)
+        self.ng.dot(deltas, inputs.T, out)
 
     def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
-        self.nl.dropout(keep=keepthresh, out=tsr)
+        self.ng.dropout(keep=keepthresh, out=tsr)
 
     def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef,
-                     learning_rate):
+                     learning_rate, epoch):
         """
         compound call: This wraps
             self.backend.multiply(vs_item, momentum_coef, out=vs_item)
@@ -154,29 +154,29 @@ class MAX(Backend):
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
-                         self.nl.multiply(us_item, learning_rate),
+        self.ng.subtract(self.ng.multiply(vs_item, momentum_coef),
+                         self.ng.multiply(us_item, learning_rate),
                          out=vs_item)
-        self.nl.add(ps_item, vs_item, out=ps_item)
+        self.ng.add(ps_item, vs_item, out=ps_item)
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
-                       learning_rate, wd):
+                       learning_rate, wd, epoch):
         """
         Outputs:
             ps_item, the updated weights
             vs_item, the updated velocity.
         (no evaluation to us_item, the gradient updates)
         """
-        self.nl.subtract(self.nl.multiply(vs_item, momentum_coef),
-                         self.nl.multiply(us_item, learning_rate),
+        self.ng.subtract(self.ng.multiply(vs_item, momentum_coef),
+                         self.ng.multiply(us_item, learning_rate),
                          out=vs_item)
 
         # weight decay
-        self.nl.multiply(self.nl.multiply(ps_item, wd),
+        self.ng.multiply(self.ng.multiply(ps_item, wd),
                          learning_rate, out=us_item)
-        self.nl.subtract(vs_item, us_item, out=vs_item)
+        self.ng.subtract(vs_item, us_item, out=vs_item)
 
-        self.nl.add(ps_item, vs_item, out=ps_item)
+        self.ng.add(ps_item, vs_item, out=ps_item)
 
     def fprop_conv(self, out, inputs, weights, ofmshape, ofmsize, ofmlocs,
                    ifmshape, links, nifm, padding, stride, ngroups, fpropbuf,
@@ -187,26 +187,26 @@ class MAX(Backend):
         activation function).
 
         Arguments:
-            out (FloatArray): Where to store the forward propagated results.
-            inputs (FloatArray): Will be either the dataset input values (first
+            out (GPUTensor): Where to store the forward propagated results.
+            inputs (GPUTensor): Will be either the dataset input values (first
                              layer), or the outputs from the previous layer.
-            weights (FloatArray): The weight coefficient values for this layer.
+            weights (GPUTensor): The weight coefficient values for this layer.
             ofmshape (tuple): Dimensions of each output feature map (typically
                               number of height and width neurons).
             ofmsize (int): Total size of each output feature map.
-            ofmlocs (FloatArray): Indices giving the location of each element
+            ofmlocs (GPUTensor): Indices giving the location of each element
                                   in each output feature map stored in out.
             ifmshape (tuple): Dimensions of each input feature map (typically
                               number of height and width neurons).  For this
                               backend we expect these values to be square.
-            links (FloatArray): Input receptive field indices.
+            links (GPUTensor): Input receptive field indices.
             nifm (int): Total number of input feature maps.
             padding (int): Number of additional elements to include along each
                            dimension of each local receptive field during the
                            convolution operation.
             stride (int): Number of neurons to shift the filter at each step.
             ngroups (int): Number of groups.
-            fpropbuf (FloatArray): Temporary storage buffer used to hold the
+            fpropbuf (GPUTensor): Temporary storage buffer used to hold the
                                   convolved outputs for a single receptive
                                   field.  Not used for this backend.
             local (bool, optional): Whether to do local filtering (True) or
@@ -226,7 +226,7 @@ class MAX(Backend):
         R: Height of filter kernel
         S: Width  of filter kernel
         '''
-        self.nl.fprop_conv(layer=fpropbuf, I=inputs, F=weights, O=out,
+        self.ng.fprop_conv(layer=fpropbuf, I=inputs, F=weights, O=out,
                            alpha=1.0, repeat=1)
 
     def bprop_conv(self, out, weights, deltas, ofmshape, ofmsize, ofmlocs,
@@ -235,7 +235,7 @@ class MAX(Backend):
         """
         Backward propagate the error through a convolutional network layer.
         """
-        self.nl.bprop_conv(layer=bpropbuf, F=weights, E=deltas, grad_I=out,
+        self.ng.bprop_conv(layer=bpropbuf, F=weights, E=deltas, grad_I=out,
                            alpha=1.0, repeat=1)
 
     def update_conv(self, out, inputs, weights, deltas, ofmshape, ofmsize,
@@ -245,7 +245,7 @@ class MAX(Backend):
         Compute the updated gradient for a convolutional network layer.
 
         """
-        self.nl.update_conv(layer=updatebuf, I=inputs, E=deltas, grad_F=out,
+        self.ng.update_conv(layer=updatebuf, I=inputs, E=deltas, grad_F=out,
                             alpha=1.0, repeat=1)
 
     def fprop_pool(self, out, inputs, op, ofmshape, ofmsize, ofmlocs, fshape,
@@ -257,7 +257,7 @@ class MAX(Backend):
         """
         op = op.lower()
         if op == "max":
-            self.nl.fprop_pool(layer=fpropbuf, I=inputs, O=out, repeat=1)
+            self.ng.fprop_pool(layer=fpropbuf, I=inputs, O=out, repeat=1)
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
 
@@ -269,7 +269,7 @@ class MAX(Backend):
         """
         op = op.lower()
         if op == "max":
-            self.nl.bprop_pool(layer=bpropbuf, I=inputs, E=deltas, grad_I=out,
+            self.ng.bprop_pool(layer=bpropbuf, I=inputs, E=deltas, grad_I=out,
                                repeat=1)
         else:
             raise AttributeError("unexpected pooling op type: %s", op)
@@ -282,22 +282,22 @@ class MAX(Backend):
         # self.add(out, 1.0, out=out)
         # self.reciprocal(out, out=out)
         """
-        self.nl.sig(x, out=out)
+        self.ng.sig(x, out=out)
 
         return out
 
     def rectlin(self, x, out):
         # note x and out can be the same buffer
-        self.nl.maximum(x, 0., out=out)
+        self.ng.maximum(x, 0., out=out)
         return out
 
     def sum(self, tsr, axes, out):
         """wrapper to make full reduction possible"""
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.sum(tsr.reshape(sze, 1), axis=0, out=out)
+            self.ng.sum(tsr.reshape(sze, 1), axis=0, out=out)
         else:
-            self.nl.sum(tsr, axis=axes, out=out)
+            self.ng.sum(tsr, axis=axes, out=out)
         return out
 
     def mean(self, tsr, axes, out):
@@ -305,7 +305,7 @@ class MAX(Backend):
         Calculates the arithmetic mean of the elements along the specified
         axes.
         """
-        self.nl.mean(tsr, axis=axes, out=out)
+        self.ng.mean(tsr, axis=axes, out=out)
         return out
 
     def min(self, tsr, axes, out):
@@ -314,9 +314,9 @@ class MAX(Backend):
         """
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.min(tsr.reshape(sze, 1), axis=0, out=out)
+            self.ng.min(tsr.reshape(sze, 1), axis=0, out=out)
         else:
-            self.nl.min(tsr, axis=axes, out=out)
+            self.ng.min(tsr, axis=axes, out=out)
         return out
 
     def max(self, tsr, axes, out):
@@ -325,9 +325,9 @@ class MAX(Backend):
         """
         if axes is None:
             sze = tsr.shape[0]*tsr.shape[1]
-            self.nl.max(tsr.reshape(sze, 1), axis=0, out=out)
+            self.ng.max(tsr.reshape(sze, 1), axis=0, out=out)
         else:
-            self.nl.max(tsr, axis=axes, out=out)
+            self.ng.max(tsr, axis=axes, out=out)
         return out
 
     def variance(self, tsr, axes, out, mean=None, dtype=np.float16):
@@ -336,88 +336,88 @@ class MAX(Backend):
         axes.
 
         Arguments:
-            tsr  (FloatArray): the tensor on which to compute the variance
+            tsr  (GPUTensor): the tensor on which to compute the variance
             axes (int, list, optional): the dimension(s) along which to
                                         variance.  If set to None, we will
                                         variance over all dimensions.
-            out (FloatArray): where the result will be stored.
-            mean (FloatArray): the tensor containing mean of tsr
+            out (GPUTensor): where the result will be stored.
+            mean (GPUTensor): the tensor containing mean of tsr
 
         Returns:
-            FloatArray: reference to out
+            GPUTensor: reference to out
         """
         if mean is None:
-            logger.error("FloatArray requires mean to be specified.")
+            logger.error("GPUTensor requires mean to be specified.")
             raise ValueError("mean not specified")
-        self.nl.mean(self.nl.square(tsr-mean),  axis=axes, out=out)
+        self.ng.mean(self.ng.square(tsr-mean),  axis=axes, out=out)
         return out
 
     def sqrt(self, x, out, dtype=np.float16):
         """
         Calculates square root, used for batch normalization
         """
-        self.nl.sqrt(x, out=out)
+        self.ng.sqrt(x, out=out)
         return out
 
     def zeros(self, shape, dtype=np.float16):
         """
         wrap. Using default float16 is a little white cheat
         """
-        return self.nl.zeros(shape, dtype=dtype)
+        return self.ng.zeros(shape, dtype=dtype)
 
     def ones(self, shape, dtype=np.float16):
         """
         wrap. Using default float16 is a little white cheat
         """
-        return self.nl.ones(shape, dtype=dtype)
+        return self.ng.ones(shape, dtype=dtype)
 
     def empty(self, shape, dtype=np.float16):
         """
         wrap, cheat on dtype
         """
-        return self.nl.empty(shape, dtype=dtype)
+        return self.ng.empty(shape, dtype=dtype)
 
     def array(self, ary, dtype=np.float16, name=None, allocator=drv.mem_alloc):
         """
         copy and paste
         """
-        return FloatArray(ary.shape, dtype, allocator=allocator, name=name,
-                          rounding=self.nl.round_mode).set(ary)
+        return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
+                          rounding=self.ng.round_mode).set(ary)
 
     def add(self, left, right, out):
-        self.nl.add(left, right, out=out)
+        self.ng.add(left, right, out=out)
         return out
 
     def subtract(self, left, right, out):
-        self.nl.subtract(left, right, out=out)
+        self.ng.subtract(left, right, out=out)
         return out
 
     def multiply(self, left, right, out):
-        self.nl.multiply(left, right, out=out)
+        self.ng.multiply(left, right, out=out)
         return out
 
     def divide(self, left, right, out):
-        self.nl.divide(left, right, out=out)
+        self.ng.divide(left, right, out=out)
         return out
 
     def greater(self, left, right, out):
-        self.nl.greater(left, right, out=out)
+        self.ng.greater(left, right, out=out)
         return out
 
     def not_equal(self, left, right, out):
-        self.nl.not_equal(left, right, out=out)
+        self.ng.not_equal(left, right, out=out)
         return out
 
     def clip(self, a, a_min, a_max, out):
-        self.nl.clip(a, a_min, a_max, out=out)
+        self.ng.clip(a, a_min, a_max, out=out)
         return out
 
     def log(self, a, out):
-        self.nl.log(a, out=out)
+        self.ng.log(a, out=out)
         return out
 
     def argmax(self, a, out, axis=0):
-        self.nl.argmax(a, out=out, axis=axis)
+        self.ng.argmax(a, out=out, axis=axis)
         return out
 
     def softmax(self, x, out):
@@ -428,9 +428,9 @@ class MAX(Backend):
         """
         vecbuf = self.mem_pool
         assert vecbuf.shape == (1, x.shape[1])
-        self.nl.max(x, axis=0, out=vecbuf)    # reduction over classes
-        self.nl.exp(x - vecbuf, out=out)      # followed by ew
-        self.nl.sum(out, axis=0, out=vecbuf)  # reduction over classes
+        self.ng.max(x, axis=0, out=vecbuf)    # reduction over classes
+        self.ng.exp(x - vecbuf, out=out)      # followed by ew
+        self.ng.sum(out, axis=0, out=vecbuf)  # reduction over classes
         out[:] = out / vecbuf                 # followed by ew
 
         return out

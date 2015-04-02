@@ -659,6 +659,45 @@ class GPU(Backend):
         tsr._tensor.randomize_uniform_thresh(keepthresh=keepthresh)
         self.multiply(tsr, keepthresh, out=tsr)
 
+    def gdm_compound(self, ps_item, us_item, vs_item, momentum_coef,
+                     learning_rate, epoch):
+        """
+        compound call: This wraps
+            self.multiply(vs_item, momentum_coef, out=vs_item)
+            self.multiply(us_item, learning_rate, out=us_item)
+            self.subtract(vs_item, us_item, out=vs_item)
+            self.add(ps_item, vs_item, out=ps_item)
+        into a single kernel for maximum efficiency. Inspired by the example
+             nl.sig(nl.dot(inputs, weights1, hidden ))
+        note that outputs need to be written to:
+            ps_item, the updated weights
+            vs_item, the updated velocity.
+        (no evaluation to us_item, the gradient updates)
+        """
+        self.multiply(vs_item, momentum_coef, out=vs_item)
+        self.multiply(us_item, learning_rate, out=us_item)
+        self.subtract(vs_item, us_item, out=vs_item)
+        self.add(ps_item, vs_item, out=ps_item)
+
+    def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
+                       learning_rate, wd, epoch):
+        """
+        Outputs:
+            ps_item, the updated weights
+            vs_item, the updated velocity.
+        (no evaluation to us_item, the gradient updates)
+        """
+        self.multiply(vs_item, momentum_coef, out=vs_item)
+        self.multiply(us_item, learning_rate, out=us_item)
+        self.subtract(vs_item, us_item, out=vs_item)
+        # reuse us_item for weight decay term
+        # note: usually want to only apply for weights, not biases
+        self.multiply(ps_item, wd, out=us_item)
+        self.multiply(us_item, learning_rate, out=us_item)
+        self.subtract(vs_item, us_item, out=vs_item)
+
+        self.add(ps_item, vs_item, out=ps_item)
+
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
         Gaussian/Normal random number sample generation

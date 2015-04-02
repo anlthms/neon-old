@@ -62,7 +62,8 @@ class FitPredictErrorExperiment(FitExperiment):
         # if the experiment includes parameter statistics
         if self.diagnostics['ranges']:
             from neon.diagnostics import ranges_decorators
-            rd = ranges_decorators.Decorators(backend=self.backend)
+            rd = ranges_decorators.Decorators(backend=self.backend,
+                                              silent=self.diagnostics['silent'])
             rd.decorate(function_list=self.diagnostics)
 
         # Load the data and train the model.
@@ -70,9 +71,13 @@ class FitPredictErrorExperiment(FitExperiment):
         self.model.predict_and_report(self.dataset)
 
         # visualization (if so requested)
-        from neon.diagnostics import timing_plots as tp
-        if self.model.timing_plots:
+        if self.diagnostics['timing']:
+            from neon.diagnostics import timing_plots as tp
             tp.print_performance_stats(self.backend, logger)
+        if self.diagnostics['ranges']:
+            from neon.diagnostics import ranges_plots as rp
+            rp.print_param_stats(self.backend, logger,
+                                 self.diagnostics['filename'])
 
         # Report error metrics.
         for setname in self.inference_sets:
