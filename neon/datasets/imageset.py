@@ -48,9 +48,11 @@ class Imageset(Dataset):
         opt_param(self, ['num_channels'], 3)
 
         opt_param(self, ['num_workers'], 6)
-        opt_param(self, ['backend_type'], np.float32)
-
+        opt_param(self, ['half_precision'], False)
+        opt_param(self, ['backend_type'], 'np.float32')
         self.__dict__.update(kwargs)
+        self.backend_type = np.float16 if self.backend_type is 'np.float16' \
+                                       else np.float32
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 
@@ -188,7 +190,7 @@ class Imageset(Dataset):
 
         for lbl in self.label_list:
             self.lbl_be[lbl].copy_from(
-                self.lbl_macro[lbl][np.newaxis, s_idx:e_idx].astype(betype))
+                self.lbl_macro[lbl][s_idx:e_idx].reshape((1,-1)).astype(betype))
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(

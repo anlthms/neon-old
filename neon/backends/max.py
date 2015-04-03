@@ -620,6 +620,23 @@ class MAX(Backend):
         self.ng.greater(left, right, out=out)
         return out
 
+    def equal(self, left, right, out):
+        """
+        Performs element-wise equality testing on each element of left and
+        right, storing the result in out.  Each operand is assumed to be the
+        same shape (or broadcastable as such).
+
+        Arguments:
+            left (GPUTensor, numeric): left-hand side operand.
+            right (GPUTensor, numeric): right-hand side operand.
+            out (GPUTensor): where the result will be stored.
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.ng.equal(left, right, out=out)
+        return out
+
     def not_equal(self, left, right, out):
         """
         Elementwise not equal testing

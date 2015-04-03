@@ -19,7 +19,7 @@
                   # sum must not be decorated at this time, it will fail
 
     ranges: True,  # Need logging level debug for these to display
-    silent: True,
+    silent: False,
     decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
@@ -36,7 +36,8 @@
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
-    half_precision: &hp False, ###################### HALF ###############
+    backend_type: np.float16,
+    half_precision: &hp True, ###################### HALF ###############
   },
 
   # dataset: &ds !obj:datasets.I1Knq {
@@ -117,7 +118,7 @@
     step_print: 24,  # was 24
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
     layers: [
-      &datalayer !obj:layers.DataLayer {
+      &datalayer !obj:layers.ImageDataLayer {
         name: d0,
         is_local: True,
         nofm: 3,
@@ -279,8 +280,8 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        # ref_label: 'targets',
-        # raw_label: True,
+        ref_label: 'labels',
+        raw_label: True,
         cost: !obj:transforms.CrossEntropy {
           half_precision: *hp,
           epsilon: 0.0005,
