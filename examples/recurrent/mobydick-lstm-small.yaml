@@ -41,7 +41,7 @@
     batch_size: &bs 50,
     reset_period: 50,  # 50 for LSTM, 20 for RNN?
     unrolls: *ur,
-    make_plots: False,
+    make_plots: True,
     truncate: True,  # truncate the back-propagation through time
 
     shortcut_deriv: False,

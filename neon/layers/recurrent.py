@@ -230,10 +230,15 @@ class RecurrentHiddenLayer(RecurrentLayer):
 class RecurrentLSTMLayer(RecurrentLayer):
     """
     Hidden layer with LSTM gates. Has the same interface as
-    RecurrentHiddenLayer.
+    RecurrentHiddenLayer. General info about the LSTM layer interface:
+
     """
 
     def initialize(self, kwargs):
+        """
+        Initialize the LSTM layer. Calls the initialize function of the parent
+        class
+        """
         req_param(self, ['weight_init_rec'])
         self.weight_rec_shape = (self.nout, self.nout)
         super(RecurrentLSTMLayer, self).initialize(kwargs)
@@ -245,7 +250,52 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.allocate_param_bufs()
 
     def allocate_output_bufs(self):
-        """ all the activations and temp buffers live here """
+        """
+        Initializes buffer for activations, deltas, pre-activations:
+
+        i_t, f_t, o_t, g_t: post-nonlinearity activation of the four gates,
+                            e.g. sig(Wx+Wh+b)
+
+        net_i, net_f, net_o, net_g: pre-nonlinearity activation of the four
+                                    gates, (Wx+Wh+b). Note these will later
+                                    be overwritten with sig'(Wx+Wh+b)
+
+        d_dh1: h1 refers to hidden at the previous timestep. Dict elements
+               like d_dh1['i'] refer to di_dh1, the gradient of the gate wrt.
+               incoming hidden activation
+
+        dc_d_dh1: dc_d_dh1['i'] etc. is short for dc/di di/dh1. These are the
+                  chain rule terms from the cell all the way to incoming hidden
+
+        errs: errs['hc'] etc. are the chained up errors terms dh2/dc1 ect.
+              where h2 refers to the hidden output h1 the hidden input, c1 the
+              cell input and c2 the cell output:
+              #1. dh_t / dh_{t-1}  #2.  dh_t / dc_{t-1}
+              #3. dc_t / dh_{t-1}  #4. dc_t / dc_{t-1}
+
+        c_t: Input to the cell at time t
+        c_phi: phi(c_t), post-activation state
+        c_phip: phi'(c_t), the gradient of the activation function
+
+        output_list: equivalent to h2, the final output of the cell
+
+        temp_x: buffer for Wx,
+        temp_h: buffer for Wh, such that netl=Wx+Wh can be computed
+
+        dh_dwx_buf: buffer for updates = data_input * delta
+        dh_dwh_buf: buffer for updates = hidden_input * delta
+
+        delta_buf: buffer for the various partial deltas computed by chain rule
+                   from h2 down to each of the 4 gates, and from c2 to the 3
+                   gates below.
+        bsum_buf: bias update buffer
+
+        eh_ot_cphip: shorthand for a quantity that is used repeatedly:
+                     error_h * self.o_t[tau] * self.c_phip[tau]
+        deltas: total contribution backpropagated to inputs h1
+        celtas: total contribution backpropagated to inputs c1
+
+        """
         super(RecurrentLSTMLayer, self).allocate_output_bufs()
 
         # things that are not initalized by the super class
@@ -284,10 +334,8 @@ class RecurrentLSTMLayer(RecurrentLayer):
         self.dh_dwh_buf = be.zeros((self.nout, self.nout))
 
         self.delta_buf = be.zeros(net_sze)
-        self.bsum_buf = be.zeros((self.nout, 1))
+        self.bsum_buf = be.zeros((self.nout, 1)) # bias update
 
-        # This quantity seems to be computed repeatedly
-        # error_h * self.o_t[tau] * self.c_phip[tau]
         self.eh_ot_cphip = be.zeros(net_sze)
 
         # error buffers
@@ -344,6 +392,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
                         self.b_f_updates, self.b_o_updates, self.b_c_updates]
 
         self.learning_rule.allocate_state(self.updates)
+        # TODO: Remove?
         for upm in self.updates:
             upm.fill(0.0)
 
