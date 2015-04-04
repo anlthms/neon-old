@@ -5,7 +5,7 @@
 .. _api:
 
 *************
-API Reference 
+API Reference
 *************
 
 .. _api.functions:
@@ -27,21 +27,21 @@ CPU
 
    neon.backends.cpu.CPU
 
-GPU
----
+Cudanet GPU
+-----------
 
 .. autosummary::
    :toctree: generated/
 
-   neon.backends.gpu.GPU
+   neon.backends.cc2.GPU
 
-.. FlexGPU
-.. -------
-..
-.. .. autosummary::
-..   :toctree: generated/
-..
-..   neon.backends.max.MAX
+Nervana GPU
+-----------
+
+.. autosummary::
+  :toctree: generated/
+
+  neon.backends.gpu.GPU
 
 Flexpoint™
 ----------
@@ -328,7 +328,6 @@ ImageNet
    :toctree: generated/
 
    neon.datasets.i1k.I1K
-   neon.datasets.i1knq.I1Knq
 
 Mobydick
 --------

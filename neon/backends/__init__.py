@@ -23,7 +23,7 @@ np.flexpt = flexpt
 np.typeDict['flexpt'] = np.dtype(flexpt)
 
 
-def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
+def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
                 flexpoint=False, rng_seed=None, numerr_handling=None,
                 half=False, stochastic_round=0, device_id=None):
     """
@@ -34,9 +34,14 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     Arguments:
         model (neon.models.model.Model): The instantiated model upon which we
                                          will utilize this backend.
-        gpu (bool, optional): If True, attempt to utilize a CUDA capable GPU if
-                              installed in the system.  Defaults to False which
-                              implies a CPU based backend.
+        gpu (string, optional): Attempt to utilize a CUDA capable GPU if
+                                installed in the system. Defaults to None which
+                                implies a CPU based backend.  If 'cudanet',
+                                utilize a cuda-convnet2 based backed, which
+                                supports Kepler and Maxwell GPUs with single
+                                precision. If 'nervanagpu', attemt to utilize
+                                the NervanaGPU Maxwell backend with float16 and
+                                float32 support.
         nrv (bool, optional): If True, attempt to utilize the Nervana Engine
                               for computation (must be installed on the
                               system).  Defaults to False which implies a CPU
@@ -61,8 +66,6 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
                                       of the instantiated backend.  Defaults to
                                       None, which doesn't explicitly seed (so
                                       each run will be different)
-        half (bool, optional): If True, attemt to utilize a Maxwell class GPU
-                               with the float16 FlexGPU library.
         stochastic_round (numeric, optional): Only affects the max backend. If
                                               1, perform stochastic rounding.
                                               If 0, round to nearest.
@@ -92,20 +95,41 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
     """
     logger = logging.getLogger(__name__)
 
-    if gpu:
-        gpu = False
+    if gpu is not None:
+        gpu = gpu.lower()
+        gpuflag = False
         if sys.platform.startswith("linux"):
-            gpu = (os.system("nvidia-smi > /dev/null 2>&1") == 0)
+            gpuflag = (os.system("nvidia-smi > /dev/null 2>&1") == 0)
         elif sys.platform.startswith("darwin"):
-            gpu = (os.system("kextstat | grep -i cuda > /dev/null 2>&1") == 0)
-        if gpu:
+            gpuflag = (os.system("kextstat | grep -i cuda > /dev/null 2>&1") ==
+                       0)
+        if gpuflag and gpu == 'cudanet':
             try:
                 import cudanet  # noqa
+                from neon.backends.cc2 import GPU
+                be_name = 'Cudanet'
+                be = GPU(rng_seed=rng_seed, device_id=device_id)
             except ImportError:
                 logger.warning("cudanet not found, can't run via GPU")
-                gpu = False
-        else:
-            logger.warning("Can't find CUDA capable GPU")
+                gpuflag = False
+        elif gpuflag and gpu == 'nervanagpu':
+            try:
+                import nervanagpu  # noqa
+                try:
+                    import pycuda.autoinit  # create the context  # noqa
+                    from neon.backends.gpu import GPU
+                    be_name = 'NervanaGPU'
+                    be = GPU(rng_seed=rng_seed,
+                             stochastic_round=stochastic_round,
+                             device_id=device_id)
+                except ImportError:
+                    logger.warning("pycuda error, can't run via GPU")
+                    gpuflag = False
+            except ImportError:
+                logger.warning("nervanagpu not found, can't run via GPU")
+                gpuflag = False
+        if gpuflag is False:
+            logger.error("Can't find CUDA capable GPU")
     elif nrv:
         nrv = False
         try:
@@ -133,16 +157,6 @@ def gen_backend(model, gpu=False, nrv=False, datapar=False, modelpar=False,
             logger.warn('Ignoring device id specified in command line.')
         device_id = par.device_id
 
-    if gpu:
-        from neon.backends.gpu import GPU
-        be_name = 'GPU'
-        be = GPU(rng_seed=rng_seed, device_id=device_id)
-    elif half:
-        import pycuda.autoinit  # create the context  # noqa
-        from neon.backends.max import MAX
-        be_name = 'MAX_FP16'
-        be = MAX(rng_seed=rng_seed, stochastic_round=stochastic_round,
-                 device_id=device_id)
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,
