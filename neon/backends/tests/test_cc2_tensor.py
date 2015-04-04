@@ -14,7 +14,7 @@ from neon.util.testing import assert_tensor_equal
 class TestGPUTensor(object):
 
     def setup(self):
-        from neon.backends.gpu import GPUTensor
+        from neon.backends.cc2 import GPUTensor
         self.gpt = GPUTensor
 
     def test_empty_creation(self):

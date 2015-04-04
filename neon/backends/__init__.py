@@ -94,10 +94,10 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
           training to proceed.
     """
     logger = logging.getLogger(__name__)
+    gpuflag = False
 
     if gpu is not None:
         gpu = gpu.lower()
-        gpuflag = False
         if sys.platform.startswith("linux"):
             gpuflag = (os.system("nvidia-smi > /dev/null 2>&1") == 0)
         elif sys.platform.startswith("darwin"):
