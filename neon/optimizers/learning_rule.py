@@ -30,7 +30,7 @@ class LearningRule(object):
         opt_param(self, ['backend_type'], 'np.float32')
         if self.backend_type == 'np.float16':
             logger.info("Setting learning rule dtypes to float16")
-            for item in ('velocity_dtype', 'param_dtype','gradient_dtype'):
+            for item in ('velocity_dtype', 'param_dtype', 'gradient_dtype'):
                 setattr(self, item, np.float16)
 
     def initialize(self, backend):

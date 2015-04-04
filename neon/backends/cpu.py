@@ -215,7 +215,6 @@ class CPU(Backend):
     tensor_cls = CPUTensor
 
     def __init__(self, **kwargs):
-        print "initcpu"
         self.__dict__.update(kwargs)
         self.err_init()
         self.par = None

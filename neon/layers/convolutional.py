@@ -48,7 +48,6 @@ class ConvLayer(WeightLayer):
             self.updatebuf = self.backend.empty(self.weights.shape)
 
         if self.backend.__module__ == 'neon.backends.gpu':
-            print "making convlayer:"
             self.conv_params = self.backend.ng.conv_layer(
                 N=self.batch_size, C=self.nifm, K=self.nofm,
                 D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
