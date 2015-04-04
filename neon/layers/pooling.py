@@ -33,7 +33,7 @@ class PoolingLayer(Layer):
         self.tempbuf = None
         self.initialize_local()
         self.allocate_output_bufs()
-        if self.backend.__module__ == 'neon.backends.max':
+        if self.backend.__module__ == 'neon.backends.gpu':
             self.pool_params = self.backend.ng.pool_layer(
                 op=self.op, N=self.batch_size, C=self.nifm,
                 D=1, H=self.ifmshape[0], W=self.ifmshape[1], J=self.maxout,

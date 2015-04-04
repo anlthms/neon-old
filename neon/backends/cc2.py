@@ -412,7 +412,6 @@ class GPU(Backend):
         self.par = None
         if hasattr(self, 'device_id') is False or self.device_id is None:
             self.device_id = 0
-        import pdb; pdb.set_trace()
         num_devices = cudanet.get_num_devices()
         if self.device_id >= num_devices:
             raise ValueError('Requested device (%d) is unavailable.' %

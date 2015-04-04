@@ -457,7 +457,7 @@ class GPU(Backend):
             self.ng.max(tsr, axis=axes, out=out)
         return out
 
-    def variance(self, tsr, axes, out, mean=None, dtype=np.float16):
+    def variance(self, tsr, axes, out, mean=None, dtype=np.float32):
         """
         Calculates the variance of the elements along the specified
         axes.
@@ -479,7 +479,7 @@ class GPU(Backend):
         self.ng.mean(self.ng.square(tsr-mean),  axis=axes, out=out)
         return out
 
-    def sqrt(self, x, out, dtype=np.float16):
+    def sqrt(self, x, out, dtype=np.float32):
         """
         Calculates square root of the elements in a tensor
 
@@ -493,7 +493,7 @@ class GPU(Backend):
         self.ng.sqrt(x, out=out)
         return out
 
-    def zeros(self, shape, dtype=np.float16):
+    def zeros(self, shape, dtype=np.float32):
         """
         Allocate a new GPUTensor and fill it with zeros.
 
@@ -506,7 +506,7 @@ class GPU(Backend):
         """
         return self.ng.zeros(shape, dtype=dtype)
 
-    def ones(self, shape, dtype=np.float16):
+    def ones(self, shape, dtype=np.float32):
         """
         Allocate a new GPUTensor and fill it with ones.
 
@@ -519,7 +519,7 @@ class GPU(Backend):
         """
         return self.ng.ones(shape, dtype=dtype)
 
-    def empty(self, shape, dtype=np.float16):
+    def empty(self, shape, dtype=np.float32):
         """
         Allocate a new GPUTensor.
 
@@ -532,7 +532,7 @@ class GPU(Backend):
         """
         return self.ng.empty(shape, dtype=dtype)
 
-    def array(self, ary, dtype=np.float16, name=None, allocator=drv.mem_alloc):
+    def array(self, ary, dtype=np.float32, name=None, allocator=drv.mem_alloc):
         """
         Allocate a new GPUTensor and fill it with supplied numpy array.
 

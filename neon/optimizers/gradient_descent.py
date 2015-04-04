@@ -109,7 +109,7 @@ class GradientDescentMomentum(GradientDescent):
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
-            if ((self.backend.__module__ == 'neon.backends.max') or
+            if ((self.backend.__module__ == 'neon.backends.cc2') or
                     (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdm_compound(ps_item=ps_item, us_item=us_item,
@@ -215,7 +215,7 @@ class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
             # temporarily making backend dependent checks until we completely
             # switch MOP over to optree approach
-            if ((self.backend.__module__ == 'neon.backends.max') or
+            if ((self.backend.__module__ == 'neon.backends.cc2') or
                     (self.backend.__module__ == 'neon.backends.gpu')):
                 # wrapping all calls into a single, lazy-eval kernel
                 self.backend.gdmwd_compound(ps_item=ps_item, us_item=us_item,

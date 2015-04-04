@@ -157,6 +157,8 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
             logger.warn('Ignoring device id specified in command line.')
         device_id = par.device_id
 
+    if gpuflag:
+        pass
     elif nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,

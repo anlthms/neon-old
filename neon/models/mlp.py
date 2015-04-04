@@ -61,7 +61,7 @@ class MLP(MLP_old):
         self.initialized = True
 
         # Make some scratch space for NL backend:
-        if self.backend.__module__ == 'neon.backends.max':
+        if self.backend.__module__ == 'neon.backends.gpu':
             # self.backend.init_mempool((self.class_layer.nout, 1))
             self.backend.init_mempool((1, self.batch_size))
 
@@ -146,7 +146,7 @@ class MLP(MLP_old):
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
         misclass_sum = self.backend.empty((1, 1))
-        if self.backend.__module__ == 'neon.backends.max':
+        if self.backend.__module__ == 'neon.backends.gpu':
             import numpy as np
             misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
         batch_sum = self.backend.empty((1, 1))

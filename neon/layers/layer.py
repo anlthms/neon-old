@@ -39,8 +39,8 @@ class Layer(YAMLable):
 
         req_param(self, ['name'])
 
-        opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype'])
-        opt_param(self, ['weight_dtype', 'updates_dtype'])
+        opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+                         'weight_dtype', 'updates_dtype'], np.float32)
         opt_param(self, ['prev_layer'])
         opt_param(self, ['activation'], Linear())
 
@@ -48,8 +48,9 @@ class Layer(YAMLable):
         opt_param(self, ['skip_act'], False)
         opt_param(self, ['prev_names'], [])
 
-        opt_param(self, ['half_precision'], False)
-        if self.half_precision:
+        opt_param(self, ['backend_type'], 'np.float32')
+        if self.backend_type == 'np.float16':
+            logger.info("Setting layer dtype to float16")
             for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
                               'weight_dtype', 'updates_dtype']:
                 setattr(self, some_type, np.float16)
@@ -268,7 +269,7 @@ class CostLayer(Layer):
 
     def get_cost(self):
         self.set_reference()
-        scale_cost = (True if self.backend.__module__ == 'neon.backends.max'
+        scale_cost = (True if self.backend.__module__ == 'neon.backends.gpu'
                       else False)
         result = self.cost.apply_function(self.reference,
                                           scale_by_batchsize=scale_cost)

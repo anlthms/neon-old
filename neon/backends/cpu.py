@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class CPUTensor(Tensor):
-
     """
     Our basic n-dimensional array data structure that resides in host memory,
     and is meant to be manipulated on the CPU.  wrapped `numpy.ndarray` tensor.
@@ -216,6 +215,7 @@ class CPU(Backend):
     tensor_cls = CPUTensor
 
     def __init__(self, **kwargs):
+        print "initcpu"
         self.__dict__.update(kwargs)
         self.err_init()
         self.par = None

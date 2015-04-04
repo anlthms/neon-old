@@ -48,8 +48,7 @@ class Imageset(Dataset):
         opt_param(self, ['num_channels'], 3)
 
         opt_param(self, ['num_workers'], 6)
-        opt_param(self, ['half_precision'], False)
-        opt_param(self, ['backend_type'], 'np.float32')
+        opt_param(self, ['backend_type'], np.float32)
 
         self.__dict__.update(kwargs)
 
@@ -57,6 +56,7 @@ class Imageset(Dataset):
             self.backend_type = np.float16
         else:
             self.backend_type = np.float32
+        print "imageworker dtype", self.backend_type
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 

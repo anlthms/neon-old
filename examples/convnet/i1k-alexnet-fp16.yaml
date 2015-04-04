@@ -16,11 +16,10 @@
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
     decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
-                  # sum must not be decorated at this time, it will fail
 
-    ranges: True,  # Need logging level debug for these to display
+    ranges: True,
     silent: False,
-    decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv], # , bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+    decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
 
@@ -36,29 +35,8 @@
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
-    backend_type: np.float16,
-    half_precision: &hp True, ###################### HALF ###############
+    backend_type: &bt np.float32,  ################# HALF ###############
   },
-
-  # dataset: &ds !obj:datasets.I1Knq {
-  #   load_path: '/usr/local/data', #directory where .tar files are stored
-  #   repo_path: '/usr/local/data', #directory to use for writing files
-  #   output_image_size: &ois 256,
-  #   cropped_image_size: &cis 224,
-  #   max_tar_file: &mtf 1000,
-  #   output_batch_size: 3072,
-  #   ring_buffer_size: 3, #buffer that transfers from device to host
-  #   num_train_macro_batches: 25, #max available train macro_batches
-  #   num_val_macro_batches: 5, #max available val macro batches
-  #   #number of cpu processes for image resizing and decompression
-  #   num_processes: 4, #not impl yet
-  #   # macro batch start and end indices to use  for train and val datasets
-  #   start_train_batch: 0,
-  #   end_train_batch: 24, # 24
-  #   start_val_batch: 0,
-  #   end_val_batch: 15,  # was 4, or 15
-  #   half_precision: &hp False, ###################### HALF ###############
-  # },
 
   weight_inits: [
     # Init for the two FC layers
@@ -76,7 +54,7 @@
 
   lrule: &gdm {
     type: gradient_descent_momentum,
-    half_precision: *hp,
+    backend_type: *bt,
     lr_params: {
       learning_rate: 0.02,
       schedule: {
@@ -111,7 +89,7 @@
   # OrthoNormalizedValGen does not see to work so well
 
   model: !obj:models.MLP {
-    half_precision: *hp,
+    backend_type: *bt,
     batch_norm: &bn False,   ###################### BATCH NORM ###############
     num_epochs: 10, # 1 or 10 or 60
     batch_size: &bs 128,
@@ -126,7 +104,7 @@
       },
       !obj:layers.ConvLayer {
         name: conv1,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -149,14 +127,14 @@
       # },
       !obj:layers.PoolingLayer {
         name: pool1,
-        half_precision: *hp,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv2,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -178,14 +156,14 @@
       # },
       !obj:layers.PoolingLayer {
         name: pool2,
-        half_precision: *hp,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv3,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -201,7 +179,7 @@
       },
       !obj:layers.ConvLayer {
         name: conv4,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -217,7 +195,7 @@
       },
       !obj:layers.ConvLayer {
         name: conv5,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -233,14 +211,14 @@
       },
       !obj:layers.PoolingLayer {
         name: pool3,
-        half_precision: *hp,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.FCLayer {
         name: fc4096a,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -250,12 +228,12 @@
       },
       !obj:layers.DropOutLayer {
         name: dropout1,
-        half_precision: *hp,
+        backend_type: *bt,
         keep: 0.5,
       },
       !obj:layers.FCLayer {
         name: fc4096b,
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
@@ -265,12 +243,12 @@
       },
       !obj:layers.DropOutLayer {
         name: dropout2,
-        half_precision: *hp,
+        backend_type: *bt,
         keep: 0.5,
       },
       &lastlayer !obj:layers.FCLayer {
         name: fc1000,
-        half_precision: *hp,
+        backend_type: *bt,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_initout,
@@ -283,7 +261,7 @@
         ref_label: 'labels',
         raw_label: True,
         cost: !obj:transforms.CrossEntropy {
-          half_precision: *hp,
+          backend_type: *bt,
           epsilon: 0.0005,
         },
       },
