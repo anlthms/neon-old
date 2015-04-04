@@ -6,6 +6,10 @@ Contains cost or loss function related code.
 """
 from neon.util.param import opt_param, req_param
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class Cost(object):
     """

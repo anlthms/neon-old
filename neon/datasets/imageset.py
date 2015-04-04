@@ -56,7 +56,7 @@ class Imageset(Dataset):
             self.backend_type = np.float16
         else:
             self.backend_type = np.float32
-        print "imageworker dtype", self.backend_type
+        logger.info("Imageset initialized with dtype %f", self.backend_type)
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 
