@@ -5,7 +5,7 @@ Our in-house developed python machine learning library.
     # get the latest source
     git clone https://github.com/NervanaSystems/neon.git
     cd neon
-    
+
     # build the package, install in your python package path via either:
     make install  # sudo make install
     # or:
@@ -14,7 +14,7 @@ Our in-house developed python machine learning library.
     # run the included command line executable to start launching your
     # experiments
     neon --help
-    
+
 
 ### Required Dependencies ###
 We strive to have as few of these as possible
@@ -55,7 +55,10 @@ These provide additional functionality, and assist developers
 
     # for GPU based runs, you need to have a CUDA capable GPU card installed
     # then run:
-    neon --gpu examples/mlp/mnist-small.yaml
+    neon --gpu=cudanet examples/mlp/mnist-small.yaml
+    # to run on the cuda-convnet2 backend (fp32 precision, supports Kepler) or
+    neon --gpu=nervanagpu examples/mlp/mnist-small.yaml
+    # to run on the nervanagpu backen (supports fp16 and fp32)
 
     # For MPI based parallel distributed implementations (single machine):
     # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
