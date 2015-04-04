@@ -346,11 +346,11 @@ class RNN(MLP):
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             outputs_pred = self.backend.zeros(
-                ((self.data_layer.num_batches + 0)
-                 * (self.unrolls), self.batch_size))
+                ((self.data_layer.num_batches + 0) *
+                 (self.unrolls), self.batch_size))
             outputs_targ = self.backend.zeros(
-                ((self.data_layer.num_batches + 0)
-                 * (self.unrolls), self.batch_size))
+                ((self.data_layer.num_batches + 0) *
+                 (self.unrolls), self.batch_size))
             mb_id = 0
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():

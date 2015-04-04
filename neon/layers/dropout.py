@@ -45,8 +45,7 @@ class DropOutLayer(Layer):
 
     def fprop(self, inputs):
         if (self.train_mode):
-            self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, self.keep, out=self.keepmask)
+            self.backend.make_binary_mask(self.keepmask, self.keep)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
             self.backend.multiply(inputs, self.keep, out=self.output)

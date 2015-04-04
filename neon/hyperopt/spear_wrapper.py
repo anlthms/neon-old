@@ -3,7 +3,7 @@
 # ----------------------------------------------------------------------------
 """
 hyperopt script: spearmint calls into this file's main() function with the
-current set of parameters. It then:
+current set of hyperparameters (selected by spearmint). It then:
 - reads the hyper-yaml file
 - parses the parameters suggested by spearmint
 - generates a temp yaml file
@@ -45,7 +45,7 @@ def call_neon(params):
 
     # System call to run bin/neon model
     neonbin = os.path.join(experiment_dir, '..', '..', '..', 'bin', 'neon')
-    callstring = neonbin + " " + yaml_file
+    callstring = neonbin + " -g " + yaml_file
     os.system(callstring)
 
     # Read the model output error from txt file
@@ -61,7 +61,7 @@ def write_params(input_file, output_file, params):
     with open(input_file, 'r') as fin:
         with open(output_file, 'w') as fout:
             for line in fin:
-                if 'hyperopt' in line:
+                if '!hyperopt' in line:
                     line = parse_line(line, params)
                 if 'filename' in line:
                     retval = line.split()[1].strip(",")

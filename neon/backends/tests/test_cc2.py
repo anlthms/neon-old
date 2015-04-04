@@ -13,7 +13,7 @@ from neon.util.testing import assert_tensor_equal, assert_tensor_near_equal
 class TestGPU(object):
 
     def setup(self):
-        from neon.backends.gpu import GPU, GPUTensor
+        from neon.backends.cc2 import GPU, GPUTensor
         # this code gets called prior to each test
         self.be = GPU(rng_seed=0)
         self.gpt = GPUTensor
