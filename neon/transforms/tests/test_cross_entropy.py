@@ -24,8 +24,8 @@ def test_cross_entropy_cputensor():
 
 
 @attr('cuda')
-def test_cross_entropy_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
+def test_cross_entropy_cc2tensor():
+    from neon.backends.cc2 import GPU, GPUTensor
     be = GPU(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = GPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = GPUTensor([0.5, 0.99, 0.01, 0.2])
@@ -52,8 +52,8 @@ def test_cross_entropy_derivative_cputensor():
 
 
 @attr('cuda')
-def test_cross_entropy_derivative_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
+def test_cross_entropy_derivative_cc2tensor():
+    from neon.backends.cc2 import GPU, GPUTensor
     be = GPU(rng_seed=0)
     outputs = GPUTensor([0.5, 0.9, 0.1, 0.0001])
     targets = GPUTensor([0.5, 0.99, 0.01, 0.2])

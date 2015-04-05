@@ -123,7 +123,7 @@ ifeq ($(CPU), 1)
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu cudanet \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
 

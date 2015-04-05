@@ -23,8 +23,10 @@ def parse_args():
     parser.add_argument('yaml_file', type=argparse.FileType('r'),
                         help='configuration file settings')
     parser.add_argument('-g', '--gpu', action='store',
-                        help='Attempt to run using a CUDA capable GPU backend,'
-                             'Either cudanet or nervanagpu')
+                        help='Attempt to run using a CUDA capable GPU backend.'
+                             ' if GPU is "cudanet" run with a cuda-convnet2 '
+                             'backend.  If GPU is "nervanagpu" run with '
+                             'Nervana fp16/fp32 Maxwell GPU backend')
     return(parser.parse_args())
 
 

@@ -23,9 +23,9 @@ def test_tanh_cputensor():
 
 
 @attr('cuda')
-def test_tanh_gputensor():
+def test_tanh_cc2tensor():
     tntest = Tanh()
-    from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.cc2 import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = GPUTensor([true_tanh(0), true_tanh(1), true_tanh(-2)])
     be = GPU(rng_seed=0)
@@ -47,9 +47,9 @@ def test_tanh_derivative_cputensor():
 
 
 @attr('cuda')
-def test_tanh_derivative_gputensor():
+def test_tanh_derivative_cc2tensor():
     tntest = Tanh()
-    from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.cc2 import GPU, GPUTensor
     inputs = np.array([0, 1, -2], dtype='float32').reshape((3, 1))
     be = GPU(rng_seed=0)
     outputs = GPUTensor([1 - true_tanh(0) ** 2,

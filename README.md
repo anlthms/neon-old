@@ -32,10 +32,11 @@ These provide additional functionality, and assist developers
     name checking
 * [Nervana cuda-convnet2](http://github.com/NervanaSystems/cuda-convnet2/)
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
-  that powers our GPU backend.
-* [pycuda](http://mathema.tician.de/software/pycuda/) required for our fp16 GPU
-  backend
-* flexgpu (private repo) for fp16 GPU backend
+  that powers the cudanet GPU backend.
+* [nervanagpu](http://github.com/NervanaSystems/nervanagpu/) our in-house
+  developed fp16/fp32 Maxwell GPU backend.
+* [pycuda](http://mathema.tician.de/software/pycuda/) required for our
+  nervanagpu backend
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
 * [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
   calculations
@@ -55,10 +56,10 @@ These provide additional functionality, and assist developers
 
     # for GPU based runs, you need to have a CUDA capable GPU card installed
     # then run:
-    neon --gpu=cudanet examples/mlp/mnist-small.yaml
+    neon --gpu cudanet examples/mlp/mnist-small.yaml
     # to run on the cuda-convnet2 backend (fp32 precision, supports Kepler) or
-    neon --gpu=nervanagpu examples/mlp/mnist-small.yaml
-    # to run on the nervanagpu backen (supports fp16 and fp32)
+    neon --gpu nervanagpu examples/mlp/mnist-small.yaml
+    # to run on the nervanagpu backend (supports fp16 and fp32)
 
     # For MPI based parallel distributed implementations (single machine):
     # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
