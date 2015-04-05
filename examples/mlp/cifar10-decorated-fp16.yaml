@@ -30,7 +30,7 @@
 
   lrule: &gdm {
     type: gradient_descent_momentum,
-    half_precision: &hp True,
+    backend_type: &bt np.float32,
     lr_params: {
       learning_rate: 0.01,
       momentum_params: {
@@ -43,8 +43,9 @@
   model: !obj:models.MLP {
     num_epochs: 10,
     batch_size: &bs 128,
-    half_precision: *hp,
-    batch_norm: &bn True,           #  works a bit then blows up later
+    backend_type: *bt,
+    batch_norm: &bn False,           #  works a bit then blows up later
+
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,
@@ -53,7 +54,7 @@
         ofmshape: [32, 32],
       },
       !obj:layers.ConvLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         name: conv1,
         lrule_init: *gdm,
@@ -62,7 +63,7 @@
         fshape: [5, 5],
       },
       !obj:layers.PoolingLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         name: pool1,
         maxout: &mo 1, # problem: takes away 64-4+1=61 leading to mismatch.
         op: 'max',
@@ -71,7 +72,7 @@
       },
       # kriz has CMR norm here
       !obj:layers.ConvLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         name: conv2,
         lrule_init: *gdm,
@@ -81,7 +82,7 @@
       },
       # another CMR norm
       !obj:layers.PoolingLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         name: pool2,
         maxout: *mo,
         op: 'max',
@@ -90,7 +91,7 @@
       },
       # original has local3, local4 here (64 and 32 channels)
       !obj:layers.FCLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         name: fc1,
         nout: 512,
@@ -99,12 +100,12 @@
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         name: dropout1,
         keep: 0.5, # make it deterministic
       },
       &lastlayer !obj:layers.FCLayer {
-        half_precision: *hp,
+        backend_type: *bt,
         batch_norm: *bn,
         name: output,
         nout: 10,
@@ -116,7 +117,7 @@
         name: cost,
         ref_layer: *datalayer,
         cost: !obj:transforms.CrossEntropy {
-          half_precision: *hp,
+          backend_type: *bt,
           epsilon: 0.0005,
         },
       },
