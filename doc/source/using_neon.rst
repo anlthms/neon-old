@@ -169,17 +169,15 @@ protobuf and scipy and uses the flask webserver for visualizing results.
 
 To perform a search over a set of hyperparameters specified in a neon yaml
 file, create a new yaml file with the top level experiment of type
-:py:class:`neon.experiments.write_error_to_file.WriteErrorToFile`. This takes
-two additional arguments:
+:py:class:`neon.experiments.fit_predict_err.FitPredictErrorExperiment`. This
+takes an additional argument:
 
 .. code-block:: bash
 
-    !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
-      filename: neon_result_validation.txt,
-      item: test,
+!obj:experiments.FitPredictErrorExperiment {
+  return_item: test,
 
-The first, ``filename`` specifies the name of the file the result of the run
-should be written to, and the second, ``item``, specifies which error
+This ``return_item``, specifies which error
 (i.e. for the ``test``, ``training`` or ``validation`` set) should be used as
 the objective function for the hyperparameter optimization.
 
@@ -204,6 +202,15 @@ parameters indicate the start and end of the range. An arbitrary number of
 parameters can be replaced by ranges. Only scalar, numerical parameters are
 supported.
 
+Hyperparameter optmization requires two additional environment variables to
+identify the ``spearmint/bin`` directory and the desired location to store
+temporary file and results of the experiment, such as:
+
+.. code-block:: bash
+
+    export SPEARMINT_PATH=/path/to/spearmint/spearmint/bin
+    export HYPEROPT_PATH=/path/to/hyperopt_experiment
+
 To run a hyperoptimization experiment, call the ``bin/hyperopt`` executable.
 To initialize a new exeriment, use the ``init`` flag and pass the ``-y``
 argument to specify the yaml file containing the hyperparameter ranges, for
@@ -211,28 +218,28 @@ example:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
+    hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
 
 this creates a spearmint configuration file in proptobuf format in the
-``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
+experiment directory. Then run the experiment by calling with the
 ``run`` flag and specifying a port with the ``-p`` argument where outputs will
 be generated, for example:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt run -p 50000
+    hyperopt run -p 50000
 
 The output can be viewed in the browser at http://localhost:50000, or by
-directly inspecting the files in the ``neon/hyperopt/expt`` directory. The
+directly inspecting the files in the experiment directory. The
 experiment will keep running indefinitely. It can be interrupted with
 ``Ctrl+C`` and continued by calling the ``hyperopt run`` command again. To
 start a new experiment, reset the previous one first by running:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt reset
+    hyperopt reset
 
-or manually deleting the contents of the ``neon/hyperopt/expt`` directory.
+or manually deleting the contents of the experiment directory.
 
 Regularization
 --------------

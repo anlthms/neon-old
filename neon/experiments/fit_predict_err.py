@@ -38,6 +38,7 @@ class FitPredictErrorExperiment(FitExperiment):
         opt_param(self, ['diagnostics'], {'timing': False, 'ranges': False})
         opt_param(self, ['inference_sets'], [])
         opt_param(self, ['inference_metrics'], [])
+        opt_param(self, ['return_item'])
         if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
             raise AttributeError('inference_metrics specified without '
                                  'inference_sets')
@@ -57,7 +58,6 @@ class FitPredictErrorExperiment(FitExperiment):
         """
         Actually carry out each of the experiment steps.
         """
-
         # if the experiment includes timing diagnostics, decorate backend
         if self.diagnostics['timing']:
             self.backend.flop_timing_init(self.diagnostics['decorate_fc'],
@@ -75,7 +75,7 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
-        self.model.predict_and_report(self.dataset)
+        return_err = self.model.predict_and_report(self.dataset)
 
         # visualization (if so requested)
         if self.diagnostics['timing']:
@@ -87,11 +87,16 @@ class FitPredictErrorExperiment(FitExperiment):
                                  self.diagnostics['filename'])
 
         # Report error metrics.
+        val=dict()
         for setname in self.inference_sets:
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           setname)
             self.save_results(self.dataset, setname, outputs, 'inference')
             self.save_results(self.dataset, setname, targets, 'targets')
             for metric in self.inference_metrics:
-                val = self.model.report(targets, outputs, metric=metric)
-                logger.info('%s set %s %.5f', setname, metric, val)
+                val[setname] = self.model.report(targets, outputs,
+                                                 metric=metric)
+                logger.info('%s set %s %.5f', setname, metric, val[setname])
+
+        if self.return_item is not None:
+            return return_err[self.return_item]

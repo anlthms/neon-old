@@ -44,7 +44,7 @@ import os
 import shutil
 import sys
 
-from neon.hyperopt import spear_writer
+from neon.hyperopt import gen_config
 
 
 def parse_args():
@@ -70,9 +70,8 @@ def main():
     argz = parse_args()
     bin_path = os.path.dirname(os.path.realpath(__file__))
     root = os.path.split(os.path.split(bin_path)[0])[0]
-    hyperopt_dir = os.path.join(root, 'neon', 'neon' ,'hyperopt', 'expt')
-    spearmint_dir = os.path.join(root, 'spearmint',
-                                    'spearmint' ,'bin')
+    hyperopt_dir = os.path.realpath(os.environ['HYPEROPT_PATH'])
+    spearmint_dir = os.path.realpath(os.environ['SPEARMINT_PATH'])
     if (argz.cmd == 'reset'):
         shutil.rmtree(hyperopt_dir)
         print("Running cleanup")
@@ -88,8 +87,8 @@ def main():
         if not os.path.exists(hyperopt_dir):
             os.makedirs(hyperopt_dir)
         input_file = argz.yaml
-        shutil.copy2(input_file, 'neon/hyperopt/expt/hyperyaml.yaml')
-        spear_writer.main()
+        shutil.copy2(input_file, os.path.join(hyperopt_dir, 'hyperyaml.yaml'))
+        gen_config.main(hyperopt_dir)
 
 if __name__ == '__main__':
     result = main()

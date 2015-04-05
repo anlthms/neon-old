@@ -14,14 +14,14 @@ current set of hyperparameters (selected by spearmint). It then:
 import os
 import time
 import logging
-
-logger = logging.getLogger(__name__)
+from neon.backends import gen_backend
+from neon.util.persist import deserialize
 
 
 def main(job_id, params):
-    logger.info('spear_wrapper job #:%s' % str(job_id))
-    logger.info("spear_wrapper in directory: %s" % os.getcwd())
-    logger.info("spear_wrapper params are:%s" % params)
+    print('spear_wrapper job #:%s' % str(job_id))
+    print("spear_wrapper in directory: %s" % os.getcwd())
+    print("spear_wrapper params are:%s" % params)
 
     return call_neon(params)
 
@@ -31,8 +31,7 @@ def call_neon(params):
     runs the system call to neon and reads the result to give back to sm
     """
     timestring = str(int(time.time()))
-    experiment_dir = os.path.dirname(os.path.realpath(__file__))
-    experiment_dir = os.path.join(experiment_dir, 'expt')
+    experiment_dir = os.path.realpath(os.environ['HYPEROPT_PATH'])
     # Generate the yaml file
     hyper_file = os.path.join(experiment_dir, 'hyperyaml.yaml')
     yaml_file = os.path.join(experiment_dir, 'yamels',
@@ -43,16 +42,14 @@ def call_neon(params):
         "Directory exists"
     result_fname = write_params(hyper_file, yaml_file, params)
 
-    # System call to run bin/neon model
-    neonbin = os.path.join(experiment_dir, '..', '..', '..', 'bin', 'neon')
-    callstring = neonbin + " -g " + yaml_file
-    os.system(callstring)
+    # run bin/neon model
+    logging.basicConfig(level=20)
+    experiment = deserialize(yaml_file)
+    backend = gen_backend(model=experiment.model)  # , gpu='nervanagpu'
+    experiment.initialize(backend)
+    return_err = experiment.run()
 
-    # Read the model output error from txt file
-    with open(result_fname, 'r') as f:
-            result = map(float, f)
-    return result[0]
-
+    return float(return_err)
 
 def write_params(input_file, output_file, params):
     """

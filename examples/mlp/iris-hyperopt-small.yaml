@@ -4,9 +4,9 @@
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset.  Simple network meant more as a sanity check.
 
-!obj:experiments.WriteErrorToFile {
-  filename: neon_result_validation.txt,
-  item: test, # if avaliable, use 'validation'
+!obj:experiments.FitPredictErrorExperiment {
+  return_item: test, # if avaliable, use 'validation'
+
 
   dataset: &ds !obj:datasets.Iris {
     repo_path: '~/data',
