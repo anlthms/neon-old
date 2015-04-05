@@ -26,8 +26,8 @@ def write_pb(input_file, pb_file):
                     ho_dict = parse_line(inline)
                     outline = write_block(ho_dict)
                     fout.write(outline)
-                if 'WriteErrorToFile' in inline:
-                    supported_expt_bool = True  # TODO:
+                if 'return_item' in inline:
+                    supported_expt_bool = True  # TODO: rename
     return supported_expt_bool
 
 
@@ -75,6 +75,7 @@ def main(hyperopt_dir):
 
     success = write_pb(in_file, pb_file)
     if success:
-        print("Hyper ranges written from %s to %s" % (in_file, pb_file))
+        print("Hyperparamter ranges written from %s to %s"
+              % (in_file, pb_file))
     else:
         raise AttributeError("Wrong experiment type, does not return result")
