@@ -1109,6 +1109,7 @@ class Backend(YAMLable):
     def allocate_fragment(self, buf_shape, dtype=None):
         return self.par.allocate_fragment(buf_shape, dtype=dtype)
 
+
 class Tensor(object):
     """
     Represents an arbitrary n-dimensional array data structure.

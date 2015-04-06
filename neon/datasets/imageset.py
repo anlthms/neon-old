@@ -14,7 +14,7 @@ from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
 import sys
 import imgworker
-
+# from time import time
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,7 @@ class Imageset(Dataset):
         self.endb = self.startb + self.nmacros
         nrecs = self.macro_size * self.nmacros
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
+        num_batches /= self.backend.par.size()
 
         # This will be a uint8 matrix
         self.mean_img = getattr(self, sn + '_mean')
@@ -152,18 +153,23 @@ class Imageset(Dataset):
         return num_batches
 
     def stage_next_mini_batch(self, batch_idx):
-        # batch_idx is ignored
-        btype = self.backend_type
-        bsz = self.batch_size
+        # This is only run by the root process since it is staging data on the
+        # host for distribution
+        bsz = self.batch_size * self.backend.par.size()
         self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
 
+        if self.backend.rank() != 0:
+            return None, None, None
+
         if self.mini_idx == 0:
+            # t = time()
             jdict = self.get_macro_batch()
+            # logger.info("\tMacroBatch load time (%.4f sec):", time() - t)
             # This macro could be smaller than macro_size for last macro
             mac_sz = len(jdict['data'])
             self.tgt_macro = jdict['targets'] if 'targets' in jdict else None
             self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
-
+            # t = time()
             imgworker.decode_list(jpglist=jdict['data'],
                                   tgt=self.uimg_macro[:mac_sz],
                                   orig_size=self.output_image_size,
@@ -171,6 +177,7 @@ class Imageset(Dataset):
                                   center=self.predict, flip=True,
                                   rgb=self.rgb,
                                   nthreads=self.num_workers)
+            # logger.info("\tMacroBatch decode time (%.4f sec):", time() - t)
             mean_val = 127
             if self.mean_norm:
                 mean_val = self.mean_crop.reshape((1, self.npixels))
@@ -187,21 +194,22 @@ class Imageset(Dataset):
         # Host versions of each var
         h_img = self.img_macro[s_idx:e_idx]
         h_lbl = {k: self.lbl_macro[k][s_idx:e_idx, np.newaxis]
-                    for k in self.label_list}
+                 for k in self.label_list}
         h_tgt = None if self.tgt_macro is None else self.tgt_macro[s_idx:e_idx]
 
         return h_img, h_tgt, h_lbl
 
     def get_mini_batch(self, batch_idx):
-        if self.backend.rank() == 0:
-            h_img, h_tgt, h_lbl = self.stage_next_mini_batch(batch_idx)
-
+        h_img, h_tgt, h_lbl = self.stage_next_mini_batch(batch_idx)
+        # t = time()
         self.backend.scatter(h_img, self.inp_be)
+        # logger.info("\tMinibatch Transfer time %d %d (%.4f sec):",
+        #             self.mini_idx, self.backend.rank(), time() - t)
         for lbl in self.label_list:
-            self.backend.scatter(h_lbl[lbl], self.lbl_be[lbl])
+            hl = h_lbl[lbl] if h_lbl is not None else None
+            self.backend.scatter(hl, self.lbl_be[lbl])
         if self.tgt_be is not None:
             self.backend.scatter(h_tgt, self.tgt_be)
-
         return self.inp_be, self.tgt_be, self.lbl_be
 
     def has_set(self, setname):
