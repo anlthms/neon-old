@@ -37,7 +37,7 @@ class Backend(YAMLable):
             Tensor: array object
 
         Raises:
-            NotImplmentedError: Can't be instantiated directly.
+            NotImplementedError: Can't be instantiated directly.
 
         See Also:
             :py:func:`~neon.backends.backend.Backend.array`,
@@ -61,7 +61,7 @@ class Backend(YAMLable):
             Tensor: array object
 
         Raises:
-            NotImplmentedError: Can't be instantiated directly.
+            NotImplementedError: Can't be instantiated directly.
 
         See Also:
             :py:func:`~neon.backends.backend.Backend.empty`,
@@ -83,7 +83,7 @@ class Backend(YAMLable):
             Tensor: array object
 
         Raises:
-            NotImplmentedError: Can't be instantiated directly.
+            NotImplementedError: Can't be instantiated directly.
 
         See Also:
             :py:func:`~neon.backends.backend.Backend.empty`,
@@ -105,7 +105,7 @@ class Backend(YAMLable):
             Tensor: array object
 
         Raises:
-            NotImplmentedError: Can't be instantiated directly.
+            NotImplementedError: Can't be instantiated directly.
 
         See Also:
             :py:func:`~neon.backends.backend.Backend.empty`,
@@ -498,6 +498,29 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def variance(self, tsr, axes, out, mean=None):
+        """
+        Calculates the variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (Tensor): the Tensor on which to compute the variance
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (Tensor): where the result will be stored.
+            mean (Tensor, optional): the Tensor containing mean of tsr.  If not
+                                     specified, mean will be computed
+                                     internally.
+
+        Returns:
+            Tensor: reference to out
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError()
+
     def min(self, tsr, axes, out):
         """
         Calculates the minimal element value along the specified axes.
@@ -609,6 +632,50 @@ class Backend(YAMLable):
         """
         Perform random number initialization.
 
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_init(self, decorate_fc, decorate_conv, decorate_ew):
+        """
+        Initialize FLOP timing.  Wraps the specified MOP calls via a decorator
+        to record elapsed time and number of operations.
+
+        Arguments:
+           decorate_fc (list): string giving the function names of fully
+                               connected layer forward/backward/update calls
+                               to time.
+           decorate_conv (list): string giving the function names of
+                                 convolutional layer forward/backward/update
+                                 calls to time.
+           decorate_ew (list): string giving the function names of element-wise
+                               calls to time.
+
+        Notes:
+            Must be called prior to first flop_timing_start call
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_start(self):
+        """
+        Start FLOP timing
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
+        """
+        raise NotImplementedError("Can't create direct instances of Backend")
+
+    def flop_timing_finish(self, start_time):
+        """
+        Finish FLOP timing
+
+        Arguments:
+            start_time (float, optional): value returned by last call to
+                                          flop_timing_start
         Raises:
             NotImplementedError: Can't be instantiated directly.
         """
@@ -1062,14 +1129,46 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
+    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
+                             topkcorrect, topk):
+        """
+        Compute the accumulated logloss and number of top1 and topk errors.
+
+        Arguments:
+            reference (Tensor): The true labels ( 1 x num_samples)
+            probs (Tensor): The normalized output ( num_class x num_samples)
+                            The row-wise sum for each column should be 1.
+                            Each column represents a sample and the
+                            values in the column represent the probability
+                            of that class being the correct one as
+                            hypothesized by the model.
+            labellogprob (Tensor): (OUTPUT) the logprob of the true
+                                   label for each column.
+                                   (1 x num_samples)
+            top1correct (Tensor): (OUTPUT) whether the true label occurs
+                                  as the top1 prob
+                                  (1 x num_samples)
+            topkcorrect (Tensor): (OUTPUT) whether the true label occurs
+                                  as one of the topk probs
+                                  (1 x num_samples)
+            topk (int): Parameter determining which of the top k to use for
+                        determining topkcorrect
+
+        Returns:
+            tuple: 3 python scalars/arrays (not Tensors) containing the
+                   logloss, top1 misclassification rate, topk misclassification
+                   rate
+        """
+        raise NotImplementedError()
+
     def distribute(self, data):
         return self.par.distribute(data)
 
     def rank(self):
         return self.par.rank()
 
-    def reduce_cost(self, tensor):
-        return self.par.reduce_cost(tensor)
+    def reduce_tensor(self, tensor):
+        return self.par.reduce_tensor(tensor)
 
 
 class Tensor(object):
@@ -1265,7 +1364,7 @@ class Tensor(object):
             Tensor: log transformed values
 
         Raises:
-            NotImplmentedError: Must override in a child Tensor class
+            NotImplementedError: Must override in a child Tensor class
         """
         raise NotImplementedError()
 
@@ -1277,7 +1376,7 @@ class Tensor(object):
             Tensor: e raised to the power of each value
 
         Raises:
-            NotImplmentedError: Must override in a child Tensor class
+            NotImplementedError: Must override in a child Tensor class
         """
         raise NotImplementedError()
 

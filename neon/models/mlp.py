@@ -6,6 +6,7 @@ Simple multi-layer perceptron model.
 """
 
 import logging
+import neon.util.metrics as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
@@ -25,6 +26,8 @@ class MLP(MLP_old):
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
+        opt_param(self, ['reuse_deltas'], True)
+        opt_param(self, ['timing_plots'], False)
         self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
@@ -33,6 +36,7 @@ class MLP(MLP_old):
     def link(self, initlayer=None):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.set_previous_layer(pl)
+        self.print_layers()
 
     def initialize(self, backend, initlayer=None):
         if self.initialized:
@@ -42,7 +46,24 @@ class MLP(MLP_old):
                   "accumulate": self.accumulate}
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
             ll.initialize(kwargs)
+
+        self.nin_max = max(map(lambda x: x.nin, self.layers[1:-1]))
+        self.global_deltas = None
+        if self.reuse_deltas:
+            self.global_deltas = backend.zeros(
+                (2 * self.nin_max, self.batch_size),
+                self.layers[1].deltas_dtype)
+
+        for idx, ll in enumerate(self.layers[1:-1]):
+            ll.set_deltas_buf(self.global_deltas,
+                              offset=((idx % 2) * self.nin_max))
+
         self.initialized = True
+
+        # Make some scratch space for NL backend:
+        if self.backend.__module__ == 'neon.backends.gpu':
+            # self.backend.init_mempool((self.class_layer.nout, 1))
+            self.backend.init_mempool((1, self.batch_size))
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
@@ -57,8 +78,10 @@ class MLP(MLP_old):
 
     def print_layers(self, debug=False):
         printfunc = logger.debug if debug else logger.info
+        netdesc = 'Layers:\n'
         for layer in self.layers:
-            printfunc("%s", str(layer))
+            netdesc += '\t' + str(layer) + '\n'
+        printfunc("%s", netdesc)
 
     def update(self, epoch):
         for layer in self.layers:
@@ -68,7 +91,7 @@ class MLP(MLP_old):
         return self.class_layer.output
 
     def print_training_error(self, error, num_batches, partial=False):
-        rederr = self.backend.reduce_cost(error)
+        rederr = self.backend.reduce_tensor(error)
         if self.backend.rank() != 0:
             return
 
@@ -81,24 +104,21 @@ class MLP(MLP_old):
             logger.info('epoch: %d, training error: %0.5f',
                         self.epochs_complete, errorval)
 
-    def print_test_error(self, setname, misclass, logloss, nrecs):
-        redmisclass = self.backend.reduce_cost(misclass)
-        redlogloss = self.backend.reduce_cost(logloss)
+    def print_test_error(self, setname, misclass, nrecs):
+        redmisclass = self.backend.reduce_tensor(misclass)
         if self.backend.rank() != 0:
             return
 
         misclassval = redmisclass / nrecs
-        loglossval = redlogloss / nrecs
         self.result = misclassval
-        logging.info("%s set misclass rate: %0.5f%% logloss %0.5f",
-                     setname, 100 * misclassval, loglossval)
+        logging.info("%s set misclass rate: %0.5f%%",
+                     setname, 100. * misclassval)
 
     def fit(self, dataset):
         """
         Learn model weights on the given datasets.
         """
         error = self.backend.zeros((1, 1))
-        self.print_layers()
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
@@ -119,17 +139,22 @@ class MLP(MLP_old):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         if dataset is not None:
             self.data_layer.init_dataset(dataset)
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
-        logloss_sum = self.backend.empty((1, 1))
         misclass_sum = self.backend.empty((1, 1))
+        if self.backend.__module__ == 'neon.backends.gpu':
+            import numpy as np
+            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
         batch_sum = self.backend.empty((1, 1))
 
         return_err = dict()
+
+        for ll in self.layers:
+            ll.set_train_mode(False)
 
         for setname in ['train', 'test', 'validation']:
             if self.data_layer.has_set(setname) is False:
@@ -137,31 +162,82 @@ class MLP(MLP_old):
             self.data_layer.use_set(setname, predict=True)
             self.data_layer.reset_counter()
             misclass_sum.fill(0.0)
-            logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             while self.data_layer.has_more_data():
                 self.fprop()
                 probs = self.get_classifier_output()
-                targets = self.data_layer.targets
-                self.backend.argmax(targets, axis=0, out=labels)
-                self.backend.argmax(probs, axis=0, out=predlabels)
-                self.backend.not_equal(predlabels, labels, misclass)
-                self.backend.sum(misclass, axes=None, out=batch_sum)
-                self.backend.add(misclass_sum, batch_sum, misclass_sum)
-                self.backend.sum(self.cost_layer.cost.apply_logloss(targets),
-                                 axes=None, out=batch_sum)
-                self.backend.add(logloss_sum, batch_sum, logloss_sum)
-            self.print_test_error(setname, misclass_sum, logloss_sum, nrecs)
+                reference = self.cost_layer.get_reference()
+                ms.misclass_sum(self.backend, reference, probs, predlabels,
+                                labels, misclass, batch_sum)
+                self.backend.add(misclass_sum, batch_sum, out=misclass_sum)
+            # this is a workaround since fp16 cannot accumulate past 65k
+            self.print_test_error(setname, misclass_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result
         return return_err
 
+    def predict_fullset(self, dataset, setname):
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * self.data_layer.num_batches
+        outputs = self.backend.empty((self.class_layer.nout, nrecs))
+        if self.data_layer.has_labels:
+            reference = self.backend.empty((1, nrecs))
+        else:
+            reference = self.backend.empty(outputs.shape)
+        batch = 0
+
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
+        while self.data_layer.has_more_data():
+            self.fprop()
+            start = batch * self.batch_size
+            end = start + self.batch_size
+            outputs[:, start:end] = self.get_classifier_output()
+            reference[:, start:end] = self.cost_layer.get_reference()
+            batch += 1
+
+        self.data_layer.cleanup()
+        return outputs, reference
+
+    def report(self, reference, outputs, metric):
+        nrecs = outputs.shape[1]
+        if metric == 'misclass rate':
+            retval = self.backend.empty((1, 1))
+            labels = self.backend.empty((1, nrecs))
+            preds = self.backend.empty(labels.shape)
+            misclass = self.backend.empty(labels.shape)
+            ms.misclass_sum(self.backend, reference, outputs,
+                            preds, labels, misclass, retval)
+            misclassval = retval.asnumpyarray() / nrecs
+            return misclassval * 100
+
+        if metric == 'auc':
+            return ms.auc(self.backend, reference[0], outputs[0])
+
+        if metric == 'log loss':
+            retval = self.backend.empty((1, 1))
+            sums = self.backend.empty((1, outputs.shape[1]))
+            temp = self.backend.empty(outputs.shape)
+            ms.logloss(self.backend, reference, outputs, sums, temp, retval)
+            self.backend.multiply(retval, -1, out=retval)
+            self.backend.divide(retval, nrecs, out=retval)
+            return retval.asnumpyarray()
+
+        raise NotImplementedError('metric not implemented:', metric)
+
 
 class MLPL(MLP):
     """
-    Localization model. Inherits everythning from MLPB that does the learning
+    Localization model. Inherits everythning from MLP that does the learning
     of the features. Then runs a forward pass on the larger images and [todo]
     plots localization maps.
+
+    TODO: This is not a model, just some visualization stuff. Do a normal
+    fprop and send it to a separate visualization script.
     """
 
     def predict_and_localize(self, dataset=None):
@@ -224,3 +300,5 @@ class MLPL(MLP):
                        vmin=span[0], vmax=span[1])
         plt.subplot(10, 10, 5)
         plt.title(title)
+
+

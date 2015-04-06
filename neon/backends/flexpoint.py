@@ -43,8 +43,8 @@ class FlexpointTensor(CPUTensor):
     def __init__(self, obj, dtype=None, force_rescale=False):
         if dtype is None:
             dtype = self.default_dtype
-        if ((not force_rescale) and type(obj) == np.ndarray and (obj.dtype
-                                                                 == elemtype)):
+        if ((not force_rescale) and type(obj) == np.ndarray and (obj.dtype ==
+                                                                 elemtype)):
             # already in the correct format, just assign to the _tensor
             self._tensor = obj
             self.shape = obj.shape
@@ -360,8 +360,8 @@ class Flexpoint(CPU):
         elif order == 0:
             res = np.sum(tsr._tensor != 0, axis)
         else:
-            res = np.sum(np.abs(flex_to_float_array(tsr._tensor, tsr.dtype))
-                         ** order, axis) ** (1.0 / order)
+            res = np.sum(np.abs(flex_to_float_array(tsr._tensor, tsr.dtype)) **
+                         order, axis) ** (1.0 / order)
         if out is None:
             out = self.array(res)
         else:

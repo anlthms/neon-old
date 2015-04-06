@@ -4,6 +4,11 @@
 """
 Contains cost or loss function related code.
 """
+from neon.util.param import opt_param, req_param
+import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Cost(object):
@@ -14,32 +19,26 @@ class Cost(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        opt_param(self, ['temp_dtype'], np.float32)
+        opt_param(self, ['outputbuf', 'temp'], None)
+        opt_param(self, ['scale'], 1.0)
 
-        if not hasattr(self, 'temp_dtype'):
-            self.temp_dtype = None
-
-        if not hasattr(self, 'scale'):
-            self.scale = 1.0
-
-        self.outputbuf = None
-        self.temp = None
+        opt_param(self, ['backend_type'], 'np.float32')
+        if self.backend_type == 'np.float16':
+            logger.info("Setting cost dtype to float16")
+            setattr(self, 'temp_dtype', np.float16)
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)
-        if not hasattr(self, 'backend'):
-            self.backend = self.olayer.backend
-
-        if not hasattr(self, 'batch_size'):
-            self.batch_size = self.olayer.batch_size
-
-        if not hasattr(self, 'olayer_data'):
-            self.olayer_data = 'output'
-
-        if not hasattr(self.olayer, self.olayer_data):
-            raise ValueError("Layer %s does not have buffer %s" %
-                             (self.olayer.name, self.olayer_data))
-        else:
-            self.set_outputbuf(getattr(self.olayer, self.olayer_data))
+        opt_param(self, ['backend'], self.olayer.backend)
+        opt_param(self, ['batch_size'], self.olayer.batch_size)
+        opt_param(self, ['olayer_data'], 'output')
+        req_param(self.olayer, [self.olayer_data])
+        # if not hasattr(self.olayer, self.olayer_data):
+        #     raise ValueError("Layer %s does not have buffer %s" %
+        #                      (self.olayer.name, self.olayer_data))
+        # else:
+        self.set_outputbuf(getattr(self.olayer, self.olayer_data))
 
     def set_outputbuf(self, databuf):
         """

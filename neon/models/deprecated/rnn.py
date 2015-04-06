@@ -373,8 +373,8 @@ class RNN(Model):
         to return_buffer of 100000 records. This will be preds['train']
         """
         nrecs = inputs.shape[0]
-        num_batches = int(math.floor((nrecs) / 128
-                                             / self.unrolls)) - 1
+        num_batches = int(math.floor((nrecs) / 128 /
+                                     self.unrolls)) - 1
         outputs = self.backend.zeros((num_batches*(self.unrolls),
                                       self.batch_size))
         hidden_init = None
@@ -472,6 +472,6 @@ class RNN(Model):
             from ipdb import set_trace as trace
             trace()  # just used to keep figures open
 
-    def predict_and_error(self, dataset):
+    def predict_and_report(self, dataset):
         predictions = self.predict()
         self.error_metrics(dataset, predictions)

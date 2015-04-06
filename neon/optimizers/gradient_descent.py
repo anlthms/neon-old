@@ -99,26 +99,37 @@ class GradientDescentMomentum(GradientDescent):
     def apply_rule(self, params, updates, epoch):
         """
         Steps for momentum:
-        1. velo = mu * velo    scale down old velocity
-        2. upda = eps * upda   scale down new updates
+        1. velo = mu * velo    scale down old velocity (momentum coef)
+        2. upda = eps * upda   scale down new updates (lerning rate)
         3. velo = velo - upda  combine old and new part
-        4. update the actual weights.
+        4. para = para + velo  update the actual weights.
         """
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
-            self.backend.add(ps_item, vs_item, out=ps_item)
+            # temporarily making backend dependent checks until we completely
+            # switch MOP over to optree approach
+            if ((self.backend.__module__ == 'neon.backends.cc2') or
+                    (self.backend.__module__ == 'neon.backends.gpu')):
+                # wrapping all calls into a single, lazy-eval kernel
+                self.backend.gdm_compound(ps_item=ps_item, us_item=us_item,
+                                          vs_item=vs_item,
+                                          momentum_coef=momentum_coef,
+                                          learning_rate=self.learning_rate,
+                                          epoch=epoch)
+            else:
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
+                self.backend.add(ps_item, vs_item, out=ps_item)
 
     def get_learning_rate(self, epoch):
         if self.schedule_flag:
             if self.schedule['type'] == 'step':
                 div_factor = numpy.floor(
                     (epoch + 1) / self.schedule['step_epochs'])
-                return self.learning_rate * (
-                    self.schedule['ratio'] ** div_factor)
+                return float(self.learning_rate *
+                             self.schedule['ratio'] ** div_factor)
             else:
                 raise NotImplementedError("learning rate schedule type not "
                                           "supported")
@@ -127,7 +138,7 @@ class GradientDescentMomentum(GradientDescent):
 
     def get_momentum_coef(self, epoch):
         """
-        Explanation here what the different momentum parameters mean.
+        Uses the following parameters from self.momentum_params
         initial_coef:   momentum coefficient used from first epoch on
         saturated_coef: momentum after saturate_epoch is reached
         start_epoch:    start increasing momentum at this epoch
@@ -184,25 +195,43 @@ class GradientDescentMomentum(GradientDescent):
 
 
 class GradientDescentMomentumWeightDecay(GradientDescentMomentum):
-
+    """
+    Adds weight decay regularization
+    """
     def apply_rule(self, params, updates, epoch):
         """
         Steps for momentum:
         1. velo = mu * velo    scale down old velocity
         2. upda = eps * upda   scale down new updates
         3. velo = velo - upda  combine old and new part
-        4. update the actual weights.
+        Extra steps for weight decay:
+        4. tmp = W * decay
+        5. tmp = tmp * eps
+        6. velo = velo - tmp_decay term.
+        and add update
         """
         learning_rate = self.get_learning_rate(epoch)
         momentum_coef = self.get_momentum_coef(epoch)
         for ps_item, us_item, vs_item in zip(params, updates, self.velocity):
-            self.backend.multiply(vs_item, momentum_coef, out=vs_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
-            # reuse us_item for weight decay term
-            # note: usually want to only apply for weights, not biases
-            self.backend.multiply(ps_item, self.weight_decay, out=us_item)
-            self.backend.multiply(us_item, learning_rate, out=us_item)
-            self.backend.subtract(vs_item, us_item, out=vs_item)
+            # temporarily making backend dependent checks until we completely
+            # switch MOP over to optree approach
+            if ((self.backend.__module__ == 'neon.backends.cc2') or
+                    (self.backend.__module__ == 'neon.backends.gpu')):
+                # wrapping all calls into a single, lazy-eval kernel
+                self.backend.gdmwd_compound(ps_item=ps_item, us_item=us_item,
+                                            vs_item=vs_item,
+                                            momentum_coef=momentum_coef,
+                                            learning_rate=self.learning_rate,
+                                            wd=self.weight_decay,
+                                            epoch=epoch)
+            else:
+                self.backend.multiply(vs_item, momentum_coef, out=vs_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
+                # reuse us_item for weight decay term
+                # note: usually want to only apply for weights, not biases
+                self.backend.multiply(ps_item, self.weight_decay, out=us_item)
+                self.backend.multiply(us_item, learning_rate, out=us_item)
+                self.backend.subtract(vs_item, us_item, out=vs_item)
 
-            self.backend.add(ps_item, vs_item, out=ps_item)
+                self.backend.add(ps_item, vs_item, out=ps_item)

@@ -14,8 +14,6 @@ Available Models
 
    neon.models.mlp.MLP
    neon.models.autoencoder.Autoencoder
-   neon.models.gb.GB
-   neon.models.gb_dist.GBDist
    neon.models.rbm.RBM
    neon.models.dbn.DBN
 
@@ -28,11 +26,3 @@ Adding a new Model type
     parameters from a training dataset
   * :func:`neon.models.model.Model.predict` to apply learned parameters
     to make predictions about another dataset.
-
-Adding a new Layer type
------------------------
-
-Neural network models are typically composed of several of these objects.
-
-* Create a new subclass of :class:`neon.models.layer.Layer` to suit your
-  needs.

@@ -5,7 +5,7 @@
 .. _api:
 
 *************
-API Reference 
+API Reference
 *************
 
 .. _api.functions:
@@ -27,13 +27,21 @@ CPU
 
    neon.backends.cpu.CPU
 
-GPU
----
+Cudanet GPU
+-----------
 
 .. autosummary::
    :toctree: generated/
 
-   neon.backends.gpu.GPU
+   neon.backends.cc2.GPU
+
+Nervana GPU
+-----------
+
+.. autosummary::
+  :toctree: generated/
+
+  neon.backends.gpu.GPU
 
 Flexpoint™
 ----------
@@ -96,15 +104,6 @@ DBN
    :toctree: generated/
 
    neon.models.dbn.DBN
-
-GB
---
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.models.gb.GB
-   neon.models.gb_dist.GBDist
 
 Recurrent Neural Network
 ------------------------
@@ -266,6 +265,7 @@ Activation Functions
    :toctree: generated/
 
    neon.transforms.rectified.RectLin
+   neon.transforms.rectified.RectLeaky
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
    neon.transforms.softmax.Softmax
@@ -329,14 +329,6 @@ ImageNet
 
    neon.datasets.i1k.I1K
 
-NDSB
-----
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.datasets.ndsb.NDSB
-
 Mobydick
 --------
 
@@ -345,13 +337,13 @@ Mobydick
 
    neon.datasets.mobydick.MOBYDICK
 
-Toronto Face
-------------
+Imageset
+--------
 
 .. autosummary::
    :toctree: generated/
 
-   neon.datasets.tfd.TFD
+   neon.datasets.imageset.Imageset
 
 Synthetic
 ---------

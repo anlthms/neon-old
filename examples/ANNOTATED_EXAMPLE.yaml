@@ -38,7 +38,8 @@
 # -----------------
 # FitExperiment - train a model to learn a set of parameters
 # FitPredictErrorExperiment - as above, but also generate predictions and
-#                             evaluate performance
+#                             evaluate performance on those, potentially
+#                             saving predictions to file.
 # GradientChecker - Use finite differences to check the gradients of an
 #                   experiment.  Currently this can be carried out using
 #                   the separately provided ``grad`` executable
@@ -54,11 +55,11 @@
   #           MNIST - handwritten digit image dataset
   #           CIFAR10 - 10 class object image dataset
   #           I1K - Imagenet 1000 class image dataset
+  #           I1Knq - Imagenet 1000 class image dataset (non-queueing)
   #           SPARSENET - small natural image dataset (Olshausen and Field)
+  #           Imageset - Generic macro batched image dataset support
   #           Iris - RA Fisher's 3 class flower dataset
   #           MOBYDICK - Content of the book Moby Dick
-  #           NDSB - National Data Science Bowl Image dataset
-  #           TFD - Toronto Face image dataset
   #           UniformRandom - synthetic random data
   #           ToyImages - synthetic image classification dataset
   # weight_init - controls initial value setup for the model weights.  types:
@@ -83,18 +84,33 @@
   #                                     based updates
   #         adadelta - Adadelta based updates.  See Zeiler2012
   # model - the type of machine learning algorithm to employ.  types:
-  #         MLP, MLPDist - feed-forward multi-layer perceptron neural
-  #                        network
+  #         MLP - feed-forward multi-layer perceptron neural network
   #         RBM - restricted Boltzmann machine
   #         RNN - Recurrent neural network
   #         Balance - Balance network
   #         Autoencoder - stacked autoencoder
   #         DBN - deep belief network
-  #         GB, GBDist - "google brain" style sparse autoencoder network
-  #         ConvnetDist - Halo parallel distributed convolutional network
   # logging - controls the amount and format of diagnositc information.  Based
   #           off of python's logging module
-  
+  #
+  # FitPredictErrorExperiment specific parameters:
+  # ----------------------------------------------
+  # inference_sets - which data types to compute predictions/error metrics on.
+  #                  Should be a list of strings, where each string should be
+  #                  one of 'train', 'test', or 'validation'.  Saved
+  #                  predictions will be written to disk in the same directory
+  #                  as the associated input dataset, and are written as python
+  #                  serialized object (.pkl) files.
+  # inference_metrics - The performance measurements to compute for each
+  #                     inference_set.  Should be a list of strings.  Current
+  #                     implemented choices are:
+  #                     'auc' - Area under the ROC curve
+  #                     'misclass rate' - Proportion of instances where the
+  #                                       output class predicted by the model
+  #                                       does not match the expected value.
+  #                     'log loss' - The negative log likelihood of the true
+  #                                  labels given the predicted probabilities
+  #                                  from the model.
   dataset: &ds !obj:datasets.Iris {
     # Iris dataset parameters
     # -----------------------

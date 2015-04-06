@@ -21,9 +21,20 @@ class RNN(MLP):
     """
     def __init__(self, **kwargs):
         self.accumulate = True
+        # Reusing deltas not supported for RNNs yet
+        self.reuse_deltas = False
         super(RNN, self).__init__(**kwargs)
         req_param(self, ['unrolls'])
         self.rec_layer = self.layers[1]
+
+    def link(self, initlayer=None):
+        """
+        link function for the RNN differs from the MLP in that it does not
+        print the layers
+        """
+        for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
+            ll.set_previous_layer(pl)
+        # self.print_layers()
 
     def fit(self, dataset):
         viz = VisualizeRNN()
@@ -309,7 +320,7 @@ class RNN(MLP):
         logger.debug("---------------------------------------------")
 
     # adapted from MLP, added time unrolling
-    def predict_and_error(self, dataset=None):
+    def predict_and_report(self, dataset=None):
         """
         todo: take the outputs[idx, :] = letters
         stuff from predict_set and use it to descramble the predictions
@@ -335,11 +346,11 @@ class RNN(MLP):
             logloss_sum.fill(0.0)
             nrecs = self.batch_size * self.data_layer.num_batches
             outputs_pred = self.backend.zeros(
-                ((self.data_layer.num_batches + 0)
-                 * (self.unrolls), self.batch_size))
+                ((self.data_layer.num_batches + 0) *
+                 (self.unrolls), self.batch_size))
             outputs_targ = self.backend.zeros(
-                ((self.data_layer.num_batches + 0)
-                 * (self.unrolls), self.batch_size))
+                ((self.data_layer.num_batches + 0) *
+                 (self.unrolls), self.batch_size))
             mb_id = 0
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():

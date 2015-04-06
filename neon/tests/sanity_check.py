@@ -42,16 +42,22 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     check_file = os.path.join(script_dir, '..', '..', 'examples',
                               'convnet', 'synthetic-sanity_check.yaml')
-    expected_result = 0.4921875
+    expected_result = 0.5546875
     # TODO: modelpar currently broken on synthetic-sanity_check.yaml
     # (dimensions not aligned), so skipping for the moment.
     # for be in ["cpu", "gpu", "datapar", "modelpar"]:
     for be in ["cpu", "gpu", "datapar"]:
         be_args = {'rng_seed': 0}
         if args.__dict__[be] == 1:
-            if be != "cpu":
+            if be == "gpu":
+                be_args[be] = "cudanet"
+            elif be == "datapar":
                 be_args[be] = 1
             print('{} check '.format(be)),
+            if be == "datapar":
+                # temporary hack because we are not running via mpirun.
+                os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0'
+                os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'] = '1'
             sanity_check(check_file, expected_result, **be_args)
             print('OK')
     sys.exit(res)

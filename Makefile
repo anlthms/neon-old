@@ -46,13 +46,18 @@ INSTALL_REQUIRES :=
 ifeq ($(DEV), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dev'
 else
-  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1'
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1' \
+		'flake8>=2.2.2' 'pep8-naming>=0.2.2' 'sphinx>=1.2.2' \
+		'sphinxcontrib-napoleon>=0.2.8' 'scikit-learn>=0.15.2' 'matplotlib>=1.4.0'
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
+    'git+http://gitlab.localdomain/algorithms/imgworker.git\#egg=imgworker>=0.2.1'
 endif
 ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.1'
+    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5' \
+		'pycuda>=2014.1'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -118,7 +123,7 @@ ifeq ($(CPU), 1)
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu cudanet \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
 

@@ -129,8 +129,8 @@ class Visual(object):
                                (n+m)*j+j:(n+m)*j+j+m, :] = block
                 self.plt.imshow(canvas*2.+.5, interpolation='nearest')
                 self.plt.show()
-                self.plt.imsave(ensure_dirs_exist(names + 'color' + str(ind)
-                                                  + str(k)), canvas*2.+.5)
+                self.plt.imsave(ensure_dirs_exist(names + 'color' + str(ind) +
+                                                  str(k)), canvas*2.+.5)
 
         def showme_dense(w, n, m, k, nifm):
             "this places the individual filters on a canvas and plots it"

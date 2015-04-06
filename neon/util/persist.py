@@ -211,7 +211,7 @@ def initialize_yaml():
     yaml_initialized = True
 
 
-def deserialize(load_path):
+def deserialize(load_path, verbose=True):
     """
     Converts a serialized object into a python data structure.  We currently
     support reading from the following file formats (expected filename
@@ -237,7 +237,10 @@ def deserialize(load_path):
     if not isinstance(load_path, file):
         load_path = file(os.path.expandvars(os.path.expanduser(load_path)))
     fname = load_path.name
-    logger.warn("deserializing object from:  %s", fname)
+
+    if verbose:
+        logger.warn("deserializing object from:  %s", fname)
+
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
         if not yaml_initialized:
             initialize_yaml()
@@ -253,7 +256,7 @@ def deserialize(load_path):
             raise AttributeError(msg)
 
 
-def serialize(obj, save_path):
+def serialize(obj, save_path, verbose=True):
     """
     Dumps a python data structure to a saved on-disk representation.  We
     currently support writing to the following file formats (expected filename
@@ -272,7 +275,8 @@ def serialize(obj, save_path):
     if save_path is None or len(save_path) == 0:
         return
     save_path = os.path.expandvars(os.path.expanduser(save_path))
-    logger.warn("serializing %s to: %s", str(obj), save_path)
+    if verbose:
+        logger.warn("serializing object to: %s", save_path)
     ensure_dirs_exist(save_path)
     pickle.dump(obj, open(save_path, 'wb'), -1)
 
