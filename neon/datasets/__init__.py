@@ -9,3 +9,5 @@ from neon.datasets.sparsenet import SPARSENET  # noqa
 from neon.datasets.synthetic import ToyImages, UniformRandom  # noqa
 from neon.datasets.tfd import TFD  # noqa
 from neon.datasets.inet_loca import ImagenetLocalize  # noqa
+from neon.datasets.hurricane import Hurricane  # noqa
+
