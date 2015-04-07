@@ -63,7 +63,6 @@ class FitPredictErrorExperiment(FitExperiment):
             self.backend.flop_timing_init(self.diagnostics['decorate_fc'],
                                           self.diagnostics['decorate_conv'],
                                           self.diagnostics['decorate_ew'])
-            self.model.timing_plots = True
 
         # if the experiment includes parameter statistics
         if self.diagnostics['ranges']:
@@ -75,7 +74,7 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
-        self.model.predict_and_report(self.dataset)
+        return_err = self.model.predict_and_report(self.dataset)
 
         # visualization (if so requested)
         if self.diagnostics['timing']:
@@ -85,6 +84,10 @@ class FitPredictErrorExperiment(FitExperiment):
             from neon.diagnostics import ranges_plots as rp
             rp.print_param_stats(self.backend, logger,
                                  self.diagnostics['filename'])
+        if self.diagnostics['localization']:
+            from neon.diagnostics import localization_plots as lp
+            # feed it a model? Needs layers.
+            lp.visualize_location_maps(self.model)
 
         # Report error metrics.
         for setname in self.inference_sets:
