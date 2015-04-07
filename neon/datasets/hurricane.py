@@ -80,10 +80,11 @@ class Hurricane(Dataset):
         self.inputs['validation'].shape = (2*te, dims)
 
         # shuffle training set
-        s = range(len(self.inputs['train']))
-        np.random.shuffle(s)
-        self.inputs['train'] = self.inputs['train'][s]
-        self.targets['train'] = self.targets['train'][s]
+        for item in ['train', 'validation']:
+            s = range(len(self.inputs[item]))
+            np.random.shuffle(s)
+            self.inputs[item] = self.inputs[item][s]
+            self.targets[item] = self.targets[item][s]
 
         def normalize(x):
             """Make each column mean zero, variance 1"""
