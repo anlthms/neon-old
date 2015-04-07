@@ -59,13 +59,17 @@ class Hurricane(Dataset):
         self.inputs['train'] = np.vstack((one[:tr, v, rng, rng],
                                           zero[:tr, v, rng, rng]))
 
-        # one hot encoding required for MLP
-        self.targets['train'] = np.vstack(([[1, 0]] * tr, [[0, 1]] * tr))
+        # for GPU backend, need classes to be divisible by 8
 
+        filler = [0 for k in range(self.fill_classes)]
+        # one hot encoding required for MLP
+        self.targets['train'] = np.vstack(([[1, 0] + filler] * tr,
+                                           [[0, 1] + filler] * tr))
         # same with validation set
-        self.inputs['validation'] = np.vstack((one[tr:tr+te, v, rng, rng],
-                                              zero[tr:tr+te, v, rng, rng]))
-        self.targets['validation'] = np.vstack(([[1, 0]] * te, [[0, 1]] * te))
+        self.inputs['validation'] = np.vstack((one[tr:(tr + te), v, rng, rng],
+                                              zero[tr:(tr + te), v, rng, rng]))
+        self.targets['validation'] = np.vstack(([[1, 0] + filler] * te,
+                                                [[0, 1] + filler] * te))
 
         f.close()
 

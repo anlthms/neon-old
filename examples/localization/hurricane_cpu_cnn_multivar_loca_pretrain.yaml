@@ -7,12 +7,13 @@
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: !obj:datasets.Hurricane {
-      repo_path: '/usr/local/data/',
+      repo_path: '/home/users/urs/data_hard',
       hdf5_file: 'hurricanes.h5',
       # variables: [0],  # used in singlevar case
       crop: 16,  # train on a smaller center region.
       training_size: 10000,
       test_size: 10000,
+      fill_classes: 6,  # empty classes to be divisible by 8
   },
 
   weight_inits: [
@@ -40,19 +41,18 @@
   # localization features from this subclass.
   model: !obj:models.MLPL {
     num_epochs: 5,
-    batch_size: &bs 100,
-    serialized_path: './hurr16features.pkl',  # check util/persist for overwrite_param
+    batch_size: &bs 128,
+    #serialized_path: './hurr16features.pkl',  # check util/persist for overwrite_param
     layers: [
-      &datalayer !obj:neon.models.layer2.DataLayer {
+      &datalayer !obj:layers.DataLayer {
         name: d0,
         is_local: True,
-        nofm: 8, # Must match the number of variables.
+        nofm: 8, # feature maps in the data
         ofmshape: [16, 16],
       },
       !obj:layers.ConvLayer {
         name: layer1,
-        nofm: 10,
-        #ifmshape: [16, 16],  # No longer needed? -UK
+        nofm: 16,
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
@@ -66,7 +66,7 @@
       },
       !obj:layers.ConvLayer {
         name: layer3,
-        nofm: 10,
+        nofm: 16,
         fshape: [5, 5],
         stride: 1,
         lrule_init: *gdm,
@@ -78,10 +78,9 @@
         fshape: [2, 2],
         stride: 2,
       },
-      !obj:layers.ConvLayer { # was FCLayer
+      !obj:layers.ConvLayer { # was FCLayer, now 1x1 convolution
         name: layer5,
-        #nout: 10,
-        nofm: 10,
+        nofm: 16,
         fshape: [1, 1],
         stride: 1,
         activation: !obj:neon.transforms.rectified.RectLin {},
@@ -90,8 +89,7 @@
       },
       !obj:layers.ConvLayer { # was FCLayer
         name: output,
-        #nout: 2,
-        nofm: 2,
+        nofm: 8, # target classes. for GPU, 6 empty classed to divisible by 8
         fshape: [1, 1],
         stride: 1,
         activation: !obj:transforms.Logistic {},
