@@ -12,11 +12,12 @@ Current Implementations
    :toctree: generated/
 
    neon.backends.cpu.CPU
-   neon.backends.gpu.GPU
+   neon.backends.cc2.GPU
    neon.backends.flexpoint.Flexpoint
    neon.backends.par.NoPar
    neon.backends.par.DataPar
    neon.backends.par.ModelPar
+   neon.backends.gpu.GPU
 
 Adding a new Backend
 --------------------

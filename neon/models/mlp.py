@@ -27,6 +27,7 @@ class MLP(MLP_old):
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
+        opt_param(self, ['timing_plots'], False)
         self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
@@ -58,6 +59,11 @@ class MLP(MLP_old):
                               offset=((idx % 2) * self.nin_max))
 
         self.initialized = True
+
+        # Make some scratch space for NL backend:
+        if self.backend.__module__ == 'neon.backends.gpu':
+            # self.backend.init_mempool((self.class_layer.nout, 1))
+            self.backend.init_mempool((1, self.batch_size))
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
@@ -106,7 +112,7 @@ class MLP(MLP_old):
         misclassval = redmisclass / nrecs
         self.result = misclassval
         logging.info("%s set misclass rate: %0.5f%%",
-                     setname, 100 * misclassval)
+                     setname, 100. * misclassval)
 
     def fit(self, dataset):
         """
@@ -140,6 +146,9 @@ class MLP(MLP_old):
         labels = self.backend.empty((1, self.batch_size))
         misclass = self.backend.empty((1, self.batch_size))
         misclass_sum = self.backend.empty((1, 1))
+        if self.backend.__module__ == 'neon.backends.gpu':
+            import numpy as np
+            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
         batch_sum = self.backend.empty((1, 1))
 
         return_err = dict()
@@ -160,7 +169,8 @@ class MLP(MLP_old):
                 reference = self.cost_layer.get_reference()
                 ms.misclass_sum(self.backend, reference, probs, predlabels,
                                 labels, misclass, batch_sum)
-                self.backend.add(misclass_sum, batch_sum, misclass_sum)
+                self.backend.add(misclass_sum, batch_sum, out=misclass_sum)
+            # this is a workaround since fp16 cannot accumulate past 65k
             self.print_test_error(setname, misclass_sum, nrecs)
             self.data_layer.cleanup()
             return_err[setname] = self.result

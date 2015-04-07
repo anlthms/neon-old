@@ -5,6 +5,10 @@
 Contains cost or loss function related code.
 """
 from neon.util.param import opt_param, req_param
+import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Cost(object):
@@ -15,8 +19,14 @@ class Cost(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        opt_param(self, ['temp_dtype', 'outputbuf', 'temp'], None)
+        opt_param(self, ['temp_dtype'], np.float32)
+        opt_param(self, ['outputbuf', 'temp'], None)
         opt_param(self, ['scale'], 1.0)
+
+        opt_param(self, ['backend_type'], 'np.float32')
+        if self.backend_type == 'np.float16':
+            logger.info("Setting cost dtype to float16")
+            setattr(self, 'temp_dtype', np.float16)
 
     def initialize(self, kwargs):
         self.__dict__.update(kwargs)

@@ -28,7 +28,7 @@ class TestCudaRBM:
 
     def setup(self):
 
-        from neon.backends.gpu import GPU, GPUTensor
+        from neon.backends.cc2 import GPU, GPUTensor
 
         # TODO: remove randomness from expected target results
         self.be = GPU(rng_seed=0)

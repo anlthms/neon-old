@@ -20,9 +20,9 @@ def test_softmax_cputensor():
 
 
 @attr('cuda')
-def test_softmax_gputensor():
+def test_softmax_cc2tensor():
     sftmx = Softmax()
-    from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.cc2 import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = np.exp(inputs) / np.sum(np.exp(inputs))
     be = GPU(rng_seed=0)
@@ -45,9 +45,9 @@ def test_softmax_derivative_cputensor():
 
 
 @attr('cuda')
-def test_softmax_derivative_gputensor():
+def test_softmax_derivative_cc2tensor():
     sftmx = Softmax()
-    from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.cc2 import GPU, GPUTensor
     inputs = np.array([0, 1, -2]).reshape((3, 1))
     outputs = np.exp(inputs) / np.sum(np.exp(inputs))
     errmat = np.ones(inputs.shape)

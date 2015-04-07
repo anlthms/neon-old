@@ -56,7 +56,8 @@ ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5'
+    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5' \
+		'pycuda>=2014.1'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -126,7 +127,7 @@ ifeq ($(CPU), 1)
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu cudanet \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
 

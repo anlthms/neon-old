@@ -17,6 +17,17 @@ from neon.util.persist import ensure_dirs_exist
 
 def misclass_sum(backend, reference, outputs, predlabels, labels, misclass,
                  retval, topk=1):
+    """
+    Compute the total (sum) of missclassified samples in a batch.
+    Arguments:
+        backend:    reference to a backend instance
+        reference:  targets (one-hot encoding of classes x batchsize)
+        outputs:    model outputs (probabilities of classes x batchsize)
+        predlabels: Container for predicted class number (1 x batchsize)
+        labels:     Container for target class number (1 x batchsize)
+        misclass:   Container for misclassification indicator, (1 x batchsize)
+        retval:     Container for batch sum (1x1 Tensor )
+    """
     if reference.shape[0] == 1:
         labels[:] = reference
     else:

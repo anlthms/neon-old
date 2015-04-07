@@ -11,16 +11,19 @@ to in the source code):
 
 * convnet: Convolutional neural networks
 * mlp: Multilayer Perceptrons (Deep neural networks)
-* gb: Sparse autoencoders ("Google Brain" style; no GPU support)
+* gb: Sparse autoencoders ("Google Brain" style; deprecated)
 * autoencoder: Deep autoencoders (reconstructing; Hinton style)
-* rnn: Recurrent neural networks (forthcoming)
+* rnn: Recurrent neural networks
 * rbm: Restricted Boltzmann Machines
-* dbn: Deep Belief Networks (forthcoming)
+* dbn: Deep Belief Networks
 
 A key feature of the framework is the ease with which CPU and GPU accelerated
-backends can be swapped. In a future release, Flexpoint™ and Nervana HW
-specific backends will be added. The GPU based backend wraps and extends Alex
-Krizhevsky's cuda-convnet2 backend.
+backends can be swapped. In a future release, Flexpoint™ and Nervana HW specific
+backends will be added. There are two GPU based backends:
+:class:`neon.backends.backend.gpu.GPU` wraps the  NervanaGPU library with fp16
+and fp32 Maxwell GPU kernels.
+:class:`neon.backends.backend.cc2.GPU`  wraps and extends Alex Krizhevsky's
+cuda-convnet2 backend.
 
 In addition, the framework provides distributed implementations and examples
 using MPI for:

@@ -35,6 +35,7 @@ class FitPredictErrorExperiment(FitExperiment):
     """
     def __init__(self, **kwargs):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
+        opt_param(self, ['diagnostics'], {'timing': False, 'ranges': False})
         opt_param(self, ['inference_sets'], [])
         opt_param(self, ['inference_metrics'], [])
         if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
@@ -61,11 +62,35 @@ class FitPredictErrorExperiment(FitExperiment):
                   containing inference_set name keys, and actual metric values
         """
         result = dict()
+        # if the experiment includes timing diagnostics, decorate backend
+        if self.diagnostics['timing']:
+            self.backend.flop_timing_init(self.diagnostics['decorate_fc'],
+                                          self.diagnostics['decorate_conv'],
+                                          self.diagnostics['decorate_ew'])
+            self.model.timing_plots = True
+
+        # if the experiment includes parameter statistics
+        if self.diagnostics['ranges']:
+            from neon.diagnostics import ranges_decorators
+            rd = ranges_decorators.Decorators(backend=self.backend,
+                                              silent=self.
+                                              diagnostics['silent'])
+            rd.decorate(function_list=self.diagnostics)
+
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
         # TODO: cleanup the call below to remove duplication with other
         # reporting.
         self.model.predict_and_report(self.dataset)
+
+        # visualization (if so requested)
+        if self.diagnostics['timing']:
+            from neon.diagnostics import timing_plots as tp
+            tp.print_performance_stats(self.backend, logger)
+        if self.diagnostics['ranges']:
+            from neon.diagnostics import ranges_plots as rp
+            rp.print_param_stats(self.backend, logger,
+                                 self.diagnostics['filename'])
 
         # Report error metrics.
         for setname in self.inference_sets:

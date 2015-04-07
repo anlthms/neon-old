@@ -1,3 +1,4 @@
+
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
@@ -39,11 +40,22 @@ class ConvLayer(WeightLayer):
 
         self.allocate_output_bufs()
         self.allocate_param_bufs()
+
         opt_param(self, ['prodbuf', 'bpropbuf', 'updatebuf'], None)
         if isinstance(self.backend, CPU):
             self.prodbuf = self.backend.empty((self.nofm, self.batch_size))
             self.bpropbuf = self.backend.empty((self.fsize, self.batch_size))
             self.updatebuf = self.backend.empty(self.weights.shape)
+
+        if self.backend.__module__ == 'neon.backends.gpu':
+            self.conv_params = self.backend.ng.conv_layer(
+                N=self.batch_size, C=self.nifm, K=self.nofm,
+                D=1, H=self.ifmshape[0], W=self.ifmshape[1], T=1,
+                R=self.fshape[0], S=self.fshape[1],
+                pad_d=0, pad_h=self.pad, pad_w=self.pad,
+                str_d=1, str_h=self.stride, str_w=self.stride,
+                dtype=self.weight_dtype)
+            self.prodbuf = self.bpropbuf = self.updatebuf = self.conv_params
 
     def set_weight_shape(self):
         if hasattr(self, 'local_conv') and self.local_conv:
@@ -71,11 +83,23 @@ class ConvLayer(WeightLayer):
             else:
                 self.backend.add(self.pre_act, self.biases, out=self.pre_act)
 
+        if self.batch_norm:
+            self.bn.fprop_func(self.backend, self.pre_act, self.pre_act)
+
         self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
         inputs = self.prev_layer.output
-        self.activation.bprop_func(self.backend, self.pre_act, error)
+        self.activation.bprop_func(self.backend, self.pre_act, error,
+                                   self.skip_act)
+
+        upm = self.utemp if self.accumulate else self.updates
+        u_idx = 0
+        if self.batch_norm:
+            self.bn.bprop_func(self.backend, self.pre_act, error,
+                               self.skip_act)
+            u_idx = 2
+
         if self.deltas is not None:
             self.backend.bprop_conv(out=self.deltas, weights=self.weights,
                                     deltas=error, ofmshape=self.ofmshape,
@@ -86,10 +110,7 @@ class ConvLayer(WeightLayer):
                                     nifm=self.nifm, ngroups=1,
                                     bpropbuf=self.bpropbuf,
                                     local=self.local_conv)
-
-        upm = self.utemp if self.accumulate else self.updates
-
-        self.backend.update_conv(out=upm[0], inputs=inputs,
+        self.backend.update_conv(out=upm[u_idx], inputs=inputs,
                                  weights=self.weights, deltas=error,
                                  ofmshape=self.ofmshape,
                                  ofmsize=self.ofmsize,
@@ -108,14 +129,15 @@ class ConvLayer(WeightLayer):
                 self.backend.sum(error, axes=1, out=self.bias_expand)
                 self.bias_expand = self.bias_expand.reshape(
                     (self.nofm, self.ofmsize))
-                self.backend.sum(self.bias_expand, axes=1, out=upm[1])
+                self.backend.sum(self.bias_expand, axes=1, out=upm[u_idx+1])
                 self.bias_expand = self.bias_expand.reshape(
                     (self.nofm * self.ofmsize, 1))
             else:
-                self.backend.sum(error, axes=1, out=upm[1])
+                self.backend.sum(error, axes=1, out=upm[u_idx+1])
 
         if self.accumulate:
-            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            self.backend.add(upm[u_idx], self.updates[u_idx],
+                             out=self.updates[u_idx])
             if self.use_biases is True:
                 self.backend.add(upm[1], self.updates[1], out=self.updates[1])
 
