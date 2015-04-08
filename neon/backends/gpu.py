@@ -99,8 +99,8 @@ class GPU(Backend):
         self.end.synchronize()
         return self.end.time_since(self.start)
 
-    def uniform(self, low=0.0, high=1.0, shape=1, dtype=default_dtype, name=None,
-                allocator=drv.mem_alloc):
+    def uniform(self, low=0.0, high=1.0, shape=1, dtype=default_dtype,
+                 name=None, allocator=drv.mem_alloc):
         """
         generate numpy random number and convert to a GPUTensor.
         If called with dype=None it will probably explode
@@ -109,8 +109,8 @@ class GPU(Backend):
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
                          rounding=self.ng.round_mode).set(ary)
 
-    def normal(self, loc=0.0, scale=1.0, size=1, dtype=default_dtype, name=None,
-               allocator=drv.mem_alloc):
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=default_dtype,
+                name=None, allocator=drv.mem_alloc):
         """
         Gaussian/Normal random number sample generation
         """
@@ -533,7 +533,8 @@ class GPU(Backend):
         """
         return self.ng.empty(shape, dtype=dtype)
 
-    def array(self, ary, dtype=default_dtype, name=None, allocator=drv.mem_alloc):
+    def array(self, ary, dtype=default_dtype, name=None,
+              allocator=drv.mem_alloc):
         """
         Allocate a new GPUTensor and fill it with supplied numpy array.
 
