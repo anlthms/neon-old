@@ -18,7 +18,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-
 class GPU(Backend):
     """
     Sets up a NervanaGPU based backend for matrix operations.
@@ -26,6 +25,8 @@ class GPU(Backend):
     cross-map pooling and normalization and adaDelta are not implemented for
     this backend.
     """
+    default_dtype = None  # set this to np.float32 for less strict typing
+
     def __init__(self, rng_seed, stochastic_round=False, device_id=0):
         self.ng = NervanaGPU(stochastic_round=stochastic_round)
         logger.info("Initialized NervanaGPU with stochastic_round=%s",
@@ -34,11 +35,11 @@ class GPU(Backend):
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
 
-    def init_mempool(self, shape):
+    def init_mempool(self, shape, dtype=defaultdtype):
         """
         Allocates a memory pool for temporary storage
         """
-        self.mem_pool = self.ng.empty(shape)
+        self.mem_pool = self.ng.empty(shape, dtype=dtype)
 
     def rng_init(self):
         """
@@ -98,7 +99,7 @@ class GPU(Backend):
         self.end.synchronize()
         return self.end.time_since(self.start)
 
-    def uniform(self, low=0.0, high=1.0, shape=1, dtype=None, name=None,
+    def uniform(self, low=0.0, high=1.0, shape=1, dtype=defaultdtype, name=None,
                 allocator=drv.mem_alloc):
         """
         generate numpy random number and convert to a GPUTensor.
@@ -108,7 +109,7 @@ class GPU(Backend):
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
                          rounding=self.ng.round_mode).set(ary)
 
-    def normal(self, loc=0.0, scale=1.0, size=1, dtype=None, name=None,
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=defaultdtype, name=None,
                allocator=drv.mem_alloc):
         """
         Gaussian/Normal random number sample generation
@@ -457,7 +458,7 @@ class GPU(Backend):
             self.ng.max(tsr, axis=axes, out=out)
         return out
 
-    def variance(self, tsr, axes, out, mean=None, dtype=np.float32):
+    def variance(self, tsr, axes, out, mean=None, dtype=defaultdtype):
         """
         Calculates the variance of the elements along the specified
         axes.
@@ -479,7 +480,7 @@ class GPU(Backend):
         self.ng.mean(self.ng.square(tsr-mean),  axis=axes, out=out)
         return out
 
-    def sqrt(self, x, out, dtype=np.float32):
+    def sqrt(self, x, out, dtype=defaultdtype):
         """
         Calculates square root of the elements in a tensor
 
@@ -493,7 +494,7 @@ class GPU(Backend):
         self.ng.sqrt(x, out=out)
         return out
 
-    def zeros(self, shape, dtype=np.float32):
+    def zeros(self, shape, dtype=defaultdtype):
         """
         Allocate a new GPUTensor and fill it with zeros.
 
@@ -506,7 +507,7 @@ class GPU(Backend):
         """
         return self.ng.zeros(shape, dtype=dtype)
 
-    def ones(self, shape, dtype=np.float32):
+    def ones(self, shape, dtype=defaultdtype):
         """
         Allocate a new GPUTensor and fill it with ones.
 
@@ -519,7 +520,7 @@ class GPU(Backend):
         """
         return self.ng.ones(shape, dtype=dtype)
 
-    def empty(self, shape, dtype=np.float32):
+    def empty(self, shape, dtype=defaultdtype):
         """
         Allocate a new GPUTensor.
 
@@ -532,7 +533,7 @@ class GPU(Backend):
         """
         return self.ng.empty(shape, dtype=dtype)
 
-    def array(self, ary, dtype=np.float32, name=None, allocator=drv.mem_alloc):
+    def array(self, ary, dtype=defaultdtype, name=None, allocator=drv.mem_alloc):
         """
         Allocate a new GPUTensor and fill it with supplied numpy array.
 
@@ -741,7 +742,7 @@ class GPU(Backend):
         raise NotImplementedError("Softmax gradient should use shortcut")
         return out
 
-    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=defaultdtype):
         """
         Create a binary mask for dropout layers.
 

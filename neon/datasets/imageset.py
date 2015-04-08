@@ -123,7 +123,7 @@ class Imageset(Dataset):
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
-        self.mean_be = sbe((self.npixels, 1))
+        self.mean_be = sbe((self.npixels, 1), dtype=betype)
         self.mean_be.copy_from(self.mean_crop.reshape(
             (self.npixels, 1)).astype(np.float32))
 
