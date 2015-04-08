@@ -18,7 +18,7 @@
     decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
 
     ranges: True,
-    silent: False,
+    silent: True,
     decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 

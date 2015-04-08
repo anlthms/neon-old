@@ -35,7 +35,7 @@ class GPU(Backend):
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
 
-    def init_mempool(self, shape, dtype=defaultdtype):
+    def init_mempool(self, shape, dtype=default_dtype):
         """
         Allocates a memory pool for temporary storage
         """
@@ -99,7 +99,7 @@ class GPU(Backend):
         self.end.synchronize()
         return self.end.time_since(self.start)
 
-    def uniform(self, low=0.0, high=1.0, shape=1, dtype=defaultdtype, name=None,
+    def uniform(self, low=0.0, high=1.0, shape=1, dtype=default_dtype, name=None,
                 allocator=drv.mem_alloc):
         """
         generate numpy random number and convert to a GPUTensor.
@@ -109,7 +109,7 @@ class GPU(Backend):
         return GPUTensor(ary.shape, dtype, allocator=allocator, name=name,
                          rounding=self.ng.round_mode).set(ary)
 
-    def normal(self, loc=0.0, scale=1.0, size=1, dtype=defaultdtype, name=None,
+    def normal(self, loc=0.0, scale=1.0, size=1, dtype=default_dtype, name=None,
                allocator=drv.mem_alloc):
         """
         Gaussian/Normal random number sample generation
@@ -458,7 +458,7 @@ class GPU(Backend):
             self.ng.max(tsr, axis=axes, out=out)
         return out
 
-    def variance(self, tsr, axes, out, mean=None, dtype=defaultdtype):
+    def variance(self, tsr, axes, out, mean=None, dtype=default_dtype):
         """
         Calculates the variance of the elements along the specified
         axes.
@@ -480,7 +480,7 @@ class GPU(Backend):
         self.ng.mean(self.ng.square(tsr-mean),  axis=axes, out=out)
         return out
 
-    def sqrt(self, x, out, dtype=defaultdtype):
+    def sqrt(self, x, out, dtype=default_dtype):
         """
         Calculates square root of the elements in a tensor
 
@@ -494,7 +494,7 @@ class GPU(Backend):
         self.ng.sqrt(x, out=out)
         return out
 
-    def zeros(self, shape, dtype=defaultdtype):
+    def zeros(self, shape, dtype=default_dtype):
         """
         Allocate a new GPUTensor and fill it with zeros.
 
@@ -507,7 +507,7 @@ class GPU(Backend):
         """
         return self.ng.zeros(shape, dtype=dtype)
 
-    def ones(self, shape, dtype=defaultdtype):
+    def ones(self, shape, dtype=default_dtype):
         """
         Allocate a new GPUTensor and fill it with ones.
 
@@ -520,7 +520,7 @@ class GPU(Backend):
         """
         return self.ng.ones(shape, dtype=dtype)
 
-    def empty(self, shape, dtype=defaultdtype):
+    def empty(self, shape, dtype=default_dtype):
         """
         Allocate a new GPUTensor.
 
@@ -533,7 +533,7 @@ class GPU(Backend):
         """
         return self.ng.empty(shape, dtype=dtype)
 
-    def array(self, ary, dtype=defaultdtype, name=None, allocator=drv.mem_alloc):
+    def array(self, ary, dtype=default_dtype, name=None, allocator=drv.mem_alloc):
         """
         Allocate a new GPUTensor and fill it with supplied numpy array.
 
@@ -742,7 +742,7 @@ class GPU(Backend):
         raise NotImplementedError("Softmax gradient should use shortcut")
         return out
 
-    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=defaultdtype):
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=default_dtype):
         """
         Create a binary mask for dropout layers.
 
