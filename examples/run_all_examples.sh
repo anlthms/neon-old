@@ -10,13 +10,15 @@ OUT_FILE="${HOME}/.nervana/all_example_results.tsv"
 LOG_FILE="${HOME}/.nervana/all_example_results.log"
 NEON_EXE="${THIS_DIR}/../bin/neon"
 NEON_OPTS="-r 0 -o ${OUT_FILE}"  # non-distributed, CPU backend
+CMP_EXE="${THIS_DIR}/../bin/compare_metrics"
+CMP_OPTS=""
 
 mkdir -p "$(dirname $OUT_FILE)"
 mkdir -p "$(dirname $LOG_FILE)"
 make -C ${THIS_DIR}/.. build > /dev/null 2>&1  # ensure build is up to date
 for dir in autoencoder balance convnet mlp recurrent
 do
-  for f in ${dir}/*.yaml
+  for f in "${THIS_DIR}/${dir}"/*.yaml
   do
     if [[ "$f" == *"hyperopt"* ]]
     then
@@ -28,10 +30,8 @@ do
         >> "$LOG_FILE" 2>&1
     if [ $? -eq 0 ]
     then
-      PYTHONPATH="${THIS_DIR}/..:${PYTHONPATH}" python - <<END
-from neon.util.metrics import compare_metrics
-compare_metrics("$OUT_FILE", "$f")
-END
+      PYTHONPATH="${THIS_DIR}/..:${PYTHONPATH}" \
+        $CMP_EXE $CMP_OPTS "$OUT_FILE" "$f"
     else
       echo "problems running $f"
     fi

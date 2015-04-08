@@ -17,7 +17,7 @@ import neon
 from neon.backends import gen_backend
 from neon.util.persist import deserialize
 from neon.util.trace import Tracer
-from neon.util.metrics import dump_metrics
+from neon.metrics.metric import dump_metrics
 
 
 def parse_args():

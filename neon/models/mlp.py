@@ -6,7 +6,7 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import neon.util.metrics as ms
+import neon.metrics.metric as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
