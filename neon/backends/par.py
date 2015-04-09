@@ -26,7 +26,7 @@ class NoPar(object):
             return dest
 
     def scatter(self, src, dest):
-        dest.copy_from(src.transpose().astype(dest.dtype, order='C'))
+        dest.copy_from(src.T.astype(dest.dtype, order='C'))
 
     def reduce_tensor(self, tensor):
         return tensor.asnumpyarray()

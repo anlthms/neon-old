@@ -15,6 +15,7 @@
     cropped_image_size: &cis 224,
     macro_size: 3072,
     num_channels: 3,
+    num_workers: 8,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
