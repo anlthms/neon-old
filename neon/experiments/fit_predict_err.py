@@ -36,11 +36,8 @@ class FitPredictErrorExperiment(FitExperiment):
     def __init__(self, **kwargs):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
         opt_param(self, ['diagnostics'], {'timing': False, 'ranges': False})
-        opt_param(self, ['inference_sets'], [])
-        opt_param(self, ['inference_metrics'], [])
-        if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
-            raise AttributeError('inference_metrics specified without '
-                                 'inference_sets')
+        opt_param(self, ['metrics'], {})
+        opt_param(self, ['predictions'], {})
 
     def save_results(self, dataset, setname, data, dataname):
         out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
@@ -48,7 +45,6 @@ class FitPredictErrorExperiment(FitExperiment):
             out_dir = dataset.save_dir
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-
         filename = os.path.join(out_dir, dataset.__class__.__name__,
                                 '{}-{}.pkl'.format(setname, dataname))
         serialize(data.asnumpyarray().T, filename)
@@ -79,9 +75,44 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
-        # TODO: cleanup the call below to remove duplication with other
-        # reporting.
-        self.model.predict_and_report(self.dataset)
+
+        # switch to inference mode
+        self.model.set_train_mode(False)
+
+        # Generate and save predictions
+        for pred_set in self.predictions:
+            if not self.dataset.has_set(pred_set):
+                logger.warning("Unable to generate %s predictions, no "
+                               "equivalent dataset partition" % pred_set)
+                continue
+            outputs, targets = self.model.predict_fullset(self.dataset,
+                                                          pred_set)
+            self.save_results(self.dataset, pred_set, outputs, 'inference')
+            self.save_results(self.dataset, pred_set, outputs, 'inference')
+            # update any metrics for this set while we have this info
+            if pred_set in metrics:
+                for m in metrics[pred_set]:
+                    m.add(targets, outputs)
+
+        # Report error metrics.
+        for metric_set in self.metrics:
+            if not self.dataset.has_set(metric_set):
+                logger.warning("Unable to generate %s metrics, no "
+                               "equivalent dataset partition" % metric_set)
+                continue
+            if metric_set not in self.predictions:
+                outputs, targets = self.model.predict_fullset(self.dataset,
+                                                              metric_set)
+                for m in self.metrics[metric_set]:
+                    m.add(targets, outputs)
+            for m in self.metrics[metric_set]:
+                metric_name = m.__class__.__name__
+                logger.info('%s set %s %.5f', metric_set, metric_name,
+                            m.report())
+                if metric_name not in result:
+                    result[metric_name] = dict()
+                result[metric_name][metric_set] = m.report()
+
 
         # visualization (if so requested)
         if self.diagnostics['timing']:
@@ -92,18 +123,4 @@ class FitPredictErrorExperiment(FitExperiment):
             rp.print_param_stats(self.backend, logger,
                                  self.diagnostics['filename'])
 
-        # Report error metrics.
-        for setname in self.inference_sets:
-            if not self.dataset.has_set(setname):
-                continue
-            outputs, targets = self.model.predict_fullset(self.dataset,
-                                                          setname)
-            self.save_results(self.dataset, setname, outputs, 'inference')
-            self.save_results(self.dataset, setname, targets, 'targets')
-            for metric in self.inference_metrics:
-                val = self.model.report(targets, outputs, metric=metric)
-                logger.info('%s set %s %.5f', setname, metric, val)
-                if metric not in result:
-                    result[metric] = dict()
-                result[metric][setname] = val
         return result

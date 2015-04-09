@@ -139,42 +139,9 @@ class MLP(MLP_old):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-    def predict_and_report(self, dataset=None):
-        if dataset is not None:
-            self.data_layer.init_dataset(dataset)
-        predlabels = self.backend.empty((1, self.batch_size))
-        labels = self.backend.empty((1, self.batch_size))
-        misclass = self.backend.empty((1, self.batch_size))
-        misclass_sum = self.backend.empty((1, 1))
-        if self.backend.__module__ == 'neon.backends.gpu':
-            import numpy as np
-            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
-        batch_sum = self.backend.empty((1, 1))
-
-        return_err = dict()
-
+    def set_train_mode(self, mode):
         for ll in self.layers:
-            ll.set_train_mode(False)
-
-        for setname in ['train', 'test', 'validation']:
-            if self.data_layer.has_set(setname) is False:
-                continue
-            self.data_layer.use_set(setname, predict=True)
-            self.data_layer.reset_counter()
-            misclass_sum.fill(0.0)
-            nrecs = self.batch_size * self.data_layer.num_batches
-            while self.data_layer.has_more_data():
-                self.fprop()
-                probs = self.get_classifier_output()
-                reference = self.cost_layer.get_reference()
-                ms.misclass_sum(self.backend, reference, probs, predlabels,
-                                labels, misclass, batch_sum)
-                self.backend.add(misclass_sum, batch_sum, out=misclass_sum)
-            # this is a workaround since fp16 cannot accumulate past 65k
-            self.print_test_error(setname, misclass_sum, nrecs)
-            self.data_layer.cleanup()
-            return_err[setname] = self.result
-        return return_err
+            ll.set_train_mode(mode)
 
     def predict_fullset(self, dataset, setname):
         self.data_layer.init_dataset(dataset)
