@@ -240,7 +240,7 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
-        nout: *mtf,
+        nout: 1000,
         activation: !obj:transforms.Softmax {},
       },
       &costlayer !obj:layers.CostLayer {

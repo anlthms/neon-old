@@ -1223,6 +1223,17 @@ class GPU(Backend):
         return out
 
     def fabs(self, x, out=None):
+        """
+        calculate the absolute value for floats.
+
+        Arguments:
+            x (GPUTensor): The GPUTensor on which to find the maximum indices
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
         else:

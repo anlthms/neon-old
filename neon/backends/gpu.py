@@ -15,8 +15,8 @@ from neon.diagnostics.timing_decorators import FlopsDecorator
 import pycuda.driver as drv
 import numpy as np
 
-
 logger = logging.getLogger(__name__)
+
 
 class GPU(Backend):
     """
@@ -100,7 +100,7 @@ class GPU(Backend):
         return self.end.time_since(self.start)
 
     def uniform(self, low=0.0, high=1.0, shape=1, dtype=default_dtype,
-                 name=None, allocator=drv.mem_alloc):
+                name=None, allocator=drv.mem_alloc):
         """
         generate numpy random number and convert to a GPUTensor.
         If called with dype=None it will probably explode
@@ -110,7 +110,7 @@ class GPU(Backend):
                          rounding=self.ng.round_mode).set(ary)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=default_dtype,
-                name=None, allocator=drv.mem_alloc):
+               name=None, allocator=drv.mem_alloc):
         """
         Gaussian/Normal random number sample generation
         """

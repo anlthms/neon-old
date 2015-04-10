@@ -51,7 +51,7 @@ class Decorators(object):
         """
         be = self.backend
         epoch = kwargs['epoch']
-        for item in ['ps_item', 'vs_item', 'us_item', 'ratio']:
+        for item in ['ps_item', 'vs_item', 'us_item', 'ratioup']:
             if item in kwargs:
                 histo, foo = np.histogram(
                                 kwargs[item].asnumpyarray().flatten(),
@@ -95,15 +95,15 @@ class Decorators(object):
         """
         be = self.backend
 
-        for item in ['out']:
+        for item in ['weights', 'out']:
             if item in kwargs:
-                the_min = be.zeros((1, 1))
+                the_mean = be.zeros((1, 1))
                 the_max = be.zeros((1, 1))
-                be.min(kwargs[item], axes=None, out=the_min)
+                be.mean(be.fabs(kwargs[item]), axes=None, out=the_mean)
                 be.max(kwargs[item], axes=None, out=the_max)
-                logger.info("%s to %s out: min=%s max=%s",
-                            func_name.ljust(11), layer_name.ljust(7),
-                            the_min.asnumpyarray()[0, 0].__str__(),
+                logger.info("%s to %s %s: mean, max;%s;%s",
+                            func_name.ljust(11), layer_name.ljust(7), item,
+                            the_mean.asnumpyarray()[0, 0].__str__(),
                             the_max.asnumpyarray()[0, 0].__str__())
 
     def print_ranges(self, func):
@@ -140,3 +140,5 @@ class Decorators(object):
 
             return retval
         return func_wrapper
+
+
