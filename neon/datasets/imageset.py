@@ -26,9 +26,8 @@ class DeviceTransferThread(Thread):
         self.ds = ds
 
     @staticmethod
-    def transpose_and_transfer(data_in, data_out, backend):
-        d_img, d_tgt, d_lbl = data_out
-        h_img, h_tgt, h_lbl = data_in
+    def transpose_and_transfer(h_img, h_lbl, h_tgt, d_img, d_lbl, d_tgt,
+                               backend):
         backend.scatter(h_img, d_img)
         for lbl in h_lbl:
             backend.scatter(h_lbl[lbl], d_lbl[lbl])
@@ -39,17 +38,19 @@ class DeviceTransferThread(Thread):
     def run(self):
         s_idx = self.ds.mini_idx * self.ds.batch_size
         e_idx = s_idx + self.ds.batch_size
-
+        d_idx = (self.ds.batches_generated + 1) % 2
+        # print "Putting into ", d_idx, self.ds.batches_generated
         # Host versions of each var
         h_img = self.ds.img_macro[s_idx:e_idx]
-        h_lbl = {k: self.ds.lbl_macro[k][s_idx:e_idx, np.newaxis]
+        h_lbl = {k: self.ds.lbl_macro[k][s_idx:e_idx]
                  for k in self.ds.label_list}
         h_tgt = None if self.ds.tgt_macro is None else self.ds.tgt_macro[s_idx:e_idx]
 
-        # print "Putting into ", self.ds.d_idx, self.ds.n_idx, self.current_idx
-        data_in = [h_img, h_tgt, h_lbl]
-        data_out = self.ds.data[self.ds.d_idx]
-        DeviceTransferThread.transpose_and_transfer(data_in, data_out,
+        d_img = self.ds.inp_be[d_idx]
+        d_lbl = self.ds.lbl_be[d_idx]
+        d_tgt = self.ds.tgt_be[d_idx]
+        DeviceTransferThread.transpose_and_transfer(h_img, h_lbl, h_tgt,
+                                                    d_img, d_lbl, d_tgt,
                                                     self.ds.backend)
 
 class Imageset(Dataset):
@@ -137,7 +138,7 @@ class Imageset(Dataset):
         # local shortcuts
         sbaf = self.backend.allocate_fragment
         btype = self.backend_type
-        self.batches_generated = -1
+        self.batches_generated = 0
         sn = 'val' if (setname == 'validation') else setname
         osz = self.output_image_size
         csz = self.cropped_image_size
@@ -166,8 +167,8 @@ class Imageset(Dataset):
             raise ValueError('self.macro_size not divisible by batch_size')
 
         self.macro_idx = self.endb
-        # self.mini_idx = 0
-        self.mini_idx = self.minis_per_macro - 1
+        self.mini_idx = 0
+        # self.mini_idx = self.minis_per_macro - 1
 
         # Allocate space for the host and device copies of input
         inp_macro_shape = (self.macro_size, self.npixels)
@@ -237,30 +238,17 @@ class Imageset(Dataset):
 
         return h_img, h_tgt, h_lbl
 
-    def transpose_and_transfer(self, data_in, data_out, backend):
-        d_img, d_tgt, d_lbl = data_out
-        h_img, h_tgt, h_lbl = data_in
-        backend.scatter(h_img, d_img)
-        for lbl in h_lbl:
-            backend.scatter(h_lbl[lbl], d_lbl[lbl])
-        if h_tgt is not None:
-            backend.scatter(h_tgt, d_tgt)
+    def transpose_and_transfer(self, s_idx, e_idx, backend):
+        backend.scatter(self.img_macro[s_idx:e_idx], self.inp_be[self.d_idx])
+        for lbl in self.label_list:
+            backend.scatter(
+                self.lbl_macro[lbl][s_idx:e_idx], self.lbl_be[self.d_idx][lbl])
         return
 
     def run(self):
         s_idx = self.mini_idx * self.batch_size
         e_idx = s_idx + self.batch_size
-
-        # Host versions of each var
-        h_img = self.img_macro[s_idx:e_idx]
-        h_lbl = {k: self.lbl_macro[k][s_idx:e_idx, np.newaxis]
-                 for k in self.label_list}
-        h_tgt = None if self.tgt_macro is None else self.tgt_macro[s_idx:e_idx]
-
-        # print "Putting into ", self.d_idx, self.n_idx, self.current_idx
-        data_in = [h_img, h_tgt, h_lbl]
-        data_out = self.data[self.d_idx]
-        self.transpose_and_transfer(data_in, data_out, self.backend)
+        self.transpose_and_transfer(s_idx, e_idx, self.backend)
 
     def start_loader(self, batch_idx):
         bsz = self.batch_size * self.backend.par.size()
@@ -284,34 +272,35 @@ class Imageset(Dataset):
                 self.img_macro[mac_sz:] = 0
             self.minis_per_macro = mac_sz / bsz
 
-        self.run()
-        # self.loader_thread = DeviceTransferThread(self)
-        # self.loader_thread.start()
+        self.loader_thread = DeviceTransferThread(self)
+        self.loader_thread.start()
+        # self.loader_thread.join()
 
     def get_data_from_loader(self):
         next_mini_idx = (self.mini_idx + 1) % self.minis_per_macro
         # self.d_idx = self.batches_generated % 2
-        self.d_idx = 0
-        self.n_idx = (self.batches_generated + 1) % 2
+        # self.n_idx = (self.batches_generated + 1) % 2
 
-        self.start_loader(self.mini_idx)
-        # if self.loader_thread is None:
-        #     self.start_loader(self.mini_idx)
-        #     self.loader_thread.join()
-        #     self.start_loader(next_mini_idx)
-        # else:
-        #     self.loader_thread.join()
-        #     if not self.loader_thread.is_alive():
-        #         self.start_loader(next_mini_idx)
+        # self.start_loader(self.mini_idx)
+        if self.loader_thread is None:
+            self.start_loader(self.mini_idx)
+            self.loader_thread.join()
+            self.batches_generated += 1
+            self.start_loader(next_mini_idx)
+        else:
+            self.loader_thread.join()
+            self.batches_generated += 1
+            if not self.loader_thread.is_alive():
+                self.start_loader(next_mini_idx)
 
-        self.batches_generated += 1
         self.mini_idx = next_mini_idx
 
-    def get_mini_batch2(self, batch_idx):
-        self.get_data_from_loader()
-        return self.data[self.d_idx]
-
     def get_mini_batch(self, batch_idx):
+        self.get_data_from_loader()
+        d_idx = self.batches_generated % 2
+        return self.inp_be[d_idx], self.tgt_be[d_idx], self.lbl_be[d_idx]
+
+    def get_mini_batch2(self, batch_idx):
         betype = self.backend_type
         bsz = self.batch_size * self.backend.par.size()
         s_idx = self.mini_idx * bsz

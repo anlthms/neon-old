@@ -32,6 +32,7 @@
     },
     &wt_init_fc !obj:params.AutoUniformValGen {
       relu: True,
+      gain: 0.353553,
       bias_init: 1.0,
     },
     &wt_initout !obj:params.AutoUniformValGen {
@@ -201,10 +202,10 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout1,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout1,
+      #   keep: 0.5,
+      # },
       !obj:layers.FCLayer {
         name: fc4096b,
         lrule_init: *gdmwd,
@@ -213,10 +214,10 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout2,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout2,
+      #   keep: 0.5,
+      # },
       &lastlayer !obj:layers.FCLayer {
         name: fc1000,
         lrule_init: *gdmwd,

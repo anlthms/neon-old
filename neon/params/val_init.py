@@ -104,6 +104,7 @@ class AutoUniformValGen(UniformValGen):
         super(AutoUniformValGen, self).__init__(**kwargs)
         opt_param(self, ['relu'], False)
         opt_param(self, ['islocal'], False)
+        opt_param(self, ['gain'], False)
 
         self.low = float('nan')
         self.high = float('nan')
@@ -127,6 +128,8 @@ class AutoUniformValGen(UniformValGen):
             self.low = - 1.0 / math.sqrt(shape[-1])
         if self.relu:
             self.low *= math.sqrt(2) ** self.relu
+        if self.gain:
+            self.low *= self.gain
         self.high = - self.low
         return super(AutoUniformValGen, self).generate(shape, dtype)
 
