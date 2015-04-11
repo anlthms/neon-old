@@ -794,13 +794,12 @@ class GPU(Backend):
         #print "vs_item in", vs_item[0,0:5].asnumpyarray()
         us_item[:] =  (2.*self.ng.greater(vs_item, 0)-1.)
         #print "intermediate sign out", us_item[0,0:5].asnumpyarray()
-        us_item[:] = self.ng.fabs(ps_item) * (2.*self.ng.greater(vs_item, 0)-1.) / 1000.
+        us_item[:] = self.ng.fabs(ps_item) * (2.*self.ng.greater(vs_item, 0)-1.) / 1000. # must not fabs!
         #print "intermediate scaled sign", us_item[0,0:5].asnumpyarray()
         # problem: Maximum is unsigned!
-        # us_item[:] = self.ng.maximum(self.ng.fabs(ps_item)
-        #                              * (2.*self.ng.greater(vs_item, 0)-1.)
-        #                              / 1000.,
-        #                              vs_item)
+        us_item[:] = (2.*self.ng.greater(vs_item, 0)-1.) \
+                     * self.ng.maximum(self.ng.fabs(vs_item),
+                                       self.ng.fabs(ps_item)/ 1000.)
         # print "us_item out", us_item[0,0:5].asnumpyarray()
         # update with us_item instead of vs item now.
         self.ng.add(ps_item, us_item, out=ps_item)
