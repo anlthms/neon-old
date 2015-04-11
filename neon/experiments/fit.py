@@ -78,7 +78,7 @@ class FitExperiment(Experiment):
             self.model.fit(self.dataset)
 
             p.disable()
-            p.dump_stats('statdump.prof')
+            p.dump_stats('statdump_hotfix.prof')
 
 
 

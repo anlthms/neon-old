@@ -144,7 +144,7 @@ class Imageset(Dataset):
         self.inp_be = sbe(inp_shape, dtype=betype)
 
         # Allocate space for device side labels
-        lbl_shape = (1, self.batch_size)
+        lbl_shape = (self.nclass, self.batch_size)
         self.lbl_be = {lbl: sbe(lbl_shape, dtype=betype)
                        for lbl in self.label_list}
 
@@ -193,9 +193,8 @@ class Imageset(Dataset):
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
-            self.lbl_be[lbl].copy_from(
-                self.lbl_macro[lbl][s_idx:e_idx].reshape((1,
-                                                          -1)).astype(betype))
+            hl = self.lbl_macro[lbl][s_idx:e_idx]
+            self.lbl_be[lbl].copy_from(np.eye(self.nclass)[hl].T.reshape(self.lbl_be[lbl].shape).astype(betype, order='C'))
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(

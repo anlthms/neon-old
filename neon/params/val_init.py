@@ -126,7 +126,7 @@ class AutoUniformValGen(UniformValGen):
         else:
             self.low = - 1.0 / math.sqrt(shape[-1])
         if self.relu:
-            self.low *= math.sqrt(2)  ** self.relu
+            self.low *= math.sqrt(2) ** self.relu
         self.high = - self.low
         return super(AutoUniformValGen, self).generate(shape, dtype)
 
