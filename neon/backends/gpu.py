@@ -458,7 +458,7 @@ class GPU(Backend):
             self.ng.max(tsr, axis=axes, out=out)
         return out
 
-    def variance(self, tsr, axes, out, mean=None, dtype=default_dtype):
+    def variance(self, tsr, axes, out, mean=None):
         """
         Calculates the variance of the elements along the specified
         axes.
@@ -480,7 +480,21 @@ class GPU(Backend):
         self.ng.mean(self.ng.square(tsr-mean),  axis=axes, out=out)
         return out
 
-    def sqrt(self, x, out, dtype=default_dtype):
+    def fabs(self, x, out):
+        """
+        Calculates absolute value of the elements in a tensor
+
+        Arguments:
+            x (GPUTensor): Input tensor
+            out (GPUTensor): Output tensor
+
+        Returns:
+            GPUTensor: reference to out
+        """
+        self.ng.fabs(x, out=out)
+        return out
+
+    def sqrt(self, x, out):
         """
         Calculates square root of the elements in a tensor
 
@@ -772,7 +786,24 @@ class GPU(Backend):
         self.ng.subtract(self.ng.multiply(vs_item, momentum_coef),
                          self.ng.multiply(us_item, learning_rate),
                          out=vs_item)
-        self.ng.add(ps_item, vs_item, out=ps_item)
+
+        # smallest nondecayable update
+        #import pdb; pdb.set_trace()
+        #print "some diagnostics:"
+        #print "ps_item in", ps_item[0,0:5].asnumpyarray()
+        #print "vs_item in", vs_item[0,0:5].asnumpyarray()
+        us_item[:] =  (2.*self.ng.greater(vs_item, 0)-1.)
+        #print "intermediate sign out", us_item[0,0:5].asnumpyarray()
+        us_item[:] = self.ng.fabs(ps_item) * (2.*self.ng.greater(vs_item, 0)-1.) / 1000.
+        #print "intermediate scaled sign", us_item[0,0:5].asnumpyarray()
+        # problem: Maximum is unsigned!
+        # us_item[:] = self.ng.maximum(self.ng.fabs(ps_item)
+        #                              * (2.*self.ng.greater(vs_item, 0)-1.)
+        #                              / 1000.,
+        #                              vs_item)
+        # print "us_item out", us_item[0,0:5].asnumpyarray()
+        # update with us_item instead of vs item now.
+        self.ng.add(ps_item, us_item, out=ps_item)
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
                        learning_rate, wd, epoch):

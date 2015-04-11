@@ -673,10 +673,14 @@ class GPU(Backend):
             learning_rate (float): learning rate.
             epoch (int): epoch (used in conjunction with diagnostics).
         """
-        self.multiply(vs_item, momentum_coef, out=vs_item)
-        self.multiply(us_item, learning_rate, out=us_item)
-        self.subtract(vs_item, us_item, out=vs_item)
-        self.add(ps_item, vs_item, out=ps_item)
+        # hack: Need to make the update a constant. Acuumulating velocity this
+        # way is ok, but when applying, need to take the abs and
+        self.multiply(vs_item, momentum_coef, out=vs_item) # reduce old v
+        self.multiply(us_item, learning_rate, out=us_item) # reduce new up
+        self.subtract(vs_item, us_item, out=vs_item)       # compute new v
+        us_item = self.fabs(vs_item)
+        self.multiply(0.001, us_item, out=us_item)
+        self.add(ps_item, us_item, out=ps_item)            # apply new v
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
                        learning_rate, wd, epoch):
@@ -694,16 +698,16 @@ class GPU(Backend):
             wd (float): weight decay parameter.
             epoch (int): epoch (used in conjunction with diagnostics).
         """
-        self.multiply(vs_item, momentum_coef, out=vs_item)
-        self.multiply(us_item, learning_rate, out=us_item)
-        self.subtract(vs_item, us_item, out=vs_item)
+        self.multiply(vs_item, momentum_coef, out=vs_item) # reduce old v
+        self.multiply(us_item, learning_rate, out=us_item) # reduce new up
+        self.subtract(vs_item, us_item, out=vs_item)       # compute new v
         # reuse us_item for weight decay term
         # note: usually want to only apply for weights, not biases
-        self.multiply(ps_item, wd, out=us_item)
+        self.multiply(ps_item, wd, out=us_item) # weight times decay
         self.multiply(us_item, learning_rate, out=us_item)
         self.subtract(vs_item, us_item, out=vs_item)
 
-        self.add(ps_item, vs_item, out=ps_item)
+        self.add(ps_item, vs_item, out=ps_item)            # apply new v
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """

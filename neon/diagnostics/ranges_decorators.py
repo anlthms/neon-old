@@ -76,8 +76,8 @@ class Decorators(object):
 
         for item in ['weights', 'inputs', 'deltas', 'out']:
             if item in kwargs:
-                the_min = be.zeros((1, 1))
-                the_max = be.zeros((1, 1))
+                the_min = be.zeros((1, 1), dtype=np.float32)
+                the_max = be.zeros((1, 1), dtype=np.float32)
                 be.min(kwargs[item], axes=None, out=the_min)
                 be.max(kwargs[item], axes=None, out=the_max)
                 logger.info("%s: std=%s raw=%s min=%s max=%s",
@@ -95,10 +95,10 @@ class Decorators(object):
         """
         be = self.backend
 
-        for item in ['weights', 'out']:
+        for item in [ 'out']: # 'weights',
             if item in kwargs:
-                the_mean = be.zeros((1, 1))
-                the_max = be.zeros((1, 1))
+                the_mean = be.zeros((1, 1), dtype=np.float32)
+                the_max = be.zeros((1, 1), dtype=np.float32)
                 be.mean(be.fabs(kwargs[item]), axes=None, out=the_mean)
                 be.max(kwargs[item], axes=None, out=the_max)
                 logger.info("%s to %s %s: mean, max;%s;%s",
