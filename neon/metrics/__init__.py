@@ -3,4 +3,6 @@
 # ----------------------------------------------------------------------------
 
 # import shortcuts
-from neon.metrics.misclass import MisclassSum, MisclassRate, MisclassPercentage
+from neon.metrics.misclass import (MisclassSum, MisclassRate,  # noqa
+                                   MisclassPercentage)
+from neon.metrics.roc import AUC  # noqa

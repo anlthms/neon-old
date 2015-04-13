@@ -154,10 +154,9 @@ class MLP(MLP_old):
             reference = self.backend.empty((1, nrecs))
         else:
             reference = self.backend.empty(outputs.shape)
-        batch = 0
 
-        for ll in self.layers:
-            ll.set_train_mode(False)
+        batch = 0
+        self.set_train_mode(False)
 
         while self.data_layer.has_more_data():
             self.fprop()

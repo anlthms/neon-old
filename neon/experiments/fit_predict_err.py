@@ -90,8 +90,8 @@ class FitPredictErrorExperiment(FitExperiment):
             self.save_results(self.dataset, pred_set, outputs, 'inference')
             self.save_results(self.dataset, pred_set, outputs, 'inference')
             # update any metrics for this set while we have this info
-            if pred_set in metrics:
-                for m in metrics[pred_set]:
+            if pred_set in self.metrics:
+                for m in self.metrics[pred_set]:
                     m.add(targets, outputs)
 
         # Report error metrics.
@@ -112,7 +112,6 @@ class FitPredictErrorExperiment(FitExperiment):
                 if metric_name not in result:
                     result[metric_name] = dict()
                 result[metric_name][metric_set] = m.report()
-
 
         # visualization (if so requested)
         if self.diagnostics['timing']:

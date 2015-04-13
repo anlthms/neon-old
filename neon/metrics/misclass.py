@@ -9,6 +9,8 @@ import logging
 
 from neon.metrics.metric import Metric
 
+logger = logging.getLogger(__name__)
+
 
 class MisclassSum(Metric):
     """
@@ -38,10 +40,18 @@ class MisclassSum(Metric):
                                            treat the inidividual values as
                                            probabilities for that class.
         """
-        assert reference.shape == outputs.shape
+        if reference.shape != outputs.shape:
+            raise ValueError("reference dimensions: %s, incompatible with "
+                             "outputs dimensions: %s" %
+                             (str(reference.shape), str(outputs.shape)))
         self.rec_count += reference.shape[-1]
-        self.misclass_sum += (reference.asnumpyarray().argmax(axis=0) !=
-                              outputs.asnumpyarray().argmax(axis=0)).sum()
+        if len(outputs.shape) > 1 and outputs.shape[0] > 1:
+            # vector of outputs per case.
+            self.misclass_sum += (reference.asnumpyarray().argmax(axis=0) !=
+                                  outputs.asnumpyarray().argmax(axis=0)).sum()
+        else:
+            self.misclass_sum += (reference.asnumpyarray().ravel() !=
+                                  outputs.asnumpyarray().ravel()).sum()
 
     def report(self):
         """
@@ -51,6 +61,8 @@ class MisclassSum(Metric):
             int: Misclassification count
 
         """
+        if self.rec_count == 0:
+            raise ValueError("No records to count misclassifications on")
         return self.misclass_sum
 
     def clear(self):
@@ -63,13 +75,12 @@ class MisclassSum(Metric):
 
 class MisclassRate(MisclassSum):
     """
-    Metric that reports the fraction of misclassifications made (prediction does
-    not match the reference target exactly) relative to the total number of
-    predictions.
+    Metric that reports the fraction of misclassifications made (prediction
+    does not match the reference target exactly) relative to the total numbe
+    of predictions.
 
     See Also: MisclassSum, MisclassPercentage
     """
-
     def report(self):
         """
         Report the misclassification rate.
@@ -78,8 +89,7 @@ class MisclassRate(MisclassSum):
             float: The misclassification rate (will lie between 0.0 and 1.0)
         """
         if self.rec_count == 0:
-            logger.warning("No records to report misclassifications on.")
-            return float("nan")
+            raise ValueError("No records to report misclassifications on.")
         else:
             return (self.misclass_sum + 0.0) / self.rec_count
 
