@@ -191,65 +191,6 @@ class Imageset(Dataset):
         self.d_idx = 0
         return num_batches
 
-    def stage_next_mini_batch(self, batch_idx):
-        # This is only run by the root process since it is staging data on the
-        # host for distribution
-        bsz = self.batch_size * self.backend.par.size()
-        self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
-
-        if self.backend.rank() != 0:
-            return None, None, None
-
-        if self.mini_idx == 0:
-            # t = time()
-            jdict = self.get_macro_batch()
-            # logger.info("\tMacroBatch load time (%.4f sec):", time() - t)
-            # This macro could be smaller than macro_size for last macro
-            mac_sz = len(jdict['data'])
-            self.tgt_macro = jdict['targets'] if 'targets' in jdict else None
-            self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
-            # t = time()
-            imgworker.decode_list(jpglist=jdict['data'],
-                                  tgt=self.uimg_macro[:mac_sz],
-                                  orig_size=self.output_image_size,
-                                  crop_size=self.cropped_image_size,
-                                  center=self.predict, flip=True,
-                                  rgb=self.rgb,
-                                  nthreads=self.num_workers)
-            # logger.info("\tMacroBatch decode time (%.4f sec):", time() - t)
-            # mean_val = 127
-            # if self.mean_norm:
-            #     mean_val = self.mean_crop.reshape((1, self.npixels))
-            # np.subtract(self.uimg_macro, mean_val, self.img_macro)
-
-            if mac_sz < self.macro_size:
-                self.img_macro[mac_sz:] = 0
-            # Leave behind the partial minibatch
-            self.minis_per_macro = mac_sz / bsz
-
-        s_idx = self.mini_idx * bsz
-        e_idx = (self.mini_idx + 1) * bsz
-
-        # Host versions of each var
-        h_img = self.uimg_macro[s_idx:e_idx]
-        h_lbl = {k: self.lbl_macro[k][s_idx:e_idx, np.newaxis]
-                 for k in self.label_list}
-        h_tgt = None if self.tgt_macro is None else self.tgt_macro[s_idx:e_idx]
-
-        return h_img, h_tgt, h_lbl
-
-    def transpose_and_transfer(self, s_idx, e_idx, backend):
-        backend.scatter(self.img_macro[s_idx:e_idx], self.inp_be[self.d_idx])
-        for lbl in self.label_list:
-            backend.scatter(
-                self.lbl_macro[lbl][s_idx:e_idx], self.lbl_be[self.d_idx][lbl])
-        return
-
-    def run(self):
-        s_idx = self.mini_idx * self.batch_size
-        e_idx = s_idx + self.batch_size
-        self.transpose_and_transfer(s_idx, e_idx, self.backend)
-
     def start_loader(self, batch_idx):
         bsz = self.batch_size * self.backend.par.size()
         if batch_idx == 0:
@@ -274,24 +215,25 @@ class Imageset(Dataset):
 
         self.loader_thread = DeviceTransferThread(self)
         self.loader_thread.start()
-        # self.loader_thread.join()
+        self.loader_thread.join()
+        self.batches_generated += 1
 
     def get_data_from_loader(self):
         next_mini_idx = (self.mini_idx + 1) % self.minis_per_macro
         # self.d_idx = self.batches_generated % 2
         # self.n_idx = (self.batches_generated + 1) % 2
 
-        # self.start_loader(self.mini_idx)
-        if self.loader_thread is None:
-            self.start_loader(self.mini_idx)
-            self.loader_thread.join()
-            self.batches_generated += 1
-            self.start_loader(next_mini_idx)
-        else:
-            self.loader_thread.join()
-            self.batches_generated += 1
-            if not self.loader_thread.is_alive():
-                self.start_loader(next_mini_idx)
+        self.start_loader(self.mini_idx)
+        # if self.loader_thread is None:
+        #     self.start_loader(self.mini_idx)
+        #     self.loader_thread.join()
+        #     self.batches_generated += 1
+        #     self.start_loader(next_mini_idx)
+        # else:
+        #     self.loader_thread.join()
+        #     self.batches_generated += 1
+        #     if not self.loader_thread.is_alive():
+        #         self.start_loader(next_mini_idx)
 
         self.mini_idx = next_mini_idx
 
@@ -299,39 +241,6 @@ class Imageset(Dataset):
         self.get_data_from_loader()
         d_idx = self.batches_generated % 2
         return self.inp_be[d_idx], self.tgt_be[d_idx], self.lbl_be[d_idx]
-
-    def get_mini_batch2(self, batch_idx):
-        betype = self.backend_type
-        bsz = self.batch_size * self.backend.par.size()
-        s_idx = self.mini_idx * bsz
-        e_idx = (self.mini_idx + 1) * bsz
-
-
-        h_img, h_tgt, h_lbl = self.stage_next_mini_batch(batch_idx)
-        # self.inp_be[0].copy_from(
-        #     self.uimg_macro[s_idx:e_idx].T.astype(betype, order='C'))
-        # self.inp_be[0].copy_from(
-        #     h_img.T.astype(betype, order='C'))
-
-        self.backend.scatter(self.uimg_macro[s_idx:e_idx], self.inp_be[0])
-        if self.mean_norm:
-            self.backend.subtract(self.inp_be[0], self.mean_be, self.inp_be[0])
-
-        for lbl in self.label_list:
-            self.backend.scatter(
-                self.lbl_macro[lbl][s_idx:e_idx], self.lbl_be[0][lbl])
-            # self.lbl_be[0][lbl].copy_from(
-            #     self.lbl_macro[lbl][s_idx:e_idx].reshape((1,
-            #                                               -1)).astype(betype))
-        # for lbl in self.label_list:
-        #     self.lbl_be[0][lbl].copy_from(
-        #         h_lbl[lbl].reshape((1,-1)).astype(betype))
-        # for lbl in self.label_list:
-        #     hl = h_lbl[lbl] if h_lbl is not None else None
-        #     self.backend.scatter(hl, self.lbl_be[0][lbl])
-        if h_tgt is not None:
-            self.backend.scatter(h_tgt, self.tgt_be[0])
-        return self.inp_be[0], self.tgt_be[0], self.lbl_be[0]
 
     def has_set(self, setname):
         return True if (setname in ['train', 'validation']) else False
