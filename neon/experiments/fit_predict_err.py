@@ -43,10 +43,10 @@ class FitPredictErrorExperiment(FitExperiment):
         out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
         if hasattr(dataset, 'save_dir'):
             out_dir = dataset.save_dir
+        out_dir = os.path.expandvars(os.path.expanduser(out_dir))
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        filename = os.path.join(out_dir, dataset.__class__.__name__,
-                                '{}-{}.pkl'.format(setname, dataname))
+        filename = os.path.join(out_dir, '{}-{}.pkl'.format(setname, dataname))
         serialize(data.asnumpyarray().T, filename)
 
     def run(self):
@@ -87,7 +87,6 @@ class FitPredictErrorExperiment(FitExperiment):
                 continue
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           pred_set)
-            self.save_results(self.dataset, pred_set, outputs, 'inference')
             self.save_results(self.dataset, pred_set, outputs, 'inference')
             # update any metrics for this set while we have this info
             if pred_set in self.metrics:

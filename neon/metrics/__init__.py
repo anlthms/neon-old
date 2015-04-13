@@ -6,4 +6,4 @@
 from neon.metrics.misclass import (MisclassSum, MisclassRate,  # noqa
                                    MisclassPercentage)
 from neon.metrics.roc import AUC  # noqa
-from neon.metrics.loss import LogLoss  # noqa
+from neon.metrics.loss import LogLossSum, LogLossMean  # noqa

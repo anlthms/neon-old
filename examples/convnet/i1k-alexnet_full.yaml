@@ -19,6 +19,15 @@
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
   },
+ 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+  },
 
   weight_inits: [
     &wt_init0 !obj:params.GaussianValGen {

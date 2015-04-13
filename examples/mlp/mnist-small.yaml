@@ -13,10 +13,10 @@
 
   metrics: {
     train: [
-      !obj:metrics.MisclassRate {},
+      !obj:metrics.MisclassPercentage {},
     ],
     test: [
-      !obj:metrics.MisclassRate {},
+      !obj:metrics.MisclassPercentage {},
     ],
   },
 

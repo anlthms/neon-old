@@ -127,12 +127,14 @@ def main():
                 logger.setLevel(experiment.logging["level"])
         if args.output is not None:
             # compute a standard set of metrics
-            from neon.metrics import MisclassRate, AUC, LogLoss
+            from neon.metrics import MisclassPercentage, AUC, LogLossMean
             experiment.metrics = dict()
-            experiment.metrics["train"] = [MisclassRate(), AUC(), LogLoss()]
-            experiment.metrics["test"] = [MisclassRate(), AUC(), LogLoss()]
-            experiment.metrics["validation"] = [MisclassRate(), AUC(),
-                                                LogLoss()]
+            experiment.metrics["train"] = [MisclassPercentage(), AUC(),
+                                           LogLossMean()]
+            experiment.metrics["test"] = [MisclassPercentage(), AUC(),
+                                          LogLossMean()]
+            experiment.metrics["validation"] = [MisclassPercentage(), AUC(),
+                                                LogLossMean()]
         # carry out the experiment
         if not hasattr(experiment, 'backend') or experiment.backend is None:
             backend = gen_backend(model=experiment.model, gpu=args.gpu,
@@ -158,7 +160,7 @@ def main():
             # fill in any missing metric values
             if result is None:
                 result = dict()
-            for metric in ["MisclassRate", "AUC", "LogLoss"]:
+            for metric in ["MisclassPercentage", "AUC", "LogLossMean"]:
                 if metric not in result:
                     result[metric] = dict()
                 for dset in ["train", "test", "validation"]:

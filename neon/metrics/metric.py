@@ -91,9 +91,9 @@ def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
         df = file(dump_file, 'w')
         metric_names = []
         if isinstance(metrics, dict):
-            metric_names = ["%s-%s" % (metric, dset) for metric in
-                            sorted(metrics.keys()) for dset in
-                            sorted(metrics[metric].keys())]
+            metric_names = ["%s-%s" % (metric.lower(), dset.lower())
+                            for metric in sorted(metrics.keys())
+                            for dset in sorted(metrics[metric].keys())]
         df.write(field_sep.join(["host", "architecture", "os",
                                  "os_kernel_release", "neon_version",
                                  "yaml_name", "yaml_sha1", "start_time",
@@ -194,13 +194,13 @@ def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
             val = make_yellow("nan") if escape_colors else "nan"
         elif escape_colors and (comp_mean - val) > color_threshold * comp_mean:
             # val has dropped substantially enough to warrant coloring
-            if header[idx] in ("auc"):
+            if header[idx].lower().startswith("auc"):
                 val = make_red(latest[idx])
             else:
                 val = make_green(latest[idx])
         elif escape_colors and (val - comp_mean) > color_threshold * comp_mean:
             # val has increased substantially enough to warrant coloring
-            if header[idx] in ("auc"):
+            if header[idx].lower().startswith("auc"):
                 val = make_green(latest[idx])
             else:
                 val = make_red(latest[idx])
