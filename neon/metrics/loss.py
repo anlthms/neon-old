@@ -5,7 +5,6 @@
 Contains various loss related metrics ex. log loss
 """
 
-import math
 import numpy
 
 from neon.metrics.metric import Metric

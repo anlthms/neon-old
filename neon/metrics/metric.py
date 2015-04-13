@@ -68,21 +68,6 @@ class Metric(YAMLable):
         raise NotImplementedError()
 
 
-def auc(backend, reference, outputs):
-    from sklearn import metrics
-    return metrics.roc_auc_score(reference.asnumpyarray().ravel(),
-                                 outputs.asnumpyarray().ravel())
-
-
-def logloss(backend, reference, outputs, sums, temp, retval, eps=1e-15):
-    backend.clip(outputs, eps, 1.0 - eps, out=outputs)
-    backend.sum(outputs, axes=0, out=sums)
-    backend.divide(outputs, sums, out=temp)
-    backend.log(temp, out=temp)
-    backend.multiply(reference, temp, out=temp)
-    backend.sum(temp, axes=None, out=retval)
-
-
 def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
                  field_sep="\t"):
     """
@@ -230,12 +215,3 @@ def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
                                           ", prior " + str(comp_count) +
                                           " item mean:", comp_mean]))
     return 0
-
-
-def logloss_and_misclass(backend, reference, outputs, labellogprob, top1error,
-                         topkerror, topk, sums, eps=1e-15):
-    backend.clip(outputs, eps, 1.0 - eps, out=outputs)
-    backend.sum(outputs, axes=0, out=sums)
-    backend.divide(outputs, sums, outputs)
-    backend.logloss_and_misclass(reference, outputs, labellogprob, top1error,
-                                 topkerror, topk)

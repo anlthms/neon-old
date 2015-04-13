@@ -6,7 +6,6 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import neon.metrics.metric as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
@@ -166,29 +165,3 @@ class MLP(MLP_old):
 
         self.data_layer.cleanup()
         return outputs, reference
-
-    def report(self, reference, outputs, metric):
-        nrecs = outputs.shape[1]
-        if metric == 'misclass rate':
-            retval = self.backend.empty((1, 1))
-            labels = self.backend.empty((1, nrecs))
-            preds = self.backend.empty(labels.shape)
-            misclass = self.backend.empty(labels.shape)
-            ms.misclass_sum(self.backend, reference, outputs,
-                            preds, labels, misclass, retval)
-            misclassval = retval.asnumpyarray() / nrecs
-            return misclassval * 100
-
-        if metric == 'auc':
-            return ms.auc(self.backend, reference[0], outputs[0])
-
-        if metric == 'log loss':
-            retval = self.backend.empty((1, 1))
-            sums = self.backend.empty((1, outputs.shape[1]))
-            temp = self.backend.empty(outputs.shape)
-            ms.logloss(self.backend, reference, outputs, sums, temp, retval)
-            self.backend.multiply(retval, -1, out=retval)
-            self.backend.divide(retval, nrecs, out=retval)
-            return retval.asnumpyarray()
-
-        raise NotImplementedError('metric not implemented:', metric)

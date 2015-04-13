@@ -58,7 +58,7 @@ class MisclassSum(Metric):
             top_pred_idcs = - outputs.asnumpyarray()
             top_pred_idcs = top_pred_idcs.argpartition(self.error_rank,
                                                        axis=0)
-            top_pred_idcs = top_pred_idcs[:self.error_rank,:]
+            top_pred_idcs = top_pred_idcs[:self.error_rank, :]
             self.misclass_sum += (true_idcs != top_pred_idcs).all(axis=0).sum()
         else:
             if self.error_rank > 1:
