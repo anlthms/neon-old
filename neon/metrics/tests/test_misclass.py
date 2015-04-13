@@ -35,6 +35,22 @@ class TestMisclass(object):
         assert mcs.rec_count == 3
         assert mcs.misclass_sum == 1
 
+    def test_misclass_sum_top3probs(self):
+        mcs = MisclassSum(error_rank=3)
+        assert mcs.rec_count == 0
+        assert mcs.misclass_sum == 0
+        refs = CPUTensor([[0.03, 0.80, 0.81],
+                          [0.20, 0.02, 0.15],
+                          [0.31, 0.08, 0.01],
+                          [0.46, 0.10, 0.03]])
+        preds = CPUTensor([[0.00,    1, 0.34],
+                           [0.09,  0.0, 0.55],
+                           [0.01,    0, 0.75],
+                           [0.90,    0, 0.00]])
+        mcs.add(refs, preds)
+        assert mcs.rec_count == 3
+        assert mcs.misclass_sum == 0
+
     def test_misclass_sum_report(self):
         mcs = MisclassSum()
         assert mcs.rec_count == 0

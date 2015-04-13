@@ -17,10 +17,16 @@ class MisclassSum(Metric):
     Metric that counts the number of misclassifications made (prediction does
     not match the reference target exactly).
 
-    See Also: MisclassRate, MisclassPercentage
-    """
+    Arguments:
+        error_rank (int, optional): Prediction is only considered misclassified
+                                    if not within the first error_rank guesses.
+                                    Defaults to 1.
 
-    def __init__(self):
+    See Also:
+        MisclassRate, MisclassPercentage
+    """
+    def __init__(self, error_rank=1):
+        self.error_rank = error_rank
         self.clear()
 
     def add(self, reference, outputs):
@@ -46,10 +52,17 @@ class MisclassSum(Metric):
                              (str(reference.shape), str(outputs.shape)))
         self.rec_count += reference.shape[-1]
         if len(outputs.shape) > 1 and outputs.shape[0] > 1:
-            # vector of outputs per case.
-            self.misclass_sum += (reference.asnumpyarray().argmax(axis=0) !=
-                                  outputs.asnumpyarray().argmax(axis=0)).sum()
+            # vector of outputs per case.  Check if ground truth index in top-k
+            # predictions (ordered by decreasing probability)
+            true_idcs = reference.asnumpyarray().argmax(axis=0)
+            top_pred_idcs = - outputs.asnumpyarray()
+            top_pred_idcs = top_pred_idcs.argpartition(self.error_rank,
+                                                       axis=0)
+            top_pred_idcs = top_pred_idcs[:self.error_rank,:]
+            self.misclass_sum += (true_idcs != top_pred_idcs).all(axis=0).sum()
         else:
+            if self.error_rank > 1:
+                raise ValueError("can't compute top-k error on indices")
             self.misclass_sum += (reference.asnumpyarray().ravel() !=
                                   outputs.asnumpyarray().ravel()).sum()
 
