@@ -28,7 +28,6 @@ class MLP(MLP_old):
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
         opt_param(self, ['timing_plots'], False)
-        self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
@@ -110,7 +109,6 @@ class MLP(MLP_old):
             return
 
         misclassval = redmisclass / nrecs
-        self.result = misclassval
         logging.info("%s set misclass rate: %0.5f%%",
                      setname, 100. * misclassval)
 
