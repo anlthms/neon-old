@@ -28,6 +28,7 @@ Contents
    models
    layers
    transforms
+   metrics
    learning_rules
    datasets
    experiments
