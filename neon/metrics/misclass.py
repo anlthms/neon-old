@@ -31,7 +31,7 @@ class MisclassSum(Metric):
 
     def add(self, reference, outputs):
         """
-        Add the the expected reference and predicted outputs passed to the set
+        Add the expected reference and predicted outputs passed to the set
         of values used to calculate this metric.
 
         Arguments:
