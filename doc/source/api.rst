@@ -282,7 +282,8 @@ Loss
 .. autosummary::
    :toctree: generated/
 
-   neon.metrics.loss.LogLoss
+   neon.metrics.loss.LogLossSum
+   neon.metrics.loss.LogLossMean
 
 
 Transforms

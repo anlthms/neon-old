@@ -22,7 +22,7 @@ partition.  Here's an example::
       ],
       "test": [
         !obj:metrics.AUC(),
-        !obj:metrics.LogLoss(),
+        !obj:metrics.LogLossMean(),
       ],
       "validation": [
         !obj:metrics.MisclassPercentage(),
@@ -41,4 +41,5 @@ Available Metrics
 
    neon.metrics.roc.AUC
 
-   neon.metrics.loss.LogLoss
+   neon.metrics.loss.LogLossSum
+   neon.metrics.loss.LogLossMean

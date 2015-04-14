@@ -325,7 +325,6 @@ class RNN(MLP):
         assert self.data_layer.has_set(setname)
         self.data_layer.use_set(setname, predict=True)
         self.data_layer.reset_counter()
-        nrecs = self.batch_size * self.data_layer.num_batches
         if misclass_sum is not None:
             misclass = self.backend.empty((1, self.batch_size))
             batch_sum = self.backend.empty((1, 1))
@@ -363,12 +362,17 @@ class RNN(MLP):
                     self.backend.add(logloss_sum, batch_sum, logloss_sum)
 
                 # collect batches to re-assemble continuous data
-                idx = (self.unrolls)*(mb_id-1) + tau
+                idx = self.unrolls * (mb_id - 1) + tau
                 outputs_pred[idx, :] = predlabels
                 outputs_targ[idx, :] = labels
 
         self.data_layer.cleanup()
-        return outputs_pred, outputs_targ
+
+        # flatten the 2d predictions into our canonical 1D format
+        pred_flat = outputs_pred.transpose().reshape((1, -1))
+        targ_flat = outputs_targ.transpose().reshape((1, -1))
+
+        return pred_flat, targ_flat
 
     # adapted from MLP, added time unrolling
     def predict_and_report(self, dataset=None):
@@ -381,6 +385,7 @@ class RNN(MLP):
             self.data_layer.init_dataset(dataset)
         logloss_sum = self.backend.empty((1, 1))
         misclass_sum = self.backend.empty((1, 1))
+        nrecs = self.batch_size * self.data_layer.num_batches
 
         return_err = dict()
 
@@ -410,11 +415,8 @@ class RNN(MLP):
             to check for off-by-one errors and the like"""
             import numpy as np
 
-            # flatten the predictions
-            pred_flat = pred.transpose().reshape((-1,))
-            pred_int = pred_flat[2:40].asnumpyarray()[:, 0].astype(np.int8).T
-            targ_flat = targ.transpose().reshape((-1,))
-            targ_int = targ_flat[2:40].asnumpyarray()[:, 0].astype(np.int8).T
+            pred_int = pred[0, 2:40].asnumpyarray().ravel().astype(np.int8)
+            targ_int = targ[0, 2:40].asnumpyarray().ravel().astype(np.int8)
             # remove special characters, replace them with '#'
             pred_int[pred_int < 32] = 35
             targ_int[targ_int < 32] = 35
