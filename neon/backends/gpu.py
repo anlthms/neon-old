@@ -771,6 +771,9 @@ class GPU(Backend):
                      learning_rate, epoch):
         """
         Perform gradient descent update with momentum.
+        Use
+            np.spacing(np.float16(1))
+        to figure out the minimum allowed update
 
         Arguments:
             ps_item (GPUTensor): parameter tensor (e.g. a weight matrix)
@@ -787,21 +790,24 @@ class GPU(Backend):
                          self.ng.multiply(us_item, learning_rate),
                          out=vs_item)
 
-        # smallest nondecayable update
-        #import pdb; pdb.set_trace()
-        #print "some diagnostics:"
-        #print "ps_item in", ps_item[0,0:5].asnumpyarray()
-        #print "vs_item in", vs_item[0,0:5].asnumpyarray()
-        us_item[:] =  (2.*self.ng.greater(vs_item, 0)-1.)
-        #print "intermediate sign out", us_item[0,0:5].asnumpyarray()
-        us_item[:] = self.ng.fabs(ps_item) * (2.*self.ng.greater(vs_item, 0)-1.) / 1000. # must not fabs!
-        #print "intermediate scaled sign", us_item[0,0:5].asnumpyarray()
-        # problem: Maximum is unsigned!
-        us_item[:] = (2.*self.ng.greater(vs_item, 0)-1.) \
+        # smallest nondecayable update  # (2.*self.ng.greater(vs_item, 0)-1.) \ chockes on zero?!
+        ## WTF! Everything in the histo is .5e-4 = 1/20000, so this does not seem to work!
+        # but / weight it seems ok?!
+        '''
+        The goal here: if the update is too small, increase it to W/1000
+         - Does this work:
+        '''
+        if hasattr(ps_item, 'name') and ps_item.name is not None and 0:
+            counter1 = GPUTensor((1,1),dtype=np.float32)
+            part = GPUTensor((ps_item.shape[0],1),dtype=np.float32)
+            counter1[:] = self.ng.sum(self.ng.greater(self.ng.fabs(vs_item), self.ng.fabs(ps_item) / 1000.), partial=part, axis=None)
+            print("%s %0.0f%%" %(ps_item.name, 100 * counter1.asnumpyarray()[0,0] / (vs_item.shape[0]*vs_item.shape[1])))
+
+        us_item[:] = (self.ng.greater(vs_item, 0) - self.ng.less(vs_item, 0)) \
                      * self.ng.maximum(self.ng.fabs(vs_item),
-                                       self.ng.fabs(ps_item)/ 1000.)
-        # print "us_item out", us_item[0,0:5].asnumpyarray()
-        # update with us_item instead of vs item now.
+                                       self.ng.fabs(ps_item) / 1000.)  # must not fabs!
+        #print "new us_item is", us_item[0, 0:5].asnumpyarray()
+        # update with us_item for forceupdate, revert to vs_item for normal.
         self.ng.add(ps_item, us_item, out=ps_item)
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,

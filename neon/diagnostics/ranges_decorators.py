@@ -94,12 +94,12 @@ class Decorators(object):
         Write ouput min and max to logger
         """
         be = self.backend
-
         for item in [ 'out']: # 'weights',
             if item in kwargs:
+                temp = be.zeros((kwargs[item].shape[0], kwargs[item].shape[1]), dtype=np.float32)
                 the_mean = be.zeros((1, 1), dtype=np.float32)
                 the_max = be.zeros((1, 1), dtype=np.float32)
-                be.mean(be.fabs(kwargs[item]), axes=None, out=the_mean)
+                be.mean(be.fabs(kwargs[item], out=temp), axes=None, out=the_mean)
                 be.max(kwargs[item], axes=None, out=the_max)
                 logger.info("%s to %s %s: mean, max;%s;%s",
                             func_name.ljust(11), layer_name.ljust(7), item,
@@ -123,7 +123,7 @@ class Decorators(object):
             layer_name = kwargs['weights'].name if 'weights' in kwargs else \
                 kwargs['ps_item'].name if ('ps_item' in kwargs) \
                 and hasattr(kwargs['ps_item'], 'name') else 'anon'
-
+            if layer_name is None: layer_name = 'nonelayer'
             # histogram plots
             if ('epoch' in kwargs) and (kwargs['epoch'] > self.oldepoch):
                 # new epoch
@@ -137,6 +137,7 @@ class Decorators(object):
             # logging output
             if not self.silent:
                 self.succinct_logging(kwargs, func_name, layer_name)
+                #self.verbose_logging(kwargs, func_name, layer_name)
 
             return retval
         return func_wrapper

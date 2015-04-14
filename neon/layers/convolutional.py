@@ -55,6 +55,7 @@ class ConvLayer(WeightLayer):
                 R=self.fshape[0], S=self.fshape[1],
                 pad_d=0, pad_h=self.pad, pad_w=self.pad,
                 str_d=1, str_h=self.stride, str_w=self.stride,
+                grid_P=0, grid_Q=0,  # URS/debug: 1 for maximum accuracy
                 dtype=self.weight_dtype)
             self.prodbuf = self.bpropbuf = self.updatebuf = self.conv_params
 

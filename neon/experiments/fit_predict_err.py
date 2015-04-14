@@ -83,7 +83,8 @@ class FitPredictErrorExperiment(FitExperiment):
             tp.print_performance_stats(self.backend, logger)
         if self.diagnostics['ranges']:
             from neon.diagnostics import ranges_plots as rp
-            rp.print_param_stats(self.backend, logger)
+            rp.print_param_stats(self.backend, logger,
+                                 self.diagnostics['prefix'])
 
         # Report error metrics.
         for setname in self.inference_sets:

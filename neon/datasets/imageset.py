@@ -52,11 +52,13 @@ class Imageset(Dataset):
 
         self.__dict__.update(kwargs)
 
-        if self.backend_type is 'np.float16':
+        if self.backend_type == 'np.float16':
             self.backend_type = np.float16
-        else:
+        elif self.backend_type == 'np.float32':
             self.backend_type = np.float32
-        logger.info("Imageset initialized with dtype %f", self.backend_type)
+        else:
+            raise ValueError('Datatype not understood')
+        logger.warning("Imageset initialized with dtype %s", self.backend_type)
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 
@@ -70,7 +72,7 @@ class Imageset(Dataset):
         bdir = os.path.expanduser(self.save_dir)
         cachefile = os.path.join(bdir, 'dataset_cache.pkl')
         if not os.path.exists(cachefile):
-            logger.info("Batch dir cache not found in %s:", cachefile)
+            logger.warning("Batch dir cache not found in %s:", cachefile)
             # response = 'Y'
             response = raw_input("Press Y to create, otherwise exit: ")
             if response == 'Y':
@@ -79,9 +81,9 @@ class Imageset(Dataset):
                 else:
                     self.bw = BatchWriter(**self.__dict__)
                 self.bw.run()
-                logger.info('Done writing batches -- please rerun to train.')
+                logger.warning('Done writing batches -- please rerun to train.')
             else:
-                logger.info('Exiting...')
+                logger.warning('Exiting...')
             sys.exit()
         cstats = deserialize(cachefile, verbose=False)
         if cstats['macro_size'] != self.macro_size:
@@ -171,7 +173,7 @@ class Imageset(Dataset):
                                   tgt=self.img_macro[:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
-                                  center=self.predict, flip=True,
+                                  center=True, flip=False,
                                   rgb=self.rgb,
                                   nthreads=self.num_workers)
             if mac_sz < self.macro_size:

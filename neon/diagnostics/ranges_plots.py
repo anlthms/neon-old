@@ -15,11 +15,12 @@ matplotlib.rcParams['pdf.fonttype'] = 42  # TTF to be editable
 logger = logging.getLogger(__name__)
 
 
-def print_param_stats(backend, logger):
+def print_param_stats(backend, logger, prefix):
 
-    figname = 'param_ranges_' + backend.__module__
+    figname = 'param_ranges_' + prefix + ' ' + backend.__module__
 
     layers = backend.name_dict[0].keys()
+    assert len(backend.name_dict[0]) > 0, "decorated function was never called"
     tensors = set(backend.name_dict[0][layers[0]])
     epochs = backend.raw_dict.keys()
 
