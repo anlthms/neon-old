@@ -14,6 +14,7 @@
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     macro_size: 3072,
+    nclass: {l_id: 1000},
     num_channels: 3,
     num_workers: 8,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
@@ -86,7 +87,7 @@
     num_epochs: 60,
     batch_size: &bs 128,
     step_print: 24,
-    serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
+    #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,
