@@ -233,9 +233,9 @@ class BatchWriterImagenet(BatchWriter):
         self.url = "http://www.image-net.org/download-imageurls"
         for infile in (train_tar, validation_tar, devkit_tar):
             if not os.path.exists(infile):
-                raise IOError("%s not found.  Please ensure you have"
-                              "ImageNet downloaded.  More info here: %s",
-                              infile, self.url)
+                raise IOError(infile + " not found. Please ensure you have"
+                              "ImageNet downloaded. More info here: " +
+                              self.url)
         labels_dict, label_names, val_labels = self.parse_dev_meta(devkit_tar)
         self.labels_dict = labels_dict
         np.random.seed(0)

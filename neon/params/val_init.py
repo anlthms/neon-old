@@ -294,6 +294,4 @@ class OrthoNormalizedValGen(ValGen):
         q.shape = oi_shape
         if self.relu:
             q *= math.sqrt(2)
-        if self.islocal:
-            q = q.T.copy()
         return self.backend.array(q, dtype)

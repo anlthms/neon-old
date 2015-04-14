@@ -28,7 +28,7 @@
 
   model: !obj:models.MLP {
     num_epochs: 100,
-    batch_size: &bs 100,
+    batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

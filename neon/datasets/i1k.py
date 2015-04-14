@@ -80,7 +80,7 @@ class DecompressImages(threading.Thread):
 
     def __init__(self, mb_id, mini_batch_queue, batch_size, output_image_size,
                  cropped_image_size, jpeg_strings, targets_macro, backend,
-                 num_processes, mean_img, predict):
+                 num_processes, mean_img, predict, dtype):
         from PIL import Image
         threading.Thread.__init__(self)
         self.mb_id = mb_id
@@ -99,13 +99,14 @@ class DecompressImages(threading.Thread):
         #     ((self.cropped_image_size ** 2) * 3 * self.batch_size))
         self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
-            dtype='float32')
+            dtype=dtype)
         self.inputsui = np.empty(
             (self.batch_size, (self.cropped_image_size ** 2) * 3),
             dtype=np.uint8)
         self.num_processes = num_processes
         self.mean_img = mean_img
         self.predict = predict
+        self.bdtype = dtype
 
     def jpeg_decoder(self, start_id, end_id, offset):
         # convert jpeg string to numpy array
@@ -141,8 +142,8 @@ class DecompressImages(threading.Thread):
                 img = img.convert('RGB')
             self.inputs[:, i + offset] = (
                 np.transpose(np.array(
-                    img, dtype='float32')[:, :, 0:3],
-                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1))
+                    img, dtype=self.bdtype)[:, :, 0:3],
+                    axes=[2, 0, 1]) - crop_mean_img).reshape((-1)) / 128. - 1.
 
     def run(self):
         # provide mini batch from macro batch
@@ -188,29 +189,27 @@ class RingBuffer(object):
     the buffers that live on host
     '''
 
-    def __init__(self, max_size, batch_size, num_targets, num_input_dims):
-        from neon.backends.gpu import GPUTensor
+    def __init__(self, max_size, batch_size, num_targets, num_input_dims,
+                 backend, dtype):
         self.max_size = max_size
         self.id = 0
         self.prev_id = 0
-        tmp_input = np.empty((num_input_dims, batch_size), dtype='float32')
-        tmp_target = np.empty((num_targets, batch_size), dtype='float32')
+        tmp_input = np.empty((num_input_dims, batch_size), dtype=dtype)
+        tmp_target = np.empty((num_targets, batch_size), dtype=dtype)
 
         self.inputs_backend = []
         self.targets_backend = []
         for i in range(max_size):
-            self.inputs_backend.append(GPUTensor(tmp_input))
-            self.targets_backend.append(GPUTensor(tmp_target))
+            self.inputs_backend.append(backend.array(tmp_input))
+            self.targets_backend.append(backend.array(tmp_target))
 
     def add_item(self, inputs, targets, backend):
         self.prev_id = self.id
         logger.debug('start add_item')
 
         # using ring buffer
-        self.inputs_backend[self.id].set_host_mat(inputs)
-        self.targets_backend[self.id].set_host_mat(targets)
-        self.inputs_backend[self.id].copy_to_device()
-        self.targets_backend[self.id].copy_to_device()
+        self.inputs_backend[self.id].copy_from(inputs)
+        self.targets_backend[self.id].copy_from(targets)
 
         logger.debug('end add_item')
         self.id += 1
@@ -234,14 +233,14 @@ class GPUTransfer(threading.Thread):
         self.ring_buffer = ring_buffer
 
     def run(self):
-        from neon.backends.gpu import GPU
+        from neon.backends.cpu import CPU
         logger.debug('backend mini-batch transfer start %d', self.mb_id)
         # threaded conversion of jpeg strings to numpy array
         # if no item in queue, wait
         inputs, targets = self.mini_batch_queue.get(block=True)
         logger.debug("popped mini_batch_queue")
 
-        if isinstance(self.backend, GPU):
+        if not isinstance(self.backend, CPU):
             self.ring_buffer.add_item(inputs, targets, self.backend)
             self.gpu_queue.put([self.ring_buffer.inputs_backend[
                                 self.ring_buffer.prev_id],
@@ -283,6 +282,11 @@ class I1K(Dataset):
     url = "http://www.image-net.org/download-imageurls"
 
     def __init__(self, **kwargs):
+        if hasattr(self, 'half_precision') and self.half_precision:
+            self.bdtype = 'float16'
+        else:
+            self.bdtype = 'float32'
+        logger.info("I1K is using data format %s", self.bdtype)
         from PIL import Image
         self.image = Image
         self.dist_flag = False
@@ -415,8 +419,8 @@ class I1K(Dataset):
 
                 # Write training batches
                 self.num_train_macro_batches = self.write_batches(
-                    os.path.join(save_dir, (prefix_macro +
-                                            str(self.output_image_size))),
+                    os.path.join(save_dir, prefix_macro +
+                                 str(self.output_image_size)),
                     'training', 0,
                     label_sample, jpeg_file_sample)
                 with self.open_tar(ilsvrc_validation_tar,
@@ -437,8 +441,8 @@ class I1K(Dataset):
                     val_label_sample = val_label_sample[
                         0:self.val_max_file_index]
                     self.num_val_macro_batches = self.write_batches(
-                        os.path.join(save_dir, (prefix_macro +
-                                     str(self.output_image_size))),
+                        os.path.join(save_dir, prefix_macro +
+                                     str(self.output_image_size)),
                         'validation', 0,
                         val_label_sample,
                         val_file_sample)
@@ -454,7 +458,7 @@ class I1K(Dataset):
             # as numpy array, row order
             tgt = np.empty(
                 (len(jpeg_strings), (self.output_image_size ** 2) * 3),
-                dtype='float32')
+                dtype=self.bdtype)
         for i, jpeg_string in enumerate(jpeg_strings):
             img = self.image.open(StringIO(jpeg_string))
 
@@ -485,9 +489,9 @@ class I1K(Dataset):
             # if img.mode == 'L':  # greyscale
             #         logger.debug('greyscale image found... tiling')
             #         tgt[i] = np.tile(
-            #             np.array(img, dtype='float32').reshape((1, -1)), 3)
+            #             np.array(img, dtype=BDTYPE).reshape((1, -1)), 3)
             #     else:
-            #         tgt[i] = np.array(img, dtype='float32').reshape((1, -1))
+            #         tgt[i] = np.array(img, dtype=BDTYPE).reshape((1, -1))
 
         return tgt
 
@@ -516,7 +520,7 @@ class I1K(Dataset):
                 if(img.mode != 'RGB'):
                     img = img.convert('RGB')
                 self.mean_img += np.transpose(np.array(
-                    img, dtype='float32')[:, :, 0:3],
+                    img, dtype=self.bdtype)[:, :, 0:3],
                     axes=[2, 0, 1])  # .reshape((-1, 1))
 
         self.mean_img = (self.mean_img /
@@ -560,7 +564,7 @@ class I1K(Dataset):
         return next_mini_batch_id
 
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
-        from neon.backends.gpu import GPU
+        from neon.backends.cpu import CPU
         sn = 'val' if (setname == 'validation') else setname
         self.endb = getattr(self, 'end_' + sn + '_batch')
         self.startb = getattr(self, 'start_' + sn + '_batch')
@@ -579,11 +583,15 @@ class I1K(Dataset):
             raise ValueError('self.output_batch_size % batch_size != 0')
         else:
             self.num_minibatches_in_macro = self.output_batch_size / batch_size
-        if isinstance(self.backend, GPU):
+        if not isinstance(self.backend, CPU):
             self.ring_buffer = RingBuffer(max_size=self.ring_buffer_size,
                                           batch_size=batch_size,
                                           num_targets=self.nclasses,
-                                          num_input_dims=self.npixels)
+                                          num_input_dims=(
+                                              self.cropped_image_size ** 2) *
+                                          3,
+                                          backend=self.backend,
+                                          dtype=self.bdtype)
         self.file_name_queue = queue.Queue()
         self.macro_batch_queue = queue.Queue()
         self.mini_batch_queue = queue.Queue()
@@ -630,44 +638,44 @@ class I1K(Dataset):
         del self.file_name_queue, self.macro_batch_queue
         del self.mini_batch_queue, self.gpu_queue
 
-    def get_mini_batch2(self, batch_idx):
-        from neon.backends.gpu import GPUTensor
-        # non threaded version of get_mini_batch for debugging
-        self.mini_batch_onque2 = self.get_next_mini_batch_id(
-            self.mini_batch_onque2)
-        j = 0
+    # def get_mini_batch2(self, batch_idx):
+    #     # from neon.backends.gpu import GPUTensor
+    #     # non threaded version of get_mini_batch for debugging
+    #     self.mini_batch_onque2 = self.get_next_mini_batch_id(
+    #         self.mini_batch_onque2)
+    #     j = 0
 
-        if self.mini_batch_onque2 == 0:
-            self.macro_batch_onque2 = self.get_next_macro_batch_id(
-                self.macro_batch_onque2)
-            batch_path = os.path.join(
-                self.save_dir, prefix_macro + str(self.output_image_size),
-                '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
-            fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
-                self.batch_type, self.macro_batch_onque2,
-                j / self.output_batch_size))
-            self.jpeg_strings2 = my_unpickle(fname)
+    #     if self.mini_batch_onque2 == 0:
+    #         self.macro_batch_onque2 = self.get_next_macro_batch_id(
+    #             self.macro_batch_onque2)
+    #         batch_path = os.path.join(
+    #             self.save_dir, prefix_macro + str(self.output_image_size),
+    #             '%s_batch_%d' % (self.batch_type, self.macro_batch_onque2))
+    #         fname = os.path.join(batch_path, '%s_batch_%d.%d' % (
+    #             self.batch_type, self.macro_batch_onque2,
+    #             j / self.output_batch_size))
+    #         self.jpeg_strings2 = my_unpickle(fname)
 
-            labels = self.jpeg_strings2['labels']
-            # flatten the labels list of lists to a single list
-            labels = [item for sublist in labels for item in sublist]
-            labels = np.asarray(labels, dtype='float32')  # -1.
-            # if not self.raw_targets:
-            self.targets_macro2 = np.zeros(
-                (self.nclasses, self.output_batch_size), dtype='float32')
-            for col in range(self.nclasses):
-                self.targets_macro2[col] = labels == col
-            # else:
-            #     self.targets_macro2 = labels.reshape((1, -1))
+    #         labels = self.jpeg_strings2['labels']
+    #         # flatten the labels list of lists to a single list
+    #         labels = [item for sublist in labels for item in sublist]
+    #         labels = np.asarray(labels, dtype=BDTYPE)  # -1.
+    #         # if not self.raw_targets:
+    #         self.targets_macro2 = np.zeros(
+    #             (self.nclasses, self.output_batch_size), dtype=BDTYPE)
+    #         for col in range(self.nclasses):
+    #             self.targets_macro2[col] = labels == col
+    #         # else:
+    #         #     self.targets_macro2 = labels.reshape((1, -1))
 
-        # provide mini batch from macro batch
-        start_idx = self.mini_batch_onque2 * self.batch_size
-        end_idx = (self.mini_batch_onque2 + 1) * self.batch_size
+    #     # provide mini batch from macro batch
+    #     start_idx = self.mini_batch_onque2 * self.batch_size
+    #     end_idx = (self.mini_batch_onque2 + 1) * self.batch_size
 
-        targets = self.targets_macro2[:, start_idx:end_idx].copy()
-        self.jpeg_decoder(start_idx, end_idx)
+    #     targets = self.targets_macro2[:, start_idx:end_idx].copy()
+    #     self.jpeg_decoder(start_idx, end_idx)
 
-        return GPUTensor(self.inputs), GPUTensor(targets)
+    #     return GPUTensor(self.inputs), GPUTensor(targets)
 
     def get_mini_batch(self, batch_idx):
         # threaded version of get_mini_batch
@@ -687,11 +695,11 @@ class I1K(Dataset):
                 labels = self.jpeg_strings['labels']
                 # flatten the labels list of lists to a single list
                 labels = [item for sublist in labels for item in sublist]
-                labels = np.asarray(labels, dtype='float32')
+                labels = np.asarray(labels, dtype=self.bdtype)
                 # if not self.raw_targets:
                 self.targets_macro = np.zeros((self.nclasses,
                                                self.output_batch_size),
-                                              dtype='float32')
+                                              dtype=self.bdtype)
                 for col in range(self.nclasses):
                     self.targets_macro[col] = labels == col
                 # else:
@@ -702,7 +710,7 @@ class I1K(Dataset):
                                   self.cropped_image_size, self.jpeg_strings,
                                   self.targets_macro, self.backend,
                                   self.num_processes, self.mean_img,
-                                  self.predict)
+                                  self.predict, self.bdtype)
             di.setDaemon(True)
             global miniq_flag
             if miniq_flag:
@@ -737,7 +745,7 @@ class I1K(Dataset):
         # convert jpeg string to numpy array
         self.inputs = np.empty(
             ((self.cropped_image_size ** 2) * 3, self.batch_size),
-            dtype='float32')
+            dtype=self.bdtype)
         self.diff_size = self.output_image_size - self.cropped_image_size
         if not self.predict:
             # use predict for training vs testing performance
@@ -761,7 +769,7 @@ class I1K(Dataset):
                                   csy:csy + self.cropped_image_size])
                 self.inputs[:, i, np.newaxis] = (
                     np.transpose(np.array(
-                        img, dtype='float32')[:, :, 0:3],
+                        img, dtype=self.bdtype)[:, :, 0:3],
                         axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
         else:
             csx = self.diff_size / 2
@@ -780,7 +788,7 @@ class I1K(Dataset):
                     img = img.convert('RGB')
                 self.inputs[:, i, np.newaxis] = (
                     np.transpose(np.array(
-                        img, dtype='float32')[:, :, 0:3],
+                        img, dtype=self.bdtype)[:, :, 0:3],
                         axes=[2, 0, 1]) - crop_mean_img).reshape((-1, 1))
 
     def has_set(self, setname):
@@ -824,12 +832,12 @@ class I1K(Dataset):
         os.system('taskset -cp 0-%d %s' % (pool_size, os.getpid()))
 
         meta_mat = scipy.io.loadmat(StringIO(fmeta.read()))
-        labels_dic = dict(
-            (m[0][1][0], m[0][0][0][0] - 1) for m in meta_mat['synsets']
-            if m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000)
-        label_names_dic = dict(
-            (m[0][1][0], m[0][2][0]) for m in meta_mat['synsets']
-            if (m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000))
+        labels_dic = dict((m[0][1][0], m[0][0][0][
+                          0] - 1) for m in meta_mat['synsets']
+                          if m[0][0][0][0] >= 1 and m[0][0][0][0] <= 1000)
+        label_names_dic = dict((m[0][1][0], m[0][2][0]) for m in meta_mat[
+                               'synsets'] if m[0][0][0][0] >= 1 and
+                               m[0][0][0][0] <= 1000)
         label_names = [tup[1] for tup in sorted(
             [(v, label_names_dic[k]) for k, v in labels_dic.items()],
             key=lambda x:x[0])]
@@ -842,11 +850,13 @@ class I1K(Dataset):
         tf.close()
         return labels_dic, label_names, validation_ground_truth
 
+    def divup(self, a, b):
+        return (a + b - 1) / b
+
     # following functions are for creating macrobatches
     def partition_list(self, l, partition_size):
-        nparts = (len(l) + partition_size - 1) / partition_size
         return [l[i * partition_size:(i + 1) * partition_size]
-                for i in range(nparts)]
+                for i in range(self.divup(len(l), partition_size))]
 
     def write_batches(self, target_dir, name, start_batch_num, labels,
                       jpeg_files):

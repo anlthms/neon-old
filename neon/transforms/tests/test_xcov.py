@@ -35,7 +35,7 @@ def test_xcov_cputensor():
 
 
 @attr('cuda')
-def test_xcov_gputensor():
+def test_xcov_cc2tensor():
     np.random.seed(0)
     n = 10
     k = 8
@@ -44,7 +44,7 @@ def test_xcov_gputensor():
     acc = xcc(a[:k1], a[k1:])
     expected_result = 0.5 * (acc**2.).sum()
 
-    from neon.backends.gpu import GPU, GPUTensor
+    from neon.backends.cc2 import GPU, GPUTensor
     be = GPU(rng_seed=0)  # to ensure cublas_init() is called.
     outputs = GPUTensor(a.copy())
     tempbuf1 = be.empty((k1, n))
@@ -83,8 +83,8 @@ def test_xcov_derivative_cputensor():
 
 
 @attr('cuda')
-def test_xcov_derivative_gputensor():
-    from neon.backends.gpu import GPU, GPUTensor
+def test_xcov_derivative_cc2tensor():
+    from neon.backends.cc2 import GPU, GPUTensor
     be = GPU(rng_seed=0)
     np.random.seed(0)
     n = 10

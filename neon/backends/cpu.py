@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class CPUTensor(Tensor):
-
     """
     Our basic n-dimensional array data structure that resides in host memory,
     and is meant to be manipulated on the CPU.  wrapped `numpy.ndarray` tensor.
@@ -392,6 +391,11 @@ class CPU(Backend):
             np.random.uniform(size=a._tensor.shape) < keepthresh,
             dtype=a._tensor.dtype)
         a._tensor[:] = a._tensor[:] / keepthresh
+
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+        tsr._tensor[:] = np.array(
+            np.random.uniform(size=tsr._tensor.shape) < keepthresh,
+            dtype=tsr._tensor.dtype)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
@@ -774,6 +778,26 @@ class CPU(Backend):
             CPUTensor: reference to out
         """
         np.mean(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
+
+    def variance(self, tsr, axes, out, mean=None):
+        """
+        Calculates the sample variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (CPUTensor): the Tensor on which to compute the variance
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (CPUTensor): where the result will be stored.
+            mean (CPUTensor, optional): The Tensor containing mean of tsr.
+                                        Value currently ignored if specified.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.var(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
         return out
 
     def min(self, tsr, axes, out):

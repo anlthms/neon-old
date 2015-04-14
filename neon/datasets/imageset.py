@@ -13,6 +13,7 @@ from neon.util.batch_writer import BatchWriter, BatchWriterImagenet
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
 from threading import Thread
+import pycuda.driver as cuda
 import sys
 import imgworker
 from time import time
@@ -20,38 +21,37 @@ from time import time
 logger = logging.getLogger(__name__)
 
 
-class DeviceTransferThread(Thread):
+class DeviceTransferThread():
     def __init__(self, ds):
-        Thread.__init__(self)
+        # Thread.__init__(self)
         self.ds = ds
 
     @staticmethod
     def transpose_and_transfer(h_img, h_lbl, h_tgt, d_img, d_lbl, d_tgt,
-                               backend):
-        backend.scatter(h_img, d_img)
+                               backend, stream):
+        backend.scatter_async(h_img, d_img, stream)
         for lbl in h_lbl:
-            backend.scatter(h_lbl[lbl], d_lbl[lbl])
+            backend.scatter_async(h_lbl[lbl], d_lbl[lbl], stream)
         if h_tgt is not None:
-            backend.scatter(h_tgt, d_tgt)
+            backend.scatter_async(h_tgt, d_tgt, stream)
         return
 
     def run(self):
-        s_idx = self.ds.mini_idx * self.ds.batch_size
-        e_idx = s_idx + self.ds.batch_size
-        d_idx = (self.ds.batches_generated + 1) % 2
-        # print "Putting into ", d_idx, self.ds.batches_generated
-        # Host versions of each var
-        h_img = self.ds.img_macro[s_idx:e_idx]
-        h_lbl = {k: self.ds.lbl_macro[k][s_idx:e_idx]
-                 for k in self.ds.label_list}
-        h_tgt = None if self.ds.tgt_macro is None else self.ds.tgt_macro[s_idx:e_idx]
-
-        d_img = self.ds.inp_be[d_idx]
-        d_lbl = self.ds.lbl_be[d_idx]
-        d_tgt = self.ds.tgt_be[d_idx]
+        ds = self.ds
+        s_idx = ds.mini_idx * ds.batch_size
+        e_idx = s_idx + ds.batch_size
+        d_idx = (ds.batches_generated + 1) % 2
+        h_img = ds.img_macro[s_idx:e_idx]
+        h_lbl = {k: ds.lbl_macro[k][s_idx:e_idx] for k in ds.label_list}
+        h_tgt = None if ds.tgt_macro is None else ds.tgt_macro[s_idx:e_idx]
+        d_img = ds.inp_be[d_idx]
+        d_lbl = ds.lbl_be[d_idx]
+        d_tgt = ds.tgt_be[d_idx]
         DeviceTransferThread.transpose_and_transfer(h_img, h_lbl, h_tgt,
                                                     d_img, d_lbl, d_tgt,
-                                                    self.ds.backend)
+                                                    ds.backend,
+                                                    ds.copy_stream)
+
 
 class Imageset(Dataset):
 
@@ -85,6 +85,12 @@ class Imageset(Dataset):
         opt_param(self, ['backend_type'], np.float32)
 
         self.__dict__.update(kwargs)
+
+        if self.backend_type is 'np.float16':
+            self.backend_type = np.float16
+        else:
+            self.backend_type = np.float32
+        logger.info("Imageset initialized with dtype %f", self.backend_type)
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 
@@ -94,6 +100,7 @@ class Imageset(Dataset):
         self.rgb = True if self.num_channels == 3 else False
         self.norm_factor = 128. if self.mean_norm else 256.
         self.loader_thread = None
+        self.copy_stream = None
 
     def load(self):
         bdir = os.path.expanduser(self.save_dir)
@@ -137,6 +144,7 @@ class Imageset(Dataset):
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         # local shortcuts
         sbaf = self.backend.allocate_fragment
+        npaf = self.backend.alloc_host_mem
         btype = self.backend_type
         self.batches_generated = 0
         sn = 'val' if (setname == 'validation') else setname
@@ -156,7 +164,7 @@ class Imageset(Dataset):
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
-        self.mean_be = sbaf((self.npixels, 1))
+        self.mean_be = sbaf((self.npixels, 1), np.float32)
         self.mean_be.copy_from(self.mean_crop.reshape(
             (self.npixels, 1)).astype(np.float32))
         self.batch_size = batch_size
@@ -173,8 +181,9 @@ class Imageset(Dataset):
         # Allocate space for the host and device copies of input
         inp_macro_shape = (self.macro_size, self.npixels)
         inp_shape = (self.npixels, self.batch_size)
-        self.uimg_macro = np.zeros(inp_macro_shape, dtype=np.uint8)
-        self.img_macro = np.zeros(inp_macro_shape, dtype=np.int8)
+        self.uimg_macro = npaf(inp_macro_shape, dtype=np.uint8)
+        self.img_macro = npaf(inp_macro_shape, dtype=np.int8)
+
         self.inp_be = [sbaf(inp_shape, dtype=btype) for i in range(2)]
 
         # Allocate space for device side labels
@@ -213,16 +222,19 @@ class Imageset(Dataset):
                 self.img_macro[mac_sz:] = 0
             self.minis_per_macro = mac_sz / bsz
 
-        self.loader_thread = DeviceTransferThread(self)
-        self.loader_thread.start()
-        self.loader_thread.join()
+
+        if self.copy_stream is None:
+            self.copy_stream = self.backend.create_stream()
+            self.loader_thread = DeviceTransferThread(self)
+            self.loader_thread.run()
+        else:
+            self.copy_stream.synchronize()
+            self.loader_thread = DeviceTransferThread(self)
+            self.loader_thread.run()
         self.batches_generated += 1
 
     def get_data_from_loader(self):
         next_mini_idx = (self.mini_idx + 1) % self.minis_per_macro
-        # self.d_idx = self.batches_generated % 2
-        # self.n_idx = (self.batches_generated + 1) % 2
-
         self.start_loader(self.mini_idx)
         # if self.loader_thread is None:
         #     self.start_loader(self.mini_idx)

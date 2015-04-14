@@ -73,8 +73,8 @@ class FitExperiment(Experiment):
             self.model.fit(self.dataset)
         if hasattr(self.model, 'serialized_path'):
             if (hasattr(self.dataset, 'dist_flag') and
-               self.dataset.dist_flag and
-               self.dataset.dist_mode == 'datapar'):
+                    self.dataset.dist_flag and
+                    self.dataset.dist_mode == 'datapar'):
                 if self.backend.mpi_rank == 0:
                     serialize(self.model, self.model.serialized_path)
             else:

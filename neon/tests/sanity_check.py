@@ -49,7 +49,9 @@ if __name__ == '__main__':
     for be in ["cpu", "gpu", "datapar"]:
         be_args = {'rng_seed': 0}
         if args.__dict__[be] == 1:
-            if be != "cpu":
+            if be == "gpu":
+                be_args[be] = "cudanet"
+            elif be == "datapar":
                 be_args[be] = 1
             print('{} check '.format(be)),
             if be == "datapar":

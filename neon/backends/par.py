@@ -28,6 +28,10 @@ class NoPar(object):
     def scatter(self, src, dest):
         dest.copy_from(src.T.astype(dest.dtype, order='C'))
 
+    def scatter_async(self, src, dest, stream):
+        self.backend.async_copy(dest, src.T.astype(dest.dtype, order='C'),
+                                stream)
+
     def reduce_tensor(self, tensor):
         return tensor.asnumpyarray()
 

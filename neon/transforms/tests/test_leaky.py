@@ -21,8 +21,8 @@ def compare_cpu_tensors(inputs, outputs, deriv=False):
     assert_tensor_equal(temp, be.zeros(inputs.shape))
 
 
-def compare_gpu_tensors(inputs, outputs, deriv=False):
-    from neon.backends.gpu import GPU, GPUTensor
+def compare_cc2_tensors(inputs, outputs, deriv=False):
+    from neon.backends.cc2 import GPU, GPUTensor
     rlin = RectLeaky()
     be = GPU()
     temp = be.zeros(inputs.shape)
@@ -53,10 +53,10 @@ def test_rectleaky_mixed():
 
 
 @attr('cuda')
-def test_rectleaky_gputensor():
+def test_rectleaky_cc2tensor():
     inputs = np.array([[4, 0], [-2, 9]])
     outputs = np.array([[4, 0], [-0.02, 9]])
-    compare_gpu_tensors(inputs, outputs)
+    compare_cc2_tensors(inputs, outputs)
 
 
 def test_rectleaky_derivative_positives():
@@ -78,7 +78,7 @@ def test_rectleaky_derivative_mixed():
 
 
 @attr('cuda')
-def test_rectleaky_derivative_gputensor():
+def test_rectleaky_derivative_cc2tensor():
     inputs = np.array([[4, 0], [-2, 9]])
     outputs = np.array([[1, 0.01], [0.01, 1]])
-    compare_gpu_tensors(inputs, outputs, deriv=True)
+    compare_cc2_tensors(inputs, outputs, deriv=True)
