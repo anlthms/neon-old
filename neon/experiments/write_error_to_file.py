@@ -43,8 +43,8 @@ class WriteErrorToFile(FitExperiment):
             prediction = self.model.predict_and_report(self.dataset)
             with open(self.filename, 'w') as f:
                 f.write(str(prediction[self.item]))
-            logger.info("Writing '%s' error to %s" % (self.item,
-                        os.getcwd() + '/' + self.filename))
+            logger.info("Writing '%s' error to %s", self.item,
+                        os.getcwd() + '/' + self.filename)
         else:
             raise AttributeError("To perform WriteErrorToFile experiment "
                                  "please provide data '%s' set" % self.item)

@@ -7,7 +7,7 @@
 # new pf16 test file based on Alex's new nq dataset and nodewt initialization
 
 
-!obj:experiments.FitPredictErrorExperiment {  # WriteErrorToFile
+!obj:experiments.FitPredictErrorExperiment {
   # filename: i1k-hyperopt,
   # item: train,
 
@@ -22,7 +22,6 @@
     decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
-
   dataset: &ds !obj:datasets.Imageset {
     repo_path: '~/data',
     imageset: 'I1K',
@@ -36,6 +35,15 @@
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
     backend_type: &bt np.float32,  ################# HALF ###############
+  },
+
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
   },
 
   weight_inits: [

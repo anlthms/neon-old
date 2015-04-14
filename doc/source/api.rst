@@ -255,6 +255,37 @@ Value Initialization
    neon.params.val_init.NodeNormalizedValGen
 
 
+Metrics
+=======
+
+Misclassification
+-----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.misclass.MisclassSum
+   neon.metrics.misclass.MisclassRate
+   neon.metrics.misclass.MisclassPercentage
+
+ROC
+---
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.roc.AUC
+
+Loss
+----
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.loss.LogLossSum
+   neon.metrics.loss.LogLossMean
+
+
 Transforms
 ==========
 

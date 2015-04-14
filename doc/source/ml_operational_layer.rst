@@ -10,10 +10,9 @@
 ML OPerational Layer (MOP) API 
 ******************************
 
-In order to interact with our T101 compiler and driver, we expose the following
-API which we refer to as our ML operational layer (aka MOP layer). It currently
-consists of the functions defined in the following two interface classes, which
-we detail further on the rest of this page:
+We expose the following API which we refer to as our ML operational layer (aka
+MOP layer). It currently consists of the functions defined in the following two
+interface classes, which we detail further on the rest of this page:
 
 .. autosummary::
    :toctree: generated/

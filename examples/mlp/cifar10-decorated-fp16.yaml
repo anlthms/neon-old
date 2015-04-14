@@ -23,6 +23,15 @@
     # serialized_path: '~/data/CIFAR10/cifar10_small.pkl', # [TODO] Cannot serialize the data for gpu backend.
   },
 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+  },
+
   weight_inits: &wt_init !obj:params.UniformValGen {
     low: -0.1,
     high: 0.1,

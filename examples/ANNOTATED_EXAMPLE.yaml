@@ -95,22 +95,34 @@
   #
   # FitPredictErrorExperiment specific parameters:
   # ----------------------------------------------
-  # inference_sets - which data types to compute predictions/error metrics on.
-  #                  Should be a list of strings, where each string should be
-  #                  one of 'train', 'test', or 'validation'.  Saved
-  #                  predictions will be written to disk in the same directory
-  #                  as the associated input dataset, and are written as python
-  #                  serialized object (.pkl) files.
-  # inference_metrics - The performance measurements to compute for each
-  #                     inference_set.  Should be a list of strings.  Current
-  #                     implemented choices are:
-  #                     'auc' - Area under the ROC curve
-  #                     'misclass rate' - Proportion of instances where the
-  #                                       output class predicted by the model
-  #                                       does not match the expected value.
-  #                     'log loss' - The negative log likelihood of the true
-  #                                  labels given the predicted probabilities
-  #                                  from the model.
+  # predictions - which data types to compute and save predictions on.
+  #               Should be a list of strings, where each string should be
+  #               one of 'train', 'test', or 'validation'.  Saved
+  #               predictions will be written to disk in the same directory
+  #               as the associated input dataset, and are written as python
+  #               serialized object (*-inference.pkl) files.
+  # metrics - The performance measurements to compute for each specified data
+  #           type.  Should be a dict of dicts of Metric objects.  Currently
+  #           implemented metrics are defined below
+  #           'AUC' - Area under the ROC curve
+  #           'MisclassRate' - Proportion of instances where the output class
+  #                            predicted by the model does not match the
+  #                            expected value.  Note that we can also consider
+  #                            matches as being those within the top x most
+  #                            probable by setting the error_rank parameter to
+  #                            x in the constructor.  This rate produces values
+  #                            in the range [0, 1]
+  #           'MisclassPercentage' - Identical to MisclassRate but on the scale
+  #                                  [0,100]
+  #           'MisclassSum' - Identical to MisclassRate but returns the integer
+  #                           number of misclassifications instead of the
+  #                           fraction.
+  #           'LogLossSum' - The negative log likelihood of the true labels
+  #                          given the predicted probabilities from the model.
+  #           'LogLossMean' - The negative log likelihood of the true labels
+  #                           give the predicted probabilities from the model.
+  #                           This value is normalized by the number of records
+  #                           examined.
   dataset: &ds !obj:datasets.Iris {
     # Iris dataset parameters
     # -----------------------
@@ -136,6 +148,34 @@
     overwrite_list: ['serialized_path']
   },
   
+  metrics: {
+    # Metric objects
+    # --------------
+    # 'AUC' - Area under the ROC curve
+    # 'MisclassRate' - Proportion of instances where the output class predicted
+    #                  by the model does not match the expected value.  Note
+    #                  that we can also consider matches as being those within
+    #                  the top x most probable by setting the error_rank
+    #                  parameter to x in the constructor.  This rate produces
+    #                  values in the range [0, 1]
+    # 'MisclassPercentage' - Identical to MisclassRate but on the scale [0,100]
+    # 'MisclassSum' - Identical to MisclassRate but returns the integer number
+    #                 of misclassifications instead of the fraction.
+    # 'LogLossSum' - The negative log likelihood of the true labels given the
+    #                predicted probabilities from the model.
+    # 'LogLossMean' - The negative log likelihood of the true labels given the
+    #                 predicted probabilities from the model.  This value is
+    #                 normalized by the number of records examined.
+    train: [
+      !obj:metrics.AUC(),
+      !obj:metrics.MisclassPercentage(),
+    ],
+    test: [
+      !obj:metrics.AUC(),
+      !obj:metrics.MisclassPercentage(),
+    ],
+  },
+
   weight_init: &wt_init !obj:params.UniformValGen {
     # UniformValGen weight_init parameters
     # ------------------------------------

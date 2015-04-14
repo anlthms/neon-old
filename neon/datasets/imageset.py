@@ -2,18 +2,17 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-
+Generic image-like dataset able to be processed in macro batches.
 """
 
 import logging
 import numpy as np
 import os
+import sys
+
 from neon.datasets.dataset import Dataset
-from neon.util.batch_writer import BatchWriter, BatchWriterImagenet
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
-import sys
-import imgworker
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +73,9 @@ class Imageset(Dataset):
             # response = 'Y'
             response = raw_input("Press Y to create, otherwise exit: ")
             if response == 'Y':
+                from neon.util.batch_writer import (BatchWriter,
+                                                    BatchWriterImagenet)
+
                 if self.imageset.startswith('I1K'):
                     self.bw = BatchWriterImagenet(**self.__dict__)
                 else:
@@ -155,6 +157,8 @@ class Imageset(Dataset):
         return num_batches
 
     def get_mini_batch(self, batch_idx):
+        import imgworker
+
         # batch_idx is ignored
         betype = self.backend_type
         bsz = self.batch_size

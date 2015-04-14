@@ -29,9 +29,9 @@ def sanity_check(conf_file, result, **be_args):
     experiment = deserialize(os.path.join(dir, conf_file))
     backend = gen_backend(model=experiment.model, **be_args)
     experiment.initialize(backend)
-    experiment.run()
-    print(float(experiment.model.result))
-    assert float(experiment.model.result) == result
+    res = experiment.run()
+    print(float(res['MisclassRate']['test']))
+    assert float(res['MisclassRate']['test']) == result
 
 
 if __name__ == '__main__':

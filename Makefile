@@ -76,21 +76,25 @@ build: clean_pyc
 	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
 		build_ext --inplace
 
-develop: clean_pyc .git/hooks/pre-commit
-	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
-	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
-		develop
-
 # unfortunately there is no way to communicate custom commands into pip
 # install, hence having to specify installation requirements twice (once
 # above, and once inside setup.py). Ugly kludge, but seems like the only way
 # to support python setup.py install and pip install.
 # Since numpy is required for building some of the other dependent packages
 # we need to separately install it first
-install: clean_pyc
-	@echo "Running install..."
+deps_install: clean_pyc
 	@pip install 'numpy>=1.8.1' 'PyYAML>=3.11'
-	@pip install $(INSTALL_REQUIRES) .
+ifdef INSTALL_REQUIRES
+	@pip install $(INSTALL_REQUIRES)
+endif
+
+develop: clean_pyc deps_install .git/hooks/pre-commit
+	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@pip install -e .
+
+install: clean_pyc deps_install
+	@echo "Running install(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@pip install .
 
 uninstall:
 	@echo "Running uninstall..."

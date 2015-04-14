@@ -62,20 +62,12 @@ These provide additional functionality, and assist developers
     # to run on the nervanagpu backend (supports fp16 and fp32)
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
-    # ex: 4 process data parallel cnn example from top-level neon dir:
-    mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
-           examples/convnet/mnist-small.yaml
+    # mpirun -n <num_processes> [-x <environment_vars>] neon -p [-m] <path_to.yaml>
+    # ex: 4 process data parallel cnn example:
+    mpirun -n 4 neon --datapar examples/convnet/mnist-small.yaml
 
     # ex: 2 process model parallel cnn example:
-    mpirun -n 2 -x PYTHONPATH bin/neon --modelpar \
-           examples/convnet/mnist-small.yaml
-
-    # In multi-machine MPI environments need hosts file, and full paths should
-    # be used:
-    /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
-        /<full_path_to_neon>/neon --datapar \
-        /<full_path_to_examples>/convnet/mnist-small.yaml
+    mpirun -n 2 neon --modelpar examples/convnet/mnist-small.yaml
 
 See docs for full details.
 
@@ -99,10 +91,10 @@ See docs for full details.
 
 ## Documentation ##
 * [Main Source](http://framework.nervanasys.com/docs/latest)
-* [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_neon.html)
+* [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_framework.html)
 * [API](http://framework.nervanasys.com/docs/latest/api.html)
-* [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
-* [Architecture](https://framework.nervanasys.com/docs/latest/developing_neon.html#architecture)
+* [Extending the Framework](http://framework.nervanasys.com/docs/latest/developing_framework.html#extending-the-framework)
+* [Architecture](https://framework.nervanasys.com/docs/latest/developing_framework.html#architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
 

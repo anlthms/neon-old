@@ -10,6 +10,12 @@
     sample_pct: 100,
   },
 
+  metrics: {
+    test: [
+      !obj:metrics.MisclassRate {},
+    ],
+  },
+
   weight_inits: [
     &wt_init !obj:params.UniformValGen {
       low: -0.1,

@@ -21,14 +21,17 @@ Available Datasets
    neon.datasets.synthetic.UniformRandom
    neon.datasets.synthetic.ToyImages
 
-Adding a new Dataset
---------------------
+.. _extending_dataset:
 
-* Subclass :class:`neon.datasets.dataset.Dataset` ensuring to write an
-  implementation of :func:`neon.datasets.dataset.Dataset.load`.
+Adding a new type of Dataset
+----------------------------
+
+#. Subclass :class:`neon.datasets.dataset.Dataset` 
+#. write an implementation of :func:`neon.datasets.dataset.Dataset.load`.
+
 * Datasets should have a single data point per row, and should either be in
   numpy ndarray format, or batched as such.
-* Datasets are loaded and transformed by the approproate backend via the
+* Datasets are loaded and transformed by the appropriate backend via the
   :func:`neon.datasets.dataset.Dataset.format` call.
 * If you have image data, have a look at the
   :class:`neon.datasets.imageset.Imageset` and instructions for working with it
