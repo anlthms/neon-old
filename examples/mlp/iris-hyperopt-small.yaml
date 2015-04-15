@@ -13,6 +13,15 @@
     sample_pct: 100,
   },
 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+  },
+
   weight_init: &wt_init !obj:params.UniformValGen {
     low: -1,
     high: 1,

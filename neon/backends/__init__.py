@@ -94,6 +94,7 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
           training to proceed.
     """
     logger = logging.getLogger(__name__)
+    gpuflag = False
 
     gpuflag = False
     if gpu is not None:

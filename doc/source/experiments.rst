@@ -18,10 +18,12 @@ Current Implementations
    neon.experiments.generate_output.GenOutputExperiment
    neon.experiments.write_error_to_file.WriteErrorToFile
 
-Adding a new type of experiment
+.. _extending_experiment:
+
+Adding a new type of Experiment
 -------------------------------
 
-* Subclass :class:`neon.experiments.experiment.Experiment`
+#. Subclass :class:`neon.experiments.experiment.Experiment`
 
 Saving Results
 --------------

@@ -6,7 +6,6 @@ Simple multi-layer perceptron model.
 """
 
 import logging
-import neon.util.metrics as ms
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
@@ -28,7 +27,6 @@ class MLP(MLP_old):
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
         opt_param(self, ['timing_plots'], False)
-        self.result = 0
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]
@@ -110,7 +108,6 @@ class MLP(MLP_old):
             return
 
         misclassval = redmisclass / nrecs
-        self.result = misclassval
         logging.info("%s set misclass rate: %0.5f%%",
                      setname, 100. * misclassval)
 
@@ -139,42 +136,9 @@ class MLP(MLP_old):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-    def predict_and_report(self, dataset=None):
-        if dataset is not None:
-            self.data_layer.init_dataset(dataset)
-        predlabels = self.backend.empty((1, self.batch_size))
-        labels = self.backend.empty((1, self.batch_size))
-        misclass = self.backend.empty((1, self.batch_size))
-        misclass_sum = self.backend.empty((1, 1))
-        if self.backend.__module__ == 'neon.backends.gpu':
-            import numpy as np
-            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
-        batch_sum = self.backend.empty((1, 1))
-
-        return_err = dict()
-
+    def set_train_mode(self, mode):
         for ll in self.layers:
-            ll.set_train_mode(False)
-
-        for setname in ['train', 'test', 'validation']:
-            if self.data_layer.has_set(setname) is False:
-                continue
-            self.data_layer.use_set(setname, predict=True)
-            self.data_layer.reset_counter()
-            misclass_sum.fill(0.0)
-            nrecs = self.batch_size * self.data_layer.num_batches
-            while self.data_layer.has_more_data():
-                self.fprop()
-                probs = self.get_classifier_output()
-                reference = self.cost_layer.get_reference()
-                ms.misclass_sum(self.backend, reference, probs, predlabels,
-                                labels, misclass, batch_sum)
-                self.backend.add(misclass_sum, batch_sum, out=misclass_sum)
-            # this is a workaround since fp16 cannot accumulate past 65k
-            self.print_test_error(setname, misclass_sum, nrecs)
-            self.data_layer.cleanup()
-            return_err[setname] = self.result
-        return return_err
+            ll.set_train_mode(mode)
 
     def predict_fullset(self, dataset, setname):
         self.data_layer.init_dataset(dataset)
@@ -187,10 +151,9 @@ class MLP(MLP_old):
             reference = self.backend.empty((1, nrecs))
         else:
             reference = self.backend.empty(outputs.shape)
-        batch = 0
 
-        for ll in self.layers:
-            ll.set_train_mode(False)
+        batch = 0
+        self.set_train_mode(False)
 
         while self.data_layer.has_more_data():
             self.fprop()
@@ -202,29 +165,3 @@ class MLP(MLP_old):
 
         self.data_layer.cleanup()
         return outputs, reference
-
-    def report(self, reference, outputs, metric):
-        nrecs = outputs.shape[1]
-        if metric == 'misclass rate':
-            retval = self.backend.empty((1, 1))
-            labels = self.backend.empty((1, nrecs))
-            preds = self.backend.empty(labels.shape)
-            misclass = self.backend.empty(labels.shape)
-            ms.misclass_sum(self.backend, reference, outputs,
-                            preds, labels, misclass, retval)
-            misclassval = retval.asnumpyarray() / nrecs
-            return misclassval * 100
-
-        if metric == 'auc':
-            return ms.auc(self.backend, reference[0], outputs[0])
-
-        if metric == 'log loss':
-            retval = self.backend.empty((1, 1))
-            sums = self.backend.empty((1, outputs.shape[1]))
-            temp = self.backend.empty(outputs.shape)
-            ms.logloss(self.backend, reference, outputs, sums, temp, retval)
-            self.backend.multiply(retval, -1, out=retval)
-            self.backend.divide(retval, nrecs, out=retval)
-            return retval.asnumpyarray()
-
-        raise NotImplementedError('metric not implemented:', metric)

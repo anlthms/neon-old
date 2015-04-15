@@ -53,6 +53,8 @@ if __name__ == '__main__':
         if args.__dict__[be] == 1:
             if be != "cpu":
                 be_args[be] = 1
+            if be == "gpu":
+                be_args[be] = "cudanet"
             if be == "datapar":
                 # temporary hack because we are not running via mpirun.
                 os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0'

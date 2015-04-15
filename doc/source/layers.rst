@@ -44,8 +44,13 @@ Available Layers
    neon.layers.recurrent.RecurrentHiddenLayer
    neon.layers.recurrent.RecurrentLSTMLayer
 
-Adding a new Layer type
------------------------
 
-* Create a new subclass of :class:`neon.models.layer.Layer` to suit your
-  needs.
+.. _extending_layer:
+
+Adding a new type of Layer
+--------------------------
+
+#. Create a new subclass of :class:`neon.models.layer.Layer` to suit your
+   needs.
+#. provide implementation of functions: :func:`neon.layers.layer.Layer.fprop`
+   :func:`neon.layers.layer.Layer.bprop` at a minimum.

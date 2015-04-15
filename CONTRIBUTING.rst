@@ -5,17 +5,23 @@
 Neon Contribution Process
 -------------------------
 
-1. Create a story in JIRA to track your work:
-   https://nervanasys.atlassian.net/browse/MYL
-   We tend to do 1 week code sprints starting each Tuesday after the Algorithms
-   meeting.  Talk to Scott to ensure your tickets get added to the next sprint.
+1. File an issue/ticket:
+
+   * For internal devs: create a story in JIRA to track your work at
+     https://nervanasys.atlassian.net/browse/MYL  We tend to do 1 week code
+     sprints starting each Tuesday after the Algorithms meeting.  Talk to
+     Scott to ensure your tickets get added to the next sprint.
+
+   * For external contributors: create an issue on github:
+     https://github.com/NervanaSystems/neon/issues
 
 2. Clone and/or update your checked out copy of neon to ensure you have the
    most recent commits from the master branch:
 
 .. code-block:: bash
 
-    git clone git@gitlab.localdomain:algorithms/neon.git
+    # internal: git clone git@gitlab.localdomain:algorithms/neon.git
+    # external: git clone https://github.com/NervanaSystems/neon.git
     cd neon
     git fetch origin
     git checkout master
@@ -68,8 +74,8 @@ Neon Contribution Process
     make publish_doc # builds documentation and publishes to:
                      # http://framework.nervanasys.com/docs/<version>
 
-7. Commit your changes and push your feature branch to gitlab.  Be sure to
-   add a descriptive message and reference the JIRA issue associated with
+7. Commit your changes and push your feature branch to gitlab/github.  Be sure
+   to add a descriptive message and reference the JIRA issue associated with
    your task (ex. MYL-20).  You can create a sequence of separate commits in
    this manner if your task is better broken down into separate components:
 
@@ -79,15 +85,18 @@ Neon Contribution Process
     git commit -m "Added new awesome functionality.  Closes MYL-20"
     git push origin my_new_feature_branch
 
-8. Create a new merge request to get your feature branch merged into master for
+8. Create a new pull request to get your feature branch merged into master for
    others to use.  You'll first need to ensure your feature branch contains the
-   latest changes from master.  Furthermore, you may want to assign the request
-   to someone else for a code review.  You should also ensure all your tests
-   pass when run on the continuous integration server:
+   latest changes from master.  Furthermore, internal devs will need to assign
+   the request to someone else for a code review.  You should also ensure all
+   your tests pass when run on the continuous integration server:
 
 .. code-block:: bash
 
-    # where to make a new merge request:
+    # (external contribs): make a new pull request:
+    https://github.com/NervanaSystems/neon/pulls
+
+    # (internal devs): where to make a new merge request:
     http://gitlab.localdomain/algorithms/neon/merge_requests
     # our CI server web GUI:
     http://gitlab.localdomain:82/
