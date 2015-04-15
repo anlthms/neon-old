@@ -13,7 +13,6 @@ from neon.util.batch_writer import BatchWriter, BatchWriterImagenet
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
 from threading import Thread
-import pycuda.driver as cuda
 import sys
 import imgworker
 from time import time
