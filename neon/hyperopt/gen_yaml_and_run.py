@@ -40,6 +40,7 @@ def call_neon(params):
         os.mkdir('yamels')
     except OSError:
         "Directory exists"
+    write_params(hyper_file, yaml_file, params)
 
     # run bin/neon model
     logging.basicConfig(level=20)
@@ -47,7 +48,7 @@ def call_neon(params):
     backend = gen_backend(model=experiment.model)  # , gpu='nervanagpu'
     experiment.initialize(backend)
     return_err = experiment.run()
-
+    print "DEBUG: got return_err", return_err
     return float(return_err)
 
 
@@ -60,10 +61,7 @@ def write_params(input_file, output_file, params):
             for line in fin:
                 if '!hyperopt' in line:
                     line = parse_line(line, params)
-                if 'filename' in line:
-                    retval = line.split()[1].strip(",")
                 fout.write(line)
-    return retval
 
 
 def parse_line(line, params):
