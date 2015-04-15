@@ -265,11 +265,8 @@ class Imageset(Dataset):
 
         """
         need to decode a macrobatch up front before starting minibatch processing
-
         want to have second macrobatch decode running in parallel with minibatch decoding
-
         can't start another macrobatch until minibatch idx == 0 again freeing up the dbl buf
-
         """
         # print "start_loader batch_idx", batch_idx
         if batch_idx == 0:
