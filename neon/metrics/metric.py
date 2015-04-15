@@ -11,6 +11,7 @@ import sys
 
 import neon
 from neon.util.compat import range
+from neon.util.param import opt_param
 from neon.util.persist import YAMLable, ensure_dirs_exist
 
 
@@ -26,6 +27,13 @@ class Metric(YAMLable):
     This abstract base class defines which operations each metric must support
     to be used within our framework.
     """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        opt_param(self, ['epoch_interval'])
+        self.clear()
+
+    def __str__(self):
+        return self.__class__.__name__
 
     def add(self, reference, outputs):
         """
@@ -68,8 +76,8 @@ class Metric(YAMLable):
         raise NotImplementedError()
 
 
-def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
-                 field_sep="\t"):
+def dump_metrics(dump_file, experiment_file, start_time, elapsed_time,
+                 backend_name, metrics, field_sep="\t"):
     """
     Write or append collected metric values to the specified flat file.
 
@@ -96,6 +104,7 @@ def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
                             for dset in sorted(metrics[metric].keys())]
         df.write(field_sep.join(["host", "architecture", "os",
                                  "os_kernel_release", "neon_version",
+                                 "backend",
                                  "yaml_name", "yaml_sha1", "start_time",
                                  "elapsed_time"] + metric_names) + "\n")
     else:
@@ -114,7 +123,7 @@ def dump_metrics(dump_file, experiment_file, start_time, elapsed_time, metrics,
                        sorted(metrics[metric].keys())]
     df.write(field_sep.join([x.replace("\t", " ") for x in
                              [info[1], info[4], info[0], info[2],
-                              neon.__version__, trunc_exp_name,
+                              neon.__version__, backend_name, trunc_exp_name,
                               hashlib.sha1(open(experiment_file,
                                                 'rb').read()).hexdigest(),
                               start_time, "%.3f" % elapsed_time] +
@@ -178,7 +187,7 @@ def compare_metrics(dump_file, experiment_file, max_comps=10, field_sep="\t",
     if latest is None:
         print("unable to find any lines containing %s" % trunc_exp_name)
         return 2
-    for idx in range(8, len(header)):
+    for idx in range(9, len(header)):
         val = float(latest[idx])
         comp_sum = 0.0
         comp_count = 0

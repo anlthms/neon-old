@@ -8,6 +8,7 @@ Contains various loss related metrics ex. log loss
 import numpy
 
 from neon.metrics.metric import Metric
+from neon.util.param import opt_param
 
 
 class LogLossSum(Metric):
@@ -26,9 +27,9 @@ class LogLossSum(Metric):
     References:
         Bishop2006 (p. 209)
     """
-    def __init__(self, eps=1e-15):
-        self.eps = eps
-        self.clear()
+    def __init__(self, **kwargs):
+        super(LogLossSum, self).__init__(**kwargs)
+        opt_param(self, ['eps'], 1e-15)
 
     def add(self, reference, outputs):
         """
@@ -85,9 +86,6 @@ class LogLossMean(LogLossSum):
     See Also:
         LogLossSum
     """
-    def __init__(self, eps=1e-15):
-        self.eps = eps
-        self.clear()
 
     def add(self, reference, outputs):
         """

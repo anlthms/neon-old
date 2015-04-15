@@ -99,18 +99,18 @@ class FitPredictErrorExperiment(FitExperiment):
                 logger.warning("Unable to generate %s metrics, no "
                                "equivalent dataset partition" % metric_set)
                 continue
+            if metric_set not in result:
+                result[metric_set] = dict()
             if metric_set not in self.predictions:
                 outputs, targets = self.model.predict_fullset(self.dataset,
                                                               metric_set)
                 for m in self.metrics[metric_set]:
                     m.add(targets, outputs)
             for m in self.metrics[metric_set]:
-                metric_name = m.__class__.__name__
+                metric_name = str(m)
                 logger.info('%s set %s %.5f', metric_set, metric_name,
                             m.report())
-                if metric_name not in result:
-                    result[metric_name] = dict()
-                result[metric_name][metric_set] = m.report()
+                result[metric_set][metric_name] = m.report()
 
         # visualization (if so requested)
         if self.diagnostics['timing']:

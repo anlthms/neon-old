@@ -160,14 +160,15 @@ def main():
             # fill in any missing metric values
             if result is None:
                 result = dict()
-            for metric in ["MisclassPercentage", "AUC", "LogLossMean"]:
-                if metric not in result:
-                    result[metric] = dict()
-                for dset in ["train", "test", "validation"]:
-                    if dset not in result[metric]:
-                        result[metric][dset] = float("nan")
+            for dset in ["train", "test", "validation"]:
+                if dset not in result:
+                    result[dset] = dict()
+                for metric in [str(x) for x in experiment.metrics[dset]]:
+                    if metric not in result[dset]:
+                        result[dset][metric] = float("nan")
             dump_metrics(args.output, args.yaml_file.name,
-                         start_date, default_timer() - start_time, result)
+                         start_date, default_timer() - start_time,
+                         backend.__class__.__name__, result)
         return experiment, result, 0
     except Exception as e:
         if args.debug:

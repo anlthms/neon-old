@@ -9,6 +9,7 @@ characteristic) curves.
 import logging
 
 from neon.metrics.metric import Metric
+from neon.util.param import opt_param
 from neon.util.compat import range
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,12 @@ class AUC(Metric):
                                    this value specifies which row represents
                                    the positive class.
     """
-    def __init__(self, pos_label=1):
-        self.pos_label = pos_label
-        self.clear()
+    def __init__(self, **kwargs):
+        super(AUC, self).__init__(**kwargs)
+        opt_param(self, ['pos_label'], 1)
+
+    def __str__(self):
+        return self.__class__.__name__ + "_POS_" + str(self.pos_label)
 
     def add(self, reference, outputs):
         """
