@@ -30,8 +30,8 @@ def sanity_check(conf_file, result, **be_args):
     backend = gen_backend(model=experiment.model, **be_args)
     experiment.initialize(backend)
     res = experiment.run()
-    print(float(res['MisclassRate']['test']))
-    assert float(res['MisclassRate']['test']) == result
+    print(float(res['test']['MisclassRate_TOP_1']))
+    assert float(res['test']['MisclassRate_TOP_1']) == result
 
 
 if __name__ == '__main__':
