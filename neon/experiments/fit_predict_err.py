@@ -57,8 +57,7 @@ class FitPredictErrorExperiment(FitExperiment):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        filename = os.path.join(out_dir, dataset.__class__.__name__,
-                                '{}-{}.pkl'.format(setname, dataname))
+        filename = os.path.join(out_dir, '{}-{}.pkl'.format(setname, dataname))
         serialize(data.asnumpyarray().T, filename)
 
     def run(self):
@@ -82,6 +81,7 @@ class FitPredictErrorExperiment(FitExperiment):
             for metric in self.inference_metrics:
                 val = self.model.report(targets, outputs, metric=metric)
                 logger.info('%s set %s %.5f', setname, metric, val)
+        self.dataset.unload()
 
     def predict_live(self):
         self.model.predict_live_init(self.dataset)

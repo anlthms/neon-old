@@ -40,3 +40,11 @@ def logloss_and_misclass(backend, reference, outputs, labellogprob, top1error,
     backend.divide(outputs, sums, outputs)
     backend.logloss_and_misclass(reference, outputs, labellogprob, top1error,
                                  topkerror, topk)
+
+def mse(backend, reference, outputs):
+    diff = backend.empty(reference.shape)
+    sumval = backend.empty((1, 1))
+    backend.subtract(reference, outputs, out=diff)
+    backend.multiply(diff, diff, out=diff)
+    backend.mean(diff, axes=None, out=sumval)
+    return sumval.asnumpyarray()

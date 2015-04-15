@@ -231,4 +231,7 @@ class MLP(MLP_old):
             self.backend.divide(retval, nrecs, out=retval)
             return retval.asnumpyarray()
 
+        if metric == 'mse':
+            return ms.mse(self.backend, reference, outputs)
+
         raise NotImplementedError('metric not implemented:', metric)
