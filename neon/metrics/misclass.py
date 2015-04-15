@@ -8,6 +8,7 @@ Misclassification related metrics.
 import logging
 
 from neon.metrics.metric import Metric
+from neon.util.param import opt_param
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,12 @@ class MisclassSum(Metric):
     See Also:
         MisclassRate, MisclassPercentage
     """
-    def __init__(self, error_rank=1):
-        self.error_rank = error_rank
-        self.clear()
+    def __init__(self, **kwargs):
+        super(MisclassSum, self).__init__(**kwargs)
+        opt_param(self, ['error_rank'], 1)
+
+    def __str__(self):
+        return self.__class__.__name__ + "_TOP_" + str(self.error_rank)
 
     def add(self, reference, outputs):
         """
