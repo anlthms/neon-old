@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
-    scipt_name = 'neon.hyperopt.gen_yaml_and_run'  # script spearmint should call
+    scipt_name = 'neon.hyperopt.gen_yaml_and_run'  # script spearmint calls
     supported_expt_bool = False  # hyperyaml specifies supported experiment
     with open(input_file, 'r') as fin:
         with open(pb_file, 'w') as fout:

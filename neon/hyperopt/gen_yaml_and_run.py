@@ -40,7 +40,6 @@ def call_neon(params):
         os.mkdir('yamels')
     except OSError:
         "Directory exists"
-    result_fname = write_params(hyper_file, yaml_file, params)
 
     # run bin/neon model
     logging.basicConfig(level=20)
@@ -50,6 +49,7 @@ def call_neon(params):
     return_err = experiment.run()
 
     return float(return_err)
+
 
 def write_params(input_file, output_file, params):
     """
