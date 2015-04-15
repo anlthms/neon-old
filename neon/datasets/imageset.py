@@ -48,7 +48,7 @@ class Imageset(Dataset):
         opt_param(self, ['num_channels'], 3)
 
         opt_param(self, ['num_workers'], 6)
-        opt_param(self, ['backend_type'], np.float32)
+        opt_param(self, ['backend_type'], 'np.float32')
 
         self.__dict__.update(kwargs)
 

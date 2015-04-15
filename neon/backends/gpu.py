@@ -808,7 +808,14 @@ class GPU(Backend):
                                        self.ng.fabs(ps_item) / 1000.)  # must not fabs!
         #print "new us_item is", us_item[0, 0:5].asnumpyarray()
         # update with us_item for forceupdate, revert to vs_item for normal.
-        self.ng.add(ps_item, us_item, out=ps_item)
+        self.ng.add(ps_item, vs_item, out=ps_item)
+        '''TODO: express desired update as a fraction of minimum update and
+        check if it's larger than a random number 0-1. Probably want to do this
+        on a per-element basis, inspired by dropout:
+            self.less_equal(self.rand(), keep, out=out)
+        '''
+        # if hasattr(ps_item, 'name') and ps_item.name is not None:
+        #     print "[", ps_item.name, ps_item.shape, ps_item.dtype,  us_item.dtype,  vs_item.dtype, "]",
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
                        learning_rate, wd, epoch):
