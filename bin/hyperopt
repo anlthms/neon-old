@@ -70,8 +70,10 @@ def main():
     argz = parse_args()
     bin_path = os.path.dirname(os.path.realpath(__file__))
     root = os.path.split(os.path.split(bin_path)[0])[0]
-    hyperopt_dir = os.path.realpath(os.environ['HYPEROPT_PATH'])
-    spearmint_dir = os.path.realpath(os.environ['SPEARMINT_PATH'])
+    hyperopt_dir = os.path.expanduser(os.environ['HYPEROPT_PATH'])
+    hyperopt_dir = os.path.realpath(hyperopt_dir)
+    spearmint_dir = os.path.expanduser(os.environ['SPEARMINT_PATH'])
+    spearmint_dir = os.path.realpath(spearmint_dir)
     if (argz.cmd == 'reset'):
         shutil.rmtree(hyperopt_dir)
         print("Running cleanup")

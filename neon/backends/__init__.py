@@ -96,7 +96,6 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
     logger = logging.getLogger(__name__)
     gpuflag = False
 
-    gpuflag = False
     if gpu is not None:
         gpu = gpu.lower()
         if sys.platform.startswith("linux"):
