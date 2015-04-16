@@ -7,6 +7,7 @@ characteristic) curves.
 """
 
 import logging
+import numpy
 
 from neon.metrics.metric import Metric
 from neon.util.param import opt_param
@@ -52,7 +53,9 @@ class AUC(Metric):
                                            represents probabiity distributions
                                            over each class.
         """
-        if reference.shape != outputs.shape:
+        ismixed = ((reference.shape[0] == 1) and (outputs.shape[0] > 1) and
+                   (reference.shape[1] == outputs.shape[1]))
+        if (reference.shape != outputs.shape) and (not ismixed):
             raise ValueError("reference dimensions: %s, incompatible with "
                              "outputs dimensions: %s" %
                              (str(reference.shape), str(outputs.shape)))
@@ -60,10 +63,21 @@ class AUC(Metric):
         if len(outputs.shape) > 1 and outputs.shape[0] > 1:
             # vector of outputs per case
             self.probs.extend(outputs.asnumpyarray()[self.pos_label, :])
-            self.labels.extend(reference.asnumpyarray().argmax(axis=0))
+            if ismixed:
+                self.labels.extend(reference.asnumpyarray().
+                                   ravel().astype(int))
+            else:
+                self.labels.extend(reference.asnumpyarray().argmax(axis=0))
         else:
+            logger.error("Should you really compute an AUC with hard model "
+                         "predictions?")
             self.probs.extend(outputs.asnumpyarray().ravel())
-            self.labels.extend(reference.asnumpyarray().ravel())
+            if ismixed:
+                ref = reference.asnumpyarray().ravel().astype(int)
+                reference = numpy.eye(outputs.shape[0], dtype=int)[ref].T
+                self.labels.extend(reference.ravel())
+            else:
+                self.labels.extend(reference.asnumpyarray().ravel())
         num_new_pos = self.labels[old_num_recs:].count(self.pos_label)
         self.num_pos += num_new_pos
         self.num_neg += len(self.probs) - old_num_recs - num_new_pos

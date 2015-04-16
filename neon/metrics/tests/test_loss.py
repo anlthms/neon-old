@@ -26,6 +26,18 @@ class TestLoss(object):
         assert abs(ll.report() + (math.log(.09) + math.log(1.0 - ll.eps) +
                                   math.log(0.75))) < 1e-6
 
+    def test_logloss_sum_mixed(self):
+        ll = LogLossSum()
+        assert ll.logloss == 0.0
+        refs = CPUTensor([1, 0, 1]).transpose()
+        preds = CPUTensor([[0.00,    1,    0],
+                           [0.09,  0.0, 0.75],
+                           [0.01,    0, 0.15],
+                           [0.90,    0, 0.10]])
+        ll.add(refs, preds)
+        assert abs(ll.report() + (math.log(.09) + math.log(1.0 - ll.eps) +
+                                  math.log(0.75))) < 1e-6
+
     def test_logloss_mean(self):
         ll = LogLossMean()
         assert ll.logloss == 0.0

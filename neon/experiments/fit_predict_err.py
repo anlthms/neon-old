@@ -82,7 +82,7 @@ class FitPredictErrorExperiment(FitExperiment):
         # Generate and save predictions
         for pred_set in self.predictions:
             if not self.dataset.has_set(pred_set):
-                logger.warning("Unable to generate %s predictions, no "
+                logger.warning("Unable to generate '%s' predictions, no "
                                "equivalent dataset partition" % pred_set)
                 continue
             outputs, targets = self.model.predict_fullset(self.dataset,
@@ -96,7 +96,7 @@ class FitPredictErrorExperiment(FitExperiment):
         # Report error metrics.
         for metric_set in self.metrics:
             if not self.dataset.has_set(metric_set):
-                logger.warning("Unable to generate %s metrics, no "
+                logger.warning("Unable to generate '%s' metrics, no "
                                "equivalent dataset partition" % metric_set)
                 continue
             if metric_set not in result:

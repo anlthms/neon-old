@@ -19,15 +19,17 @@
     num_workers: 8,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    #ntrain: 24, # Delete this line to use entire dataset for training
+    ntrain: 24, # Delete this line to use entire dataset for training
   },
 
   metrics: {
     train: [
-      !obj:metrics.MisclassPercentage {},
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
     ],
-    test: [
-      !obj:metrics.MisclassPercentage {},
+    validation: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
     ],
   },
 

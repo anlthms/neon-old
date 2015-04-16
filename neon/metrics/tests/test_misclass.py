@@ -19,6 +19,19 @@ class TestMisclass(object):
         assert mcs.rec_count == 4
         assert mcs.misclass_sum == 2
 
+    def test_misclass_sum_mixed(self):
+        mcs = MisclassSum()
+        assert mcs.rec_count == 0
+        assert mcs.misclass_sum == 0
+        refs = CPUTensor([[3, 0, 1]])
+        preds = CPUTensor([[0.00,    1,    0],
+                           [0.09,  0.0, 0.55],
+                           [0.01,    0, 0.75],
+                           [0.90,    0, 0.34]])
+        mcs.add(refs, preds)
+        assert mcs.rec_count == 3
+        assert mcs.misclass_sum == 1
+
     def test_misclass_sum_probs(self):
         mcs = MisclassSum()
         assert mcs.rec_count == 0

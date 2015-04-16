@@ -22,10 +22,12 @@
 
   metrics: {
     train: [
-      !obj:metrics.MisclassPercentage {},
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
     ],
-    test: [
-      !obj:metrics.MisclassPercentage {},
+    validation: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
     ],
   },
 
