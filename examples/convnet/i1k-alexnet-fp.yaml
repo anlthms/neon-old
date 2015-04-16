@@ -9,8 +9,6 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
-
-
   metrics: {
     train: [
       !obj:metrics.MisclassPercentage {error_rank: 1},
@@ -103,7 +101,7 @@
   model: !obj:models.MLP {
     backend_type: *bt,
     batch_norm: &bn False,
-    num_epochs: 1, # 1 or 10 or 60
+    num_epochs: 60, # 1 or 10 or 60
     batch_size: &bs 128,
     step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
