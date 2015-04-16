@@ -136,7 +136,7 @@ class Decorators(object):
                 self.doneness += 1
 
             # logging output
-            if self.verbosity == 'succing':
+            if self.verbosity == 'succinct':
                 self.succinct_logging(kwargs, func_name, layer_name)
             elif self.verbosity == 'verbose':
                 self.verbose_logging(kwargs, func_name, layer_name)
