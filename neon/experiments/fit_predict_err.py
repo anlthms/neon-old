@@ -120,5 +120,4 @@ class FitPredictErrorExperiment(FitExperiment):
             from neon.diagnostics import ranges_plots as rp
             rp.print_param_stats(self.backend, logger,
                                  self.diagnostics['filename'])
-
         return result
