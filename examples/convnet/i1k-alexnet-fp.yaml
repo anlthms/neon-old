@@ -9,6 +9,19 @@
 
 !obj:experiments.FitPredictErrorExperiment {
 
+
+
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+    validation: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+  },
+
   diagnostics: {
     timing: False,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
@@ -35,16 +48,8 @@
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
+    #nval: 1,
     backend_type: &bt np.float32,
-  },
-
-  metrics: {
-    train: [
-      !obj:metrics.MisclassPercentage {},
-    ],
-    test: [
-      !obj:metrics.MisclassPercentage {},
-    ],
   },
 
   weight_inits: [
@@ -98,7 +103,7 @@
   model: !obj:models.MLP {
     backend_type: *bt,
     batch_norm: &bn False,
-    num_epochs: 60, # 1 or 10 or 60
+    num_epochs: 1, # 1 or 10 or 60
     batch_size: &bs 128,
     step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash

@@ -50,7 +50,10 @@ class MisclassSum(Metric):
                                            treat the inidividual values as
                                            probabilities for that class.
         """
-        if reference.shape != outputs.shape:
+        #one hot fix: reference : (1, 73728), outputs : (1000, 73728)
+        ismixed = (reference.shape[0] == 1) and (outputs.shape[0] > 1) and \
+                  (reference.shape[1] == outputs.shape[1])
+        if (reference.shape != outputs.shape) and (not ismixed):
             raise ValueError("reference dimensions: %s, incompatible with "
                              "outputs dimensions: %s" %
                              (str(reference.shape), str(outputs.shape)))
@@ -58,7 +61,10 @@ class MisclassSum(Metric):
         if len(outputs.shape) > 1 and outputs.shape[0] > 1:
             # vector of outputs per case.  Check if ground truth index in top-k
             # predictions (ordered by decreasing probability)
-            true_idcs = reference.asnumpyarray().argmax(axis=0)
+            if ismixed:
+                true_idcs = reference.asnumpyarray()
+            else:
+                true_idcs = reference.asnumpyarray().argmax(axis=0)
             top_pred_idcs = - outputs.asnumpyarray()
             top_pred_idcs = top_pred_idcs.argpartition(self.error_rank,
                                                        axis=0)

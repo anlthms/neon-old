@@ -81,7 +81,6 @@ class BatchNorm(Activation):
         the paper.
         """
         self.train_mode = False
-        logger.info("BatchNormalization set to inference mode")
         if self._iscale is None:
             # normalize global variance -- inference scaling factor
             self.backend.divide(self._gvars, self.nbatches, self._gvars)
