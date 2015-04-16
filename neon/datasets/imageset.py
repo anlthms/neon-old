@@ -51,9 +51,9 @@ class Imageset(Dataset):
 
         self.__dict__.update(kwargs)
 
-        if self.backend_type == 'np.float16':
+        if self.backend_type in ['float16', 'np.float16', 'numpy.float16']:
             self.backend_type = np.float16
-        elif self.backend_type == 'np.float32':
+        elif self.backend_type in ['float32', 'np.float32', 'numpy.float32']:
             self.backend_type = np.float32
         else:
             raise ValueError('Datatype not understood')
