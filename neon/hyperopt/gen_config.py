@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
     scipt_name = 'neon.hyperopt.gen_yaml_and_run'  # script spearmint calls
-    supported_expt_bool = False  # hyperyaml specifies supported experiment
+    has_hyperopt = False  # hyperyaml specifies supported experiment
     with open(input_file, 'r') as fin:
         with open(pb_file, 'w') as fout:
             fout.write('language: PYTHON \nname: "' + scipt_name + '"\n\n')
@@ -26,9 +26,8 @@ def write_pb(input_file, pb_file):
                     ho_dict = parse_line(inline)
                     outline = write_block(ho_dict)
                     fout.write(outline)
-                if 'return_item' in inline:
-                    supported_expt_bool = True  # TODO: rename
-    return supported_expt_bool
+                    has_hyperopt = True
+    return has_hyperopt
 
 
 def parse_line(line):
@@ -78,4 +77,4 @@ def main(hyperopt_dir):
         print("Hyperparamter ranges written from %s to %s"
               % (in_file, pb_file))
     else:
-        raise AttributeError("Wrong experiment type, does not return result")
+        raise AttributeError("No hyperopt ranges found in yaml.")

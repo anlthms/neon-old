@@ -5,9 +5,13 @@
 Batch normalization transform functions and classes.
 """
 
+import logging
 from neon.transforms.activation import Activation
 from neon.util.param import req_param, opt_param
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 
 
 class BatchNorm(Activation):
@@ -50,6 +54,7 @@ class BatchNorm(Activation):
             self.in1d = (self.layer.nout, 1)
 
         self.train_mode = True
+        logger.info("BatchNormalization set to train mode")
         self.nbatches = 0
 
         self._xhat = self.backend.zeros(self.in_shape, dtype=self.dtype)
@@ -76,6 +81,7 @@ class BatchNorm(Activation):
         the paper.
         """
         self.train_mode = False
+        logger.info("BatchNormalization set to inference mode")
         if self._iscale is None:
             # normalize global variance -- inference scaling factor
             self.backend.divide(self._gvars, self.nbatches, self._gvars)

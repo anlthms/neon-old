@@ -16,6 +16,7 @@ import time
 import logging
 from neon.backends import gen_backend
 from neon.util.persist import deserialize
+from neon.metrics.misclass import MisclassPercentage
 
 
 def main(job_id, params):
@@ -42,14 +43,36 @@ def call_neon(params):
         "Directory exists"
     write_params(hyper_file, yaml_file, params)
 
-    # run bin/neon model
+    # Initialize the neon experiment
     logging.basicConfig(level=20)
     experiment = deserialize(yaml_file)
     backend = gen_backend(model=experiment.model)  # , gpu='nervanagpu'
     experiment.initialize(backend)
-    return_err = experiment.run()
-    print "DEBUG: got return_err", return_err
-    return float(return_err)
+
+    # ensure TOP1 error is calculated
+    if not hasattr(experiment, 'metrics'):
+        experiment.metrics = {'validation': [MisclassPercentage(error_rank=1)],
+                              'test': [MisclassPercentage(error_rank=1)]}
+    for item in ['validation', 'test']:
+        if item not in experiment.metrics:
+            experiment.metrics[item] = [MisclassPercentage(error_rank=1)]
+        metriclist = [str(x) for x in experiment.metrics[item]]
+        if 'MisclassPercentage_TOP_1' not in metriclist:
+            experiment.metrics[item].append(MisclassPercentage(error_rank=1))
+
+    result = experiment.run()
+
+    # check if validation set is available
+    if experiment.dataset.has_set('validation'):
+        hyperopt_set = 'validation'
+    elif experiment.dataset.has_set('test'):
+        hyperopt_set = 'test'
+        print("Warning: No validation set found, performing hyperparameter "
+              "optimization on test set.")
+    else:
+        raise AttributeError("No error found.")
+
+    return result[hyperopt_set]['MisclassPercentage_TOP_1']
 
 
 def write_params(input_file, output_file, params):
