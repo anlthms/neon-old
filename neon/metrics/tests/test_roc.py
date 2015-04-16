@@ -21,6 +21,21 @@ class TestROC(object):
         assert len(auc.probs) == 4
         assert len(auc.labels) == 4
 
+    def test_auc_add_mixed(self):
+        auc = AUC()
+        assert auc.num_pos == 0
+        assert auc.num_neg == 0
+        refs = CPUTensor([[0, 1, 0]])
+        preds = CPUTensor([[0.00,    1,    0],
+                           [0.09,  0.0, 0.75],
+                           [0.01,    0, 0.15],
+                           [0.90,    0, 0.10]])
+        auc.add(refs, preds)
+        assert auc.num_pos == 1
+        assert auc.num_neg == 2
+        assert len(auc.probs) == 3
+        assert len(auc.labels) == 3
+
     def test_auc_add_probs(self):
         auc = AUC()
         assert auc.num_pos == 0
