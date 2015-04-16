@@ -21,9 +21,9 @@ class Decorators(object):
                        'fprop_conv', 'bprop_conv', 'update_conv',
                        'gdm_compound', 'gdmwd_compound']
 
-    def __init__(self, backend, silent):
+    def __init__(self, backend, verbosity):
         self.backend = backend
-        self.silent = silent
+        self.verbosity = verbosity
         self.oldepoch = 0
         self.doneness = 0
         backend.raw_dict = defaultdict(lambda: defaultdict(list))
@@ -51,19 +51,17 @@ class Decorators(object):
         """
         be = self.backend
         epoch = kwargs['epoch']
-        for item in ['ps_item', 'vs_item', 'us_item', 'ratio']:
+        hist = np.histogram
+        for item in ['ps_item', 'vs_item', 'us_item', 'ratioup']:
             if item in kwargs:
-                histo, foo = np.histogram(kwargs[item].asnumpyarray().
-                                          flatten(),
-                                          bins=self.bins[item])
+                histo, foo = hist(kwargs[item].asnumpyarray().flatten(),
+                                  bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
             elif ('ps_item' in kwargs) and (item == 'ratioup'):
-                histo, foo = np.histogram(kwargs['us_item'].asnumpyarray().
-                                          flatten() /
-                                          kwargs['ps_item'].asnumpyarray().
-                                          flatten(),
-                                          bins=self.bins[item])
+                histo, foo = hist(kwargs['us_item'].asnumpyarray().flatten() /
+                                  kwargs['ps_item'].asnumpyarray().flatten(),
+                                  bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
 
@@ -77,8 +75,8 @@ class Decorators(object):
 
         for item in ['weights', 'inputs', 'deltas', 'out']:
             if item in kwargs:
-                the_min = be.zeros((1, 1))
-                the_max = be.zeros((1, 1))
+                the_min = be.zeros((1, 1), dtype=np.float32)
+                the_max = be.zeros((1, 1), dtype=np.float32)
                 be.min(kwargs[item], axes=None, out=the_min)
                 be.max(kwargs[item], axes=None, out=the_max)
                 logger.info("%s: std=%s raw=%s min=%s max=%s",
@@ -92,19 +90,21 @@ class Decorators(object):
 
     def succinct_logging(self, kwargs, func_name, layer_name):
         """
-        Write ouput min and max to logger
+        Write ouput mean and max to logger
         """
         be = self.backend
-
         for item in ['out']:
             if item in kwargs:
-                the_min = be.zeros((1, 1))
-                the_max = be.zeros((1, 1))
-                be.min(kwargs[item], axes=None, out=the_min)
+                temp = be.zeros((kwargs[item].shape[0], kwargs[item].shape[1]),
+                                dtype=np.float32)
+                the_mean = be.zeros((1, 1), dtype=np.float32)
+                the_max = be.zeros((1, 1), dtype=np.float32)
+                be.mean(be.fabs(kwargs[item], out=temp), axes=None,
+                        out=the_mean)
                 be.max(kwargs[item], axes=None, out=the_max)
-                logger.info("%s to %s out: min=%s max=%s",
-                            func_name.ljust(11), layer_name.ljust(7),
-                            the_min.asnumpyarray()[0, 0].__str__(),
+                logger.info("%s to %s %s: mean, max;%s;%s",
+                            func_name.ljust(11), layer_name.ljust(7), item,
+                            the_mean.asnumpyarray()[0, 0].__str__(),
                             the_max.asnumpyarray()[0, 0].__str__())
 
     def print_ranges(self, func):
@@ -124,20 +124,22 @@ class Decorators(object):
             layer_name = kwargs['weights'].name if 'weights' in kwargs else \
                 kwargs['ps_item'].name if ('ps_item' in kwargs) \
                 and hasattr(kwargs['ps_item'], 'name') else 'anon'
+            if layer_name is None:
+                layer_name = 'anon_layer'
 
             # histogram plots
             if ('epoch' in kwargs) and (kwargs['epoch'] > self.oldepoch):
-                # new epoch
-                self.doneness = 0
+                self.doneness = 0  # reset if we reached a new epoch
                 self.oldepoch = kwargs['epoch']
-            if ('epoch' in kwargs) and (self.doneness < 30):
-                # not done
+            if ('epoch' in kwargs) and (self.doneness < 30):  # not yet done
                 self.store_histograms(kwargs, func_name, layer_name)
                 self.doneness += 1
 
             # logging output
-            if not self.silent:
+            if self.verbosity == 'succinct':
                 self.succinct_logging(kwargs, func_name, layer_name)
+            elif self.verbosity == 'verbose':
+                self.verbose_logging(kwargs, func_name, layer_name)
 
             return retval
         return func_wrapper

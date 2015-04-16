@@ -153,8 +153,10 @@ def main():
         result = experiment.run()
         if args.profile is not None:
             if args.profile == "":
+                p.disable()
                 p.print_stats("tottime")
             else:
+                p.disable()
                 p.dump_stats(args.profile)
         if args.output is not None:
             # fill in any missing metric values

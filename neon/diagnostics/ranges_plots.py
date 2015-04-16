@@ -15,9 +15,12 @@ matplotlib.rcParams['pdf.fonttype'] = 42  # TTF to be editable
 logger = logging.getLogger(__name__)
 
 
-def print_param_stats(backend, logger, name):
+def print_param_stats(backend, logger, prefix):
+
+    figname = 'param_ranges_' + prefix + ' ' + backend.__module__
 
     layers = backend.name_dict[0].keys()
+    assert len(backend.name_dict[0]) > 0, "decorated function was never called"
     tensors = set(backend.name_dict[0][layers[0]])
     epochs = backend.raw_dict.keys()
 
@@ -49,9 +52,10 @@ def print_param_stats(backend, logger, name):
                             'update or decay' if 'us' in tensor else
                             'update/weight' if 'ratio' in tensor else
                             'anon'][0])
+
             ax1 = plt.subplot(len(layers), 4, 1+4*k)
             plt.title(layer+" epoch "+str(epoch))
 
         plt.tight_layout()
-        plt.savefig(name+'_epoch'+str(epoch), dpi=200)
+        plt.savefig(figname+'_epoch'+str(epoch)+'.png', dpi=200)
         plt.clf()

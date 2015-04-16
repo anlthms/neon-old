@@ -34,7 +34,8 @@ class ConvLayer(WeightLayer):
         opt_param(self, ['shared_bias'], True)
         if self.shared_bias:
             self.bias_shape = (self.nofm, 1)
-            self.bias_expand = self.backend.empty((self.nout, 1))
+            self.bias_expand = self.backend.empty((self.nout, 1),
+                                                  dtype=self.weight_dtype)
         else:
             self.bias_shape = (self.nout, 1)
 
@@ -54,6 +55,7 @@ class ConvLayer(WeightLayer):
                 R=self.fshape[0], S=self.fshape[1],
                 pad_d=0, pad_h=self.pad, pad_w=self.pad,
                 str_d=1, str_h=self.stride, str_w=self.stride,
+                grid_P=0, grid_Q=0,
                 dtype=self.weight_dtype)
             self.prodbuf = self.bpropbuf = self.updatebuf = self.conv_params
 

@@ -673,10 +673,10 @@ class GPU(Backend):
             learning_rate (float): learning rate.
             epoch (int): epoch (used in conjunction with diagnostics).
         """
-        self.multiply(vs_item, momentum_coef, out=vs_item)
-        self.multiply(us_item, learning_rate, out=us_item)
-        self.subtract(vs_item, us_item, out=vs_item)
-        self.add(ps_item, vs_item, out=ps_item)
+        self.multiply(vs_item, momentum_coef, out=vs_item)  # reduce old v
+        self.multiply(us_item, learning_rate, out=us_item)  # reduce new up
+        self.subtract(vs_item, us_item, out=vs_item)        # compute new v
+        self.add(ps_item, vs_item, out=ps_item)             # apply new v
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
                        learning_rate, wd, epoch):
@@ -697,8 +697,7 @@ class GPU(Backend):
         self.multiply(vs_item, momentum_coef, out=vs_item)
         self.multiply(us_item, learning_rate, out=us_item)
         self.subtract(vs_item, us_item, out=vs_item)
-        # reuse us_item for weight decay term
-        # note: usually want to only apply for weights, not biases
+
         self.multiply(ps_item, wd, out=us_item)
         self.multiply(us_item, learning_rate, out=us_item)
         self.subtract(vs_item, us_item, out=vs_item)
@@ -1223,6 +1222,17 @@ class GPU(Backend):
         return out
 
     def fabs(self, x, out=None):
+        """
+        calculate the absolute value for floats.
+
+        Arguments:
+            x (GPUTensor): The GPUTensor on which to find the maximum indices
+            out (GPUTensor): Where to store the result.  Should be of the
+                             appropriate type and expected shape
+
+        Returns:
+            GPUTensor: reference to out
+        """
         if out is not None:
             res = cudanet.abs(x._tensor, out._tensor)
         else:

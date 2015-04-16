@@ -50,7 +50,7 @@ class MLP(MLP_old):
         if self.reuse_deltas:
             self.global_deltas = backend.zeros(
                 (2 * self.nin_max, self.batch_size),
-                self.layers[1].deltas_dtype)
+                dtype=self.layers[1].deltas_dtype)
 
         for idx, ll in enumerate(self.layers[1:-1]):
             ll.set_deltas_buf(self.global_deltas,
@@ -58,10 +58,10 @@ class MLP(MLP_old):
 
         self.initialized = True
 
-        # Make some scratch space for NL backend:
+        # Make some scratch space for NervanaGPU backend:
         if self.backend.__module__ == 'neon.backends.gpu':
-            # self.backend.init_mempool((self.class_layer.nout, 1))
-            self.backend.init_mempool((1, self.batch_size))
+            self.backend.init_mempool((1, self.batch_size),
+                                      dtype=self.layers[1].deltas_dtype)
 
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
@@ -114,7 +114,7 @@ class MLP(MLP_old):
         """
         Learn model weights on the given datasets.
         """
-        error = self.backend.zeros((1, 1))
+        error = self.backend.zeros((1, 1), dtype=self.cost_layer.weight_dtype)
         self.data_layer.init_dataset(dataset)
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')

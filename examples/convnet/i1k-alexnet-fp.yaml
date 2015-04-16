@@ -8,18 +8,17 @@
 
 
 !obj:experiments.FitPredictErrorExperiment {
-  # filename: i1k-hyperopt,
-  # item: train,
 
   diagnostics: {
-    timing: True,
+    timing: False,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
     decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
 
-    ranges: True,
-    silent: False,
-    decorate_ranges: [gdmwd_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+    ranges: False,
+    verbosity: silent,
+    prefix: fp16force_noassym,
+    decorate_ranges: [gdm_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
 
   dataset: &ds !obj:datasets.Imageset {
@@ -31,10 +30,12 @@
     cropped_image_size: &cis 224,
     macro_size: 3072,
     num_channels: 3,
+    num_workers: 12,
+    nclass: 1000,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
-    backend_type: &bt np.float32,  ################# HALF ###############
+    backend_type: &bt np.float32,
   },
 
   metrics: {
@@ -57,7 +58,6 @@
       relu: True,
       bias_init: -7.0,
     },
-    #&skinit !obj:params.OrthoNormalizedValGen,
   ],
 
   lrule: &gdm {
@@ -80,7 +80,7 @@
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
     lr_params: {
-      learning_rate: 0.01, # !hyperopt lr FLOAT 0.001 0.01, # 0.01,
+      learning_rate: 0.01,
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -94,14 +94,13 @@
     },
   },
 
-  # OrthoNormalizedValGen does not see to work so well
 
   model: !obj:models.MLP {
     backend_type: *bt,
-    batch_norm: &bn False,   ###################### BATCH NORM ###############
-    num_epochs: 10, # 1 or 10 or 60
+    batch_norm: &bn False,
+    num_epochs: 60, # 1 or 10 or 60
     batch_size: &bs 128,
-    step_print: 24,  # was 24
+    step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
@@ -261,16 +260,17 @@
         brule_init: *gdm,
         weight_init: *wt_initout,
         nout: 1000,
-        activation: !obj:transforms.Softmax  {}, # Logistic , Softmax
+        activation: !obj:transforms.Softmax  {},
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
         ref_label: 'labels',
-        raw_label: True,
+        raw_label: False, # Default is False
         cost: !obj:transforms.CrossEntropy {
           backend_type: *bt,
           epsilon: 0.0005,
+          scale: 1,
         },
       },
     ],
