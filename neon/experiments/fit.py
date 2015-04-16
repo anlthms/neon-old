@@ -70,17 +70,7 @@ class FitExperiment(Experiment):
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
         if self.model.epochs_complete < self.model.num_epochs:
-
-            import cProfile
-            p = cProfile.Profile()
-            p.enable()
-
             self.model.fit(self.dataset)
-
-            p.disable()
-            p.dump_stats('statdump_hotfix.prof')
-
-
 
         if hasattr(self.model, 'serialized_path'):
             if (hasattr(self.dataset, 'dist_flag') and

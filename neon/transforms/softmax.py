@@ -15,7 +15,6 @@ class Softmax(Activation):
         self.tmp = None
         self.gain = 1.0
         opt_param(self, ['skip_derivative'], True)
-        print("softmax skip activation")  # TODO: Select from YAML
 
     def apply_function(self, backend, inputs, outputs):
         """

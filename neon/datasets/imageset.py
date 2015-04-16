@@ -83,7 +83,7 @@ class Imageset(Dataset):
                 else:
                     self.bw = BatchWriter(**self.__dict__)
                 self.bw.run()
-                logger.warning('Done writing batches -- please rerun to train.')
+                logger.warning('Done writing batches - please rerun to train.')
             else:
                 logger.warning('Exiting...')
             sys.exit()
@@ -199,8 +199,9 @@ class Imageset(Dataset):
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
-            hl = self.lbl_macro[lbl][s_idx:e_idx]
-            self.lbl_be[lbl].copy_from(np.eye(self.nclass)[hl].T.reshape(self.lbl_be[lbl].shape).astype(betype, order='C'))
+            hl = np.squeeze(self.lbl_macro[lbl][s_idx:e_idx])
+            one_hot_lbl = np.eye(self.nclass)[hl].T.astype(betype, order='C')
+            self.lbl_be[lbl].copy_from(one_hot_lbl)
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(

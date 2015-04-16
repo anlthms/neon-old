@@ -136,25 +136,7 @@ class MLP(MLP_old):
             self.epochs_complete += 1
         self.data_layer.cleanup()
 
-<<<<<<< HEAD
-    def predict_and_report(self, dataset=None):
-        dtype = self.cost_layer.weight_dtype  # infer type for new buffers
-        if dataset is not None:
-            self.data_layer.init_dataset(dataset)
-        predlabels = self.backend.empty((1, self.batch_size), dtype=dtype)
-        labels = self.backend.empty((1, self.batch_size), dtype=dtype)
-        misclass = self.backend.empty((1, self.batch_size), dtype=dtype)
-        misclass_sum = self.backend.empty((1, 1), dtype=dtype)
-        if self.backend.__module__ == 'neon.backends.gpu':
-            import numpy as np
-            misclass_sum = self.backend.empty((1, 1), dtype=np.float32)
-        batch_sum = self.backend.empty((1, 1), dtype=dtype)
-
-        return_err = dict()
-
-=======
     def set_train_mode(self, mode):
->>>>>>> master
         for ll in self.layers:
             ll.set_train_mode(mode)
 
@@ -183,34 +165,3 @@ class MLP(MLP_old):
 
         self.data_layer.cleanup()
         return outputs, reference
-<<<<<<< HEAD
-
-    def report(self, reference, outputs, metric):
-        nrecs = outputs.shape[1]
-        if metric == 'misclass rate':
-            retval = self.backend.empty((1, 1))
-            labels = self.backend.empty((1, nrecs))
-            preds = self.backend.empty(labels.shape)
-            misclass = self.backend.empty(labels.shape)
-            ms.misclass_sum(self.backend, reference, outputs,
-                            preds, labels, misclass, retval)
-            misclassval = retval.asnumpyarray() / nrecs
-            return misclassval * 100
-
-        if metric == 'auc':
-            return ms.auc(self.backend, reference[0], outputs[0])
-
-        if metric == 'log loss':
-            retval = self.backend.empty((1, 1))
-            sums = self.backend.empty((1, outputs.shape[1]))
-            temp = self.backend.empty(outputs.shape)
-            ms.logloss(self.backend, reference, outputs, sums, temp, retval)
-            self.backend.multiply(retval, -1, out=retval)
-            self.backend.divide(retval, nrecs, out=retval)
-            return retval.asnumpyarray()
-
-        raise NotImplementedError('metric not implemented:', metric)
-
-
-=======
->>>>>>> master
