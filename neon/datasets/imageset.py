@@ -177,7 +177,7 @@ class Imageset(Dataset):
                                   tgt=self.img_macro[:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
-                                  center=True, flip=False,
+                                  center=self.predict, flip=True,
                                   rgb=self.rgb,
                                   nthreads=self.num_workers)
             if mac_sz < self.macro_size:

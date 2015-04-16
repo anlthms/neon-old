@@ -780,9 +780,6 @@ class GPU(Backend):
                      learning_rate, epoch):
         """
         Perform gradient descent update with momentum.
-        Use
-            np.spacing(np.float16(1))
-        to figure out the minimum allowed update
 
         Arguments:
             ps_item (GPUTensor): parameter tensor (e.g. a weight matrix)
@@ -799,27 +796,6 @@ class GPU(Backend):
                          self.ng.multiply(us_item, learning_rate),
                          out=vs_item)
         self.ng.add(ps_item, vs_item, out=ps_item)
-
-    def _gdm_compound_force(self, ps_item, us_item, vs_item, momentum_coef,
-                            learning_rate, epoch):
-        """
-        Experimental update function for pf16 models: If the update is too
-        small and would not change the weight, instead update the weight by
-        the minimum possible step size, in the direction given by the sign of
-        the gradient.
-        TODO: express desired update as a fraction of minimum update and
-        check if it's larger than a random number 0-1. Probably want to do this
-        on a per-element basis, inspired by dropout:
-            self.less_equal(self.rand(), keep, out=out)
-        """
-        self.ng.subtract(self.ng.multiply(vs_item, momentum_coef),
-                         self.ng.multiply(us_item, learning_rate),
-                         out=vs_item)
-        sign = (self.ng.greater(vs_item, 0) - self.ng.less(vs_item, 0))
-        magnitude = self.ng.maximum(self.ng.fabs(vs_item),
-                                    self.ng.fabs(ps_item) / 1000.)
-        us_item[:] = sign * magnitude
-        self.ng.add(ps_item, us_item, out=ps_item)
 
     def gdmwd_compound(self, ps_item, us_item, vs_item, momentum_coef,
                        learning_rate, wd, epoch):

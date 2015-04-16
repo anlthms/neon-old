@@ -256,7 +256,7 @@
         name: cost,
         ref_layer: *datalayer,
         ref_label: 'labels',
-        raw_label: True,
+        raw_label: False,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],
