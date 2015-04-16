@@ -9,13 +9,54 @@ import logging
 import numpy as np
 import os
 import sys
+from threading import Thread
 
 from neon.datasets.dataset import Dataset
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
-
+import imgworker
 
 logger = logging.getLogger(__name__)
+
+class MacrobatchDecodeThread(Thread):
+    """
+    Load and decode a macrobatch of images in a separate thread.
+
+    Double-buffer macrobatch data structures. use ds.macro_decode_buf_idx 
+
+
+    """
+
+    def __init__(self, ds):
+        Thread.__init__(self)
+        self.ds = ds
+
+
+    def run(self):
+
+        bsz = self.ds.batch_size
+        b_idx = self.ds.macro_decode_buf_idx
+        jdict = self.ds.get_macro_batch()
+
+        # This macro could be smaller than macro_size for last macro
+        mac_sz = len(jdict['data'])
+        self.ds.tgt_macro[b_idx] = jdict['targets'] if 'targets' in jdict else None
+        self.ds.lbl_macro[b_idx] = {k: jdict['labels'][k] for k in self.ds.label_list}
+
+        imgworker.decode_list(jpglist=jdict['data'],
+                              tgt=self.ds.img_macro[b_idx][:mac_sz],
+                              orig_size=self.ds.output_image_size,
+                              crop_size=self.ds.cropped_image_size,
+                              center=self.ds.predict, flip=True,
+                              rgb=self.ds.rgb,
+                              nthreads=self.ds.num_workers)
+        if mac_sz < self.ds.macro_size:
+            self.ds.img_macro[b_idx][mac_sz:] = 0
+        # Leave behind the partial minibatch
+        self.ds.minis_per_macro = mac_sz / bsz
+
+        return
+
 
 
 class Imageset(Dataset):
@@ -175,27 +216,28 @@ class Imageset(Dataset):
         betype = self.backend_type
         bsz = self.batch_size
         self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
-        b_idx = 0
 
         if self.mini_idx == 0:
-            jdict = self.get_macro_batch()
-            # This macro could be smaller than macro_size for last macro
-            mac_sz = len(jdict['data'])
-            self.tgt_macro[b_idx] = jdict['targets'] if 'targets' in jdict else None
-            self.lbl_macro[b_idx] = {k: jdict['labels'][k] for k in self.label_list}
+            if self.macro_decode_thread != None:
+                #no-op unless minibatch loading finished faster than macrobatch in bg thread
+                self.macro_decode_thread.join()
+            else:
+                # special case for first run through
+                self.macro_decode_thread = MacrobatchDecodeThread(self)
+                self.macro_decode_thread.start()
+                self.macro_decode_thread.join()
 
-            imgworker.decode_list(jpglist=jdict['data'],
-                                  tgt=self.img_macro[b_idx][:mac_sz],
-                                  orig_size=self.output_image_size,
-                                  crop_size=self.cropped_image_size,
-                                  center=self.predict, flip=True,
-                                  rgb=self.rgb,
-                                  nthreads=self.num_workers)
-            if mac_sz < self.macro_size:
-                self.img_macro[b_idx][mac_sz:] = 0
-            # Leave behind the partial minibatch
-            self.minis_per_macro = mac_sz / bsz
+            # usual case for kicking off a background macrobatch thread
+            self.macro_active_buf_idx = self.macro_decode_buf_idx
+            self.macro_decode_buf_idx = (self.macro_decode_buf_idx + 1) % self.macro_num_decode_buf
+            self.macro_decode_thread = MacrobatchDecodeThread(self)
+            self.macro_decode_thread.start()
+            
+            # self.macro_decode_thread = MacrobatchDecodeThread(self)
+            # self.macro_decode_thread.start()
+            # self.macro_decode_thread.join()
 
+        b_idx = self.macro_active_buf_idx
         s_idx = self.mini_idx * bsz
         e_idx = (self.mini_idx + 1) * bsz
 
