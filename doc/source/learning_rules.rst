@@ -8,7 +8,7 @@ Learning Rules
 Learning rules are optimizers that use backpropagated gradients to update
 layer weights. The most basic form is stochastic gradient descent (SGD), which
 can be augmented with momentum. AdaDelta (Zeiler 2012) is an adaptive gradient
-method that does not require the leraning rate to be tuned manually.
+method that does not require the learning rate to be tuned manually.
 
 
 Available Learning Rules
@@ -23,3 +23,10 @@ Available Learning Rules
    neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay
    neon.optimizers.adadelta.AdaDelta
 
+.. _extending_learningrule:
+
+Adding a new type of Learning Rule
+----------------------------------
+
+#. subclass :class:`neon.optimizers.learning_rule.LearningRule`
+#. implement :func:`neon.optimizers.learning_fule.LearningRule.apply_rule`

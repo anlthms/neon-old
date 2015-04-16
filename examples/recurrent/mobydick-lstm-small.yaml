@@ -9,6 +9,15 @@
     data_dim: &dd 128,
     unrolls: &ur 5,
   },
+ 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+  },
 
   weight_inits: [
     &wt_init !obj:params.SparseEigenValGen {

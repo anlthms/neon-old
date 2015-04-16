@@ -1,21 +1,28 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+"""
+Process macro batches of data in a pipelined fashion.
+"""
+
 import logging
 
 import argparse as argp
 import functools
+from glob import glob
 import gzip
 import imgworker
+from multiprocessing import Pool
 import numpy as np
 import os
 import sys
 import tarfile
+from time import time
 import yaml
-from glob import glob
-from multiprocessing import Pool
+
 from neon.util.compat import range, StringIO
 from neon.util.param import opt_param
 from neon.util.persist import serialize
-from time import time
-
 
 TARGET_SIZE = None
 SQUARE_CROP = True

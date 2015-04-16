@@ -2,8 +2,8 @@
 .. Copyright 2014 Nervana Systems Inc.  All rights reserved.
 .. ---------------------------------------------------------------------------
 
-Using Neon
-==========
+Using the Nervana Framework
+===========================
 
 Installation
 ------------
@@ -89,8 +89,8 @@ process to train and run inference on a toy network:
 
 Installing MPI on an Ubuntu cluster (for distributed models)
 ------------------------------------------------------------
-Neon provides distributed implementations of convnets and sparse autoencoders
-in addition to the non-distributed implementations.
+The Nervana Framework provides distributed implementations of convnets and
+sparse autoencoders in addition to the non-distributed implementations.
 It has been tested with
 `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1.8/>`_ and
 `mpi4py <https://bitbucket.org/mpi4py/mpi4py>`_.
@@ -142,11 +142,11 @@ For MPI based distributed implementations, on a single node:
 
 .. code-block:: bash
 
-    # mpirun -np <number_of_processes> -x <env_vars_to_export> neon [--datapar, --modelpar] examples/<path_to.yaml>
-    # where PYTHONPATH includes ./
-    mpirun -np 4 -x PYTHONPATH bin/neon --datapar examples/convnet/mnist-small.yaml
+    # mpirun -np <number_of_processes> [-x <env_vars_to_export>] \
+    #     neon [--datapar, --modelpar] examples/<path_to.yaml>
+    mpirun -np 4 neon --datapar examples/convnet/mnist-small.yaml
 
-In distributed environments with multiple nodes full paths might be needed
+NOTE: In distributed environments with multiple nodes, full paths might be needed
 for ``mpirun`` and ``neon``, for e.g.:
 
 .. code-block:: bash
@@ -158,28 +158,27 @@ for ``mpirun`` and ``neon``, for e.g.:
 ``LD_LIBRARY_PATH`` should point to ``/<path_to_openmpi>/lib``. A common file
 system is assumed.
 
+
 Hyperparameter optimization
 ---------------------------
 Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
 To this end, third-party hyperparameter optimization packages can be integrated
-with neon. We currently offer support for Spearmint, available as a fork
+with our framework. We currently offer support for Spearmint, available as a fork
 at https://github.com/ursk/spearmint/. The package depends on google
 protobuf and scipy and uses the flask webserver for visualizing results.
 
 To perform a search over a set of hyperparameters specified in a neon yaml
 file, create a new yaml file with the top level experiment of type
-:py:class:`neon.experiments.write_error_to_file.WriteErrorToFile`. This takes
-two additional arguments:
+:py:class:`neon.experiments.fit_predict_err.FitPredictErrorExperiment`. This
+takes an additional argument:
 
 .. code-block:: bash
 
-    !obj:neon.experiments.write_error_to_file.WriteErrorToFile {
-      filename: neon_result_validation.txt,
-      item: test,
+!obj:experiments.FitPredictErrorExperiment {
+  return_item: test,
 
-The first, ``filename`` specifies the name of the file the result of the run
-should be written to, and the second, ``item``, specifies which error
+This ``return_item``, specifies which error
 (i.e. for the ``test``, ``training`` or ``validation`` set) should be used as
 the objective function for the hyperparameter optimization.
 
@@ -204,6 +203,15 @@ parameters indicate the start and end of the range. An arbitrary number of
 parameters can be replaced by ranges. Only scalar, numerical parameters are
 supported.
 
+Hyperparameter optmization requires two additional environment variables to
+identify the ``spearmint/bin`` directory and the desired location to store
+temporary file and results of the experiment, such as:
+
+.. code-block:: bash
+
+    export SPEARMINT_PATH=/path/to/spearmint/spearmint/bin
+    export HYPEROPT_PATH=/path/to/hyperopt_experiment
+
 To run a hyperoptimization experiment, call the ``bin/hyperopt`` executable.
 To initialize a new exeriment, use the ``init`` flag and pass the ``-y``
 argument to specify the yaml file containing the hyperparameter ranges, for
@@ -211,28 +219,28 @@ example:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
+    hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
 
 this creates a spearmint configuration file in proptobuf format in the
-``neon/hyperopt/expt`` directory. Then run the experiment by calling with the
+experiment directory. Then run the experiment by calling with the
 ``run`` flag and specifying a port with the ``-p`` argument where outputs will
 be generated, for example:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt run -p 50000
+    hyperopt run -p 50000
 
 The output can be viewed in the browser at http://localhost:50000, or by
-directly inspecting the files in the ``neon/hyperopt/expt`` directory. The
+directly inspecting the files in the experiment directory. The
 experiment will keep running indefinitely. It can be interrupted with
 ``Ctrl+C`` and continued by calling the ``hyperopt run`` command again. To
 start a new experiment, reset the previous one first by running:
 
 .. code-block:: bash
 
-    PYTHONPATH=`pwd` bin/hyperopt reset
+    hyperopt reset
 
-or manually deleting the contents of the ``neon/hyperopt/expt`` directory.
+or manually deleting the contents of the experiment directory.
 
 Regularization
 --------------

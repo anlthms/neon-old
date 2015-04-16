@@ -1725,49 +1725,6 @@ class GPU(Backend):
                                 epsilon)
         self.add(ps_item, ls_item, out=ps_item)
 
-    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
-                             topkcorrect, topk):
-        """
-        Compute the accumulated logloss and number of top1 and topk errors.
-
-        Arguments:
-            reference (GPUTensor): The true labels ( 1 x num_samples)
-            probs (GPUTensor): The normalized output ( num_class x num_samples)
-                               The row-wise sum for each column should be 1.
-                               Each column represents a sample and the
-                               values in the column represent the probability
-                               of that class being the correct one as
-                               hypothesized by the model.
-            labellogprob (GPUTensor): (OUTPUT) the logprob of the true
-                                      label for each column.
-                                      (1 x num_samples)
-            top1correct (GPUTensor): (OUTPUT) whether the true label occurs
-                                     as the top1 prob
-                                     (1 x num_samples)
-            topkcorrect (GPUTensor): (OUTPUT) whether the true label occurs
-                                     as one of the topk probs
-                                     (1 x num_samples)
-            topk (int): Parameter determining which of the top k to use for
-                        determining topkcorrect
-
-        Returns:
-            tuple: 3 python scalars/arrays (not GPUTensors) containing the
-                   logloss, top1 misclassification rate, topk misclassification
-                   rate
-        """
-
-        cudanet.multi_way_error(probs=probs, labels=reference,
-                                labellogprob=labellogprob,
-                                top1probs=top1correct, topkprobs=topkcorrect,
-                                topk=topk)
-
-        num_samples = reference.shape[1]
-        logloss = labellogprob._tensor.sum().asarray()
-        top1misclass = num_samples - top1correct._tensor.sum().asarray()
-        topkmisclass = num_samples - topkcorrect._tensor.sum().asarray()
-
-        return (logloss, top1misclass, topkmisclass)
-
     def sync_stream(self):
         cudanet.sync_stream()
 

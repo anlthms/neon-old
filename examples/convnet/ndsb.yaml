@@ -14,6 +14,15 @@
     num_channels: 1,
   },
 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+  },
+
   weight_init: &wt_init !obj:params.UniformValGen {
     low: -0.1,
     high: 0.1,

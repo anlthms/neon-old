@@ -53,16 +53,17 @@ class Decorators(object):
         epoch = kwargs['epoch']
         for item in ['ps_item', 'vs_item', 'us_item', 'ratioup']:
             if item in kwargs:
-                histo, foo = np.histogram(
-                                kwargs[item].asnumpyarray().flatten(),
-                                bins=self.bins[item])
+                histo, foo = np.histogram(kwargs[item].asnumpyarray().
+                                          flatten(),
+                                          bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
             elif ('ps_item' in kwargs) and (item == 'ratioup'):
-                histo, foo = np.histogram(
-                                kwargs['us_item'].asnumpyarray().flatten() /
-                                kwargs['ps_item'].asnumpyarray().flatten(),
-                                bins=self.bins[item])
+                histo, foo = np.histogram(kwargs['us_item'].asnumpyarray().
+                                          flatten() /
+                                          kwargs['ps_item'].asnumpyarray().
+                                          flatten(),
+                                          bins=self.bins[item])
                 be.raw_dict[epoch][layer_name].append(histo)
                 be.name_dict[epoch][layer_name].append(item)
 

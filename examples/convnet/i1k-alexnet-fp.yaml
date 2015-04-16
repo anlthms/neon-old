@@ -7,9 +7,7 @@
 # new pf16 test file based on Alex's new nq dataset and nodewt initialization
 
 
-!obj:experiments.FitPredictErrorExperiment {  # PredictError WriteErrorToFile
-  # filename: i1k-hyperopt,
-  # item: train,
+!obj:experiments.FitPredictErrorExperiment {
 
   diagnostics: {
     timing: False,
@@ -22,7 +20,6 @@
     prefix: fp16force_noassym,
     decorate_ranges: [gdm_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
   },
-
 
   dataset: &ds !obj:datasets.Imageset {
     repo_path: '~/data',
@@ -38,28 +35,36 @@
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
-    backend_type: &bt np.float32,  ################# HALF ###############
+    backend_type: &bt np.float32,
+  },
+
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
   },
 
   weight_inits: [
     # Init for the two FC layers
     &wt_init_fc !obj:params.AutoUniformValGen {
       relu: True,
-      bias_init: 1.0, # 1.0,
+      bias_init: 1.0,
     },
     # used for lastlayer
     &wt_initout !obj:params.AutoUniformValGen {
-      relu: True, # 2,  # was True, should be false?
-      bias_init: -7.0, # -7.0,
+      relu: True,
+      bias_init: -7.0,
     },
-    #&skinit !obj:params.OrthoNormalizedValGen,
   ],
 
   lrule: &gdm {
     type: gradient_descent_momentum,
     backend_type: *bt,
     lr_params: {
-      learning_rate: 0.00002,
+      learning_rate: 0.02,
       schedule: {
               type: step,
               ratio: 0.1,
@@ -73,9 +78,9 @@
   },
 
   lrule: &gdmwd {
-    type: gradient_descent_momentum_weight_decay, # _weight_decay,
+    type: gradient_descent_momentum_weight_decay,
     lr_params: {
-      learning_rate: 0.00001, # !hyperopt lr FLOAT 0.001 0.01, # 0.01,
+      learning_rate: 0.01,
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -89,14 +94,13 @@
     },
   },
 
-  # OrthoNormalizedValGen does not see to work so well
 
   model: !obj:models.MLP {
     backend_type: *bt,
-    batch_norm: &bn True,   ###################### BATCH NORM ###############
+    batch_norm: &bn False,
     num_epochs: 60, # 1 or 10 or 60
     batch_size: &bs 128,
-    step_print: 24,  # was 24
+    step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
@@ -114,7 +118,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 0.0, # 0.0,
+          bias_init: 0.0,
         },
         nofm: 64,
         fshape: [11, 11],
@@ -144,7 +148,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0, # 1.0,
+          bias_init: 1.0,
         },
         nofm: 192,
         fshape: [5, 5],
@@ -173,7 +177,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 0.0, # 0.0,
+          bias_init: 0.0,
         },
         nofm: 384,
         fshape: [3, 3],
@@ -189,7 +193,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0, # 1.0,
+          bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],
@@ -205,7 +209,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0, # 1.0,
+          bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],
@@ -256,7 +260,7 @@
         brule_init: *gdm,
         weight_init: *wt_initout,
         nout: 1000,
-        activation: !obj:transforms.Softmax  {}, # Logistic , Softmax
+        activation: !obj:transforms.Softmax  {},
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
@@ -266,7 +270,7 @@
         cost: !obj:transforms.CrossEntropy {
           backend_type: *bt,
           epsilon: 0.0005,
-          scale: 1000,
+          scale: 1,
         },
       },
     ],
