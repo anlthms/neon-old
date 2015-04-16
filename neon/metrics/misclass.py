@@ -50,9 +50,8 @@ class MisclassSum(Metric):
                                            treat the inidividual values as
                                            probabilities for that class.
         """
-        #one hot fix: reference : (1, 73728), outputs : (1000, 73728)
-        ismixed = (reference.shape[0] == 1) and (outputs.shape[0] > 1) and \
-                  (reference.shape[1] == outputs.shape[1])
+        ismixed = ((reference.shape[0] == 1) and (outputs.shape[0] > 1) and
+                   (reference.shape[1] == outputs.shape[1]))
         if (reference.shape != outputs.shape) and (not ismixed):
             raise ValueError("reference dimensions: %s, incompatible with "
                              "outputs dimensions: %s" %

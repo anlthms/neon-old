@@ -7,6 +7,7 @@ characteristic) curves.
 """
 
 import logging
+import numpy
 
 from neon.metrics.metric import Metric
 from neon.util.param import opt_param
@@ -52,8 +53,8 @@ class AUC(Metric):
                                            represents probabiity distributions
                                            over each class.
         """
-        ismixed = (reference.shape[0] == 1) and (outputs.shape[0] > 1) and \
-                  (reference.shape[1] == outputs.shape[1])
+        ismixed = ((reference.shape[0] == 1) and (outputs.shape[0] > 1) and
+                   (reference.shape[1] == outputs.shape[1]))
         if (reference.shape != outputs.shape) and (not ismixed):
             raise ValueError("reference dimensions: %s, incompatible with "
                              "outputs dimensions: %s" %
@@ -63,7 +64,8 @@ class AUC(Metric):
             # vector of outputs per case
             self.probs.extend(outputs.asnumpyarray()[self.pos_label, :])
             if ismixed:
-                self.labels.extend(reference.asnumpyarray())
+                self.labels.extend(reference.asnumpyarray().
+                                   ravel().astype(int))
             else:
                 self.labels.extend(reference.asnumpyarray().argmax(axis=0))
         else:
@@ -71,14 +73,11 @@ class AUC(Metric):
                          "predictions?")
             self.probs.extend(outputs.asnumpyarray().ravel())
             if ismixed:
-                import numpy as np
-                ref = np.squeeze(reference.asnumpyarray().astype(int))
-                reference = np.eye(outputs.shape[0])[ref].T
+                ref = reference.asnumpyarray().ravel().astype(int)
+                reference = numpy.eye(outputs.shape[0], dtype=int)[ref].T
                 self.labels.extend(reference.ravel())
             else:
                 self.labels.extend(reference.asnumpyarray().ravel())
-        # import pdb; pdb.set_trace()
-        # TODO: self.pos_label is INT, self.labels is FLOAT, count fails.
         num_new_pos = self.labels[old_num_recs:].count(self.pos_label)
         self.num_pos += num_new_pos
         self.num_neg += len(self.probs) - old_num_recs - num_new_pos

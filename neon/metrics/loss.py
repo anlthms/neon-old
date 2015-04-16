@@ -48,14 +48,21 @@ class LogLossSum(Metric):
                                            probabilities will be scaled to lie
                                            within [self.eps, 1 - self.eps]
         """
-        if reference.shape != outputs.shape:
+        ismixed = ((reference.shape[0] == 1) and (outputs.shape[0] > 1) and
+                   (reference.shape[1] == outputs.shape[1]))
+        if (reference.shape != outputs.shape) and (not ismixed):
             raise ValueError("reference dimensions: %s, incompatible with "
                              "outputs dimensions: %s" %
                              (str(reference.shape), str(outputs.shape)))
         # clip and normalize predictions
         preds = outputs.asnumpyarray().clip(self.eps, (1.0 - self.eps))
         preds = numpy.log(preds / preds.sum(axis=0))
-        self.logloss += (reference.asnumpyarray() * preds).sum()
+        if ismixed:
+            ref = reference.asnumpyarray().ravel().astype(int)
+            reference = numpy.eye(outputs.shape[0], dtype=int)[ref].T
+            self.logloss += (reference * preds).sum()
+        else:
+            self.logloss += (reference.asnumpyarray() * preds).sum()
 
     def report(self):
         """
