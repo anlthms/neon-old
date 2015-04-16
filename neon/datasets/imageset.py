@@ -141,16 +141,26 @@ class Imageset(Dataset):
         self.macro_idx = self.endb
         self.mini_idx = self.minis_per_macro - 1
 
-        # Allocate space for the host and device copies of input
+        # Control params for macrobatch decoding thread
+        self.macro_active_buf_idx = 0
+        self.macro_decode_buf_idx = 0
+        self.macro_num_decode_buf = 2
+        self.macro_decode_thread = None
+
+        # Allocate space for host side image, targets and labels
         inp_macro_shape = (self.macro_size, self.npixels)
+        self.img_macro = [np.zeros(inp_macro_shape, dtype=np.uint8) for i in range(self.macro_num_decode_buf)]
+        self.tgt_macro = [None for i in range(self.macro_num_decode_buf)]
+        self.lbl_macro = [None for i in range(self.macro_num_decode_buf)]
+
+        # Allocate space for device side buffers
         inp_shape = (self.npixels, self.batch_size)
-        self.img_macro = np.zeros(inp_macro_shape, dtype=np.uint8)
         self.inp_be = sbe(inp_shape, dtype=betype)
 
-        # Allocate space for device side labels
-        lbl_shape = (self.nclass, self.batch_size)
-        self.lbl_be = {lbl: sbe(lbl_shape, dtype=betype)
-                       for lbl in self.label_list}
+        lbl_shape = {lbl: (self.nclass[lbl], self.batch_size) for lbl in self.label_list}
+        self.lbl_be = {lbl: sbe(lbl_shape[lbl], dtype=betype) for lbl in self.label_list}
+
+
 
         # Allocate space for device side targets if necessary
         tgt_shape = (self.tdims, self.batch_size)
@@ -165,23 +175,24 @@ class Imageset(Dataset):
         betype = self.backend_type
         bsz = self.batch_size
         self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
+        b_idx = 0
 
         if self.mini_idx == 0:
             jdict = self.get_macro_batch()
             # This macro could be smaller than macro_size for last macro
             mac_sz = len(jdict['data'])
-            self.tgt_macro = jdict['targets'] if 'targets' in jdict else None
-            self.lbl_macro = {k: jdict['labels'][k] for k in self.label_list}
+            self.tgt_macro[b_idx] = jdict['targets'] if 'targets' in jdict else None
+            self.lbl_macro[b_idx] = {k: jdict['labels'][k] for k in self.label_list}
 
             imgworker.decode_list(jpglist=jdict['data'],
-                                  tgt=self.img_macro[:mac_sz],
+                                  tgt=self.img_macro[b_idx][:mac_sz],
                                   orig_size=self.output_image_size,
                                   crop_size=self.cropped_image_size,
                                   center=self.predict, flip=True,
                                   rgb=self.rgb,
                                   nthreads=self.num_workers)
             if mac_sz < self.macro_size:
-                self.img_macro[mac_sz:] = 0
+                self.img_macro[b_idx][mac_sz:] = 0
             # Leave behind the partial minibatch
             self.minis_per_macro = mac_sz / bsz
 
@@ -190,7 +201,7 @@ class Imageset(Dataset):
 
         # See if we are a partial minibatch
         self.inp_be.copy_from(
-            self.img_macro[s_idx:e_idx].T.astype(betype, order='C'))
+            self.img_macro[b_idx][s_idx:e_idx].T.astype(betype, order='C'))
 
         if self.mean_norm:
             self.backend.subtract(self.inp_be, self.mean_be, self.inp_be)
@@ -199,13 +210,13 @@ class Imageset(Dataset):
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
-            hl = np.squeeze(self.lbl_macro[lbl][s_idx:e_idx])
-            one_hot_lbl = np.eye(self.nclass)[hl].T.astype(betype, order='C')
+            hl = np.squeeze(self.lbl_macro[b_idx][lbl][s_idx:e_idx])
+            one_hot_lbl = np.eye(self.nclass[lbl])[hl].T.astype(betype, order='C')
             self.lbl_be[lbl].copy_from(one_hot_lbl)
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(
-                self.tgt_macro[:, s_idx:e_idx].astype(betype))
+                self.tgt_macro[b_idx][:, s_idx:e_idx].astype(betype))
 
         return self.inp_be, self.tgt_be, self.lbl_be
 
