@@ -19,6 +19,7 @@ from neon.optimizers.adadelta import AdaDelta
 from neon.util.compat import range
 from neon.util.param import req_param, opt_param
 from neon.util.persist import YAMLable
+from neon.transforms.batch_norm import BatchNorm
 from neon.transforms.linear import Linear
 
 logger = logging.getLogger(__name__)
@@ -35,16 +36,24 @@ class Layer(YAMLable):
     def __init__(self, **kwargs):
         self.initialized = False
         self.__dict__.update(kwargs)
+
         req_param(self, ['name'])
 
-        opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype'])
-        opt_param(self, ['weight_dtype', 'updates_dtype'])
+        opt_param(self, ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+                         'weight_dtype', 'updates_dtype'], np.float32)
         opt_param(self, ['prev_layer'])
         opt_param(self, ['activation'], Linear())
 
         opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
         opt_param(self, ['skip_act'], False)
         opt_param(self, ['prev_names'], [])
+
+        opt_param(self, ['backend_type'], 'np.float32')
+        if self.backend_type == 'np.float16':
+            logger.info("Setting layer dtype to float16")
+            for some_type in ['pre_act_dtype', 'output_dtype', 'deltas_dtype',
+                              'weight_dtype', 'updates_dtype']:
+                setattr(self, some_type, np.float16)
 
     def set_previous_layer(self, pl):
         if pl.is_local:
@@ -69,6 +78,7 @@ class Layer(YAMLable):
             return
         self.__dict__.update(kwargs)
         req_param(self, ['backend', 'batch_size'])
+
         self.output = None
         self.deltas = None
         self.initialized = True
@@ -268,8 +278,13 @@ class CostLayer(Layer):
 
     def get_cost(self):
         self.set_reference()
-        result = self.cost.apply_function(self.reference)
-        return self.backend.divide(result, self.batch_size, result)
+        scale_cost = (True if self.backend.__module__ == 'neon.backends.gpu'
+                      else False)
+        result = self.cost.apply_function(self.reference,
+                                          scale_by_batchsize=scale_cost)
+        if not scale_cost:  # Check for fp16 backend and use scaling
+            self.backend.divide(result, self.batch_size, result)
+        return result
 
     def get_reference(self):
         self.set_reference()
@@ -350,7 +365,6 @@ class ImageDataLayer(DataLayer):
 
     def __init__(self, **kwargs):
         super(ImageDataLayer, self).__init__(**kwargs)
-        self.has_labels = True
 
     def fprop(self, inputs):
         self.output, self.targets, self.labels = self.dataset.get_mini_batch(
@@ -442,9 +456,18 @@ class WeightLayer(Layer):
 
     def initialize(self, kwargs):
         super(WeightLayer, self).initialize(kwargs)
-        req_param(self, ['weight_init', 'lrule_init'])
+        req_param(self, ['weight_init', 'lrule_init', 'nin', 'nout'])
         opt_param(self, ['accumulate'], False)
+        opt_param(self, ['batch_norm'], False)
+
         self.weight_init.initialize(self.backend)
+        self.params = []
+        self.updates = []
+
+        if self.batch_norm:
+            self.bn = BatchNorm()
+            kwargs['layer'] = self
+            self.bn.initialize(kwargs)
 
     def allocate_param_bufs(self):
         if self.params_initialized:
@@ -452,6 +475,7 @@ class WeightLayer(Layer):
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,
                                                  self.weight_dtype)
+        self.weights.name = self.name  # naming weights for timing diagnostics
         self.weight_updates = make_ebuf(self.weight_shape, self.updates_dtype)
 
         self.use_biases = 'bias_init' in self.weight_init.__dict__
@@ -460,11 +484,11 @@ class WeightLayer(Layer):
             self.biases = make_ebuf(self.bias_shape, self.weight_dtype)
             self.biases.fill(self.weight_init.bias_init)
             self.bias_updates = make_ebuf(self.bias_shape, self.updates_dtype)
-            self.params = [self.weights, self.biases]
-            self.updates = [self.weight_updates, self.bias_updates]
+            self.params.extend([self.weights, self.biases])
+            self.updates.extend([self.weight_updates, self.bias_updates])
         else:
-            self.params = [self.weights]
-            self.updates = [self.weight_updates]
+            self.params.extend([self.weights])
+            self.updates.extend([self.weight_updates])
 
         if self.accumulate:
             self.utemp = map(lambda x: make_ebuf(x.shape, self.updates_dtype),
@@ -475,8 +499,8 @@ class WeightLayer(Layer):
         self.bias_rule = None
         if self.brule_init is not None and self.use_biases:
             self.bias_rule = self.init_learning_rule(self.brule_init)
-            self.bias_rule.allocate_state([self.bias_updates])
-            self.learning_rule.allocate_state([self.weight_updates])
+            self.bias_rule.allocate_state([self.updates[-1]])
+            self.learning_rule.allocate_state(self.updates[:-1])
         else:
             self.learning_rule.allocate_state(self.updates)
         self.params_initialized = True
@@ -485,10 +509,10 @@ class WeightLayer(Layer):
         if self.bias_rule is None:
             self.learning_rule.apply_rule(self.params, self.updates, epoch)
         else:
-            self.learning_rule.apply_rule([self.weights],
-                                          [self.weight_updates], epoch)
-            self.bias_rule.apply_rule([self.biases],
-                                      [self.bias_updates], epoch)
+            self.learning_rule.apply_rule(self.params[:-1],
+                                          self.updates[:-1], epoch)
+            self.bias_rule.apply_rule([self.params[-1]],
+                                      [self.updates[-1]], epoch)
 
         if self.accumulate:
             for upm in self.updates:
@@ -498,7 +522,12 @@ class WeightLayer(Layer):
         norms = self.backend.norm(wts, order=2, axis=1)
         self.backend.divide(wts, norms.reshape((norms.shape[0], 1)), out=wts)
 
+    def set_train_mode(self, mode):
+        if self.batch_norm and mode is False:
+            self.bn.set_inference_mode()
+
     def init_learning_rule(self, lrule_init):
+        dtype = self.weight_dtype  # TODO: Cool to reuse this here?
         lrname = self.name + '_lr'
         if lrule_init['type'] == 'gradient_descent':
             lr = GradientDescent(name=lrname,
@@ -508,10 +537,12 @@ class WeightLayer(Layer):
                 name=lrname, lr_params=lrule_init['lr_params'])
         elif lrule_init['type'] == 'gradient_descent_momentum':
             lr = GradientDescentMomentum(
-                name=lrname, lr_params=lrule_init['lr_params'])
+                name=lrname, lr_params=lrule_init['lr_params'],
+                param_dtype=dtype, gradient_dtype=dtype)
         elif lrule_init['type'] == 'gradient_descent_momentum_weight_decay':
             lr = GradientDescentMomentumWeightDecay(
-                name=lrname, lr_params=lrule_init['lr_params'])
+                name=lrname, lr_params=lrule_init['lr_params'],
+                param_dtype=dtype, gradient_dtype=dtype)
         elif lrule_init['type'] == 'adadelta':
             lr = AdaDelta(name=lrname, lr_params=lrule_init['lr_params'])
         else:

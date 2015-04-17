@@ -5,7 +5,7 @@
 .. _api:
 
 *************
-API Reference 
+API Reference
 *************
 
 .. _api.functions:
@@ -27,13 +27,21 @@ CPU
 
    neon.backends.cpu.CPU
 
-GPU
----
+Cudanet GPU
+-----------
 
 .. autosummary::
    :toctree: generated/
 
-   neon.backends.gpu.GPU
+   neon.backends.cc2.GPU
+
+Nervana GPU
+-----------
+
+.. autosummary::
+  :toctree: generated/
+
+  neon.backends.gpu.GPU
 
 Flexpoint™
 ----------
@@ -247,6 +255,37 @@ Value Initialization
    neon.params.val_init.NodeNormalizedValGen
 
 
+Metrics
+=======
+
+Misclassification
+-----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.misclass.MisclassSum
+   neon.metrics.misclass.MisclassRate
+   neon.metrics.misclass.MisclassPercentage
+
+ROC
+---
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.roc.AUC
+
+Loss
+----
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.loss.LogLossSum
+   neon.metrics.loss.LogLossMean
+
+
 Transforms
 ==========
 
@@ -320,7 +359,6 @@ ImageNet
    :toctree: generated/
 
    neon.datasets.i1k.I1K
-   neon.datasets.i1knq.I1Knq
 
 Mobydick
 --------

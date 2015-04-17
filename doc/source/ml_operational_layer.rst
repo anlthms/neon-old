@@ -10,10 +10,9 @@
 ML OPerational Layer (MOP) API 
 ******************************
 
-In order to interact with our T101 compiler and driver, we expose the following
-API which we refer to as our ML operational layer (aka MOP layer). It currently
-consists of the functions defined in the following two interface classes, which
-we detail further on the rest of this page:
+We expose the following API which we refer to as our ML operational layer (aka
+MOP layer). It currently consists of the functions defined in the following two
+interface classes, which we detail further on the rest of this page:
 
 .. autosummary::
    :toctree: generated/
@@ -121,6 +120,7 @@ Summarization Operation Support
    neon.backends.backend.Backend.argmin
    neon.backends.backend.Backend.argmax
    neon.backends.backend.Backend.norm
+   neon.backends.backend.Backend.variance
 
 Initialization and Setup
 ========================
@@ -176,6 +176,7 @@ v0.8.0
 ======
 
 * rename axes parameter to axis in summarization operations (planned)
+* new function variance to compute the variance.
 
 v0.7.0
 ======

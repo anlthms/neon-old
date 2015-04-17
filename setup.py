@@ -62,13 +62,14 @@ class NeonCommand(Command):
                                                    '>=0.2.8',
                                                    'scikit-learn>=0.15.2',
                                                    'matplotlib>=1.4.0',
-                                                   'imgworker>=0.2.1']
+                                                   'imgworker>=0.2.3']
             self.distribution.dependency_links += ['git+http://gitlab.'
                                                    'localdomain/algorithms/'
                                                    'imgworker.git#'
                                                    'egg=imgworker']
         if self.gpu == "1":
-            self.distribution.install_requires += ['cudanet>=0.2.5']
+            self.distribution.install_requires += ['cudanet>=0.2.5',
+                                                   'pycuda>=2014.1']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'

@@ -35,11 +35,9 @@ class FitPredictErrorExperiment(FitExperiment):
     """
     def __init__(self, **kwargs):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
-        opt_param(self, ['inference_sets'], [])
-        opt_param(self, ['inference_metrics'], [])
-        if len(self.inference_metrics) != 0 and len(self.inference_sets) == 0:
-            raise AttributeError('inference_metrics specified without '
-                                 'inference_sets')
+        opt_param(self, ['diagnostics'], {'timing': False, 'ranges': False})
+        opt_param(self, ['metrics'], {})
+        opt_param(self, ['predictions'], {})
 
     def initialize(self, backend):
         if self.live:
@@ -54,16 +52,35 @@ class FitPredictErrorExperiment(FitExperiment):
         out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
         if hasattr(dataset, 'save_dir'):
             out_dir = dataset.save_dir
+        out_dir = os.path.expandvars(os.path.expanduser(out_dir))
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-
         filename = os.path.join(out_dir, '{}-{}.pkl'.format(setname, dataname))
         serialize(data.asnumpyarray().T, filename)
 
     def run(self):
         """
         Actually carry out each of the experiment steps.
+
+        Returns:
+            dict: of inference_metric names, each entry of which is a dict
+                  containing inference_set name keys, and actual metric values
         """
+        result = dict()
+        # if the experiment includes timing diagnostics, decorate backend
+        if self.diagnostics['timing']:
+            self.backend.flop_timing_init(self.diagnostics['decorate_fc'],
+                                          self.diagnostics['decorate_conv'],
+                                          self.diagnostics['decorate_ew'])
+            self.model.timing_plots = True
+
+        # if the experiment includes parameter statistics
+        if self.diagnostics['ranges']:
+            from neon.diagnostics import ranges_decorators
+            rd = ranges_decorators.Decorators(backend=self.backend,
+                                              verbosity=self.
+                                              diagnostics['verbosity'])
+            rd.decorate(function_list=self.diagnostics)
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
@@ -71,17 +88,52 @@ class FitPredictErrorExperiment(FitExperiment):
             self.predict_live()
             return
 
-        self.model.predict_and_report(self.dataset)
-        # Report error metrics.
-        for setname in self.inference_sets:
+        # switch to inference mode
+        self.model.set_train_mode(False)
+
+        # Generate and save predictions
+        for pred_set in self.predictions:
+            if not self.dataset.has_set(pred_set):
+                logger.warning("Unable to generate '%s' predictions, no "
+                               "equivalent dataset partition" % pred_set)
+                continue
             outputs, targets = self.model.predict_fullset(self.dataset,
-                                                          setname)
-            self.save_results(self.dataset, setname, outputs, 'inference')
-            self.save_results(self.dataset, setname, targets, 'targets')
-            for metric in self.inference_metrics:
-                val = self.model.report(targets, outputs, metric=metric)
-                logger.info('%s set %s %.5f', setname, metric, val)
+                                                          pred_set)
+            self.save_results(self.dataset, pred_set, outputs, 'inference')
+            # update any metrics for this set while we have this info
+            if pred_set in self.metrics:
+                for m in self.metrics[pred_set]:
+                    m.add(targets, outputs)
+
+        # Report error metrics.
+        for metric_set in self.metrics:
+            if not self.dataset.has_set(metric_set):
+                logger.warning("Unable to generate '%s' metrics, no "
+                               "equivalent dataset partition" % metric_set)
+                continue
+            if metric_set not in result:
+                result[metric_set] = dict()
+            if metric_set not in self.predictions:
+                outputs, targets = self.model.predict_fullset(self.dataset,
+                                                              metric_set)
+                for m in self.metrics[metric_set]:
+                    m.add(targets, outputs)
+            for m in self.metrics[metric_set]:
+                metric_name = str(m)
+                logger.info('%s set %s %.5f', metric_set, metric_name,
+                            m.report())
+                result[metric_set][metric_name] = m.report()
+
+        # visualization (if so requested)
+        if self.diagnostics['timing']:
+            from neon.diagnostics import timing_plots as tp
+            tp.print_performance_stats(self.backend, logger)
+        if self.diagnostics['ranges']:
+            from neon.diagnostics import ranges_plots as rp
+            rp.print_param_stats(self.backend, logger,
+                                 self.diagnostics['prefix'])
         self.dataset.unload()
+        return result
 
     def predict_live(self):
         self.model.predict_live_init(self.dataset)

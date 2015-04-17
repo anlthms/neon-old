@@ -5,7 +5,7 @@ Our in-house developed python machine learning library.
     # get the latest source
     git clone https://github.com/NervanaSystems/neon.git
     cd neon
-    
+
     # build the package, install in your python package path via either:
     make install  # sudo make install
     # or:
@@ -14,7 +14,7 @@ Our in-house developed python machine learning library.
     # run the included command line executable to start launching your
     # experiments
     neon --help
-    
+
 
 ### Required Dependencies ###
 We strive to have as few of these as possible
@@ -32,7 +32,11 @@ These provide additional functionality, and assist developers
     name checking
 * [Nervana cuda-convnet2](http://github.com/NervanaSystems/cuda-convnet2/)
   our updated fork of [cuda-convnet2](https://code.google.com/p/cuda-convnet2/)
-  that powers our GPU backend.
+  that powers the cudanet GPU backend.
+* [nervanagpu](http://github.com/NervanaSystems/nervanagpu/) our in-house
+  developed fp16/fp32 Maxwell GPU backend.
+* [pycuda](http://mathema.tician.de/software/pycuda/) required for our
+  nervanagpu backend
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
 * [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
   calculations
@@ -52,23 +56,18 @@ These provide additional functionality, and assist developers
 
     # for GPU based runs, you need to have a CUDA capable GPU card installed
     # then run:
-    neon --gpu examples/mlp/mnist-small.yaml
+    neon --gpu cudanet examples/mlp/mnist-small.yaml
+    # to run on the cuda-convnet2 backend (fp32 precision, supports Kepler) or
+    neon --gpu nervanagpu examples/mlp/mnist-small.yaml
+    # to run on the nervanagpu backend (supports fp16 and fp32)
 
     # For MPI based parallel distributed implementations (single machine):
-    # mpirun -n <num_processes> -x <environment_vars> neon -p [-m] <path_to.yaml>
-    # ex: 4 process data parallel cnn example from top-level neon dir:
-    mpirun -n 4 -x PYTHONPATH bin/neon --datapar \
-           examples/convnet/mnist-small.yaml
+    # mpirun -n <num_processes> [-x <environment_vars>] neon -p [-m] <path_to.yaml>
+    # ex: 4 process data parallel cnn example:
+    mpirun -n 4 neon --datapar examples/convnet/mnist-small.yaml
 
     # ex: 2 process model parallel cnn example:
-    mpirun -n 2 -x PYTHONPATH bin/neon --modelpar \
-           examples/convnet/mnist-small.yaml
-
-    # In multi-machine MPI environments need hosts file, and full paths should
-    # be used:
-    /<full_path_to_mpirun>/mpirun -n 4 -x LD_LIBRARY_PATH -hostfile hosts \
-        /<full_path_to_neon>/neon --datapar \
-        /<full_path_to_examples>/convnet/mnist-small.yaml
+    mpirun -n 2 neon --modelpar examples/convnet/mnist-small.yaml
 
 See docs for full details.
 
@@ -92,10 +91,10 @@ See docs for full details.
 
 ## Documentation ##
 * [Main Source](http://framework.nervanasys.com/docs/latest)
-* [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_neon.html)
+* [Developer Guide](http://framework.nervanasys.com/docs/latest/developing_framework.html)
 * [API](http://framework.nervanasys.com/docs/latest/api.html)
-* [How to add a model](https://sites.google.com/a/nervanasys.com/wiki/algorithms/neon/how-to-write-a-mylearn-model)
-* [Architecture](https://framework.nervanasys.com/docs/latest/developing_neon.html#architecture)
+* [Extending the Framework](http://framework.nervanasys.com/docs/latest/developing_framework.html#extending-the-framework)
+* [Architecture](https://framework.nervanasys.com/docs/latest/developing_framework.html#architecture)
 * [Style and Coding conventions - Google style guide](http://google-styleguide.googlecode.com/svn/trunk/pyguide.html)
    * [Docstring Format - Google style](http://sphinx-doc.org/latest/ext/example_google.html#example-google)
 

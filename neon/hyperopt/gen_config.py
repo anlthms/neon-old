@@ -9,23 +9,25 @@ Script for generating the PB file for Spearmint:
 """
 
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def write_pb(input_file, pb_file):
     # go thorugh the hyperyaml line by line, read out values and write to pb
-    scipt_name = 'neon.hyperopt.spear_wrapper'  # script spearmint should call
-    supported_expt_bool = False  # hyperyaml specifies supported experiment
+    scipt_name = 'neon.hyperopt.gen_yaml_and_run'  # script spearmint calls
+    has_hyperopt = False  # hyperyaml specifies supported experiment
     with open(input_file, 'r') as fin:
         with open(pb_file, 'w') as fout:
             fout.write('language: PYTHON \nname: "' + scipt_name + '"\n\n')
             for inline in fin:
-                if 'hyperopt' in inline:
+                if '!hyperopt' in inline:
                     ho_dict = parse_line(inline)
                     outline = write_block(ho_dict)
                     fout.write(outline)
-                if 'WriteErrorToFile' in inline:
-                    supported_expt_bool = True
-    return supported_expt_bool
+                    has_hyperopt = True
+    return has_hyperopt
 
 
 def parse_line(line):
@@ -40,8 +42,9 @@ def parse_line(line):
     elif (ho_dict['type'] == 'INT'):
         ho_dict['start'] = int(dic[4])
         ho_dict['end'] = int(dic[5])
+    elif (ho_dict['type'] == 'ENUM'):
+        ho_dict['string'] = dic[4]
     else:
-        print "got ho_dict['type']", ho_dict['type']
         raise AttributeError("Supported types are FLOAT, INT, ENUM")
         # todo: Spearmint supports ENUM but we are not handling it yet.
     return ho_dict
@@ -49,24 +52,29 @@ def parse_line(line):
 
 def write_block(ho_dict):
     # generate a block for the protobuf file from the hyperopt parameters
-    outline = """variable {
-    name: \""""+ho_dict['name']+"""\"
-    type: """+ho_dict['type']+"""
-    size: 1
-    min:  """+str(ho_dict['start'])+"""
-    max:  """+str(ho_dict['end'])+"""
-    }\n\n"""
-    return outline
+    if ho_dict['type'] in ('FLOAT', 'INT'):
+        outline = """variable {
+        name: \""""+ho_dict['name']+"""\"
+        type: """+ho_dict['type']+"""
+        size: 1
+        min:  """+str(ho_dict['start'])+"""
+        max:  """+str(ho_dict['end'])+"""
+        }\n\n"""
+        return outline
+    elif ho_dict['type'] == 'ENUM':
+        raise NotImplementedError("ENUM parameters currently not supported")
+    else:
+        raise AttributeError("hyperparameter type not understood")
 
 
-def main():
+def main(hyperopt_dir):
     # point of code entry
-    hyperroot = os.path.dirname(os.path.realpath(__file__))
-    in_file = os.path.join(hyperroot, 'expt/hyperyaml.yaml')
-    pb_file = os.path.join(hyperroot, 'expt/spear_config.pb')
+    in_file = os.path.join(hyperopt_dir, 'hyperyaml.yaml')
+    pb_file = os.path.join(hyperopt_dir, 'spear_config.pb')
 
     success = write_pb(in_file, pb_file)
     if success:
-        print "Done writing hyper ranges from ", in_file, "to", pb_file
+        print("Hyperparamter ranges written from %s to %s"
+              % (in_file, pb_file))
     else:
-        raise AttributeError("Wrong experiment type, does not return result")
+        raise AttributeError("No hyperopt ranges found in yaml.")

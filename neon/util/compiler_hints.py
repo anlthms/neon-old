@@ -112,8 +112,8 @@ def inject_compiler_hints():
                     end_str = "self.end()"
                     # cheap hack to skip Tensor classes as they appear first in
                     # these files.
-                    start_idx = new_content.find("class " + fname[0:3].upper()
-                                                 + "(")
+                    start_idx = new_content.find("class " +
+                                                 fname[0:3].upper() + "(")
                 for indent_level in [6, 5, 4, 3, 2]:
                     for loop_str in ["while ", "for "]:
                         idx = new_content.find('\n' + indent_level * indent +
@@ -125,8 +125,8 @@ def inject_compiler_hints():
                             # found the start of a loop, inject begin at start
                             # of next line unless already present
                             idx = new_content.find('\n', idx + 1) + 1
-                            if (new_content[idx:idx + ws_len + len(beg_str)]
-                                    != (ws + beg_str)):
+                            if (new_content[idx:idx + ws_len + len(beg_str)] !=
+                                    (ws + beg_str)):
                                 new_content = (new_content[:idx] + ws +
                                                beg_str + '\n' +
                                                new_content[idx:])
@@ -156,8 +156,8 @@ def inject_compiler_hints():
                             else:
                                 # ensure we advance past the current loop
                                 idx += ws_len + len(beg_str)
-                            idx = new_content.find('\n' + indent_level * indent
-                                                   + loop_str, idx)
+                            idx = new_content.find('\n' + indent_level *
+                                                   indent + loop_str, idx)
                 if new_content != content:
                     file_handle.seek(0)
                     file_handle.truncate()

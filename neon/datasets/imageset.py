@@ -2,18 +2,17 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-
+Generic image-like dataset able to be processed in macro batches.
 """
 
 import logging
 import numpy as np
 import os
+import sys
+
 from neon.datasets.dataset import Dataset
-from neon.util.batch_writer import BatchWriter, BatchWriterImagenet
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
-import sys
-import imgworker
 
 
 logger = logging.getLogger(__name__)
@@ -48,9 +47,17 @@ class Imageset(Dataset):
         opt_param(self, ['num_channels'], 3)
 
         opt_param(self, ['num_workers'], 6)
-        opt_param(self, ['backend_type'], np.float32)
+        opt_param(self, ['backend_type'], 'np.float32')
 
         self.__dict__.update(kwargs)
+
+        if self.backend_type in ['float16', 'np.float16', 'numpy.float16']:
+            self.backend_type = np.float16
+        elif self.backend_type in ['float32', 'np.float32', 'numpy.float32']:
+            self.backend_type = np.float32
+        else:
+            raise ValueError('Datatype not understood')
+        logger.warning("Imageset initialized with dtype %s", self.backend_type)
         req_param(self, ['cropped_image_size', 'output_image_size',
                          'imageset', 'save_dir', 'repo_path', 'macro_size'])
 
@@ -64,18 +71,21 @@ class Imageset(Dataset):
         bdir = os.path.expanduser(self.save_dir)
         cachefile = os.path.join(bdir, 'dataset_cache.pkl')
         if not os.path.exists(cachefile):
-            logger.info("Batch dir cache not found in %s:", cachefile)
+            logger.warning("Batch dir cache not found in %s:", cachefile)
             # response = 'Y'
             response = raw_input("Press Y to create, otherwise exit: ")
             if response == 'Y':
+                from neon.util.batch_writer import (BatchWriter,
+                                                    BatchWriterImagenet)
+
                 if self.imageset.startswith('I1K'):
                     self.bw = BatchWriterImagenet(**self.__dict__)
                 else:
                     self.bw = BatchWriter(**self.__dict__)
                 self.bw.run()
-                logger.info('Done writing batches -- please rerun to train.')
+                logger.warning('Done writing batches - please rerun to train.')
             else:
-                logger.info('Exiting...')
+                logger.warning('Exiting...')
             sys.exit()
         cstats = deserialize(cachefile, verbose=False)
         if cstats['macro_size'] != self.macro_size:
@@ -117,7 +127,7 @@ class Imageset(Dataset):
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
-        self.mean_be = sbe((self.npixels, 1))
+        self.mean_be = sbe((self.npixels, 1), dtype=betype)
         self.mean_be.copy_from(self.mean_crop.reshape(
             (self.npixels, 1)).astype(np.float32))
 
@@ -138,7 +148,7 @@ class Imageset(Dataset):
         self.inp_be = sbe(inp_shape, dtype=betype)
 
         # Allocate space for device side labels
-        lbl_shape = (1, self.batch_size)
+        lbl_shape = (self.nclass, self.batch_size)
         self.lbl_be = {lbl: sbe(lbl_shape, dtype=betype)
                        for lbl in self.label_list}
 
@@ -149,6 +159,8 @@ class Imageset(Dataset):
         return num_batches
 
     def get_mini_batch(self, batch_idx):
+        import imgworker
+
         # batch_idx is ignored
         betype = self.backend_type
         bsz = self.batch_size
@@ -187,8 +199,9 @@ class Imageset(Dataset):
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
-            self.lbl_be[lbl].copy_from(
-                self.lbl_macro[lbl][np.newaxis, s_idx:e_idx].astype(betype))
+            hl = np.squeeze(self.lbl_macro[lbl][s_idx:e_idx])
+            one_hot_lbl = np.eye(self.nclass)[hl].T.astype(betype, order='C')
+            self.lbl_be[lbl].copy_from(one_hot_lbl)
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(

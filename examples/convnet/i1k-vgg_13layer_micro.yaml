@@ -20,6 +20,17 @@
     nval: 4,
   },
 
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+    validation: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+  },
+
   weight_inits: [
     &wt_init0 !obj:params.GaussianValGen {
       scale: .01,
@@ -240,14 +251,14 @@
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
-        nout: *mtf,
+        nout: 1000,
         activation: !obj:transforms.Softmax {},
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
         ref_label: 'labels',
-        raw_label: True,
+        raw_label: False,
         cost: !obj:transforms.CrossEntropy {},
       },
     ],

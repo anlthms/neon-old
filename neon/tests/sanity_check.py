@@ -29,9 +29,9 @@ def sanity_check(conf_file, result, **be_args):
     experiment = deserialize(os.path.join(dir, conf_file))
     backend = gen_backend(model=experiment.model, **be_args)
     experiment.initialize(backend)
-    experiment.run()
-    print(float(experiment.model.result))
-    assert float(experiment.model.result) == result
+    res = experiment.run()
+    print(float(res['test']['MisclassRate_TOP_1']))
+    assert float(res['test']['MisclassRate_TOP_1']) == result
 
 
 if __name__ == '__main__':
@@ -49,7 +49,9 @@ if __name__ == '__main__':
     for be in ["cpu", "gpu", "datapar"]:
         be_args = {'rng_seed': 0}
         if args.__dict__[be] == 1:
-            if be != "cpu":
+            if be == "gpu":
+                be_args[be] = "cudanet"
+            elif be == "datapar":
                 be_args[be] = 1
             print('{} check '.format(be)),
             if be == "datapar":

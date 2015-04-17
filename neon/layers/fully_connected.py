@@ -8,7 +8,7 @@ backend.
 
 import logging
 from neon.layers.layer import WeightLayer
-from neon.util.param import req_param, opt_param
+from neon.util.param import opt_param
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,6 @@ class FCLayer(WeightLayer):
     """
     def initialize(self, kwargs):
         super(FCLayer, self).initialize(kwargs)
-        req_param(self, ['nin', 'nout'])
         self.bias_shape = (self.nout, 1)
 
         self.allocate_output_bufs()
@@ -37,6 +36,8 @@ class FCLayer(WeightLayer):
                               weights=self.weights, layer=self)
         if self.use_biases is True:
             self.backend.add(self.pre_act, self.biases, out=self.pre_act)
+        if self.batch_norm:
+            self.bn.fprop_func(self.backend, self.pre_act, self.pre_act)
         self.activation.fprop_func(self.backend, self.pre_act, self.output)
 
     def bprop(self, error):
@@ -44,18 +45,25 @@ class FCLayer(WeightLayer):
         self.activation.bprop_func(self.backend, self.pre_act, error,
                                    self.skip_act)
 
+        upm = self.utemp if self.accumulate else self.updates
+        u_idx = 0
+        if self.batch_norm:
+            self.bn.bprop_func(self.backend, self.pre_act, error,
+                               self.skip_act)
+            u_idx = 2
+
         if self.deltas is not None:
             self.backend.bprop_fc(out=self.deltas, weights=self.weights,
                                   deltas=error, layer=self)
-
-        upm = self.utemp if self.accumulate else self.updates
-
-        self.backend.update_fc(out=upm[0], inputs=inputs,
+        self.backend.update_fc(out=upm[u_idx], inputs=inputs,
                                deltas=error, layer=self)
+
         if self.use_biases is True:
-            self.backend.sum(error, axes=1, out=upm[1])
+            self.backend.sum(error, axes=1, out=upm[u_idx+1])
 
         if self.accumulate:
-            self.backend.add(upm[0], self.updates[0], out=self.updates[0])
+            self.backend.add(upm[u_idx], self.updates[u_idx],
+                             out=self.updates[u_idx])
             if self.use_biases is True:
-                self.backend.add(upm[1], self.updates[1], out=self.updates[1])
+                self.backend.add(upm[u_idx+1], self.updates[u_idx+1],
+                                 out=self.updates[u_idx+1])

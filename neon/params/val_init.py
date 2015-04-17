@@ -126,7 +126,7 @@ class AutoUniformValGen(UniformValGen):
         else:
             self.low = - 1.0 / math.sqrt(shape[-1])
         if self.relu:
-            self.low *= math.sqrt(2)
+            self.low *= math.sqrt(2) ** self.relu
         self.high = - self.low
         return super(AutoUniformValGen, self).generate(shape, dtype)
 
@@ -291,6 +291,4 @@ class OrthoNormalizedValGen(ValGen):
         q.shape = oi_shape
         if self.relu:
             q *= math.sqrt(2)
-        if self.islocal:
-            q = q.T.copy()
         return self.backend.array(q, dtype)

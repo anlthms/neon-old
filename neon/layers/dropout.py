@@ -31,7 +31,8 @@ class DropOutLayer(Layer):
     def initialize(self, kwargs):
         opt_param(self, ['keep'], 0.5)
         super(DropOutLayer, self).initialize(kwargs)
-        self.keepmask = self.backend.empty((self.nin, self.batch_size))
+        self.keepmask = self.backend.empty((self.nin, self.batch_size),
+                                           dtype=self.weight_dtype)
         self.train_mode = True
         self.allocate_output_bufs()
 
@@ -45,8 +46,7 @@ class DropOutLayer(Layer):
 
     def fprop(self, inputs):
         if (self.train_mode):
-            self.backend.fill_uniform_thresh(self.keepmask, self.keep)
-            self.backend.multiply(self.keepmask, self.keep, out=self.keepmask)
+            self.backend.make_binary_mask(self.keepmask, self.keep)
             self.backend.multiply(inputs, self.keepmask, out=self.output)
         else:
             self.backend.multiply(inputs, self.keep, out=self.output)

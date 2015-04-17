@@ -3,6 +3,8 @@
 import os
 import sys
 
+from neon import __version__ as neon_version
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -61,7 +63,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'neon'
+project = u'Nervana Framework'
 copyright = u'2014, Nervana Systems Inc.'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -69,8 +71,7 @@ copyright = u'2014, Nervana Systems Inc.'
 # built documents.
 #
 # The short X.Y version.
-import neon
-version = '%s' % (neon.__version__)
+version = '%s' % (neon_version)
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -214,7 +215,8 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [('index', 'neon.tex', u'neon Documentation',
+latex_documents = [('index', 'nervana_framework.tex',
+                    u'Nervana Framework Documentation',
                     u'Nervana Systems Inc.', 'manual'), ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -243,7 +245,7 @@ latex_documents = [('index', 'neon.tex', u'neon Documentation',
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'neon', u'neon Documentation',
+    ('index', 'neon', u'Nervana Framework Documentation',
      [u'Nervana Systems Inc.'], 1)
 ]
 
@@ -256,7 +258,7 @@ man_pages = [
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
-texinfo_documents = [('index', 'neon', u'neon Documentation',
+texinfo_documents = [('index', 'neon', u'Nervana Framework Documentation',
                       u'Nervana Systems Inc.', 'neon',
                       'One line description of project.', 'Miscellaneous'), ]
 

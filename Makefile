@@ -56,7 +56,8 @@ ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5'
+    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5' \
+		'pycuda>=2014.1'
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -75,21 +76,25 @@ build: clean_pyc
 	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
 		build_ext --inplace
 
-develop: clean_pyc .git/hooks/pre-commit
-	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
-	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
-		develop
-
 # unfortunately there is no way to communicate custom commands into pip
 # install, hence having to specify installation requirements twice (once
 # above, and once inside setup.py). Ugly kludge, but seems like the only way
 # to support python setup.py install and pip install.
 # Since numpy is required for building some of the other dependent packages
 # we need to separately install it first
-install: clean_pyc
-	@echo "Running install..."
+deps_install: clean_pyc
 	@pip install 'numpy>=1.8.1' 'PyYAML>=3.11'
-	@pip install $(INSTALL_REQUIRES) .
+ifdef INSTALL_REQUIRES
+	@pip install $(INSTALL_REQUIRES)
+endif
+
+develop: clean_pyc deps_install .git/hooks/pre-commit
+	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@pip install -e .
+
+install: clean_pyc deps_install
+	@echo "Running install(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
+	@pip install .
 
 uninstall:
 	@echo "Running uninstall..."
@@ -122,7 +127,7 @@ ifeq ($(CPU), 1)
 endif
 ifeq ($(GPU), 1)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu \
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu cudanet \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
 

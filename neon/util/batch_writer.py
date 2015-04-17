@@ -1,21 +1,28 @@
+# ----------------------------------------------------------------------------
+# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# ----------------------------------------------------------------------------
+"""
+Process macro batches of data in a pipelined fashion.
+"""
+
 import logging
 
 import argparse as argp
 import functools
+from glob import glob
 import gzip
 import imgworker
+from multiprocessing import Pool
 import numpy as np
 import os
 import sys
 import tarfile
+from time import time
 import yaml
-from glob import glob
-from multiprocessing import Pool
+
 from neon.util.compat import range, StringIO
 from neon.util.param import opt_param
 from neon.util.persist import serialize
-from time import time
-
 
 TARGET_SIZE = None
 SQUARE_CROP = True
@@ -233,9 +240,9 @@ class BatchWriterImagenet(BatchWriter):
         self.url = "http://www.image-net.org/download-imageurls"
         for infile in (train_tar, validation_tar, devkit_tar):
             if not os.path.exists(infile):
-                raise IOError("%s not found.  Please ensure you have"
-                              "ImageNet downloaded.  More info here: %s",
-                              infile, self.url)
+                raise IOError(infile + " not found. Please ensure you have"
+                              "ImageNet downloaded. More info here: " +
+                              self.url)
         labels_dict, label_names, val_labels = self.parse_dev_meta(devkit_tar)
         self.labels_dict = labels_dict
         np.random.seed(0)

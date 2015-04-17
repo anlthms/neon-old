@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class CPUTensor(Tensor):
-
     """
     Our basic n-dimensional array data structure that resides in host memory,
     and is meant to be manipulated on the CPU.  wrapped `numpy.ndarray` tensor.
@@ -383,6 +382,11 @@ class CPU(Backend):
             np.random.uniform(size=a._tensor.shape) < keepthresh,
             dtype=a._tensor.dtype)
         a._tensor[:] = a._tensor[:] / keepthresh
+
+    def make_binary_mask(self, tsr, keepthresh=0.5, dtype=None):
+        tsr._tensor[:] = np.array(
+            np.random.uniform(size=tsr._tensor.shape) < keepthresh,
+            dtype=tsr._tensor.dtype)
 
     def normal(self, loc=0.0, scale=1.0, size=1, dtype=None):
         """
@@ -765,6 +769,26 @@ class CPU(Backend):
             CPUTensor: reference to out
         """
         np.mean(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
+        return out
+
+    def variance(self, tsr, axes, out, mean=None):
+        """
+        Calculates the sample variance of the elements along the specified
+        axes.
+
+        Arguments:
+            tsr (CPUTensor): the Tensor on which to compute the variance
+            axes (int, list, optional): the dimension(s) along which to
+                                        variance.  If set to None, we will
+                                        variance over all dimensions.
+            out (CPUTensor): where the result will be stored.
+            mean (CPUTensor, optional): The Tensor containing mean of tsr.
+                                        Value currently ignored if specified.
+
+        Returns:
+            CPUTensor: reference to out
+        """
+        np.var(tsr._tensor, axis=axes, out=out._tensor, keepdims=True)
         return out
 
     def min(self, tsr, axes, out):
@@ -1508,56 +1532,6 @@ class CPU(Backend):
 
         # Final update to the params
         self.add(ps_item, ls_item, out=ps_item)
-
-    def logloss_and_misclass(self, reference, probs, labellogprob, top1correct,
-                             topkcorrect, topk):
-        """
-        Compute the accumulated logloss and number of top1 and topk errors.
-
-        Arguments:
-            reference (CPUTensor): The true labels ( 1 x num_samples)
-            probs (CPUTensor): The normalized output ( num_class x num_samples)
-                               The row-wise sum for each column should be 1.
-                               Each column represents a sample and the
-                               values in the column represent the probability
-                               of that class being the correct one as
-                               hypothesized by the model.
-            labellogprob (CPUTensor): (OUTPUT) the logprob of the true
-                                      label for each column.
-                                      (1 x num_samples)
-            top1correct (CPUTensor): (OUTPUT) whether the true label occurs
-                                     as the top1 prob
-                                     (1 x num_samples)
-            topkcorrect (CPUTensor): (OUTPUT) whether the true label occurs
-                                     as one of the topk probs
-                                     (1 x num_samples)
-            topk (int): Parameter determining which of the top k to use for
-                        determining topkcorrect
-
-        Returns:
-            tuple: 3 python scalars/arrays (not CPUTensors) containing the
-                   logloss, top1 misclassification rate, topk misclassification
-                   rate
-        """
-        ns = reference.shape[1]
-        labels = np.array(reference._tensor, dtype=np.int32)
-        labellogprob._tensor[:] = np.log(probs._tensor[labels, range(ns)])
-        logloss = labellogprob._tensor.sum()
-
-        # Compute the top1 and topk misclass in one go
-        topkcorrect._tensor[:] = probs._tensor.argpartition(labels, axis=0)
-        self.equal(topkcorrect, labels, topkcorrect)
-        self.argmax(topkcorrect, axis=0, out=topkcorrect)
-        self.multiply(topkcorrect, -1.0, out=topkcorrect)
-        self.add(topkcorrect, ns, out=topkcorrect)
-
-        # topkcorrect now has the rank of correct label (1 is best)
-        self.equal(topkcorrect, 1, out=top1correct)
-        top1misclass = ns - top1correct._tensor.sum()
-        self.less_equal(topkcorrect, topk, topkcorrect)
-        topkmisclass = ns - topkcorrect._tensor.sum()
-
-        return (logloss, top1misclass, topkmisclass)
 
     def set_weights(self, dev_weights, host_weights):
         """

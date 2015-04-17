@@ -4,7 +4,33 @@
 # Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
 
+# new pf16 test file based on Alex's new nq dataset and nodewt initialization
+
+
 !obj:experiments.FitPredictErrorExperiment {
+
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+    validation: [
+      !obj:metrics.MisclassPercentage {error_rank: 1},
+      !obj:metrics.MisclassPercentage {error_rank: 5},
+    ],
+  },
+
+  diagnostics: {
+    timing: False,
+    decorate_fc: [fprop_fc, bprop_fc, update_fc],
+    decorate_conv: [fprop_conv, bprop_conv, update_conv],
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+
+    ranges: False,
+    verbosity: silent,
+    prefix: fp16force_noassym,
+    decorate_ranges: [gdm_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+  },
 
   dataset: &ds !obj:datasets.Imageset {
     repo_path: '~/data',
@@ -15,24 +41,22 @@
     cropped_image_size: &cis 224,
     macro_size: 3072,
     num_channels: 3,
+    num_workers: 12,
+    nclass: 1000,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
+    #nval: 1,
+    backend_type: &bt np.float32,
   },
 
   weight_inits: [
-    &wt_init0 !obj:params.GaussianValGen {
-      scale: .01,
-      bias_init: 0.0,
-    },
-    &wt_init1 !obj:params.GaussianValGen {
-      scale: .01,
-      bias_init: 0.1,
-    },
+    # Init for the two FC layers
     &wt_init_fc !obj:params.AutoUniformValGen {
       relu: True,
       bias_init: 1.0,
     },
+    # used for lastlayer
     &wt_initout !obj:params.AutoUniformValGen {
       relu: True,
       bias_init: -7.0,
@@ -41,6 +65,7 @@
 
   lrule: &gdm {
     type: gradient_descent_momentum,
+    backend_type: *bt,
     lr_params: {
       learning_rate: 0.02,
       schedule: {
@@ -72,19 +97,14 @@
     },
   },
 
-  lrule: &ada {
-    type: adadelta,
-    lr_params: {
-      rho: &ro 0.95,
-      epsilon: &eps 0.0000001,
-    },
-  },
 
   model: !obj:models.MLP {
-    num_epochs: 60,
+    backend_type: *bt,
+    batch_norm: &bn False,
+    num_epochs: 60, # 1 or 10 or 60
     batch_size: &bs 128,
     step_print: 24,
-    serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
+    #serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl', # will crash
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,
@@ -94,10 +114,13 @@
       },
       !obj:layers.ConvLayer {
         name: conv1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
-          scale: .01,
+          relu: True,
+          islocal: True,
           bias_init: 0.0,
         },
         nofm: 64,
@@ -114,12 +137,15 @@
       # },
       !obj:layers.PoolingLayer {
         name: pool1,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -140,12 +166,15 @@
       # },
       !obj:layers.PoolingLayer {
         name: pool2,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv3,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -160,6 +189,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv4,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -174,6 +205,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv5,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: !obj:params.AutoUniformValGen {
@@ -188,12 +221,15 @@
       },
       !obj:layers.PoolingLayer {
         name: pool3,
+        backend_type: *bt,
         op: 'max',
         fshape: [3, 3],
         stride: 2,
       },
       !obj:layers.FCLayer {
         name: fc4096a,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
@@ -202,10 +238,13 @@
       },
       !obj:layers.DropOutLayer {
         name: dropout1,
+        backend_type: *bt,
         keep: 0.5,
       },
       !obj:layers.FCLayer {
         name: fc4096b,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
@@ -214,22 +253,28 @@
       },
       !obj:layers.DropOutLayer {
         name: dropout2,
+        backend_type: *bt,
         keep: 0.5,
       },
       &lastlayer !obj:layers.FCLayer {
         name: fc1000,
+        backend_type: *bt,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_initout,
         nout: 1000,
-        activation: !obj:transforms.Softmax {},
+        activation: !obj:transforms.Softmax  {},
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
         ref_label: 'labels',
-        raw_label: True,
-        cost: !obj:transforms.CrossEntropy {},
+        raw_label: False, # Default is False
+        cost: !obj:transforms.CrossEntropy {
+          backend_type: *bt,
+          epsilon: 0.0005,
+          scale: 1,
+        },
       },
     ],
   },
