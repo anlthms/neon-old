@@ -24,12 +24,14 @@
     timing: False,
     decorate_fc: [fprop_fc, bprop_fc, update_fc],
     decorate_conv: [fprop_conv, bprop_conv, update_conv],
-    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal, clip, log, argmax],
+    decorate_ew: [rectlin, add, subtract, multiply, divide, greater, not_equal,
+                  clip, log, argmax],
 
     ranges: False,
     verbosity: silent,
     prefix: fp16force_noassym,
-    decorate_ranges: [gdm_compound, fprop_fc, bprop_fc, update_fc, fprop_conv, bprop_conv, update_conv],
+    decorate_ranges: [gdm_compound, fprop_fc, bprop_fc, update_fc, fprop_conv,
+                      bprop_conv, update_conv],
   },
 
   dataset: &ds !obj:datasets.Imageset {
