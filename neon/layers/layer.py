@@ -356,7 +356,6 @@ class ImageDataLayer(DataLayer):
 
     def __init__(self, **kwargs):
         super(ImageDataLayer, self).__init__(**kwargs)
-        self.has_labels = True
 
     def fprop(self, inputs):
         self.output, self.targets, self.labels = self.dataset.get_mini_batch(
