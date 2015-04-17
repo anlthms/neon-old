@@ -536,3 +536,4 @@ class WeightLayer(Layer):
             raise AttributeError("invalid learning rule params specified")
         lr.initialize(self.backend)
         return lr
+
