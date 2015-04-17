@@ -60,11 +60,13 @@ class MacrobatchDecodeThread(Thread):
         # Leave behind the partial minibatch
         self.ds.minis_per_macro = mac_sz / bsz
 
-        empty_minibatch = [None for mini_idx in range(self.ds.minis_per_macro)]
         self.ds.lbl_one_hot[b_idx] = \
-            {lbl: empty_minibatch for lbl in self.ds.label_list}
+            {lbl: [None for mini_idx in range(self.ds.minis_per_macro)]
+                for lbl in self.ds.label_list}
 
-        self.ds.img_mini_T[b_idx] = empty_minibatch
+        self.ds.img_mini_T[b_idx] = \
+            [None for mini_idx in range(self.ds.minis_per_macro)]
+
         for mini_idx in range(self.ds.minis_per_macro):
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
