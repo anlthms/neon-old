@@ -18,17 +18,11 @@ import imgworker
 
 logger = logging.getLogger(__name__)
 
-def printflush(str):
-    pass
-    # print(str)
-    # sys.stdout.flush()
-
 class MacrobatchDecodeThread(Thread):
     """
-    Load and decode a macrobatch of images in a separate thread.
+    Load and decode a macrobatch of images in a separate thread, double buffering.
 
-    Double-buffer macrobatch data structures. use ds.macro_decode_buf_idx 
-
+    Hide the time to transpose and convert (astype).
 
     """
 
@@ -38,6 +32,7 @@ class MacrobatchDecodeThread(Thread):
 
 
     def run(self):
+        import imgworker
 
         bsz = self.ds.batch_size
         b_idx = self.ds.macro_decode_buf_idx
@@ -47,30 +42,31 @@ class MacrobatchDecodeThread(Thread):
         # This macro could be smaller than macro_size for last macro
         mac_sz = len(jdict['data'])
         self.ds.tgt_macro[b_idx] = jdict['targets'] if 'targets' in jdict else None
-        self.ds.lbl_macro[b_idx] = {k: jdict['labels'][k] for k in self.ds.label_list}
+        lbl_macro = {k: jdict['labels'][k] for k in self.ds.label_list}
+
+        img_macro = np.zeros((self.ds.macro_size, self.ds.npixels), dtype=np.uint8) 
 
         imgworker.decode_list(jpglist=jdict['data'],
-                              tgt=self.ds.img_macro[b_idx][:mac_sz],
+                              tgt=img_macro[:mac_sz],
                               orig_size=self.ds.output_image_size,
                               crop_size=self.ds.cropped_image_size,
                               center=self.ds.predict, flip=True,
                               rgb=self.ds.rgb,
                               nthreads=self.ds.num_workers)
         if mac_sz < self.ds.macro_size:
-            self.ds.img_macro[b_idx][mac_sz:] = 0
+            img_macro[mac_sz:] = 0
         # Leave behind the partial minibatch
         self.ds.minis_per_macro = mac_sz / bsz
 
         self.ds.lbl_one_hot[b_idx] = {lbl:[None for mini_idx in range(self.ds.minis_per_macro)] for lbl in self.ds.label_list}
         self.ds.img_mini_T[b_idx] = [None for mini_idx in range(self.ds.minis_per_macro)]
         for mini_idx in range(self.ds.minis_per_macro):
-            bsz = self.ds.batch_size
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
-            self.ds.img_mini_T[b_idx][mini_idx] = self.ds.img_macro[b_idx][s_idx:e_idx].T.astype(betype, order='C')
+            self.ds.img_mini_T[b_idx][mini_idx] = img_macro[s_idx:e_idx].T.astype(betype, order='C')
 
             for lbl in self.ds.label_list:
-                hl = np.squeeze(self.ds.lbl_macro[b_idx][lbl][s_idx:e_idx])        
+                hl = np.squeeze(lbl_macro[lbl][s_idx:e_idx])        
                 self.ds.lbl_one_hot[b_idx][lbl][mini_idx] = np.eye(self.ds.nclass[lbl])[hl].T.astype(betype, order='C')
 
         return
@@ -191,7 +187,6 @@ class Imageset(Dataset):
             (self.npixels, 1)).astype(np.float32))
 
         self.batch_size = batch_size
-        printflush("batch size " + str(self.batch_size))
         self.predict = predict
         self.minis_per_macro = self.macro_size / batch_size
 
@@ -208,12 +203,10 @@ class Imageset(Dataset):
         self.macro_decode_thread = None
 
         # Allocate space for host side image, targets and labels
-        inp_macro_shape = (self.macro_size, self.npixels)
-        self.img_macro = [np.zeros(inp_macro_shape, dtype=np.uint8) for i in range(self.macro_num_decode_buf)]
         self.img_mini_T = [None for i in range(self.macro_num_decode_buf)]
         self.tgt_macro = [None for i in range(self.macro_num_decode_buf)]
-        self.lbl_macro = [None for i in range(self.macro_num_decode_buf)]
         self.lbl_one_hot = [None for i in range(self.macro_num_decode_buf)]
+
         # Allocate space for device side buffers
         inp_shape = (self.npixels, self.batch_size)
         self.inp_be = sbe(inp_shape, dtype=betype)
@@ -221,37 +214,37 @@ class Imageset(Dataset):
         lbl_shape = {lbl: (self.nclass[lbl], self.batch_size) for lbl in self.label_list}
         self.lbl_be = {lbl: sbe(lbl_shape[lbl], dtype=betype) for lbl in self.label_list}
 
-
-
         # Allocate space for device side targets if necessary
         tgt_shape = (self.tdims, self.batch_size)
         self.tgt_be = sbe(tgt_shape, dtype=betype) if self.tdims != 0 else None
 
         return num_batches
 
+    def get_mini_batch(self, batch_idx):
 
-    def macro_start_join(self):
-        printflush("macro_start_join")
+        self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
 
-        self.macro_decode_thread = MacrobatchDecodeThread(self)
-        self.macro_decode_thread.start()
-        self.macro_decode_thread.join() 
-    
-    def macro_join(self):
-        printflush("macro_join")
-        self.macro_decode_thread.join()
+        # Decode macrobatches in a background thread, except for the first one which blocks
+        if self.mini_idx == 0:
+            if self.macro_decode_thread != None:
+                #no-op unless minibatch loading finished faster than macrobatch in bg thread
+                self.macro_decode_thread.join()
+            else:
+                # special case for first run through
+                self.macro_decode_thread = MacrobatchDecodeThread(self)
+                self.macro_decode_thread.start()
+                self.macro_decode_thread.join() 
 
-    def macro_start(self):
-        printflush( "macro_start")
-        self.macro_decode_thread = MacrobatchDecodeThread(self)
-        self.macro_decode_thread.start()
-
-    def mini_copy_be(self):
-        bsz = self.batch_size
-        betype = self.backend_type
+            # usual case for kicking off a background macrobatch thread
+            self.macro_active_buf_idx = self.macro_decode_buf_idx
+            self.macro_decode_buf_idx = (self.macro_decode_buf_idx + 1) % self.macro_num_decode_buf
+            self.macro_decode_thread = MacrobatchDecodeThread(self)
+            self.macro_decode_thread.start()
+            
+        # All minibatches except for the 0th just need to copy pre-prepared data to the backend
         b_idx = self.macro_active_buf_idx
-        s_idx = self.mini_idx * bsz
-        e_idx = (self.mini_idx + 1) * bsz
+        s_idx = self.mini_idx * self.batch_size
+        e_idx = (self.mini_idx + 1) * self.batch_size
 
         # See if we are a partial minibatch
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
@@ -267,32 +260,7 @@ class Imageset(Dataset):
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(
-                self.tgt_macro[b_idx][:, s_idx:e_idx].astype(betype))
-
-    def get_mini_batch(self, batch_idx):
-        import imgworker
-
-        # batch_idx is ignored
-        self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
-
-        if self.mini_idx == 0:
-            # Parallel Implementation
-            if self.macro_decode_thread != None:
-                #no-op unless minibatch loading finished faster than macrobatch in bg thread
-                self.macro_join()
-            else:
-                # special case for first run through
-                self.macro_start_join()
-
-            # usual case for kicking off a background macrobatch thread
-            self.macro_active_buf_idx = self.macro_decode_buf_idx
-            self.macro_decode_buf_idx = (self.macro_decode_buf_idx + 1) % self.macro_num_decode_buf
-            self.macro_start()
-            
-            # Serial Implementation
-            # self.macro_start_join()
-
-        self.mini_copy_be()
+                self.tgt_macro[b_idx][:, s_idx:e_idx].astype(self.backend_type))
 
 
         return self.inp_be, self.tgt_be, self.lbl_be
