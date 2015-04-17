@@ -42,6 +42,7 @@ class MacrobatchDecodeThread(Thread):
         bsz = self.ds.batch_size
         b_idx = self.ds.macro_decode_buf_idx
         jdict = self.ds.get_macro_batch()
+        betype = self.ds.backend_type
 
         # This macro could be smaller than macro_size for last macro
         mac_sz = len(jdict['data'])
@@ -60,12 +61,17 @@ class MacrobatchDecodeThread(Thread):
         # Leave behind the partial minibatch
         self.ds.minis_per_macro = mac_sz / bsz
 
+        self.ds.lbl_one_hot[b_idx] = {lbl:[None for mini_idx in range(self.ds.minis_per_macro)] for lbl in self.ds.label_list}
         self.ds.img_mini_T[b_idx] = [None for mini_idx in range(self.ds.minis_per_macro)]
         for mini_idx in range(self.ds.minis_per_macro):
             bsz = self.ds.batch_size
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
-            self.ds.img_mini_T[b_idx][mini_idx] = self.ds.img_macro[b_idx][s_idx:e_idx].T.astype(self.ds.backend_type, order='C')
+            self.ds.img_mini_T[b_idx][mini_idx] = self.ds.img_macro[b_idx][s_idx:e_idx].T.astype(betype, order='C')
+
+            for lbl in self.ds.label_list:
+                hl = np.squeeze(self.ds.lbl_macro[b_idx][lbl][s_idx:e_idx])        
+                self.ds.lbl_one_hot[b_idx][lbl][mini_idx] = np.eye(self.ds.nclass[lbl])[hl].T.astype(betype, order='C')
 
         return
 
@@ -207,7 +213,7 @@ class Imageset(Dataset):
         self.img_mini_T = [None for i in range(self.macro_num_decode_buf)]
         self.tgt_macro = [None for i in range(self.macro_num_decode_buf)]
         self.lbl_macro = [None for i in range(self.macro_num_decode_buf)]
-
+        self.lbl_one_hot = [None for i in range(self.macro_num_decode_buf)]
         # Allocate space for device side buffers
         inp_shape = (self.npixels, self.batch_size)
         self.inp_be = sbe(inp_shape, dtype=betype)
@@ -248,8 +254,6 @@ class Imageset(Dataset):
         e_idx = (self.mini_idx + 1) * bsz
 
         # See if we are a partial minibatch
-        # printflush("mini_copy_be img_macro[s:e] shape : " + str(self.img_macro[b_idx][:,s_idx:e_idx].shape))
-        # printflush("inp_be.shape: " + str(self.inp_be.shape))
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
 
         if self.mean_norm:
@@ -259,9 +263,7 @@ class Imageset(Dataset):
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
 
         for lbl in self.label_list:
-            hl = np.squeeze(self.lbl_macro[b_idx][lbl][s_idx:e_idx])
-            one_hot_lbl = np.eye(self.nclass[lbl])[hl].T.astype(betype, order='C')
-            self.lbl_be[lbl].copy_from(one_hot_lbl)
+            self.lbl_be[lbl].copy_from(self.lbl_one_hot[b_idx][lbl][self.mini_idx])
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(
