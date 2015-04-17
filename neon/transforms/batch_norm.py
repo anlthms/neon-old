@@ -26,13 +26,11 @@ class BatchNorm(Activation):
     Backward pass:
     dy/dx = dy/dx' * dx'/dx
           = gamma * [ 1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
-          = gamma * [ 1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
-    but this simplifies a lot.
     """
     def initialize(self, kwargs):
         """
-        Is called from WeightLayer.initialize
-        with a reference to the layer.
+        Initialize the Batch Normalization transform. This functio will be
+        called from WeightLayer.initialize with a reference to the layer.
         """
         self.__dict__.update(kwargs)
         self.dtype = self.layer.weight_dtype
@@ -77,28 +75,33 @@ class BatchNorm(Activation):
 
     def set_inference_mode(self):
         """
-        Appears to have a bug. Urs went through the code and everything matches
-        the paper.
+        If implementent following Ioffe et al. 2015, there appears to be a bug
+        with using inference mode. As more data is accumulated, the prediction
+        gets worse and worse. As a workaround, stay in train mode, which seems
+        to perform quite well.
         """
-        self.train_mode = False
-        if self._iscale is None:
-            # normalize global variance -- inference scaling factor
-            self.backend.divide(self._gvars, self.nbatches, self._gvars)
-            m = self.batch_size
-            if self.is_local:
-                m *= self.ofmsize
-            unbiaser = float(m / (m - 1.))
-            self.backend.multiply(self._gvars, unbiaser, self._gvars)
-            self.backend.add(self._gvars, self._eps, self._gvars)
-            self.backend.sqrt(self._gvars, out=self._gvars)
-            self.backend.divide(self._gamma, self._gvars, self._gvars)
-            self._iscale = self._gvars
+        logger.error("Batch Normalization inference mode not supported. Using "
+                     "training mode.")
+        self.train_mode = True  # Set to 'False' to force inference mode
+        if self.train_mode == False:
+            if self._iscale is None:
+                # normalize global variance -- inference scaling factor
+                self.backend.divide(self._gvars, self.nbatches, self._gvars)
+                m = self.batch_size
+                if self.is_local:
+                    m *= self.ofmsize
+                unbiaser = float(m / (m - 1.))
+                self.backend.multiply(self._gvars, unbiaser, self._gvars)
+                self.backend.add(self._gvars, self._eps, self._gvars)
+                self.backend.sqrt(self._gvars, out=self._gvars)
+                self.backend.divide(self._gamma, self._gvars, self._gvars)
+                self._iscale = self._gvars
 
-            # normalize global mean -- inference shiting factor
-            self.backend.divide(self._gmean, self.nbatches, self._gmean)
-            self.backend.multiply(self._gmean, self._gvars, self._gmean)
-            self.backend.subtract(self._beta, self._gmean, self._gmean)
-            self._ishift = self._gmean
+                # normalize global mean -- inference shiting factor
+                self.backend.divide(self._gmean, self.nbatches, self._gmean)
+                self.backend.multiply(self._gmean, self._gvars, self._gmean)
+                self.backend.subtract(self._beta, self._gmean, self._gmean)
+                self._ishift = self._gmean
 
     def apply_function(self, backend, inputs, outputs):
         pass
