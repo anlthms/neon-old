@@ -83,7 +83,7 @@ class BatchNorm(Activation):
         logger.error("Batch Normalization inference mode not supported. Using "
                      "training mode.")
         self.train_mode = True  # Set to 'False' to force inference mode
-        if self.train_mode == False:
+        if self.train_mode is False:
             if self._iscale is None:
                 # normalize global variance -- inference scaling factor
                 self.backend.divide(self._gvars, self.nbatches, self._gvars)
