@@ -220,7 +220,7 @@ class MLP(MLP_old):
             return misclassval * 100
 
         if metric == 'auc':
-            return ms.auc(self.backend, reference[0], outputs[0])
+            return ms.auc(self.backend, reference, outputs)
 
         if metric == 'log loss':
             retval = self.backend.empty((1, 1))
