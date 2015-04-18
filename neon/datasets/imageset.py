@@ -181,6 +181,10 @@ class Imageset(Dataset):
                              'data_batch_{:d}'.format(self.macro_idx))
         return deserialize(os.path.expanduser(fname), verbose=False)
 
+    def del_mini_batch_producer(self):
+        if self.macro_decode_thread is not None:
+            self.macro_decode_thread.join()
+
     def init_mini_batch_producer(self, batch_size, setname, predict=False):
         # local shortcuts
         sbe = self.backend.empty
