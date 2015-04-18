@@ -69,9 +69,8 @@ class MacrobatchDecodeThread(Thread):
         for mini_idx in range(self.ds.minis_per_macro[b_idx]):
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
-            foo = img_macro[s_idx:e_idx].T.astype(betype, order='C')  # TODO: Merge the two foo lines back
-            print "b_idx", b_idx, "mini_idx", mini_idx  ## TODO: Remove debug statement
-            self.ds.img_mini_T[b_idx][mini_idx] = foo
+            self.ds.img_mini_T[b_idx][mini_idx] = \
+                img_macro[s_idx:e_idx].T.astype(betype, order='C')
 
             if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
                 tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
