@@ -58,21 +58,27 @@ class MacrobatchDecodeThread(Thread):
         if mac_sz < self.ds.macro_size:
             img_macro[mac_sz:] = 0
         # Leave behind the partial minibatch
-        self.ds.minis_per_macro = mac_sz / bsz
+        self.ds.minis_per_macro[b_idx] = mac_sz / bsz
 
         self.ds.lbl_one_hot[b_idx] = \
-            {lbl: [None for mini_idx in range(self.ds.minis_per_macro)]
+            {lbl: [None for mini_idx in range(self.ds.minis_per_macro[b_idx])]
                 for lbl in self.ds.label_list}
 
         self.ds.img_mini_T[b_idx] = \
-            [None for mini_idx in range(self.ds.minis_per_macro)]
+            [None for mini_idx in range(self.ds.minis_per_macro[b_idx])]
 
-        for mini_idx in range(self.ds.minis_per_macro):
+        for mini_idx in range(self.ds.minis_per_macro[b_idx]):
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
             self.ds.img_mini_T[b_idx][mini_idx] = \
                 img_macro[s_idx:e_idx].T.astype(betype, order='C')
-
+            if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
+                tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
+                mb_residual = self.ds.img_mini_T[b_idx][mini_idx].shape[1]
+                filledbatch = np.vstack((img_macro[s_idx:e_idx],
+                                         np.zeros((128-mb_residual, tmp))))
+                self.ds.img_mini_T[b_idx][mini_idx] = \
+                    filledbatch.T.astype(betype, order='C')
             for lbl in self.ds.label_list:
                 hl = np.squeeze(lbl_macro[lbl][s_idx:e_idx])
                 self.ds.lbl_one_hot[b_idx][lbl][mini_idx] = \
@@ -162,8 +168,10 @@ class Imageset(Dataset):
         # Make sure only those properties not by yaml are updated
         cstats.update(self.__dict__)
         self.__dict__.update(cstats)
+        # Should also put (in addition to nclass), number of train/val images
         req_param(self, ['ntrain', 'nval', 'train_start', 'val_start',
                          'train_mean', 'val_mean', 'labels_dict'])
+        print self.nval
 
     def get_macro_batch(self):
         self.macro_idx = (self.macro_idx + 1 - self.startb) \
@@ -184,7 +192,8 @@ class Imageset(Dataset):
         self.startb = getattr(self, sn + '_start')
         self.nmacros = getattr(self, 'n' + sn)
         self.endb = self.startb + self.nmacros
-        nrecs = self.macro_size * self.nmacros
+        nrecs = getattr(self, sn + '_nrec')
+        nrecs = self.macro_size * self.nmacros  # TODO: To be continue...
         num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
         self.mean_img = getattr(self, sn + '_mean')
         self.mean_img.shape = (self.num_channels, osz, osz)
@@ -194,21 +203,22 @@ class Imageset(Dataset):
         self.mean_be.copy_from(self.mean_crop.reshape(
             (self.npixels, 1)).astype(np.float32))
 
-        self.batch_size = batch_size
-        self.predict = predict
-        self.minis_per_macro = self.macro_size / batch_size
-
-        if self.macro_size % batch_size != 0:
-            raise ValueError('self.macro_size not divisible by batch_size')
-
-        self.macro_idx = self.endb
-        self.mini_idx = self.minis_per_macro - 1
-
         # Control params for macrobatch decoding thread
         self.macro_active_buf_idx = 0
         self.macro_decode_buf_idx = 0
         self.macro_num_decode_buf = 2
         self.macro_decode_thread = None
+
+        self.batch_size = batch_size
+        self.predict = predict
+        self.minis_per_macro = [self.macro_size / batch_size
+                                for i in range(self.macro_num_decode_buf)]
+
+        if self.macro_size % batch_size != 0:
+            raise ValueError('self.macro_size not divisible by batch_size')
+
+        self.macro_idx = self.endb
+        self.mini_idx = -1
 
         # Allocate space for host side image, targets and labels
         self.img_mini_T = [None for i in range(self.macro_num_decode_buf)]
@@ -231,8 +241,8 @@ class Imageset(Dataset):
         return num_batches
 
     def get_mini_batch(self, batch_idx):
-
-        self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro
+        b_idx = self.macro_active_buf_idx
+        self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro[b_idx]
 
         # Decode macrobatches in a background thread,
         # except for the first one which blocks
@@ -259,6 +269,7 @@ class Imageset(Dataset):
         e_idx = (self.mini_idx + 1) * self.batch_size
 
         # See if we are a partial minibatch
+        print "b_idx", b_idx, "self.mini_idx", self.mini_idx
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
 
         if self.mean_norm:
