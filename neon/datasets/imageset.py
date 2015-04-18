@@ -25,7 +25,6 @@ class MacrobatchDecodeThread(Thread):
     double buffering.
 
     Hide the time to transpose and convert (astype).
-
     """
 
     def __init__(self, ds):
@@ -39,7 +38,7 @@ class MacrobatchDecodeThread(Thread):
         jdict = self.ds.get_macro_batch()
         betype = self.ds.backend_type
 
-        # This macro could be smaller than macro_size for last macro
+        # This macrobatch could be smaller than macro_size for last macrobatch
         mac_sz = len(jdict['data'])
         self.ds.tgt_macro[b_idx] = \
             jdict['targets'] if 'targets' in jdict else None
@@ -70,8 +69,10 @@ class MacrobatchDecodeThread(Thread):
         for mini_idx in range(self.ds.minis_per_macro[b_idx]):
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
-            self.ds.img_mini_T[b_idx][mini_idx] = \
-                img_macro[s_idx:e_idx].T.astype(betype, order='C')
+            foo = img_macro[s_idx:e_idx].T.astype(betype, order='C')  # TODO: Merge the two foo lines back
+            print "b_idx", b_idx, "mini_idx", mini_idx  ## TODO: Remove debug statement
+            self.ds.img_mini_T[b_idx][mini_idx] = foo
+
             if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
                 tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
                 mb_residual = self.ds.img_mini_T[b_idx][mini_idx].shape[1]
@@ -103,7 +104,6 @@ class Imageset(Dataset):
 
     Kwargs:
         repo_path (str, optional): where to locally host this dataset on disk
-
     """
     def __init__(self, **kwargs):
 
@@ -281,7 +281,6 @@ class Imageset(Dataset):
         e_idx = (self.mini_idx + 1) * self.batch_size
 
         # See if we are a partial minibatch
-        print "b_idx", b_idx, "self.mini_idx", self.mini_idx
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
 
         # Try to avoid this if possible as it inhibits async stream copy
