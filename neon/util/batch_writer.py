@@ -119,7 +119,9 @@ class BatchWriter(object):
 
         # Write out cached stats for this data
         self.ntrain = (len(tlines) + self.batch_size - 1) / self.batch_size
+        self.train_nrec = len(tlines)
         self.nval = (len(vlines) + self.batch_size - 1) / self.batch_size
+        self.val_nrec = len(vlines)
         self.train_start = 0
         self.val_start = 10 ** int(np.log10(self.ntrain * 10))
 
@@ -135,6 +137,7 @@ class BatchWriter(object):
         targets = np.array(df[tk].values, np.float32) if len(tk) > 0 else None
         imfiles = df['filename'].values
 
+        self.nclass = {ll: max(df[ll].values) for ll in lk}
         return imfiles, labels, targets
 
     def write_batches(self, name, start, labels, imfiles, targets=None,
@@ -192,7 +195,10 @@ class BatchWriter(object):
                    'macro_size': self.batch_size,
                    'train_mean': self.train_mean,
                    'val_mean': self.val_mean,
-                   'labels_dict': self.labels_dict}, self.stats)
+                   'labels_dict': self.labels_dict,
+                   'val_nrec': self.val_nrec,
+                   'train_nrec': self.train_nrec,
+                   'nclass': self.nclass}, self.stats)
 
     def run(self):
         self.write_csv_files()
@@ -268,6 +274,8 @@ class BatchWriterImagenet(BatchWriter):
             logger.info("Number of training files = %d", num_train_files)
 
             self.ntrain = (num_train_files + bsz - 1) / bsz
+            self.train_nrec = num_train_files
+            self.nclass = {'l_id': 1000}
             self.train_start = 0
             train_labels = {'l_id': np.array(train_labels, dtype=np.int32)}
             self.write_batches('train', self.train_start, train_labels,
@@ -279,6 +287,7 @@ class BatchWriterImagenet(BatchWriter):
             num_val_files = len(v_jpegfiles)
 
             self.nval = (num_val_files + bsz - 1) / bsz
+            self.val_nrec = num_val_files
             self.val_start = 10 ** int(np.log10(self.ntrain) + 1)
             val_labels = {'l_id': np.array(val_labels, dtype=np.int32)}
             self.write_batches('validation', self.val_start, val_labels,

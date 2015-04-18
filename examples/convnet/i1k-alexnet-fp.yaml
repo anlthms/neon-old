@@ -44,7 +44,6 @@
     macro_size: 3072,
     num_channels: 3,
     num_workers: 12,
-    nclass: {l_id: 1000},
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 1, # Delete this line to use entire dataset for training

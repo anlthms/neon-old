@@ -164,6 +164,9 @@ class Imageset(Dataset):
                                       cstats['macro_size'],
                                       self.macro_size,
                                       self.save_dir)
+        # Set the max indexes of batches for each from the cache file
+        self.maxval = cstats['nval'] + cstats['val_start'] - 1
+        self.maxtrain = cstats['ntrain'] + cstats['train_start'] - 1
 
         # Make sure only those properties not by yaml are updated
         cstats.update(self.__dict__)
@@ -171,7 +174,6 @@ class Imageset(Dataset):
         # Should also put (in addition to nclass), number of train/val images
         req_param(self, ['ntrain', 'nval', 'train_start', 'val_start',
                          'train_mean', 'val_mean', 'labels_dict'])
-        print self.nval
 
     def get_macro_batch(self):
         self.macro_idx = (self.macro_idx + 1 - self.startb) \
@@ -191,10 +193,20 @@ class Imageset(Dataset):
 
         self.startb = getattr(self, sn + '_start')
         self.nmacros = getattr(self, 'n' + sn)
-        self.endb = self.startb + self.nmacros
-        nrecs = getattr(self, sn + '_nrec')
-        nrecs = self.macro_size * self.nmacros  # TODO: To be continue...
-        num_batches = int(np.ceil((nrecs + 0.0) / batch_size))
+        self.maxmacros = getattr(self, 'max' + sn)
+
+        if self.startb + self.nmacros - 1 > self.maxmacros:
+            self.nmacros = self.maxmacros - self.startb + 1
+            logger.warning("Truncating n%s to %d", sn, self.nmacros)
+
+        self.endb = self.startb + self.nmacros - 1
+        if self.endb == self.maxmacros:
+            nrecs = getattr(self, sn + '_nrec') % self.macro_size + \
+                (self.nmacros - 1) * self.macro_size
+        else:
+            nrecs = self.nmacros * self.macro_size
+        num_batches = nrecs / batch_size
+
         self.mean_img = getattr(self, sn + '_mean')
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
@@ -272,6 +284,7 @@ class Imageset(Dataset):
         print "b_idx", b_idx, "self.mini_idx", self.mini_idx
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
 
+        # Try to avoid this if possible as it inhibits async stream copy
         if self.mean_norm:
             self.backend.subtract(self.inp_be, self.mean_be, self.inp_be)
 
