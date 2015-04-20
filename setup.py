@@ -8,7 +8,7 @@ from setuptools import setup, Extension, find_packages, Command
 import subprocess
 
 # Define version information
-VERSION = '0.7.1'
+VERSION = '0.8.0'
 FULLVERSION = VERSION
 write_version = True
 
