@@ -15,7 +15,7 @@ from neon.datasets.dataset import Dataset
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
 import imgworker
-
+from time import time
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +37,7 @@ class MacrobatchDecodeThread(Thread):
         b_idx = self.ds.macro_decode_buf_idx
         jdict = self.ds.get_macro_batch()
         betype = self.ds.backend_type
+        ibetype = np.int8
 
         # This macrobatch could be smaller than macro_size for last macrobatch
         mac_sz = len(jdict['data'])
@@ -44,16 +45,18 @@ class MacrobatchDecodeThread(Thread):
             jdict['targets'] if 'targets' in jdict else None
         lbl_macro = {k: jdict['labels'][k] for k in self.ds.label_list}
 
-        img_macro = np.zeros((self.ds.macro_size, self.ds.npixels),
+        uimg_macro = np.zeros((self.ds.macro_size, self.ds.npixels),
                              dtype=np.uint8)
-
+        img_macro = np.zeros((self.ds.macro_size, self.ds.npixels),
+                             dtype=ibetype)
         imgworker.decode_list(jpglist=jdict['data'],
-                              tgt=img_macro[:mac_sz],
+                              tgt=uimg_macro[:mac_sz],
                               orig_size=self.ds.output_image_size,
                               crop_size=self.ds.cropped_image_size,
                               center=self.ds.predict, flip=True,
                               rgb=self.ds.rgb,
                               nthreads=self.ds.num_workers)
+        np.subtract(uimg_macro, self.ds.mean_val, img_macro)
         if mac_sz < self.ds.macro_size:
             img_macro[mac_sz:] = 0
         # Leave behind the partial minibatch
@@ -70,7 +73,7 @@ class MacrobatchDecodeThread(Thread):
             s_idx = mini_idx * bsz
             e_idx = (mini_idx + 1) * bsz
             self.ds.img_mini_T[b_idx][mini_idx] = \
-                img_macro[s_idx:e_idx].T.astype(betype, order='C')
+                img_macro[s_idx:e_idx].T.astype(ibetype, order='C')
 
             if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
                 tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
@@ -78,11 +81,12 @@ class MacrobatchDecodeThread(Thread):
                 filledbatch = np.vstack((img_macro[s_idx:e_idx],
                                          np.zeros((128-mb_residual, tmp))))
                 self.ds.img_mini_T[b_idx][mini_idx] = \
-                    filledbatch.T.astype(betype, order='C')
+                    filledbatch.T.astype(ibetype, order='C')
             for lbl in self.ds.label_list:
                 hl = np.squeeze(lbl_macro[lbl][s_idx:e_idx])
                 self.ds.lbl_one_hot[b_idx][lbl][mini_idx] = \
-                    np.eye(self.ds.nclass[lbl])[hl].T.astype(betype, order='C')
+                    np.eye(self.ds.nclass[lbl], dtype=betype)[hl].T.astype(
+                           betype, order='C')
 
         return
 
@@ -189,6 +193,8 @@ class Imageset(Dataset):
         # local shortcuts
         sbe = self.backend.empty
         betype = self.backend_type
+        ibetype = np.int8
+
         sn = 'val' if (setname == 'validation') else setname
         osz = self.output_image_size
         csz = self.cropped_image_size
@@ -214,9 +220,10 @@ class Imageset(Dataset):
         self.mean_img.shape = (self.num_channels, osz, osz)
         pad = (osz - csz) / 2
         self.mean_crop = self.mean_img[:, pad:(pad + csz), pad:(pad + csz)]
-        self.mean_be = sbe((self.npixels, 1), dtype=betype)
-        self.mean_be.copy_from(self.mean_crop.reshape(
-            (self.npixels, 1)).astype(np.float32))
+        if self.mean_norm:
+            self.mean_val = self.mean_crop.reshape((1, self.npixels))
+        else:
+            self.mean_val = 127
 
         # Control params for macrobatch decoding thread
         self.macro_active_buf_idx = 0
@@ -242,7 +249,7 @@ class Imageset(Dataset):
 
         # Allocate space for device side buffers
         inp_shape = (self.npixels, self.batch_size)
-        self.inp_be = sbe(inp_shape, dtype=betype)
+        self.inp_be = sbe(inp_shape, dtype=ibetype)
 
         lbl_shape = {lbl: (self.nclass[lbl], self.batch_size)
                      for lbl in self.label_list}
@@ -259,8 +266,8 @@ class Imageset(Dataset):
         b_idx = self.macro_active_buf_idx
         self.mini_idx = (self.mini_idx + 1) % self.minis_per_macro[b_idx]
 
-        # Decode macrobatches in a background thread,
-        # except for the first one which blocks
+        Decode macrobatches in a background thread,
+        except for the first one which blocks
         if self.mini_idx == 0:
             if self.macro_decode_thread is not None:
                 # No-op unless all mini finish faster than one macro
@@ -282,13 +289,10 @@ class Imageset(Dataset):
         b_idx = self.macro_active_buf_idx
         s_idx = self.mini_idx * self.batch_size
         e_idx = (self.mini_idx + 1) * self.batch_size
-
+        t = time()
+        logger.info("\tTransfer %d.%d start", self.macro_idx, self.mini_idx)
         # See if we are a partial minibatch
         self.inp_be.copy_from(self.img_mini_T[b_idx][self.mini_idx])
-
-        # Try to avoid this if possible as it inhibits async stream copy
-        if self.mean_norm:
-            self.backend.subtract(self.inp_be, self.mean_be, self.inp_be)
 
         if self.unit_norm:
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
@@ -296,6 +300,9 @@ class Imageset(Dataset):
         for lbl in self.label_list:
             self.lbl_be[lbl].copy_from(
                 self.lbl_one_hot[b_idx][lbl][self.mini_idx])
+        t2 = time() - t
+        logger.info("\tTransfer %d.%d done: %.5f", self.macro_idx,
+                    self.mini_idx, t2)
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(
