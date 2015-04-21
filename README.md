@@ -38,8 +38,6 @@ These provide additional functionality, and assist developers
 * [pycuda](http://mathema.tician.de/software/pycuda/) required for our
   nervanagpu backend
 * [Cython](http://cython.org/) for FlexPoint CPU backend compilation
-* [scikit-learn](http://scikit-learn.org) Currently used for AUC performance
-  calculations
 * [matplotlib](http://matplotlib.org) for RNN feature visualization
 * [openmpi](http://www.open-mpi.org), [mpi4py](http://mpi4py.scipy.org) for
   distributed tensors.

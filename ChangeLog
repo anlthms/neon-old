@@ -3,7 +3,161 @@
 ## (unreleased)
 
 
-## v0.7.1 (2015-02-13)
+## v0.8.0 (2015-04-20)
+
+### Modifications
+
+* v0.8.0 release bump. [Scott Leishman]
+
+* Updated architecture diagram, minor doc changes. [Scott Leishman]
+
+* Ensure batch writer calculates correct number of classes. [Scott Leishman]
+
+* style fix. [Scott Leishman]
+
+* Merge branch 'MYL-235_decode_macrobatch_in_bg_thread-3' into 'master' [Urs Koster]
+
+    Myl 235 decode macrobatch in bg thread 3  Move macro batch loading and
+    decoding as well as mini batch image/label transposing and data type
+    conversion to a background thread using double buffering. Mini batch
+    processing time is improved by about 10% as a result.  See merge
+    request !124
+
+* style fix. [Urs Koster]
+
+* reapplied batch normalization fix and documented what is going on. [Urs Koster]
+
+* newline. [Urs Koster]
+
+* newline. [Urs Koster]
+
+* hotfix for onehot fix. [Urs Koster]
+
+* Merge branch 'fp16fixes' into 'master' [Scott Leishman]
+
+    Fp16fixes  Metrics handling for imagenet / imgworker models.  See
+    merge request !122
+
+* Merge branch 'fp16fixes' into 'master' [Scott Leishman]
+
+    Fp16fixes  Followup on the merge request for the new fp16/fp32 GPU
+    backend: Improved handling of default dtypes.  See merge request !118
+
+* Merge branch 'hyperopt2' into 'master' [Scott Leishman]
+
+    Hyperopt2  Improvements to hyperparameter optimizations:  - experiment
+    directory is no longer hardcoded but passed as HYPEROPT_PATH variable
+    - spearmint is no longer assumed to be in a known location but passed
+    as SPEARMINT_PATH variable  - instead of a custom experiment type to
+    write the error to a file, now uses validation error returned through
+    metrics functionality.  See merge request !121
+
+* Merge branch 'MetricsOnlineReporting' into 'master' [Urs Koster]
+
+    Metrics online reporting  Handful of small updates to allow multiple
+    metrics of the same type for each dataset.  See merge request !120
+
+* Merge branch 'metrics' into 'master' [Alex Park]
+
+    Major metrics refactor, performance comparison utility  Metrics are
+    now specified as classes, and calculated entirely on host.  New `neon
+    -o` output flag allows one to append timing and performance
+    measurements to a file for subsequent comparison.  New
+    `compare_metrics` executable can display latest performance of a given
+    example against prior runs (to help identify performance or timing
+    degradations).  Closed several lingering issues around imgworker
+    importing, and extending neon.  Lots of documentation updates and
+    enhancements.  See merge request !119
+
+* Strange relu hack on autouniform val gen.  Discovered by Urs and seems to make everything better -- too good not to include. [Alex Park]
+
+* Merge branch 'sgraykernels' into 'master' [Scott Leishman]
+
+    MAX16 backend and instrumentation  Three major features in this
+    branch: * new GPU backend, which is a lightweight wrapper for the
+    nervanagpu libraries (Maxwell architecture,   fp16/fp32 support) *
+    instrumentation for timing plots and monitoring raw activation values
+    using decorators * batch normalization (via BatchNormAlex branch)  See
+    merge request !116
+
+* Merge branch 'ImageSetNew' into 'master' [Scott Leishman]
+
+    Image set new  Includes imgworker and boost as dependencies and
+    creates new ImageSet dataset type. Also adds some metric code for
+    calculating logloss, top1, topk in one go.  See merge request !117
+
+* Merge branch 'GabrielPereyra-leaky_rect' [Scott Leishman]
+
+    Added and augmented from Gabriel's request.
+
+* Merge branch 'augdata' into 'master' [Scott Leishman]
+
+    Augdata  Bug fixes, enhancements and cleanup  Deprecated code that is
+    no longer used. Added a new parameter to dataset.get_mini_batch() to
+    request for data augmentation. Added seeding for getting consistent
+    results with serialized models.  See merge request !115
+
+* Merge branch 'cleanup2' into 'master' [Scott Leishman]
+
+    Cleanup2  Move hurricane dataset out into its own repo.  See merge
+    request !114
+
+* Merge branch 'ConvSharedBiases' into 'master' [Anil Thomas]
+
+    Conv shared biases  Implements the use of shared biases for
+    convolutional layers (and makes it the default mode for biases) Shared
+    biases means that there is a single bias for each output feature map
+    rather than for each activation value. so for an output that is (nofm
+    * ofmshape[0] * ofmshape[1], batch_size), there will be (nofm, 1)
+    biases.  The code makes liberal use of tensor reshaping so that
+    accumulation can be done across featuremap and batch dimensions.  See
+    merge request !113
+
+* Merge branch 'GlobalDeltaBuffer' into 'master' [Anil Thomas]
+
+    Global delta buffer  Modifies MLP to be able to allocate a single
+    global delta buffer pool for all layers (except data and cost) to
+    conserve memory  See merge request !112
+
+* Bugfix / typo to hyperopt example yaml. [Urs Koster]
+
+* Bugfix to the '`pwd`' blunder, additional info about dependencies, fixed yaml file path in hyperopt example. [Urs Koster]
+
+* fix to RNN bug. [Urs]
+
+* Merge branch 'cleanup' into 'master' [Scott Leishman]
+
+    Cleanup  Moved NDSB related code to a different repository.  See merge
+    request !111
+
+* minor documentation and example updates. [Scott Leishman]
+
+* Merge branch 'documentation' into 'master' [Scott Leishman]
+
+    Documentation  added top level documentation for layers, learning
+    rules.  See merge request !110
+
+* Merge branch 'metrics' into 'master' [Scott Leishman]
+
+    Metrics  Selective merge from the BCI branch. This is to support
+    saving the result to a file and computing AUC.  Use the tag
+    &quot;inference_sets&quot; at the top level to specify the sets whose inference
+    values are to be saved. Use the tag &quot;inference_metrics&quot; to specify the
+    error metrics to be computed on those sets.  e.g.
+    !obj:experiments.FitPredictErrorExperiment {   inference_sets:
+    ['test'],   inference_metrics: ['log loss', 'misclass rate'],   ...
+    See merge request !109
+
+* Merge branch 'specify_gpu' into 'master' [Arjun Bansal]
+
+    Specify gpu  Support for specifying gpu id when creating gpu backend
+    Support for using multiple GPUs when using par backends  See merge
+    request !108
+
+* Minor neon help description update. [Scott Leishman]
+
+
+## v0.7.1 (2015-02-14)
 
 ### Modifications
 
