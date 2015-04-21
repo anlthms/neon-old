@@ -100,6 +100,7 @@ class FitPredictErrorExperiment(FitExperiment):
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           pred_set)
             self.save_results(self.dataset, pred_set, outputs, 'inference')
+            self.save_results(self.dataset, pred_set, targets, 'targets')
             # update any metrics for this set while we have this info
             if pred_set in self.metrics:
                 for m in self.metrics[pred_set]:

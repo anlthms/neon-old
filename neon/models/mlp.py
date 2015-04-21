@@ -57,6 +57,7 @@ class MLP(MLP_old):
                               offset=((idx % 2) * self.nin_max))
 
         self.initialized = True
+
         # Make some scratch space for NervanaGPU backend:
         if self.backend.__module__ == 'neon.backends.gpu':
             self.backend.init_mempool((1, self.batch_size),
