@@ -7,6 +7,7 @@ Simple recurrent neural network with one hidden layer.
 
 import logging
 
+from neon.backends.backend import Block
 from neon.diagnostics.visualize_rnn import VisualizeRNN
 from neon.models.mlp import MLP
 from neon.util.compat import range
@@ -51,10 +52,12 @@ class RNN(MLP):
         suberrorlist = []
         suberror = self.backend.zeros((1, 1))
         while self.epochs_complete < self.num_epochs:
+            self.backend.begin(Block.epoch, self.epochs_complete)
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
+                self.backend.begin(Block.minibatch, mb_id)
                 self.reset(mb_id)
                 self.fprop(debug=(True if (mb_id is -1) else False))
                 self.bprop(debug=(True if (mb_id is -1) else False))
@@ -70,7 +73,9 @@ class RNN(MLP):
                                 mb_id / self.step_print - 1,
                                 float(error.asnumpyarray()) /
                                 self.data_layer.num_batches)
+                self.backend.end(Block.minibatch, mb_id)
                 mb_id += 1
+            self.backend.end(Block.epoch, self.epochs_complete)
             self.epochs_complete += 1
             errorlist.append(float(error.asnumpyarray()) /
                              self.data_layer.num_batches)

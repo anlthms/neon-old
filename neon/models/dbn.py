@@ -8,6 +8,7 @@ Simple deep belief net.
 import logging
 import math
 
+from neon.backends.backend import Block
 from neon.models.model import Model
 from neon.util.compat import range
 
@@ -63,8 +64,10 @@ class DBN(Model):
                 # If we are in the penultimate layer, append labels to the
                 # visibles ...
             while self.epochs_complete < self.num_epochs:
+                self.backend.begin(Block.epoch, self.epochs_complete)
                 error = 0.0
                 for batch in range(num_batches):
+                    self.backend.begin(Block.minibatch, batch)
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
                     batch_in = inputs[start_idx:end_idx]
@@ -79,8 +82,10 @@ class DBN(Model):
                                                       batch_in,
                                                       batch_out,
                                                       self.temp)
+                    self.backend.end(Block.minibatch, batch)
                 logger.info('epoch: %d, total training error: %0.5f',
                             self.epochs_complete, error / num_batches)
+                self.backend.end(Block.epoch, self.epochs_complete)
                 self.epochs_complete += 1
             self.epochs_complete = 0  # reset for next layer
         # Part 2: up-down finetuning ... [not implemented yet]
