@@ -1378,5 +1378,8 @@ class Block(object):
     Attributes:
         epoch: start of a particular training epoch
         minibatch: start processing of a particular mini-batched data partition
+        fprop: start of forward propagation call for a particular minibatch
+        bprop: start of backward propagation call for a particular minibatch
+        update: start of parameter update call for a particular minibatch
     """
-    epoch, minibatch = range(2)
+    epoch, minibatch, fprop, bprop, update = range(5)

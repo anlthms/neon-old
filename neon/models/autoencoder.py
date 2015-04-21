@@ -39,13 +39,19 @@ class Autoencoder(MLP):
                 self.backend.begin(Block.minibatch, batch)
                 inputs_batch = ds.get_batch(inputs, batch)
                 targets_batch = ds.get_batch(targets, batch)
+                self.backend.begin(Block.fprop, batch)
                 self.fprop(inputs_batch)
+                self.backend.end(Block.fprop, batch)
+                self.backend.begin(Block.bprop, batch)
                 self.bprop(targets_batch, inputs_batch)
+                self.backend.end(Block.bprop, batch)
                 self.backend.add(error,
                                  self.cost.apply_function(targets_batch),
                                  error)
+                self.backend.begin(Block.update, batch)
                 self.update(self.epochs_complete)
-                self.backend.begin(Block.minibatch, batch)
+                self.backend.end(Block.update, batch)
+                self.backend.end(Block.minibatch, batch)
             logger.info('epoch: %d, total training error: %0.5f',
                         self.epochs_complete,
                         error.asnumpyarray() / num_batches)

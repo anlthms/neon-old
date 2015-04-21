@@ -127,9 +127,15 @@ class MLP(MLP_old):
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
                 self.backend.begin(Block.minibatch, mb_id)
+                self.backend.begin(Block.fprop, mb_id)
                 self.fprop()
+                self.backend.end(Block.fprop, mb_id)
+                self.backend.begin(Block.bprop, mb_id)
                 self.bprop()
+                self.backend.end(Block.bprop, mb_id)
+                self.backend.begin(Block.update, mb_id)
                 self.update(self.epochs_complete)
+                self.backend.end(Block.update, mb_id)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(self.cost_layer.get_cost(),
                                               mb_id, partial=True)

@@ -59,9 +59,15 @@ class RNN(MLP):
             while self.data_layer.has_more_data():
                 self.backend.begin(Block.minibatch, mb_id)
                 self.reset(mb_id)
+                self.backend.begin(Block.fprop, mb_id)
                 self.fprop(debug=(True if (mb_id is -1) else False))
+                self.backend.end(Block.fprop, mb_id)
+                self.backend.begin(Block.bprop, mb_id)
                 self.bprop(debug=(True if (mb_id is -1) else False))
+                self.backend.end(Block.bprop, mb_id)
+                self.backend.begin(Block.update, mb_id)
                 self.update(self.epochs_complete)
+                self.backend.end(Block.update, mb_id)
 
                 self.cost_layer.cost.set_outputbuf(
                     self.class_layer.output_list[-1])

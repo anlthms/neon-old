@@ -71,9 +71,15 @@ class DBN(Model):
                     start_idx = batch * self.batch_size
                     end_idx = min((batch + 1) * self.batch_size, nrecs)
                     batch_in = inputs[start_idx:end_idx]
+                    self.backend.begin(Block.fprop, batch)
                     self.positive(batch_in, i)
+                    self.backend.end(Block.fprop, batch)
+                    self.backend.begin(Block.bprop, batch)
                     self.negative(batch_in, i)
+                    self.backend.end(Block.bprop, batch)
+                    self.backend.begin(Block.update, batch)
                     self.update(self.epochs_complete, i)
+                    self.backend.end(Block.update, batch)
                     batch_out = self.layers[i].x_minus[:,
                                                        0:(self.layers[i].
                                                           x_minus.shape[1] - 1)
