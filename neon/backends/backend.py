@@ -690,7 +690,7 @@ class Backend(YAMLable):
         """
         raise NotImplementedError()
 
-    def begin(self):
+    def begin(self, block, identifier):
         """
         Signal the start of a block of repeated computation (ex. at the start
         of a loop).  This operation can be used to help the compiler optimize
@@ -698,18 +698,32 @@ class Backend(YAMLable):
         It must be book-ended by a corresponding Backend.end() call.
         Note that multiple begin calls can appear adjacent in nested loops.
 
+        Arguments:
+            block (Block.attr): identifies the type of computation being worked
+                                on based on Block attribute specified
+            identifier (int): unique identifier for this particular iteration
+                              of the block.  Will typically be something like
+                              epoch number, mini-batch number, and so forth.
+
         See Also:
             :py:func:`~neon.backends.backend.Backend.end`,
         """
         pass
 
-    def end(self):
+    def end(self, block, identifier):
         """
         Signal the corresponding end of a block of repeated computation
         (ex. at the end of a loop).  This operation can be used to help the
         compiler optimize performance, but has no direct effect on
         calculations.  It must be preceded by a corresponding Backend.begin()
         call.
+
+        Arguments:
+            block (Block.attr): identifies the type of computation being worked
+                                on based on Block attribute specified
+            identifier (int): unique identifier for this particular iteration
+                              of the block.  Will typically be something like
+                              epoch number, mini-batch number, and so forth.
 
         See Also:
             :py:func:`~neon.backends.backend.Backend.begin`,
@@ -1354,3 +1368,18 @@ class Tensor(object):
         No further attempts can be made to access this tensor.
         """
         pass
+
+
+class Block(object):
+    """
+    Simple class that identifies different elements of the computation required
+    to train or run inference on neural networks.
+
+    Attributes:
+        epoch: start of a particular training epoch
+        minibatch: start processing of a particular mini-batched data partition
+        fprop: start of forward propagation call for a particular minibatch
+        bprop: start of backward propagation call for a particular minibatch
+        update: start of parameter update call for a particular minibatch
+    """
+    epoch, minibatch, fprop, bprop, update = range(5)

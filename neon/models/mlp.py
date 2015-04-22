@@ -6,6 +6,8 @@ Simple multi-layer perceptron model.
 """
 
 import logging
+
+from neon.backends.backend import Block
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
 
@@ -124,20 +126,30 @@ class MLP(MLP_old):
         self.data_layer.use_set('train')
         logger.info('commencing model fitting')
         while self.epochs_complete < self.num_epochs:
+            self.backend.begin(Block.epoch, self.epochs_complete)
             error.fill(0.0)
             mb_id = 1
             self.data_layer.reset_counter()
             while self.data_layer.has_more_data():
+                self.backend.begin(Block.minibatch, mb_id)
+                self.backend.begin(Block.fprop, mb_id)
                 self.fprop()
+                self.backend.end(Block.fprop, mb_id)
+                self.backend.begin(Block.bprop, mb_id)
                 self.bprop()
+                self.backend.end(Block.bprop, mb_id)
+                self.backend.begin(Block.update, mb_id)
                 self.update(self.epochs_complete)
+                self.backend.end(Block.update, mb_id)
                 if self.step_print > 0 and mb_id % self.step_print == 0:
                     self.print_training_error(self.cost_layer.get_cost(),
                                               mb_id, partial=True)
-                mb_id += 1
                 self.backend.add(error, self.cost_layer.get_cost(), error)
+                self.backend.end(Block.minibatch, mb_id)
+                mb_id += 1
             self.print_training_error(error, self.data_layer.num_batches)
             self.print_layers(debug=True)
+            self.backend.end(Block.epoch, self.epochs_complete)
             self.epochs_complete += 1
         self.data_layer.cleanup()
 

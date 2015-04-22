@@ -172,10 +172,19 @@ CrossMap Neural Network Layer
 MOP API Changes
 ***************
 
+v0.9.0
+======
+
+* begin and end functions now take two parameters: block and identifier.  The
+  first requires an attribute of class Block (also defined in backend.py)
+  indicating what type of computation is about to commence.  The second is a
+  unique integer identifier that indicates which iteration we are in.
+
+* rename axes parameter to axis in summarization operations (planned)
+
 v0.8.0
 ======
 
-* rename axes parameter to axis in summarization operations (planned)
 * new function variance to compute the variance.
 
 v0.7.0
