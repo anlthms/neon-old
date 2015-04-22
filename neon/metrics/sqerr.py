@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# Copyright 2015 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
 Contains squared error related metrics
@@ -12,7 +12,7 @@ from neon.metrics.metric import Metric
 
 class SSE(Metric):
     """
-    Sum of Squared Error.
+    Sum of Squared Errors.
 
     See Also:
         MSE
@@ -72,7 +72,7 @@ class MSE(SSE):
                                            same dimensions as reference.
         """
         super(MSE, self).add(reference, outputs)
-        self.rec_count += reference.shape[-1]
+        self.rec_count += np.prod(reference.shape)
 
     def report(self):
         """
