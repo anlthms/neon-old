@@ -65,6 +65,11 @@ class MLP(MLP_old):
             self.backend.init_mempool((1, self.batch_size),
                                       dtype=self.layers[1].deltas_dtype)
 
+    def uninitialize(self):
+        self.initialized = False
+        for ll in self.layers:
+            ll.uninitialize()
+
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             y = None if pl is None else pl.output
@@ -177,3 +182,12 @@ class MLP(MLP_old):
 
         self.data_layer.cleanup()
         return outputs, reference
+
+    def predict_live_init(self, dataset):
+        self.data_layer.init_dataset(dataset)
+        for ll in self.layers:
+            ll.set_train_mode(False)
+
+    def predict_live(self):
+        self.fprop()
+        return self.get_classifier_output()

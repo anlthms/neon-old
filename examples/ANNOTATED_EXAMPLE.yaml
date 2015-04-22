@@ -167,12 +167,12 @@
     #                 predicted probabilities from the model.  This value is
     #                 normalized by the number of records examined.
     train: [
-      !obj:metrics.AUC(),
-      !obj:metrics.MisclassPercentage(),
+      !obj:metrics.AUC {},
+      !obj:metrics.MisclassPercentage {},
     ],
     test: [
-      !obj:metrics.AUC(),
-      !obj:metrics.MisclassPercentage(),
+      !obj:metrics.AUC {},
+      !obj:metrics.MisclassPercentage {},
     ],
   },
 
