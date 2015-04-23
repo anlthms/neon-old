@@ -136,6 +136,8 @@ class ConvLayer(WeightLayer):
                     (self.nofm * self.ofmsize, 1))
             else:
                 self.backend.sum(error, axes=1, out=upm[u_idx+1])
+            # Share the biases if its a datapar scenario
+            self.backend.all_reduce(upm[u_idx+1])
 
         if self.accumulate:
             self.backend.add(upm[u_idx], self.updates[u_idx],

@@ -60,6 +60,7 @@ class FCLayer(WeightLayer):
 
         if self.use_biases is True:
             self.backend.sum(error, axes=1, out=upm[u_idx+1])
+            self.backend.all_reduce(upm[u_idx+1])
 
         if self.accumulate:
             self.backend.add(upm[u_idx], self.updates[u_idx],

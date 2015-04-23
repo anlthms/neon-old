@@ -1138,6 +1138,14 @@ class Backend(YAMLable):
     def reduce_tensor(self, tensor):
         return self.par.reduce_tensor(tensor)
 
+    def scatter(self, src, dest):
+        return self.par.scatter(src, dest)
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.par.allocate_fragment(buf_shape, dtype)
+
+    def all_reduce(self, tensor):
+        return self.par.all_reduce(tensor)
 
 class Tensor(object):
     """
@@ -1221,6 +1229,17 @@ class Tensor(object):
 
         Returns:
             numpy.ndarray view or copy of the Tensor data.
+        """
+        raise NotImplementedError()
+
+    def asbuffer(self):
+        """
+        Return a buffer interface to the underlying data.  Useful for MPI or
+        other cases where we want to treat device and host memory as one
+        address space
+
+        Raises:
+            NotImplementedError: Can't be instantiated directly.
         """
         raise NotImplementedError()
 

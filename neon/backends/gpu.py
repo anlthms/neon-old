@@ -28,12 +28,26 @@ class GPU(Backend):
     default_dtype = np.float32
 
     def __init__(self, rng_seed, stochastic_round=False, device_id=0):
+        self.cuda = drv
+        self.cuda.init()
+        self.dev = self.cuda.Device(device_id)
+        self.ctx = self.dev.make_context()
+        import atexit
+        atexit.register(self.cleanup)
         self.ng = NervanaGPU(stochastic_round=stochastic_round)
         logger.info("Initialized NervanaGPU with stochastic_round=%s",
                     stochastic_round)
         self.rng_seed = rng_seed
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
+
+    def cleanup(self):
+        self.ctx.pop()
+        from pycuda.tools import clear_context_caches
+        clear_context_caches()
+
+    def __del__(self):
+        self.ctx.pop()
 
     def init_mempool(self, shape, dtype=default_dtype):
         """
@@ -42,13 +56,13 @@ class GPU(Backend):
         self.mem_pool = self.ng.empty(shape, dtype=dtype)
 
     def alloc_host_mem(self, shape, dtype):
-        return drv.pagelocked_empty(shape, dtype, order="C", mem_flags=0)
+        return self.cuda.pagelocked_empty(shape, dtype, order="C", mem_flags=0)
 
     def create_stream(self):
-        return drv.Stream()
+        return self.cuda.Stream()
 
     def async_copy(self, dest, src, stream=None):
-        drv.memcpy_htod_async(dest.gpudata, src, stream)
+        self.cuda.memcpy_htod_async(dest.gpudata, src, stream)
 
     def rng_init(self):
         """

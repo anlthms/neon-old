@@ -9,10 +9,17 @@ class NoPar(object):
 
     def __init__(self):
         self.backend = None
-        self.device_id = None
+        self.device_id = 0
 
     def init_model(self, model, backend):
         backend.actual_batch_size = model.batch_size
+
+    def scatter(self, src, dest):
+        """
+        Note: type conversion happens in backend, can slow things down if
+        types haven't been matched already
+        """
+        dest.copy_from(src)
 
     def associate(self, backend):
         backend.par = self
@@ -27,6 +34,14 @@ class NoPar(object):
     def rank(self):
         return 0
 
+    def size(self):
+        return 1
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.backend.empty(buf_shape, dtype=dtype)
+
+    def all_reduce(self, tensor):
+        pass
 
 class BasePar(object):
 
@@ -66,6 +81,9 @@ class BasePar(object):
     def distribute(self, batchdata):
         raise NotImplementedError()
 
+    def scatter(self, src, dest):
+        raise NotImplementedError()
+
     def reduce_tensor(self, tensor):
         raise NotImplementedError()
 
@@ -76,6 +94,28 @@ class BasePar(object):
 
     def rank(self):
         return self.mpi_rank
+
+    def size(self):
+        return self.mpi_size
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        raise NotImplementedError()
+
+    def all_reduce(self, tensor):
+        """
+        This is for doing reduction
+        """
+        if self.backend.__module__ == 'neon.backends.gpu':
+            # print("Doing our own version here")
+            tmpbuf = tensor.asnumpyarray()
+            self.comm.Allreduce(self.mpi.IN_PLACE,
+                                [tmpbuf, self.mpi.FLOAT],
+                                op=self.mpi.SUM)
+            tensor.copy_from(tmpbuf)
+        else:
+            self.comm.Allreduce(self.mpi.IN_PLACE,
+                                [tensor.asbuffer(), self.mpi.FLOAT],
+                                op=self.mpi.SUM)
 
 
 class ModelPar(BasePar):
@@ -109,9 +149,9 @@ class ModelPar(BasePar):
                 conf.end = conf.start + nin
             bs = model.batch_size
             bufshape = (layer.nout, bs)
-            conf.fpropbuf = np.empty(bufshape, dtype=np.float32)
+            conf.fpropbuf = backend.empty(bufshape, dtype=np.float32)
             bufshape = (layer.nin, bs)
-            conf.bpropbuf = np.empty(bufshape, dtype=np.float32)
+            conf.bpropbuf = backend.empty(bufshape, dtype=np.float32)
             conf.rcount = np.empty(self.mpi_size, dtype=np.int32)
             conf.rcount.fill(nin)
             conf.scount = conf.end - conf.start
@@ -141,19 +181,20 @@ class ModelPar(BasePar):
     def fprop_fc(self, out, inputs, weights, layer):
         conf = layer.parconf
         self.orig_fprop_fc(out, inputs[conf.start:conf.end], weights)
-        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
-        recvbuf = [conf.fpropbuf, self.mpi.FLOAT]
+        sendbuf = [out.asbuffer(), self.mpi.FLOAT]
+        recvbuf = [conf.fpropbuf.asbuffer(), self.mpi.FLOAT]
         self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
         self.comm.Bcast(buf=[conf.fpropbuf, self.mpi.FLOAT])
         out.copy_from(conf.fpropbuf)
 
     def bprop_fc(self, out, weights, deltas, layer):
         conf = layer.parconf
-        self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
-        outbuf = out.asnumpyarray()[conf.start:conf.end]
-        sendbuf = [outbuf, conf.scount, self.mpi.FLOAT]
-        recvbuf = [conf.bpropbuf, conf.rcount,
+        outbuf = out[conf.start:conf.end]
+        self.orig_bprop_fc(outbuf, weights, deltas)
+        sendbuf = [outbuf.asbuffer(), conf.scount, self.mpi.FLOAT]
+        recvbuf = [conf.bpropbuf.asbuffer(), conf.rcount,
                    conf.displ, self.mpi.FLOAT]
+        self.orig_bprop_fc(out[conf.start:conf.end], weights, deltas)
         self.comm.Allgatherv(sendbuf, recvbuf)
         out.copy_from(conf.bpropbuf)
 
@@ -161,6 +202,11 @@ class ModelPar(BasePar):
         conf = layer.parconf
         self.orig_update_fc(out, inputs[conf.start:conf.end], deltas)
 
+    def scatter(self, src, dest):
+        dest.copy_from(src)
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        return self.backend.empty(buf_shape, dtype=dtype)
 
 class DataPar(BasePar):
 
@@ -169,6 +215,7 @@ class DataPar(BasePar):
 
     def __init__(self):
         super(DataPar, self).__init__()
+        self.bdtype = self.mpi.FLOAT
         if self.mpi_rank == 0:
             logger.info('Data-parallel mode. Number of nodes = %d.',
                         self.mpi_size)
@@ -189,7 +236,10 @@ class DataPar(BasePar):
             assert hasattr(layer, 'nin')
             assert not hasattr(layer, 'parconf')
             conf = DataPar.Config()
-            conf.updatebuf = np.empty(layer.weight_shape, dtype=np.float32)
+            conf.updatesz = layer.weight_shape[0] * layer.weight_shape[1]
+            if self.mpi_rank == 0:
+                conf.updatebuf = backend.empty((self.mpi_size, conf.updatesz),
+                                               dtype=np.float32)
             layer.parconf = conf
 
     def associate(self, backend):
@@ -198,15 +248,17 @@ class DataPar(BasePar):
         self.orig_update_conv = backend.update_conv
         backend.update_fc = self.update_fc
         backend.update_conv = self.update_conv
+        self.npreducebuf = np.empty((self.mpi_size, 1), dtype=np.float32)
 
     def distribute(self, batchdata):
         return self.backend.array(batchdata[:, self.start:self.end])
 
     def reduce_tensor(self, tensor):
-        self.comm.Reduce([tensor.asnumpyarray(), self.mpi.FLOAT],
-                         [self.reducebuf, self.mpi.FLOAT], op=self.mpi.SUM)
+        # This is the case where we have a 1x1 tensor
+        self.comm.Gather([tensor.asbuffer(), self.bdtype],
+                         [self.npreducebuf, self.bdtype])
         if self.mpi_rank == 0:
-            return self.reducebuf / self.mpi_size
+            return self.npreducebuf.sum() / self.mpi_size
         return 0
 
     def update(self, out, conf):
@@ -215,11 +267,19 @@ class DataPar(BasePar):
         # until the updates are to be applied to the weights (the
         # weights are updated after the gradients are propagated
         # all the way back).
-        sendbuf = [out.asnumpyarray(), self.mpi.FLOAT]
-        recvbuf = [conf.updatebuf, self.mpi.FLOAT]
-        self.comm.Reduce(sendbuf, recvbuf, op=self.mpi.SUM)
-        self.comm.Bcast(buf=[conf.updatebuf, self.mpi.FLOAT])
-        out.copy_from(conf.updatebuf)
+
+        # NOTE: We should be able to shard the updates and do summation in
+        # parts across the different devices, but it seems to block in MPI
+
+        self.all_reduce(out)
+        # gbuf = conf.updatebuf.asbuffer() if self.mpi_rank == 0 else None
+        # self.comm.Gather([out.asbuffer(), self.bdtype], [gbuf, self.bdtype])
+        # if self.mpi_rank == 0:
+        #     orig_shape = out.shape
+        #     out = out.reshape((1, conf.updatebuf.shape[1]))
+        #     self.backend.sum(conf.updatebuf, axes=0, out=out)
+        #     out = out.reshape(orig_shape)
+        # self.comm.Bcast([out.asbuffer(), self.bdtype])
 
     def update_fc(self, out, inputs, deltas, layer):
         self.orig_update_fc(out, inputs, deltas)
@@ -232,3 +292,11 @@ class DataPar(BasePar):
                               ofmlocs, ifmshape, links, nifm, padding, stride,
                               ngroups, fwidth, updatebuf, local)
         self.update(out, layer.parconf)
+
+    def scatter(self, src, dest):
+        self.comm.Scatter([src, self.mpi.FLOAT],
+                          [dest.asbuffer(), self.mpi.FLOAT], root=0)
+
+    def allocate_fragment(self, buf_shape, dtype=None):
+        fragment_buf_shape = (self.batch_size, buf_shape[1])
+        return self.backend.empty(fragment_buf_shape, dtype=dtype)
