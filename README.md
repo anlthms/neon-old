@@ -15,7 +15,7 @@ Features that are unique to neon include:
 * 4.3s/macrobatch on AlexNet on Titan X (Full run on 1 GPU ~ 45 hrs)
 * Out of the box [fp16 AlexNet model](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp16.yaml) that has the same accuracy as [fp32](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp32.yaml)
 * Integration with our fork ([cudanet](https://github.com/NervanaSystems/cuda-convnet2)) of Alex Krizhevsky's cuda-convnet2 library for Kepler GPU support
-* Support for our distributed processor (Nervana Engine™) for deep learning.
+* Support for our distributed processor (Nervana Engine&trade;) for deep learning.
 
 
 We use neon internally at Nervana to solve our customers' problems across many [domains](http://www.nervanasys.com/products/). We are hiring across several roles. Apply [here](http://www.nervanasys.com/careers/)!
@@ -74,7 +74,7 @@ For any bugs or feature requests please create a ticket [here](https://github.co
 
 ## Machine learning OPerations (MOP) Layer
 
-The Nervana Engine™ supports a set of operations called the [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html). As long as end user code is written in a MOP compliant manner it will benefit from Nervana Engine's hardware acceleration and scaling abilities. In this way, we have the capability to play with other Deep Learning frameworks such as [theano](https://github.com/Theano/Theano), [torch](https://github.com/torch/torch7) and [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of the box. Do not worry if your favorite function is missing! We are still adding MOP functions so please [email us](mailto:framework@nervanasys.com).
+The Nervana Engine&trade; supports a set of operations called the [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html). As long as end user code is written in a MOP compliant manner it will benefit from Nervana Engine's hardware acceleration and scaling abilities. In this way, we have the capability to play with other Deep Learning frameworks such as [theano](https://github.com/Theano/Theano), [torch](https://github.com/torch/torch7) and [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of the box. Do not worry if your favorite function is missing! We are still adding MOP functions so please [email us](mailto:framework@nervanasys.com).
 
 ## Upcoming libraries
 
@@ -82,7 +82,7 @@ We have separate, upcoming efforts on the following fronts:
 
 * Distributed models
 * Automatic differentiation
-* Integration with Nervana Cloud™
+* Integration with Nervana Cloud&trade;
 
 ## License
 
