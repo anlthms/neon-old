@@ -45,7 +45,7 @@
     num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    ntrain: 24, # Delete this line to use entire dataset for training
+    #ntrain: 24, # Delete this line to use entire dataset for training
     #nval: 1,
     backend_type: &bt np.float16,
   },
@@ -103,7 +103,7 @@
     batch_norm: &bn True,
     num_epochs: 60, # 1 or 10 or 60
     batch_size: &bs 128,
-    #step_print: 24,
+    step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_fp16_model.pkl',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
