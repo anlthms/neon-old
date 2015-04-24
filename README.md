@@ -13,7 +13,7 @@ Features that are unique to neon include:
 
 * Tight integration with [nervanagpu](https://github.com/NervanaSystems/nervanagpu) kernels for fp16 and fp32 ([benchmarks](https://github.com/soumith/convnet-benchmarks)) on Maxwell GPUs. These are the fastest implementations of the benchmark deep networks.
 * 4.3s/macrobatch on AlexNet on Titan X (Full run on 1 GPU ~ 45 hrs)
-* Out of the box fp16 AlexNet model that has the same accuracy as fp32
+* Out of the box [fp16 AlexNet model](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp16.yaml) that has the same accuracy as [fp32](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp32.yaml)
 * Integration with our fork ([cudanet](https://github.com/NervanaSystems/cuda-convnet2)) of Alex Krizhevsky's cuda-convnet2 library for Kepler GPU support
 * Support for our distributed processor (Nervana Engine™) for deep learning.
 
@@ -37,7 +37,7 @@ There are several examples built-in to neon in the `examples` directory for a us
 	
 ### Running an Alexnet model
 
-In fp32:
+In [fp32](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp32.yaml):
 
 	# for nervangpu
 	neon -g nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
@@ -47,7 +47,7 @@ In fp32:
 	
 `-g` stands for GPU hardware backend.
 
-In fp16:
+In [fp16](https://github.com/NervanaSystems/neon/tree/master/examples/convnet/i1k-alexnet-fp16.yaml):
 
 	neon -g nervanagpu examples/convnet/i1k-alexnet-fp16.yaml
 
@@ -74,7 +74,7 @@ For any bugs or feature requests please create a ticket [here](https://github.co
 
 ## Machine learning OPerations (MOP) Layer
 
-The Nervana Engine™ supports a set of operations called the [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html). As long as end user code is written in a MOP compliant manner it will benefit from Nervana Engine's hardware acceleration. In this way, we have the ability to serve as an accelerator for other Deep Learning frameworks such as [theano](https://github.com/Theano/Theano), [torch](https://github.com/torch/torch7) and [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of the box. Do not worry if your favorite function is missing! We are still adding MOP functions so please [email us](mailto:framework@nervanasys.com).
+The Nervana Engine™ supports a set of operations called the [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html). As long as end user code is written in a MOP compliant manner it will benefit from Nervana Engine's hardware acceleration and scaling abilities. In this way, we have the capability to play with other Deep Learning frameworks such as [theano](https://github.com/Theano/Theano), [torch](https://github.com/torch/torch7) and [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of the box. Do not worry if your favorite function is missing! We are still adding MOP functions so please [email us](mailto:framework@nervanasys.com).
 
 ## Upcoming libraries
 
@@ -87,3 +87,4 @@ We have separate, upcoming efforts on the following fronts:
 ## License
 
 We are releasing [neon](https://github.com/NervanaSystems/neon) and [nervanagpu](https://github.com/NervanaSystems/nervanagpu) under an open source [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) License. We welcome you to [contact us](mailto:info@nervanasys.com) with your use cases.
+
