@@ -13,7 +13,7 @@ from threading import Thread
 
 from neon.datasets.dataset import Dataset
 from neon.util.param import opt_param, req_param
-from neon.util.persist import deserialize
+from neon.util.persist import deserialize, serialize
 import imgworker
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class MacrobatchDecodeThread(Thread):
 
     def run(self):
 
-        bsz = self.ds.batch_size
+        bsz = self.ds.actual_batch_size
         b_idx = self.ds.macro_decode_buf_idx
         jdict = self.ds.get_macro_batch()
         betype = self.ds.backend_type
@@ -56,7 +56,8 @@ class MacrobatchDecodeThread(Thread):
                               center=self.ds.predict, flip=True,
                               rgb=self.ds.rgb,
                               nthreads=self.ds.num_workers)
-        np.subtract(uimg_macro, self.ds.mean_val, self.ds.img_macro[b_idx])
+        # np.subtract(uimg_macro, self.ds.mean_val, self.ds.img_macro[b_idx])
+        self.ds.img_macro[b_idx][:] = uimg_macro
         if mac_sz < self.ds.macro_size:
             self.ds.img_macro[mac_sz:] = 0
         # Leave behind the partial minibatch
@@ -127,6 +128,8 @@ class Imageset(Dataset):
 
         self.rgb = True if self.num_channels == 3 else False
         self.norm_factor = 128. if self.mean_norm else 256.
+
+        self.print_once = True
 
     def load(self):
         bdir = os.path.expanduser(self.save_dir)
@@ -222,11 +225,12 @@ class Imageset(Dataset):
         self.macro_decode_thread = None
 
         self.batch_size = batch_size
+        self.actual_batch_size = self.batch_size * self.backend.par.size()
         self.predict = predict
-        self.minis_per_macro = [self.macro_size / batch_size
+        self.minis_per_macro = [self.macro_size / self.actual_batch_size
                                 for i in range(self.macro_num_decode_buf)]
 
-        if self.macro_size % batch_size != 0:
+        if self.macro_size % self.actual_batch_size != 0:
             raise ValueError('self.macro_size not divisible by batch_size')
 
         self.macro_idx = self.endb
@@ -243,6 +247,7 @@ class Imageset(Dataset):
         self.inp_beT = sbaf(inp_shape[::-1], dtype=betype)
         self.inp_be = sbe(inp_shape, dtype=betype)
 
+        print self.inp_beT.shape, self.inp_be.shape
         lbl_shape = {lbl: (self.nclass[lbl], self.batch_size)
                      for lbl in self.label_list}
         self.lbl_beT = {lbl: sbaf(lbl_shape[lbl][::-1], dtype=betype)
@@ -263,35 +268,60 @@ class Imageset(Dataset):
         # Decode macrobatches in a background thread,
         # except for the first one which blocks
         if self.mini_idx == 0:
-            if self.macro_decode_thread is not None:
-                # No-op unless all mini finish faster than one macro
-                self.macro_decode_thread.join()
-            else:
-                # special case for first run through
+            if self.backend.rank() == 0:
+                if self.macro_decode_thread is not None:
+                    # No-op unless all mini finish faster than one macro
+                    self.macro_decode_thread.join()
+                else:
+                    # special case for first run through
+                    self.macro_decode_thread = MacrobatchDecodeThread(self)
+                    self.macro_decode_thread.start()
+                    self.macro_decode_thread.join()
+
+                # usual case for kicking off a background macrobatch thread
+                self.macro_active_buf_idx = self.macro_decode_buf_idx
+                self.macro_decode_buf_idx = \
+                    (self.macro_decode_buf_idx + 1) % self.macro_num_decode_buf
                 self.macro_decode_thread = MacrobatchDecodeThread(self)
                 self.macro_decode_thread.start()
-                self.macro_decode_thread.join()
-
-            # usual case for kicking off a background macrobatch thread
-            self.macro_active_buf_idx = self.macro_decode_buf_idx
-            self.macro_decode_buf_idx = \
-                (self.macro_decode_buf_idx + 1) % self.macro_num_decode_buf
-            self.macro_decode_thread = MacrobatchDecodeThread(self)
-            self.macro_decode_thread.start()
 
         # All minibatches except for the 0th just copy pre-prepared data
         b_idx = self.macro_active_buf_idx
-        s_idx = self.mini_idx * self.batch_size
-        e_idx = (self.mini_idx + 1) * self.batch_size
+        s_idx = self.mini_idx * self.actual_batch_size
+        e_idx = (self.mini_idx + 1) * self.actual_batch_size
 
         # Copy into device and then transpose on device
-        self.backend.scatter(self.img_macro[b_idx][s_idx:e_idx], self.inp_beT)
-        self.inp_be[:] = self.inp_beT.T
+        if self.backend.rank() == 0:
+            himg = self.img_macro[b_idx][s_idx:e_idx]
+        else:
+            himg = None
+        self.backend.scatter(himg, self.inp_beT)
+
 
         for lbl in self.label_list:
-            self.backend.scatter(self.lbl_one_hot[b_idx][lbl][self.mini_idx], 
-                self.lbl_beT[lbl])
+            if self.backend.rank() == 0:
+                hlbl = self.lbl_one_hot[b_idx][lbl][self.mini_idx]
+            else:
+                hlbl = None
+            self.backend.scatter(hlbl, self.lbl_beT[lbl])
+
+        self.inp_be[:] = self.inp_beT.T
+        for lbl in self.label_list:
             self.lbl_be[lbl][:] = self.lbl_beT[lbl].T
+
+        # if self.print_once:
+        #     print self.inp_be.shape, self.inp_beT.shape
+        #     outputs = [self.inp_be.asnumpyarray(), self.inp_beT.asnumpyarray()]
+        #     serialize(outputs, 'imgouts{:02d}_{:02d}.pkl'.format(self.backend.par.size(), self.backend.rank()))
+
+        #     # print self.lbl_be[lbl].asnumpyarray()[:,10]
+        #     # # self.inp_beT[10].asnumpyarray()
+        #     # from PIL import Image
+        #     # # im = Image.fromarray(self.img_macro[b_idx][10].reshape((3, 224, 224)).transpose(1,2,0).astype(np.uint8))
+        #     # im = Image.fromarray(self.inp_be.asnumpyarray()[:,16].reshape((3, 224, 224)).transpose(1,2,0).astype(np.uint8))
+        #     # im.save('boomv2' + str(self.backend.rank()) + '.png', 'PNG')
+        #     # # print self.lbl_beT['l_id'][10].asnumpyarray()
+        #     self.print_once = False
 
         if self.unit_norm:
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)

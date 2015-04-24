@@ -4,7 +4,7 @@
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '~/data',
-    sample_pct: 10,
+    sample_pct: 100,
   },
 
   metrics: {
@@ -19,11 +19,12 @@
   weight_inits: &wt_init !obj:params.UniformValGen {
     low: -0.1,
     high: 0.1,
+    bias_init: 0.1,
   },
 
   weight_inits: &wt_init0 !obj:params.GaussianValGen {
     scale: .01,
-    bias_init: 0.0,
+    bias_init: 0.1,
   },
 
   lrule: &gdm {
@@ -39,7 +40,7 @@
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
-    num_epochs: 5,
+    num_epochs: 10,
     batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {

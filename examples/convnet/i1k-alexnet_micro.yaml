@@ -16,7 +16,7 @@
     macro_size: 3072,
     nclass: {l_id: 1000},
     num_channels: 3,
-    num_workers: 8,
+    num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
     ntrain: 24, # Delete this line to use entire dataset for training
@@ -44,11 +44,11 @@
     },
     &wt_init_fc !obj:params.AutoUniformValGen {
       relu: True,
-      bias_init: 1.0,
+      # bias_init: 1.0,
     },
     &wt_initout !obj:params.AutoUniformValGen {
       relu: True,
-      bias_init: -7.0,
+      # bias_init: -7.0,
     },
   ],
 
@@ -138,7 +138,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0,
+          # bias_init: 1.0,
         },
         nofm: 192,
         fshape: [5, 5],
@@ -178,7 +178,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0,
+          # bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],
@@ -192,7 +192,7 @@
         weight_init: !obj:params.AutoUniformValGen {
           relu: True,
           islocal: True,
-          bias_init: 1.0,
+          # bias_init: 1.0,
         },
         nofm: 256,
         fshape: [3, 3],

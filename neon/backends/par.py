@@ -43,6 +43,9 @@ class NoPar(object):
     def all_reduce(self, tensor):
         pass
 
+    def barrier_sync(self):
+        pass
+
 class BasePar(object):
 
     def __init__(self):
@@ -117,6 +120,8 @@ class BasePar(object):
                                 [tensor.asbuffer(), self.mpi.FLOAT],
                                 op=self.mpi.SUM)
 
+    def barrier_sync(self):
+        self.comm.Barrier()
 
 class ModelPar(BasePar):
 
@@ -255,7 +260,7 @@ class DataPar(BasePar):
 
     def reduce_tensor(self, tensor):
         # This is the case where we have a 1x1 tensor
-        self.comm.Gather([tensor.asbuffer(), self.bdtype],
+        self.comm.Gather([tensor.asnumpyarray(), self.bdtype],
                          [self.npreducebuf, self.bdtype])
         if self.mpi_rank == 0:
             return self.npreducebuf.sum() / self.mpi_size
@@ -299,4 +304,4 @@ class DataPar(BasePar):
 
     def allocate_fragment(self, buf_shape, dtype=None):
         fragment_buf_shape = (self.batch_size, buf_shape[1])
-        return self.backend.empty(fragment_buf_shape, dtype=dtype)
+        return self.backend.zeros(fragment_buf_shape, dtype=dtype)

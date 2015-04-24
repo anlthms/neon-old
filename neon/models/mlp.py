@@ -8,6 +8,7 @@ Simple multi-layer perceptron model.
 import logging
 from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
 from neon.util.param import opt_param, req_param
+from neon.util.persist import serialize
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ class MLP(MLP_old):
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
         opt_param(self, ['timing_plots'], False)
+        opt_param(self, ['print_once'], True)
+
         self.data_layer = self.layers[0]
         self.cost_layer = self.layers[-1]
         self.class_layer = self.layers[-2]

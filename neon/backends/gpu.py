@@ -46,9 +46,6 @@ class GPU(Backend):
         from pycuda.tools import clear_context_caches
         clear_context_caches()
 
-    def __del__(self):
-        self.ctx.pop()
-
     def init_mempool(self, shape, dtype=default_dtype):
         """
         Allocates a memory pool for temporary storage

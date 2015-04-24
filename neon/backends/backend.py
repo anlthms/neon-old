@@ -1147,6 +1147,9 @@ class Backend(YAMLable):
     def all_reduce(self, tensor):
         return self.par.all_reduce(tensor)
 
+    def barrier_sync(self):
+        return self.par.barrier_sync()
+
 class Tensor(object):
     """
     Represents an arbitrary n-dimensional array data structure.
