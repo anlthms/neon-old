@@ -346,8 +346,7 @@ class RecurrentOutputLayer(Layer):
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
         else:
-            raise AttributeError("Urs is not cool with your missing "
-                                 "activation function")
+            raise AttributeError("Missing activation function")
 
     def bprop(self, error, inputs, tau, numgrad=False):
         self.backend.multiply(error, self.pre_act_list[tau - 1], error)
@@ -819,8 +818,7 @@ class RecurrentHiddenLayer(Layer):
                                        self.pre_act_list[tau],
                                        self.output_list[tau])
         else:
-            raise AttributeError("Urs is not cool with your missing "
-                                 "activation function")
+            raise AttributeError("Missing activation function")
 
     def bprop(self, error, error_c, inputs, tau, t, numgrad=False):
         """
