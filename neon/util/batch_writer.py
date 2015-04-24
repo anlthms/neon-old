@@ -137,7 +137,7 @@ class BatchWriter(object):
         targets = np.array(df[tk].values, np.float32) if len(tk) > 0 else None
         imfiles = df['filename'].values
 
-        self.nclass = {ll: max(df[ll].values) for ll in lk}
+        self.nclass = {ll: (max(df[ll].values) + 1) for ll in lk}
         return imfiles, labels, targets
 
     def write_batches(self, name, start, labels, imfiles, targets=None,

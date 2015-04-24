@@ -39,6 +39,15 @@ class FitPredictErrorExperiment(FitExperiment):
         opt_param(self, ['metrics'], {})
         opt_param(self, ['predictions'], {})
 
+    def initialize(self, backend):
+        if self.live:
+            if not hasattr(self.dataset, 'live'):
+                raise AttributeError('This dataset does not support '
+                                     'live inference')
+            self.model.batch_size = 1
+            self.dataset.live = True
+        super(FitPredictErrorExperiment, self).initialize(backend)
+
     def save_results(self, dataset, setname, data, dataname):
         out_dir = os.path.join(dataset.repo_path, dataset.__class__.__name__)
         if hasattr(dataset, 'save_dir'):
@@ -75,6 +84,9 @@ class FitPredictErrorExperiment(FitExperiment):
 
         # Load the data and train the model.
         super(FitPredictErrorExperiment, self).run()
+        if self.live:
+            self.predict_live()
+            return
 
         # switch to inference mode
         self.model.set_train_mode(False)
@@ -88,6 +100,7 @@ class FitPredictErrorExperiment(FitExperiment):
             outputs, targets = self.model.predict_fullset(self.dataset,
                                                           pred_set)
             self.save_results(self.dataset, pred_set, outputs, 'inference')
+            self.save_results(self.dataset, pred_set, targets, 'targets')
             # update any metrics for this set while we have this info
             if pred_set in self.metrics:
                 for m in self.metrics[pred_set]:
@@ -120,4 +133,17 @@ class FitPredictErrorExperiment(FitExperiment):
             from neon.diagnostics import ranges_plots as rp
             rp.print_param_stats(self.backend, logger,
                                  self.diagnostics['prefix'])
+        self.dataset.unload()
         return result
+
+    def predict_live(self):
+        self.model.predict_live_init(self.dataset)
+        logger.info('Ready to perform live inference')
+        while True:
+            try:
+                result = self.model.predict_live()
+                logger.info(result)
+            except KeyboardInterrupt:
+                logger.info('Execution interrupted.')
+                self.dataset.unload()
+                break

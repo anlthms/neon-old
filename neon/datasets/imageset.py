@@ -295,7 +295,7 @@ class Imageset(Dataset):
 
         for lbl in self.label_list:
             self.lbl_be[lbl].copy_from(
-                                self.lbl_one_hot[b_idx][lbl][self.mini_idx])
+                self.lbl_one_hot[b_idx][lbl][self.mini_idx])
 
         if self.tgt_be is not None:
             self.tgt_be.copy_from(
