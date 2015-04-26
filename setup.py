@@ -63,17 +63,23 @@ class NeonCommand(Command):
                                                    'scikit-learn>=0.15.2',
                                                    'matplotlib>=1.4.0',
                                                    'imgworker>=0.2.3']
-            self.distribution.dependency_links += ['git+http://gitlab.'
-                                                   'localdomain/algorithms/'
+            self.distribution.dependency_links += ['git+https://github.com/'
+                                                   'NervanaSystems/'
                                                    'imgworker.git#'
                                                    'egg=imgworker']
-        if self.gpu == "1":
+        if self.gpu == "1" or self.gpu == "cudanet":
             self.distribution.install_requires += ['cudanet>=0.2.5',
                                                    'pycuda>=2014.1']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'cuda-convnet2.git#'
                                                    'egg=cudanet']
+        if self.gpu == "nervanagpu":
+            self.distribution.install_requires += ['nervanagpu>=0.2.2']
+            self.distribution.dependency_links += ['git+https://github.com/'
+                                                   'NervanaSystems/'
+                                                   'nervanagpu.git#'
+                                                   'egg=nervanagpu']
         if self.dist == "1":
             self.distribution.install_requires += ['mpi4py>=1.3.1']
 
@@ -116,7 +122,7 @@ setup(name='neon',
       packages=find_packages(),
       install_requires=required_packages,
       cmdclass={'neon': NeonCommand},
-      classifiers=['Development Status :: 2 - Pre-Alpha',
+      classifiers=['Development Status :: 3 - Alpha',
                    'Environment :: Console',
                    'Environment :: Console :: Curses',
                    'Environment :: Web Environment',
