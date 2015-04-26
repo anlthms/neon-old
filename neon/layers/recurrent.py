@@ -217,7 +217,7 @@ class RecurrentHiddenLayer(RecurrentLayer):
                                    deltas=error)
             self.backend.add(self.updates_rec, self.temp_rec, self.updates_rec)
 
-            # **** ASK URS ***
+            # **** email urs@nervanasys.com with questions ***
             # Why only at tau > 0 vs. tau==0? why not weights vs weights_rec
             self.backend.bprop_fc(out=self.deltas,
                                   weights=self.weights_rec,
@@ -371,7 +371,7 @@ class RecurrentLSTMLayer(RecurrentLayer):
         be.update_fc(out=self.dh_dwx_buf, inputs=xx, deltas=delta_buf)
         be.update_fc(out=self.dh_dwh_buf, inputs=yy, deltas=delta_buf)
         if (tau > 0):
-            # was h only, but Urs changed this to skip the last x as well
+            # was h only, but changed this to skip the last x as well
             be.add(wxu, self.dh_dwx_buf, wxu)
             be.add(whu, self.dh_dwh_buf, whu)
         be.sum(delta_buf, 1, self.bsum_buf)
