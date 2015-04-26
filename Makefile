@@ -80,7 +80,7 @@ default: build
 build: clean_pyc
 	@echo "Running build(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
 	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
-		build_ext --inplace
+		build
 
 # unfortunately there is no way to communicate custom commands into pip
 # install, hence having to specify installation requirements twice (once
@@ -144,8 +144,6 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
-	-rm -f neon/backends/flexpt_dtype.so
-	-rm -f neon/backends/flexpt_cython.so
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean

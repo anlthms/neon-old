@@ -6,21 +6,12 @@ Houses code for each of the core backend and associated Tensor data structures.
 """
 
 import logging
-import numpy as np
 import os
 import sys
-
-from neon.backends.flexpt_dtype import flexpt
 
 # import shortcuts
 from neon.backends.cpu import CPU
 from neon.backends.par import NoPar, ModelPar, DataPar
-
-if np.__dict__.get('flexpt') is not None:
-    raise RuntimeError('The numpy package already has a flexpt type')
-
-np.flexpt = flexpt
-np.typeDict['flexpt'] = np.dtype(flexpt)
 
 
 def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
