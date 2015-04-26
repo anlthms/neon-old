@@ -14,7 +14,6 @@ from threading import Thread
 from neon.datasets.dataset import Dataset
 from neon.util.param import opt_param, req_param
 from neon.util.persist import deserialize
-import imgworker
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +27,11 @@ class MacrobatchDecodeThread(Thread):
     """
 
     def __init__(self, ds):
+        import imgworker
         Thread.__init__(self)
         self.ds = ds
 
     def run(self):
-
         bsz = self.ds.batch_size
         b_idx = self.ds.macro_decode_buf_idx
         jdict = self.ds.get_macro_batch()
