@@ -39,7 +39,7 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
                                 implies a CPU based backend.  If 'cudanet',
                                 utilize a cuda-convnet2 based backed, which
                                 supports Kepler and Maxwell GPUs with single
-                                precision. If 'nervanagpu', attemt to utilize
+                                precision. If 'nervanagpu', attempt to utilize
                                 the NervanaGPU Maxwell backend with float16 and
                                 float32 support.
         nrv (bool, optional): If True, attempt to utilize the Nervana Engine
@@ -85,8 +85,8 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
 
     Notes:
         * Attempts to construct a GPU instance without a CUDA capable card or
-          without Nervana's cuda-convnet2 based cudanet package will resort to
-          a CPU instance with a warning generated.
+          without cudanet or nervanagpu package installed will cause the
+          program to display an error message and exit.
         * Attempts to construct a parallel instance without mpi4py installed
           will cause the program to display an error message and exit.
         * The returned backend will still need to call its par.init_model()
@@ -129,7 +129,7 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
                 logger.warning("nervanagpu not found, can't run via GPU")
                 gpuflag = False
         if gpuflag is False:
-            logger.error("Can't find CUDA capable GPU")
+            raise RuntimeError("Can't find CUDA capable GPU")
     elif nrv:
         nrv = False
         try:
@@ -157,13 +157,11 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
             logger.warn('Ignoring device id specified in command line.')
         device_id = par.device_id
 
-    if gpuflag:
-        pass
-    elif nrv:
+    if nrv:
         be_name = 'NRV'
         be = NRVBackend(rng_seed=rng_seed, seterr_handling=numerr_handling,
                         device_id=device_id)
-    else:
+    elif not gpuflag:
         be_name = 'CPU'
         be = CPU(rng_seed=rng_seed, seterr_handling=numerr_handling)
     logger.info("{} backend, RNG seed: {}, numerr: {}".format
