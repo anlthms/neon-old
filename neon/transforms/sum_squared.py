@@ -75,7 +75,7 @@ class SumSquaredDiffs(Cost):
         passed.
         """
         result = sum_squared_diffs(self.backend, self.outputbuf, targets,
-                                   self.temp)
+                                   self.temp, scale_by_batchsize)
         return self.backend.multiply(result, self.scale, result)
 
     def apply_derivative(self, targets):
