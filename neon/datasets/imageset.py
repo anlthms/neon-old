@@ -72,11 +72,11 @@ class MacrobatchDecodeThread(Thread):
             self.ds.img_mini_T[b_idx][mini_idx] = \
                 img_macro[s_idx:e_idx].T.astype(betype, order='C')
 
-            if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
+            if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < bsz:
                 tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
                 mb_residual = self.ds.img_mini_T[b_idx][mini_idx].shape[1]
                 filledbatch = np.vstack((img_macro[s_idx:e_idx],
-                                         np.zeros((128-mb_residual, tmp))))
+                                         np.zeros((bsz - mb_residual, tmp))))
                 self.ds.img_mini_T[b_idx][mini_idx] = \
                     filledbatch.T.astype(betype, order='C')
             for lbl in self.ds.label_list:
