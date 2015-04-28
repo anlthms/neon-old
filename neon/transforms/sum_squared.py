@@ -8,7 +8,8 @@ Sum of squares transform functions and classes.
 from neon.transforms.cost import Cost
 
 
-def sum_squared_diffs(backend, outputs, targets, temp):
+def sum_squared_diffs(backend, outputs, targets, temp,
+                      scale_by_batchsize=False):
     """
     Evaluates sum of squared difference on pairwise elements from outputs and
     targets.
@@ -24,6 +25,8 @@ def sum_squared_diffs(backend, outputs, targets, temp):
     """
     backend.subtract(outputs, targets, temp[0])
     backend.multiply(temp[0], temp[0], temp[0])
+    if scale_by_batchsize:
+        backend.divide(temp[0], temp[0].shape[1], temp[0])
     result = backend.empty((1, 1))
     backend.sum(temp[0], axes=None, out=result)
     return backend.multiply(result, 0.5, result)
@@ -66,13 +69,13 @@ class SumSquaredDiffs(Cost):
     def get_deltabuf(self):
         return self.temp[0]
 
-    def apply_function(self, targets):
+    def apply_function(self, targets, scale_by_batchsize=False):
         """
         Apply the sum of squared differences cost function to the datasets
         passed.
         """
         result = sum_squared_diffs(self.backend, self.outputbuf, targets,
-                                   self.temp)
+                                   self.temp, scale_by_batchsize)
         return self.backend.multiply(result, self.scale, result)
 
     def apply_derivative(self, targets):
