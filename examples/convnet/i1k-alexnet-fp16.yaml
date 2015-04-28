@@ -45,7 +45,7 @@
     num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    #ntrain: 24, # Delete this line to use entire dataset for training
+    ntrain: 4, # Delete this line to use entire dataset for training
     #nval: 1,
     backend_type: &bt np.float16,
   },
@@ -82,6 +82,7 @@
 
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
+    backend_type: *bt, ######################################################
     lr_params: {
       learning_rate: 0.0001,
       weight_decay: .0005,
@@ -101,8 +102,8 @@
   model: !obj:models.MLP {
     backend_type: *bt,
     batch_norm: &bn True,
-    num_epochs: 60, # 1 or 10 or 60
-    batch_size: &bs 128,
+    num_epochs: 1, # 1 or 10 or 60
+    batch_size: &bs 64,
     step_print: 24,
     #serialized_path: '~/data/I1K/I1K_alexnet_fp16_model.pkl',
     layers: [
