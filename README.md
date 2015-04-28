@@ -1,18 +1,18 @@
-# Public beta release of neon
+# neon
 
-We are pleased to announce the public beta release of
-[neon](https://github.com/NervanaSystems/neon), which is
+[neon](https://github.com/NervanaSystems/neon) is
 <span style="color:red;">NE</span>rvana's pyth<span style="color:red;">ON</span>
 based Deep Learning Framework! We have designed it with the following
 functionality in mind:
 
-* YAML for easy model specification
+* YAML for easy model specification (inspired by [pylearn2](https://github.com/lisa-lab/pylearn2))
 * Python for easy model hacking and support for many data formats
 * Support for commonly used models: convnets, MLPs, RNNs, LSTMs, autoencoders,
   RBMs
 * Support for common learning rules, activation functions and cost functions
 * Comparing performance of alternate numeric representations with fp32 for
   Deep Learning
+* Support for using [spearmint](https://github.com/JasperSnoek/spearmint) for hyperparameter optimization
 * Swappable hardware backends: write code once and then deploy on CPUs, GPUs,
   or Nervana hardware
 
@@ -64,10 +64,10 @@ definitions and possible choices.
 
 In [fp32](examples/convnet/i1k-alexnet-fp32.yaml):
 
-	# for nervangpu
+	# for nervangpu (requires Maxwell GPUs)
 	neon -g nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
 	
-	# for cudanet
+	# for cudanet (works with Kepler or Maxwell GPUs)
 	neon -g cudanet examples/convnet/i1k-alexnet-fp32.yaml
 	
 `-g` stands for GPU hardware backend.
@@ -123,24 +123,6 @@ We have separate, upcoming efforts on the following fronts:
 * Distributed models
 * Automatic differentiation
 * Integration with Nervana Cloud&trade;
-
-
-## Acknowledgements
-
-In developing neon we have extended and been inspired by several really great
-open source packages and projects.  In particular we'd like to call out:
-
-* [Pylearn2](https://github.com/lisa-lab/pylearn2) (source code),
-  [Pylearn2: a machine learning research library](http://arxiv.org/abs/1308.4214)
-  (paper).  In particular, our YAML based configuration format and parsing
-  borrows heavily from the way this is done in Pylearn2.
-* [cuda-convnet2](https://code.google.com/p/cuda-convnet2/) (source code).  Our
-  [cudanet](https://github.com/NervanaSystems/cuda-convnet2) GPU backend is a
-  derived fork of this project.
-* [spearmint](https://github.com/JasperSnoek/spearmint) (old source code),
-  [Practical Bayesian Optimization of Machine Learning Algorithms](http://arxiv.org/abs/1206.2944)
-  (paper).  Our hyperparameter tuning is based on a derived fork of this
-  project.
   
 
 ## License
