@@ -125,6 +125,24 @@ We have separate, upcoming efforts on the following fronts:
 * Integration with Nervana Cloud&trade;
 
 
+## Acknowledgements
+
+In developing neon we have extended and been inspired by several really great
+open source packages and projects.  In particular we'd like to call out:
+
+* [Pylearn2](https://github.com/lisa-lab/pylearn2) (source code),
+  [Pylearn2: a machine learning research library](http://arxiv.org/abs/1308.4214)
+  (paper).  In particular, our YAML based configuration format and parsing
+  borrows heavily from the way this is done in Pylearn2.
+* [cuda-convnet2](https://code.google.com/p/cuda-convnet2/) (source code).  Our
+  [cudanet](https://github.com/NervanaSystems/cuda-convnet2) GPU backend is a
+  derived fork of this project.
+* [spearmint](https://github.com/JasperSnoek/spearmint) (old source code),
+  [Practical Bayesian Optimization of Machine Learning Algorithms](http://arxiv.org/abs/1206.2944)
+  (paper).  Our hyperparameter tuning is based on a derived fork of this
+  project.
+  
+
 ## License
 
 We are releasing [neon](https://github.com/NervanaSystems/neon) and
