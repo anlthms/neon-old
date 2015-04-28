@@ -50,7 +50,8 @@ if __name__ == '__main__':
     # (dimensions not aligned), so skipping for the moment.
     for be, num_epochs in [("cpu", 120), ("gpu", 225), ("datapar", 120)]:
         be_args = {'rng_seed': 0}
-        if (args.__dict__[be] != 0 and args.__dict__[be] != ""):
+        if (args.__dict__[be] != 0 and args.__dict__[be] != "" and
+                args.__dict__[be] != "0"):
             if be != "cpu":
                 be_args[be] = 1
             if be == "gpu":

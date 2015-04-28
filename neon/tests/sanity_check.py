@@ -48,7 +48,8 @@ if __name__ == '__main__':
     # for be in ["cpu", "gpu", "datapar", "modelpar"]:
     for be in ["cpu", "gpu", "datapar"]:
         be_args = {'rng_seed': 0}
-        if (args.__dict__[be] != 0 and args.__dict__[be] != ""):
+        if (args.__dict__[be] != 0 and args.__dict__[be] != "" and
+                args.__dict__[be] != "0"):
             if be == "gpu":
                 be_args[be] = args.__dict__[be]
             elif be == "datapar":
