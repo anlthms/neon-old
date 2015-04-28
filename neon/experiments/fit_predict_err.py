@@ -36,6 +36,7 @@ class FitPredictErrorExperiment(FitExperiment):
     def __init__(self, **kwargs):
         super(FitPredictErrorExperiment, self).__init__(**kwargs)
         opt_param(self, ['diagnostics'], {'timing': False, 'ranges': False})
+        opt_param(self, ['serialize_outputs'], False)
         opt_param(self, ['metrics'], {})
         opt_param(self, ['predictions'], {})
 
@@ -85,13 +86,27 @@ class FitPredictErrorExperiment(FitExperiment):
                 logger.warning("Unable to generate '%s' predictions, no "
                                "equivalent dataset partition" % pred_set)
                 continue
-            outputs, targets = self.model.predict_fullset(self.dataset,
-                                                          pred_set)
-            self.save_results(self.dataset, pred_set, outputs, 'inference')
-            # update any metrics for this set while we have this info
-            if pred_set in self.metrics:
-                for m in self.metrics[pred_set]:
-                    m.add(targets, outputs)
+
+
+            # only serialize the outputs if specifically requested.
+            if self.serialize_outputs is True:
+                outputs, targets = self.model.predict_fullset(self.dataset,
+                                                              pred_set)
+                self.save_results(self.dataset, pred_set, outputs, 'inference')
+                # update any metrics for this set while we have this info
+                if pred_set in self.metrics:
+                    for m in self.metrics[pred_set]:
+                        m.add(targets, outputs)
+            else:
+                # avoiding fullset storage issues through use of a generator
+                generator = self.model.predict_generator(self.dataset, pred_set)
+                for i in generator:
+                    outputs, targets = i
+                    # update any metrics for this set while we have this info
+                    if pred_set in self.metrics:
+                        for m in self.metrics[pred_set]:
+                            m.add(targets, outputs)
+
 
         # Report error metrics.
         for metric_set in self.metrics:

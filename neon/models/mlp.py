@@ -140,6 +140,37 @@ class MLP(MLP_old):
         for ll in self.layers:
             ll.set_train_mode(mode)
 
+    def predict_generator(self, dataset, setname):
+        """
+        Generator that iterates over minibatches.
+        Agruments:
+            dataset: A neon dataset instance
+            setname: Which set to compute predictions for (test, train, val)
+        Outputs (yields):
+            Outputs: Model probabilities for each class
+            Reference: Either one-hot or raw label with ground truth
+        """
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * 1
+        outputs = self.backend.empty((self.class_layer.nout, nrecs))
+        if self.data_layer.has_labels:
+            reference = self.backend.empty((1, nrecs))
+        else:
+            reference = self.backend.empty(outputs.shape)
+
+        self.set_train_mode(False)
+
+        while self.data_layer.has_more_data():
+            self.fprop()
+            outputs = self.get_classifier_output()
+            reference = self.cost_layer.get_reference()
+            yield (outputs, reference)
+
+        self.data_layer.cleanup()
+
     def predict_fullset(self, dataset, setname):
         self.data_layer.init_dataset(dataset)
         assert self.data_layer.has_set(setname)
