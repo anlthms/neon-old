@@ -163,11 +163,6 @@ def obj_multi_constructor(loader, tag_suffix, node,
     if child_vals[overwrite_param] is None:
         child_vals[overwrite_param] = [serialize_param]
     child_vals[dist_param] = (child_vals[dist_param] == 'True')
-    if (child_vals[deserialize_param] is None and child_vals[serialize_param]
-            is not None):
-        # attempt to deserialize from serialized_path since
-        # deserialized_path not populated
-        child_vals[deserialize_param] = child_vals[serialize_param]
     if False:
         # TODO: we want to run this if running a datapar or modelpar model,
         # need some way to check this!
@@ -247,6 +242,7 @@ def deserialize(load_path, verbose=True):
         return yaml.safe_load(load_path)
     else:
         try:
+            print "unpicking", load_path
             return pickle.load(load_path)
         except AttributeError:
             msg = ("Problems deserializing: %s.  Its possible the interface "
