@@ -247,7 +247,6 @@ class Imageset(Dataset):
         self.inp_beT = sbaf(inp_shape[::-1], dtype=betype)
         self.inp_be = sbe(inp_shape, dtype=betype)
 
-        print self.inp_beT.shape, self.inp_be.shape
         lbl_shape = {lbl: (self.nclass[lbl], self.batch_size)
                      for lbl in self.label_list}
         self.lbl_beT = {lbl: sbaf(lbl_shape[lbl][::-1], dtype=betype)
@@ -290,38 +289,20 @@ class Imageset(Dataset):
         s_idx = self.mini_idx * self.actual_batch_size
         e_idx = (self.mini_idx + 1) * self.actual_batch_size
 
+        himg, hlbl = None, None
         # Copy into device and then transpose on device
         if self.backend.rank() == 0:
             himg = self.img_macro[b_idx][s_idx:e_idx]
-        else:
-            himg = None
         self.backend.scatter(himg, self.inp_beT)
-
 
         for lbl in self.label_list:
             if self.backend.rank() == 0:
                 hlbl = self.lbl_one_hot[b_idx][lbl][self.mini_idx]
-            else:
-                hlbl = None
             self.backend.scatter(hlbl, self.lbl_beT[lbl])
 
         self.inp_be[:] = self.inp_beT.T
         for lbl in self.label_list:
             self.lbl_be[lbl][:] = self.lbl_beT[lbl].T
-
-        # if self.print_once:
-        #     print self.inp_be.shape, self.inp_beT.shape
-        #     outputs = [self.inp_be.asnumpyarray(), self.inp_beT.asnumpyarray()]
-        #     serialize(outputs, 'imgouts{:02d}_{:02d}.pkl'.format(self.backend.par.size(), self.backend.rank()))
-
-        #     # print self.lbl_be[lbl].asnumpyarray()[:,10]
-        #     # # self.inp_beT[10].asnumpyarray()
-        #     # from PIL import Image
-        #     # # im = Image.fromarray(self.img_macro[b_idx][10].reshape((3, 224, 224)).transpose(1,2,0).astype(np.uint8))
-        #     # im = Image.fromarray(self.inp_be.asnumpyarray()[:,16].reshape((3, 224, 224)).transpose(1,2,0).astype(np.uint8))
-        #     # im.save('boomv2' + str(self.backend.rank()) + '.png', 'PNG')
-        #     # # print self.lbl_beT['l_id'][10].asnumpyarray()
-        #     self.print_once = False
 
         if self.unit_norm:
             self.backend.divide(self.inp_be, self.norm_factor, self.inp_be)
