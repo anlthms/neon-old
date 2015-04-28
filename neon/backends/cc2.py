@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class GPUTensor(Tensor):
-
     """
     Our n-dimensional array data structure that can reside on host or on GPU
     device.  Our implementation is a wrapped `cudanet.CUDAMatrix` tensor, where
@@ -37,12 +36,14 @@ class GPUTensor(Tensor):
 
     Notes:
         This implementation currently has the following limitations:
+
         * only 2D shaped Tensors are supported (set in _min_dims)
         * All element values are stored as float32 (input may be converted if
           input of a differing type is passed)
         * Only contiguous rectangular slicing is supported.  Sliced assignment
           can only be done along a singular subsetted dimension (i.e. only row
           slice *or* column slice based assignment).
+
     """
     _tensor = None
     _min_dims = 2

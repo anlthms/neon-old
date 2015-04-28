@@ -15,17 +15,16 @@ logger = logging.getLogger(__name__)
 
 
 class BatchNorm(Activation):
-
     """
-    Embodiment of a BatchNormalization Transform
+    Embodiment of a Batch Normalization Transform.
 
-    Forward pass: (gamma/beta are scalar parameters for each unit.)
-    x' <- (x-mean)/sqrt(var+eps)
-    y <- gamma * x' + beta
+    Forward pass: (gamma/beta are scalar parameters for each unit)
+                  x' = (x - mean) / sqrt(var + eps)
+                  y  = gamma * x' + beta
 
-    Backward pass:
-    dy/dx = dy/dx' * dx'/dx
-          = gamma * [ 1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
+    Backward pass: dy/dx = dy/dx' * dx'/dx
+                   = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 *
+                              (2x)^-1/2]
     """
     def initialize(self, kwargs):
         """

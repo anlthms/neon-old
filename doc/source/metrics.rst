@@ -14,7 +14,9 @@ Reporting Metric Values
 To report metrics you need to specify them at the Experiment level and choose
 FitPredictErrorExperiment as your type.  In the YAML file you'd define the 
 metrics dictionary and list the metrics to be computed for each dataset
-partition.  Here's an example::
+partition.  Here's an example:
+
+.. code-block:: yaml
 
     metrics: {
       "train": [
@@ -28,6 +30,7 @@ partition.  Here's an example::
         !obj:metrics.MisclassPercentage(),
       ],
     },
+
 
 Available Metrics
 -----------------
@@ -43,3 +46,6 @@ Available Metrics
 
    neon.metrics.loss.LogLossSum
    neon.metrics.loss.LogLossMean
+
+   neon.metrics.sqerr.SSE
+   neon.metrics.sqerr.MSE

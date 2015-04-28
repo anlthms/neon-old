@@ -56,6 +56,7 @@ class NeonCommand(Command):
             self.distribution.install_requires += ['nose>=1.3.0',
                                                    'flake8>=2.2.2',
                                                    'pep8-naming>=0.2.2',
+                                                   'Pillow>=2.5.0',
                                                    'sphinx>=1.2.2',
                                                    'sphinxcontrib-napoleon' +
                                                    '>=0.2.8',

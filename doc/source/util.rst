@@ -37,3 +37,22 @@ module is needed.  In python3 this was renamed to queue.
 
 The :attr:`neon.util.compat.StringIO` should be used whenever you need to read
 and write strings as files.
+
+
+Batched Data Writing
+--------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.util.batch_writer.BatchWriter
+   neon.util.batch_writer.BatchWriterImagenet
+
+The above class can be used to efficiently pipeline and load a particular
+dataset in a batched fashion.
+
+Included is an implemented example tailored for the :class:`neon.datasets.I1K`
+(Imagenet) dataset adapted from cuda-convnet2 code.
+
+Note that these classes required the installation of imgworker, an optional
+dependency described in :doc:`installation`

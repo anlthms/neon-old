@@ -21,22 +21,26 @@ Available Layers
    neon.layers.layer.Layer
    neon.layers.layer.CostLayer
    neon.layers.layer.DataLayer
+   neon.layers.layer.ImageDataLayer
    neon.layers.layer.ActivationLayer
+   neon.layers.layer.SliceLayer
    neon.layers.layer.WeightLayer
 
+   neon.layers.fully_connected.FCLayer
+
+   neon.layers.convolutional.ConvLayer
+   neon.layers.convolutional.SubConvLayer
+
+   neon.layers.pooling.PoolingLayer
+   neon.layers.pooling.CrossMapPoolingLayer
 
    neon.layers.compositional.CompositeLayer
    neon.layers.compositional.BranchLayer
    neon.layers.compositional.ListLayer
 
-   neon.layers.convolutional.ConvLayer
-
    neon.layers.dropout.DropOutLayer
-   neon.layers.fully_connected.FCLayer
    neon.layers.normalizing.CrossMapResponseNormLayer
    neon.layers.normalizing.LocalContrastNormLayer
-   neon.layers.pooling.PoolingLayer
-   neon.layers.pooling.CrossMapPoolingLayer
 
    neon.layers.recurrent.RecurrentLayer
    neon.layers.recurrent.RecurrentCostLayer
@@ -52,5 +56,5 @@ Adding a new type of Layer
 
 #. Create a new subclass of :class:`neon.models.layer.Layer` to suit your
    needs.
-#. provide implementation of functions: :func:`neon.layers.layer.Layer.fprop`
+#. Provide implementation of functions: :func:`neon.layers.layer.Layer.fprop`
    :func:`neon.layers.layer.Layer.bprop` at a minimum.

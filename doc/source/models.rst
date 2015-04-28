@@ -16,6 +16,8 @@ Available Models
    neon.models.autoencoder.Autoencoder
    neon.models.rbm.RBM
    neon.models.dbn.DBN
+   neon.models.rnn.RNN
+   neon.models.balance.Balance
 
 .. _extending_model:
 

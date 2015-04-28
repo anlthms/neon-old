@@ -45,7 +45,7 @@ information.
 
 ### Installation
 
-* [Local install and dependencies](http://neon.nervanasys.com/docs/latest/install.html)
+* [Local install and dependencies](http://neon.nervanasys.com/docs/latest/installation.html)
 * Cloud-based access ([email us](mailto:demo@nervanasys.com) for an account)
 
 There are several examples built-in to neon in the `examples` directory for a
@@ -60,7 +60,7 @@ definitions and possible choices.
 	neon examples/mlp/mnist-small.yaml
 	
 
-### Running an Alexnet model
+### Running an Alexnet model (on GPU)
 
 In [fp32](examples/convnet/i1k-alexnet-fp32.yaml):
 
