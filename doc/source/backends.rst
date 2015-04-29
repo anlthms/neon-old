@@ -10,7 +10,24 @@ Backends incorporate a basic multi-dimensional
 algebraic and deep learning specific operations that can be performed on them.
 
 Each implemented backend conforms to our :doc:`ml_operational_layer` API to
-ensure a consistent behaviour.
+ensure a consistent behavior.
+
+The Backend and Tensor classes share a lot in common with
+`numpy <http://www.numpy.org/>`_
+`ufunc's <http://docs.scipy.org/doc/numpy/reference/ufuncs.html>`_ and
+`ndarray's <http://docs.scipy.org/doc/numpy/reference/arrays.html>`_
+respectively, so if you've done numpy programming in the past you should
+already be fairly familiar with how to work with our Backend and Tensor
+objects.
+
+Our syntax differs slightly from numpy, and we also explicitly require that the
+user manage and specify target output Tensor buffers (most operations have a
+required ``out`` Tensor parameter -- in numpy this is usually optional).  While
+this requires a bit more effort on the part of the user, the benefit is improved
+efficiency and a (sometimes vastly) reduced memory footprint.  Unfortunately
+numpy may make intermediate copies of Tensor data, and our forcing explicit
+``out`` parameter specification avoids this.
+
 
 Current Implementations
 -----------------------

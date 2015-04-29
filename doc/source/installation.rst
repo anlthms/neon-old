@@ -54,8 +54,8 @@ GPU=nervanagpu
 
 * `nervanagpu <http://github.com/NervanaSystems/nervanagpu/>`_ our in-house
   developed fp16/fp32 Maxwell GPU backend.  To take advantage of this you'll
-  need a CUDA capable Maxwell graphics card with CUDA drivers and SDK
-  installed.
+  need a CUDA capable Maxwell graphics card with CUDA drivers and
+  `SDK <https://developer.nvidia.com/cuda-downloads>`_ installed.
 * `pycuda <http://mathema.tician.de/software/pycuda/>`_ Required for the
   nervanagpu backend
 * `maxas <https://github.com/NervanaSystems/maxas/>`_ Assembler for NVIDIA
@@ -75,7 +75,9 @@ DEV=1
 
 * `imgworker <https://github.com/NervanaSystems/imgworker/>`_ our in-house
   developed multithreaded image decoder.  Required for
-  `neon.datasets.imageset.Imageset` based datasets.
+  `neon.datasets.imageset.Imageset` based datasets.  Note that this requires
+  that the `boost C++ libraries <http://www.boost.org/>`_ first be installed in
+  a typical directory.
 * `Pillow <http://pillow.readthedocs.org/index.html/>`_ PIL fork required for
   batch writer and doing initial processing for the Imagenet dataset.
 * `nose <https://nose.readthedocs.org/en/latest/>`_ for running unit tests as
@@ -93,8 +95,9 @@ DEV=1
 DIST=1
 ^^^^^^
 
-* `mpi4py <https://bitbucket.org/mpi4py/mpi4py>`_ for creation of distributed
-  Tensors in data and model parallel models.
+* `mpi4py <https://github.com/mpi4py/mpi4py>`_ for creation of distributed
+  Tensors in data and model parallel models.  Note that you'll need to ensure
+  the version installed has MPI-3 compatibility.
 * `openmpi <http://www.open-mpi.org/>`_ required for mpi4py
 
 
@@ -112,11 +115,14 @@ to the ``make`` command.  Below is an example showing the default values for
    :linenos:
 
 As shown, the default set of options is fairly restrictive, so only the CPU
-based backend will be available.  If you have a CUDA capable GPU, you'll
-likely want to set ``GPU=nervanagpu`` or ``GPU=cudanet``.  If you plan to run
-unit tests, build documentation or develop neon, you'll want to set ``DEV=1``.
-If you would like to run your model training in parallel via MPI you'll need
-to first set ``DIST=1``.
+based backend will be available:
+
+* If you have a CUDA capable GPU, you'll likely want to set ``GPU=nervanagpu``
+  or ``GPU=cudanet``.
+* If you plan to run unit tests, build documentation or develop neon, you'll
+  want to set ``DEV=1``.
+* If you would like to run your model training in parallel via MPI you'll need
+  to first set ``DIST=1``.
 
 To override what is defined in ``setup.cfg``, one can pass the appropriate
 options on the command-line (useful when doing in-place development).  Here's
@@ -135,7 +141,7 @@ neon provides distributed implementations of convnets and
 sparse autoencoders in addition to the non-distributed implementations.
 It has been tested with
 `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1.8/>`_ and
-`mpi4py <https://bitbucket.org/mpi4py/mpi4py>`_.
+`mpi4py <https://github.com/mpi4py/mpi4py>`_.
 
 1. Install OpenMPI:
 

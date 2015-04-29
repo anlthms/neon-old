@@ -39,6 +39,30 @@ The :attr:`neon.util.compat.StringIO` should be used whenever you need to read
 and write strings as files.
 
 
+Persistence of objects and data
+-------------------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.util.persist.ensure_dirs_exist
+   neon.util.persist.deserialize
+   neon.util.persist.serialize
+   neon.util.persist.YAMLable
+
+To save and load python objects to and from disk, you'll want to make use of
+:func:`neon.util.persist.serialize` and :func:`neon.util.persist.deserialize`
+respectively.  For python objects we tend to make use of python's built-in
+pickle (.pkl) file format.
+
+:func:`neon.util.persist.deserialize` is also used to parse our input YAML
+files.
+
+To ensure that any new type of python object can be understood when listed in
+YAML file format, it should be a subclass of
+:class:`neon.util.persist.YAMLable`.
+
+
 Batched Data Writing
 --------------------
 
