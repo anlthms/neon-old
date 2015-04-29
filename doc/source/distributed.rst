@@ -6,9 +6,15 @@ Distributed Implementations using MPI
 =====================================
 In an effort to reduce the amount of time it takes to train and run models, it
 is often advantageous to split the computation across several processes and
-nodes so that they can be run in parallel.  In neon, we currently have some
-preliminary support for this via MPI (see :ref:`mpi_install`) to install the
-required dependencies.
+nodes so that they can be run in parallel.
+
+In neon, we currently have some preliminary support for this via
+`MPI <http://www.open-mpi.org/>`_ and
+`mpi4py <https://github.com/mpi4py/mpi4py>`_ (see :ref:`mpi_install`) to
+install the required dependencies.
+
+Note that distributed processing support in neon is still very experimental.
+Performance speed-ups (at increasing scale) are still forthcoming.
 
 
 Available Models

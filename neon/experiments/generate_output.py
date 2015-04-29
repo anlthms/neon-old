@@ -18,13 +18,16 @@ logger = logging.getLogger(__name__)
 class GenOutputExperiment(FitExperiment):
     """
     In this `Experiment`, a model is first trained on a training dataset to
-    learn a set of parameters, then these parameters are used to generate
-    predictions on specified test datasets, and the resulting performance is
-    measured then returned.
+    learn a set of parameters, and then a batch of training data is run through
+    the model to generate a set of final layer outputs.  These outputs are then
+    treated as pixel intensities which are saved to disk as an image file.
 
-    Note that a pre-fit model may be loaded depending on serialization
-    parameters (rather than learning from scratch).  The same may also apply to
-    the datasets specified.
+    Note that this experiment was originally designed to be used with the
+    Balance network model and likely are not applicable to other model types
+    beyond auto-encoders.
+
+    Further note that running this experiment requires the installation of
+    the matplotlib python package.
 
     Kwargs:
         backend (neon.backends.Backend): The backend to associate with the
