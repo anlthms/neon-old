@@ -5,6 +5,7 @@
 Contains code to train a balance network, containing both supervised and
 unsupervised branches and multiple cost functions.
 Requires model to specify prev layers at each layer to build the layer graph
+For details, see http://arxiv.org/pdf/1412.6583.pdf
 """
 
 import logging

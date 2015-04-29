@@ -54,5 +54,5 @@ dataset in a batched fashion.
 Included is an implemented example tailored for the :class:`neon.datasets.I1K`
 (Imagenet) dataset adapted from cuda-convnet2 code.
 
-Note that these classes required the installation of imgworker, an optional
+Note that these classes require the installation of imgworker, an optional
 dependency described in :doc:`installation`

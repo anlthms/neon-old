@@ -64,7 +64,7 @@ GPU=nervanagpu
 GPU=cudanet
 ^^^^^^^^^^^
 
-* `Nervana cuda-convnet2 <http://github.com/NervanaSystems/cuda-convnet2/>`_
+* `Nervana's cuda-convnet2 <http://github.com/NervanaSystems/cuda-convnet2/>`_
   our updated fork of Alex Krizhevsky's
   `cuda-convnet2 <https://code.google.com/p/cuda-convnet2/>`_ that powers our
   cudanet GPU backend.  To use this you'll need a CUDA capable graphics card

@@ -28,7 +28,7 @@ class BatchNorm(Activation):
     """
     def initialize(self, kwargs):
         """
-        Initialize the Batch Normalization transform. This functio will be
+        Initialize the Batch Normalization transform. This function will be
         called from WeightLayer.initialize with a reference to the layer.
         """
         self.__dict__.update(kwargs)
