@@ -48,6 +48,15 @@ information.
 * [Local install and dependencies](http://neon.nervanasys.com/docs/latest/installation.html)
 * Cloud-based access ([email us](mailto:demo@nervanasys.com) for an account)
 
+### Quick Install
+
+On a Mac OSX or Linux box enter the following to download and
+install neon, and use it to train your first multi-layer perceptron or convolutional neural networks below.
+
+    git clone https://github.com/NervanaSystems/neon.git
+    cd neon
+    sudo make install
+    
 There are several examples built-in to neon in the `examples` directory for a
 user to get started. The YAML format is plain-text and can be edited to change
 various aspects of the model. See the
@@ -93,7 +102,11 @@ In [fp16](examples/convnet/i1k-alexnet-fp16.yaml):
 ### Documentation
 
 The complete documentation for neon is available
-[here](http://neon.nervanasys.com/docs/latest) 
+[here](http://neon.nervanasys.com/docs/latest). Some useful starting points are:
+
+* [Using neon](http://neon.nervanasys.com/docs/latest/using_framework.html)
+* [API](http://neon.nervanasys.com/docs/latest/api.html)
+* [Developing for neon](http://neon.nervanasys.com/docs/latest/developing_framework.html)
 
 
 ### Issues

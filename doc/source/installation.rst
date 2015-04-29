@@ -96,8 +96,7 @@ DIST=1
 ^^^^^^
 
 * `mpi4py <https://github.com/mpi4py/mpi4py>`_ for creation of distributed
-  Tensors in data and model parallel models.  Note that you'll need to ensure
-  the version installed has MPI-3 compatibility.
+  Tensors in data and model parallel models.
 * `openmpi <http://www.open-mpi.org/>`_ required for mpi4py
 
 
@@ -117,12 +116,9 @@ to the ``make`` command.  Below is an example showing the default values for
 As shown, the default set of options is fairly restrictive, so only the CPU
 based backend will be available:
 
-* If you have a CUDA capable GPU, you'll likely want to set ``GPU=nervanagpu``
-  or ``GPU=cudanet``.
-* If you plan to run unit tests, build documentation or develop neon, you'll
-  want to set ``DEV=1``.
-* If you would like to run your model training in parallel via MPI you'll need
-  to first set ``DIST=1``.
+* Set ``GPU=nervanagpu`` (maxwell) or ``GPU=cudanet`` (kepler), if you have a CUDA capable GPU
+* Set ``DEV=1``, if you plan to run unit tests, build documentation or develop neon 
+* Set ``DIST=1``, if you would like to run your model training in parallel via MPI
 
 To override what is defined in ``setup.cfg``, one can pass the appropriate
 options on the command-line (useful when doing in-place development).  Here's
@@ -137,8 +133,7 @@ an example:
 
 Installing MPI on an Ubuntu cluster (for distributed models)
 ------------------------------------------------------------
-neon provides distributed implementations of convnets and
-sparse autoencoders in addition to the non-distributed implementations.
+neon provides distributed implementations of convnets and MLPs in addition to the non-distributed implementations.
 It has been tested with
 `OpenMPI 1.8.1 <http://www.open-mpi.org/software/ompi/v1.8/>`_ and
 `mpi4py <https://github.com/mpi4py/mpi4py>`_.
@@ -245,7 +240,7 @@ repository, you can issue:
     # pull down source code changes
     git pull origin master
 
-    # install as before (may need to first edit system.cfg)
+    # install as before (may need to first edit setup.cfg)
     sudo make install
 
 
