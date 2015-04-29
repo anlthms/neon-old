@@ -21,6 +21,7 @@ Available Learning Rules
    neon.optimizers.gradient_descent.GradientDescentPretrain
    neon.optimizers.gradient_descent.GradientDescentMomentum
    neon.optimizers.gradient_descent.GradientDescentMomentumWeightDecay
+
    neon.optimizers.adadelta.AdaDelta
 
 .. _extending_learningrule:

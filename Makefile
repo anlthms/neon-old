@@ -12,13 +12,11 @@ DIST := $(strip $(shell grep -i '^ *DIST *=' setup.cfg | cut -f 2 -d '='))
 
 # get release version info
 RELEASE := $(strip $(shell grep '^VERSION *=' setup.py | cut -f 2 -d '=' \
-	                         | tr -d "\'"))
+	                   | tr -d "\'"))
 
-# these variables control where we publish Sphinx docs to
+# these variables control where we publish Sphinx docs to (additional ones
+# are assumed to be set in the environment)
 DOC_DIR := doc
-DOC_PUB_HOST := stagecoach.dreamhost.com
-DOC_PUB_USER := amikho1
-DOC_PUB_PATH := /home/amikho1/framework.nervanasys.com/docs
 DOC_PUB_RELEASE_PATH := $(DOC_PUB_PATH)/$(RELEASE)
 
 # these control test options and attribute filters
@@ -27,6 +25,9 @@ NOSE_ATTRS := -a '!slow'
 
 # ensure a cuda capable GPU is installed
 ifeq ($(GPU), 1)
+  override GPU := cudanet
+endif
+ifneq ($(GPU), 0)
   ifeq ($(shell uname -s), Darwin)
     ifneq ($(shell kextstat | grep -i cuda > /dev/null 2>&1; echo $$?), 0)
       $(info No CUDA capable GPU installed on OSX.  Forcing GPU=0)
@@ -46,18 +47,23 @@ INSTALL_REQUIRES :=
 ifeq ($(DEV), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dev'
 else
-  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'cython>=0.19.1' \
-		'flake8>=2.2.2' 'pep8-naming>=0.2.2' 'sphinx>=1.2.2' \
-		'sphinxcontrib-napoleon>=0.2.8' 'scikit-learn>=0.15.2' 'matplotlib>=1.4.0'
-  INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+http://gitlab.localdomain/algorithms/imgworker.git\#egg=imgworker>=0.2.1'
+  INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'Pillow>=2.5.0' \
+    'flake8>=2.2.2' 'pep8-naming>=0.2.2' 'sphinx>=1.2.2' \
+    'sphinxcontrib-napoleon>=0.2.8' 'scikit-learn>=0.15.2' 'matplotlib>=1.4.0' \
+    'git+https://github.com/NervanaSystems/imgworker.git\#egg=imgworker>=0.2.3'
 endif
 ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
 else
-  INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-    'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5' \
-		'pycuda>=2014.1'
+  ifeq ($(GPU), cudanet)
+    INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
+      'git+https://github.com/NervanaSystems/cuda-convnet2.git\#egg=cudanet>=0.2.5' \
+      'pycuda>=2014.1'
+  endif
+  ifeq ($(GPU), nervanagpu)
+    INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
+      'git+https://github.com/NervanaSystems/nervanagpu.git\#egg=nervanagpu>=0.2.2'
+  endif
 endif
 ifeq ($(DIST), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!dist'
@@ -67,19 +73,19 @@ endif
 
 .PHONY: default build develop install uninstall test test_all sanity speed \
 	      grad all clean_pyc clean doc html style lint bench dist publish_doc \
-	      insert_compiler_hints strip_compiler_hints release
+	      release
 
 default: build
 
 build: clean_pyc
 	@echo "Running build(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
 	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
-		build_ext --inplace
+		build
 
 # unfortunately there is no way to communicate custom commands into pip
 # install, hence having to specify installation requirements twice (once
 # above, and once inside setup.py). Ugly kludge, but seems like the only way
-# to support python setup.py install and pip install.
+# to support both python setup.py install and pip install.
 # Since numpy is required for building some of the other dependent packages
 # we need to separately install it first
 deps_install: clean_pyc
@@ -125,9 +131,9 @@ ifeq ($(CPU), 1)
 	@PYTHONPATH=${PYTHONPATH}:./ bin/grad \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
-ifeq ($(GPU), 1)
+ifneq ($(GPU), 0)
 	@echo "GPU:"
-	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu cudanet \
+	@PYTHONPATH=${PYTHONPATH}:./ bin/grad --gpu $(GPU) \
 		examples/convnet/synthetic-sanity_check.yaml
 endif
 
@@ -138,16 +144,6 @@ clean_pyc:
 
 clean:
 	-python setup.py clean
-	-rm -f neon/backends/flexpt_dtype.so
-	-rm -f neon/backends/flexpt_cython.so
-
-insert_compiler_hints:
-	@echo "Preprocessing source code to insert compiler hints..."
-	-python neon/util/compiler_hints.py
-
-strip_compiler_hints:
-	@echo "Preprocessing source code to remove compiler hints..."
-	-python neon/util/compiler_hints.py -s
 
 doc: build
 	$(MAKE) -C $(DOC_DIR) clean
@@ -172,12 +168,16 @@ dist:
 	@python setup.py sdist
 
 publish_doc: doc
+ifneq (,$(DOC_PUB_HOST))
 	@-cd $(DOC_DIR)/build/html && \
 		rsync -avz -essh --perms --chmod=ugo+rX . \
 		$(DOC_PUB_USER)@$(DOC_PUB_HOST):$(DOC_PUB_RELEASE_PATH)
 	@-ssh $(DOC_PUB_USER)@$(DOC_PUB_HOST) \
 		'rm -f $(DOC_PUB_PATH)/latest && \
 		 ln -sf $(DOC_PUB_RELEASE_PATH) $(DOC_PUB_PATH)/latest'
+else
+	@echo "Can't publish.  Ensure DOC_PUB_HOST, DOC_PUB_USER, DOC_PUB_PATH set"
+endif
 
 release: publish_doc
 	@gitchangelog > ChangeLog

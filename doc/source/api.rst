@@ -8,6 +8,15 @@
 API Reference
 *************
 
+Architecture
+------------
+
+.. figure:: _static/framework_architecture.png
+   :alt: neon architecture
+
+API Functions
+-------------
+
 .. _api.functions:
 
 Backends
@@ -17,7 +26,7 @@ Backends
    :toctree: generated/
 
    neon.backends.backend.Backend
-..   neon.backends.backend.Backend.Tensor
+   neon.backends.backend.Tensor
 
 CPU
 ---
@@ -26,6 +35,7 @@ CPU
    :toctree: generated/
 
    neon.backends.cpu.CPU
+   neon.backends.cpu.CPUTensor
 
 Cudanet GPU
 -----------
@@ -34,6 +44,7 @@ Cudanet GPU
    :toctree: generated/
 
    neon.backends.cc2.GPU
+   neon.backends.cc2.GPUTensor
 
 Nervana GPU
 -----------
@@ -42,14 +53,6 @@ Nervana GPU
   :toctree: generated/
 
   neon.backends.gpu.GPU
-
-Flexpoint™
-----------
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.backends.flexpoint.Flexpoint
 
 Nervana Hardware
 ----------------
@@ -137,6 +140,7 @@ Activation Layer
    :toctree: generated/
 
    neon.layers.layer.ActivationLayer
+   neon.layers.layer.SliceLayer
 
 Data Layer
 ----------
@@ -145,6 +149,7 @@ Data Layer
    :toctree: generated/
 
    neon.layers.layer.DataLayer
+   neon.layers.layer.ImageDataLayer
 
 Weight Layer
 ------------
@@ -169,6 +174,7 @@ Convolutional Layer
    :toctree: generated/
 
    neon.layers.convolutional.ConvLayer
+   neon.layers.convolutional.SubConvLayer
 
 Pooling Layers
 ---------------
@@ -253,6 +259,7 @@ Value Initialization
    neon.params.val_init.GaussianValGen
    neon.params.val_init.SparseEigenValGen
    neon.params.val_init.NodeNormalizedValGen
+   neon.params.val_init.OrthoNormalizedValGen
 
 
 Metrics
@@ -285,6 +292,15 @@ Loss
    neon.metrics.loss.LogLossSum
    neon.metrics.loss.LogLossMean
 
+Squared Error
+-------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.metrics.sqerr.SSE
+   neon.metrics.sqerr.MSE
+
 
 Transforms
 ==========
@@ -295,11 +311,13 @@ Activation Functions
 .. autosummary::
    :toctree: generated/
 
+   neon.transforms.linear.Linear
    neon.transforms.rectified.RectLin
    neon.transforms.rectified.RectLeaky
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
    neon.transforms.softmax.Softmax
+   neon.transforms.batch_norm.BatchNorm
 
 Cost Functions
 --------------
@@ -319,6 +337,7 @@ Datasets
    :toctree: generated/
 
    neon.datasets.dataset.Dataset
+   neon.datasets.imageset.Imageset
 
 MNIST
 -----
@@ -368,14 +387,6 @@ Mobydick
 
    neon.datasets.mobydick.MOBYDICK
 
-Imageset
---------
-
-.. autosummary::
-   :toctree: generated/
-
-   neon.datasets.imageset.Imageset
-
 Synthetic
 ---------
 
@@ -407,3 +418,6 @@ Miscellaneous
    neon.util.compat.PY3
    neon.util.compat.range
    neon.util.compat.StringIO
+
+   neon.util.batch_writer.BatchWriter
+   neon.util.batch_writer.BatchWriterImagenet
