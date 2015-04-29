@@ -16,7 +16,15 @@ logger = logging.getLogger(__name__)
 
 class BatchNorm(Activation):
     """
-    Embodiment of a Batch Normalization Transform.
+    Embodiment of a Batch Normalization Transform.  Can be used in a
+    WeightLayer after the linear transform but before the typical activation
+    (ReLu, sigmoid, tanh, etc.)
+
+    The transform does z-norm along the batch dimension then adjusts using
+    an affine transform with learned parameters gamma and beta.  gamma and beta
+    gradients (updates) are computed via bprop, and the updates are applied
+    at the same time that the associated WeightLayer is updated.  Likewise,
+    the same learning rule is used for gamma and beta as the WeightLayer
 
     Forward pass: (gamma/beta are scalar parameters for each unit)
                   x' = (x - mean) / sqrt(var + eps)
@@ -25,11 +33,22 @@ class BatchNorm(Activation):
     Backward pass: dy/dx = dy/dx' * dx'/dx
                    = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 *
                               (2x)^-1/2]
+
     """
     def initialize(self, kwargs):
         """
         Initialize the Batch Normalization transform. This function will be
         called from WeightLayer.initialize with a reference to the layer.
+
+        Optional Params:
+            _eps (numeric, optional): value used for numerical stability when
+                                      normalizing by variance
+            _iscale (numeric, optional): explicitly set an affine scale value
+                                         to be used in inference instead of
+                                         calculated scale from training
+            _ishift (numeric, optional): explicitly set an affine shift value
+                                         to be used in inference instead of
+                                         calculated shift from training
         """
         self.__dict__.update(kwargs)
         self.dtype = self.layer.weight_dtype
@@ -76,7 +95,8 @@ class BatchNorm(Activation):
         """
         If implementent following Ioffe et al. 2015, there appears to be a bug
         with using inference mode. As more data is accumulated, the prediction
-        gets worse and worse. As a workaround, stay in train mode, which seems
+        gets worse and worse. As a workaround, stay in train mode where the
+        variance and mean statistics are computed , which seems
         to perform quite well.
         """
         logger.error("Batch Normalization inference mode not supported. Using "
@@ -96,7 +116,7 @@ class BatchNorm(Activation):
                 self.backend.divide(self._gamma, self._gvars, self._gvars)
                 self._iscale = self._gvars
 
-                # normalize global mean -- inference shiting factor
+                # normalize global mean -- inference shifting factor
                 self.backend.divide(self._gmean, self.nbatches, self._gmean)
                 self.backend.multiply(self._gmean, self._gvars, self._gmean)
                 self.backend.subtract(self._beta, self._gmean, self._gmean)
@@ -111,10 +131,16 @@ class BatchNorm(Activation):
     def fprop_func(self, backend, inputs, outputs):
         """
         Applies BatchNorm function and its derivative to the dataset passed.
+
         For a fully connected layer, this is done by computing the mean and
         variance of the `inputs` over the mini-batch dimension,
-        Mean and variance are also accumulated into a global estimate that is
-        used for
+
+        For a convolutional (local) layer, the `inputs` are reshaped so that
+        the statistics are collected within each feature map as well as
+        over the mini-batch dimension.
+
+        The means and variances are also accumulated into a global estimate
+        that is used for inference.
 
         Arguments:
             backend (Backend): The backend class to use for computation.
@@ -155,6 +181,23 @@ class BatchNorm(Activation):
             outputs = outputs.reshape(self.orig_shape)
 
     def bprop_func(self, backend, pre_act, error, skip_act=False):
+        """
+        Calculates the backpropagated error and gradients for gamma and beta
+        parameters.
+
+        Updates to gamma and beta are accumulated into `self._gamma_updates`
+        and `self._beta_updates` respectively, which are applied to
+        `self._gamma` and `self._beta` during the call to `update` of the
+        associated WeightLayer
+
+        Arguments:
+            backend (Backend): The backend class to use for computation.
+            pre_act (array_like): Storage allocated by associated WeightLayer
+                                  that is used for computing updates.
+            error (array_like): gradient of error with respect to input
+                                activations.
+            skip_act (boolean): Not used
+        """
         if self.is_local:
             pre_act = pre_act.reshape(self.in_shape)
             error = error.reshape(self.in_shape)
