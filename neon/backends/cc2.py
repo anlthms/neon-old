@@ -42,7 +42,7 @@ class GPUTensor(Tensor):
           input of a differing type is passed)
         * Only contiguous rectangular slicing is supported.  Sliced assignment
           can only be done along a singular subsetted dimension (i.e. only row
-          slice *or* column slice based assignment).
+          slice or column slice based assignment).
 
     """
     _tensor = None

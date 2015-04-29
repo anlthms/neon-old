@@ -27,12 +27,14 @@ class BatchNorm(Activation):
     the same learning rule is used for gamma and beta as the WeightLayer
 
     Forward pass: (gamma/beta are scalar parameters for each unit)
-                  x' = (x - mean) / sqrt(var + eps)
-                  y  = gamma * x' + beta
 
-    Backward pass: dy/dx = dy/dx' * dx'/dx
-                   = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 *
-                              (2x)^-1/2]
+        x' = (x - mean) / sqrt(var + eps)
+        y  = gamma * x' + beta
+
+    Backward pass:
+
+        dy/dx = dy/dx' * dx'/dx
+        = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
 
     """
     def initialize(self, kwargs):
@@ -40,7 +42,7 @@ class BatchNorm(Activation):
         Initialize the Batch Normalization transform. This function will be
         called from WeightLayer.initialize with a reference to the layer.
 
-        Optional Params:
+        Arguments:
             _eps (numeric, optional): value used for numerical stability when
                                       normalizing by variance
             _iscale (numeric, optional): explicitly set an affine scale value
@@ -93,7 +95,7 @@ class BatchNorm(Activation):
 
     def set_inference_mode(self):
         """
-        If implementent following Ioffe et al. 2015, there appears to be a bug
+        If implemented following Ioffe et al. 2015, there appears to be a bug
         with using inference mode. As more data is accumulated, the prediction
         gets worse and worse. As a workaround, stay in train mode where the
         variance and mean statistics are computed , which seems
@@ -123,9 +125,17 @@ class BatchNorm(Activation):
                 self._ishift = self._gmean
 
     def apply_function(self, backend, inputs, outputs):
+        """
+        Though this function is necessary for Activation conformance, no action 
+        is required for batch norm here.
+        """
         pass
 
     def apply_derivative(self, backend, inputs, outputs):
+        """
+        Though this function is necessary for Activation conformance, no action 
+        is required for batch norm here.
+        """
         pass
 
     def fprop_func(self, backend, inputs, outputs):
