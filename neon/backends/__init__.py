@@ -87,6 +87,22 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
     logger = logging.getLogger(__name__)
     gpuflag = False
 
+    if datapar and modelpar:
+        raise NotImplementedError('Hybrid parallelization scheme not '
+                                  'implemented yet.  Try with at most one of'
+                                  'datapar or modelpar')
+    if modelpar:
+        par = ModelPar()
+    elif datapar:
+        par = DataPar()
+    else:
+        par = NoPar()
+
+    if par.device_id is not None:
+        if device_id is not None:
+            logger.warn('Ignoring device id specified in command line.')
+        device_id = par.device_id
+
     if gpu is not None:
         gpu = gpu.lower()
         if sys.platform.startswith("linux"):
@@ -107,7 +123,13 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
             try:
                 import nervanagpu  # noqa
                 try:
-                    import pycuda.autoinit  # create the context  # noqa
+                    import pycuda.driver as drv
+                    drv.init()
+                    device_id = device_id if device_id is not None else 0
+                    global ctx
+                    ctx = drv.Device(device_id).make_context()
+                    import atexit
+                    atexit.register(ctx.pop)
                     from neon.backends.gpu import GPU
                     be_name = 'NervanaGPU'
                     be = GPU(rng_seed=rng_seed,
@@ -131,22 +153,6 @@ def gen_backend(model, gpu=None, nrv=False, datapar=False, modelpar=False,
 
     if flexpoint:
         logger.warning("Flexpoint(TM) backend not currently available")
-
-    if datapar and modelpar:
-        raise NotImplementedError('Hybrid parallelization scheme not '
-                                  'implemented yet.  Try with at most one of'
-                                  'datapar or modelpar')
-    if modelpar:
-        par = ModelPar()
-    elif datapar:
-        par = DataPar()
-    else:
-        par = NoPar()
-
-    if par.device_id is not None:
-        if device_id is not None:
-            logger.warn('Ignoring device id specified in command line.')
-        device_id = par.device_id
 
     if nrv:
         be_name = 'NRV'
