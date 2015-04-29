@@ -126,14 +126,14 @@ class BatchNorm(Activation):
 
     def apply_function(self, backend, inputs, outputs):
         """
-        Though this function is necessary for Activation conformance, no action 
+        Though this function is necessary for Activation conformance, no action
         is required for batch norm here.
         """
         pass
 
     def apply_derivative(self, backend, inputs, outputs):
         """
-        Though this function is necessary for Activation conformance, no action 
+        Though this function is necessary for Activation conformance, no action
         is required for batch norm here.
         """
         pass
