@@ -45,9 +45,9 @@
     num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    ntrain: 4, # Delete this line to use entire dataset for training
+    #ntrain: 4, # Delete this line to use entire dataset for training
     #nval: 1,
-    backend_type: &bt np.float16,
+    backend_type: &bt np.float32,
   },
 
   weight_inits: [

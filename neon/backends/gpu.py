@@ -35,6 +35,20 @@ class GPU(Backend):
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
 
+    # def __getstate__(self):
+    #     """
+    #     WIP: Don't pickle backend!
+    #     """
+    #     print "gpu: NOT SERIALIZING ANYTHING FOR BACKEND"
+    #     return None
+
+    # def __setstate__(self, state):
+    #     """
+    #     WIP: Restore the backend when unpickling.
+    #     """
+    #     print "gpu: DERSERIALIZING, CREATING FRESH BACKEND"
+    #     self.__init__(state)
+
     def init_mempool(self, shape, dtype=default_dtype):
         """
         Allocates a memory pool for temporary storage
