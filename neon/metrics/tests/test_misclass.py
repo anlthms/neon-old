@@ -96,3 +96,23 @@ class TestMisclass(object):
         assert mcp.rec_count == 4
         assert mcp.misclass_sum == 2
         assert mcp.report() == 50.0
+
+    def test_misclass_tied(self):
+        mcs = MisclassSum()
+        assert mcs.rec_count == 0
+        assert mcs.misclass_sum == 0
+        refs = CPUTensor([[0]])
+        preds = CPUTensor([[0.5],
+                           [0.5]])
+        mcs.add(refs, preds)
+        assert mcs.rec_count == 1
+        assert mcs.misclass_sum == 0
+        assert mcs.report() == 0
+        mcs.clear()
+        assert mcs.rec_count == 0
+        assert mcs.misclass_sum == 0
+        refs = CPUTensor([[1]])
+        mcs.add(refs, preds)
+        assert mcs.rec_count == 1
+        assert mcs.misclass_sum == 1
+        assert mcs.report() == 1
