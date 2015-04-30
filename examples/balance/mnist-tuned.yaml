@@ -4,16 +4,21 @@
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
 
- !obj:experiments.GenOutputExperiment {
-  zparam: 0.0,
-  olayout: [12, 6],
-  fshape: [28, 28],
-  figure_filename: 'ofn.png',
+ !obj:experiments.FitPredictErrorExperiment {
 
   # MNIST data
   dataset: &ds !obj:datasets.MNIST {
     repo_path: '~/data',
     sample_pct: 100,
+  },
+
+  metrics: {
+    train: [
+      !obj:metrics.MisclassPercentage {},
+    ],
+    test: [
+      !obj:metrics.MisclassPercentage {},
+    ],
   },
 
   lrule: &adad {
