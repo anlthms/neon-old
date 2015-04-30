@@ -7,81 +7,109 @@ Hyperparameter optimization
 
 Finding good hyperparameters for deep networks is quite tedious to do manually
 and can be greatly accelerated by performing automated hyperparameter tuning.
+
 To this end, third-party hyperparameter optimization packages can be integrated
-with our framework. We currently offer support for Spearmint, available as a fork
-at https://github.com/ursk/spearmint/. The package depends on google
-protobuf and scipy and uses the flask webserver for visualizing results.
+with our framework. We currently offer support for
+`Spearmint <https://github.com/JasperSnoek/spearmint>`_, which have forked and
+slightly extended to work with neon.
 
-To perform a search over a set of hyperparameters specified in a neon yaml
-file, create a new yaml file with the top level experiment of type
-:py:class:`neon.experiments.fit_predict_err.FitPredictErrorExperiment`. This
-takes an additional argument:
+Installing our Spearmint Fork
+-----------------------------
 
-.. code-block:: bash
+First you'll need to install the following dependencies:
 
-!obj:experiments.FitPredictErrorExperiment {
-  return_item: test,
+* `python <http://www.python.org/>`_ 2.7+
+* `numpy <http://www.numpy.org/>`_ 1.6.1+
+* `scipy <http://www.numpy.org/>`_ 1.6.1+
+* `google protocol buffers <https://developers.google.com/protocol-buffers/>`_
+* `flask <http://flask.pocoo.org/>`_ for visualizing results.
 
-This ``return_item``, specifies which error
-(i.e. for the ``test``, ``training`` or ``validation`` set) should be used as
-the objective function for the hyperparameter optimization.
-
-Then in the model specifications of the yaml simply replace a hyper-parameter
+Then you'll need to checkout and install our Spearmint fork which you can do
+via:
 
 .. code-block:: bash
 
-    # specifying a constant learning rate
-    learning_rate: 0.1,
+    git clone https://github.com/NervanaSystems/spearmint
+    cd spearmint
+    python setup.py install
 
-with a range over which to search
+
+YAML file changes
+-----------------
+
+#. create a new yaml file with the top level experiment of type
+   :py:class:`neon.experiments.fit_predict_err.FitPredictErrorExperiment` with
+   an additional ``return_item`` argument specifying which dataset (``test``,
+   ``train``, or ``validation``) to measure the objective function on.  This
+   objective function value will be used to compare whether one parameter
+   setting is better than another.
+#. In the model specification of the yaml simply replace a given numeric
+   hyper-parameter with a range of values over which to search.  The format for
+   specifying this range is of the form:
+   ``!hyperopt name type start_range end_range`` where name is an identifier,
+   type should be one of ``FLOAT`` or ``INT`` to match the type of values being
+   tuned, and the two range parameters specify the lowest and highest parameter
+   values to search between.
+
 
 .. code-block:: bash
 
-    # specifying a range from 0.01 to 0.1 for the learning rate
-    learning_rate: !hyperopt lr FLOAT 0.01 0.1,
+    !obj:experiments.FitPredictErrorExperiment {
+        return_item: test,
+        # ...
+    },
 
-Where the ``!hyperopt`` flag signals that this is a parameter to be optimized,
-followed by a name used to keep track of the parameter, and the type of
-variable. Currently, ``FLOAT`` and ``INT`` are supported. The last two
-parameters indicate the start and end of the range. An arbitrary number of
-parameters can be replaced by ranges. Only scalar, numerical parameters are
-supported.
+    !obj:models.MLP {
+        # specifying a range from 0.01 to 0.1 for the learning rate
+        learning_rate: !hyperopt lr FLOAT 0.01 0.1,
+        # ...
+    },
+
+
+Experiment Initialization
+-------------------------
 
 Hyperparameter optimization requires two additional environment variables to
 identify the ``spearmint/bin`` directory and the desired location to store
-temporary file and results of the experiment, such as:
+temporary files and results of the experiment, such as:
 
 .. code-block:: bash
 
     export SPEARMINT_PATH=/path/to/spearmint/spearmint/bin
     export HYPEROPT_PATH=/path/to/hyperopt_experiment
 
-To run a hyperoptimization experiment, call the ``bin/hyperopt`` executable.
-To initialize a new experiment, use the ``init`` flag and pass the ``-y``
-argument to specify the yaml file containing the hyperparameter ranges, for
-example:
+To initialize a new experiment, you make use of the ``hyperopt`` executable
+that is installed as part of neon.  To the executable we need to use the
+``init`` flag and pass the ``-y`` argument to specify the yaml file containing
+the hyperparameter ranges, for example:
 
 .. code-block:: bash
 
     hyperopt init -y examples/mlp/iris-hyperopt-small.yaml
 
 This creates a spearmint configuration file in protobuf format in the
-experiment directory. Then run the experiment by calling with the
-``run`` flag and specifying a port with the ``-p`` argument where outputs will
-be generated, for example:
+experiment directory.
+
+Running
+-------
+
+* Once an experiment has been initialized, it can be run by calling ``hyperopt``
+  with the ``run`` flag and specifying a port with the ``-p`` argument where
+  outputs will be generated, for example:
 
 .. code-block:: bash
 
     hyperopt run -p 50000
 
-The output can be viewed in the browser at http://localhost:50000, or by
-directly inspecting the files in the experiment directory. The
-experiment will keep running indefinitely. It can be interrupted with
-``Ctrl+C`` and continued by calling the ``hyperopt run`` command again. To
-start a new experiment, reset the previous one first by running:
+* The output can be viewed in the browser at http://localhost:50000, or by
+  directly inspecting the files in the experiment directory.
+* The experiment will keep running indefinitely. It can be interrupted with
+  ``Ctrl+C`` and continued by calling the ``hyperopt run`` command again.
+
+* To start a new experiment, reset the previous one either by manually deleting
+  the contents of the experiment directory, or by running:
 
 .. code-block:: bash
 
     hyperopt reset
 
-Or manually deleting the contents of the experiment directory.
