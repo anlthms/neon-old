@@ -9,6 +9,7 @@ import logging
 from neon.backends.cpu import CPU
 from neon.layers.layer import Layer, WeightLayer
 from neon.util.param import req_param, opt_param
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class PoolingLayer(Layer):
         self.initialize_local()
         self.allocate_output_bufs()
         if self.backend.__module__ == 'neon.backends.gpu':
-            self.pool_params = self.backend.ng.pool_layer(
+            self.pool_params = self.backend.ng.pool_layer(dtype=np.float32,
                 op=self.op, N=self.batch_size, C=self.nifm,
                 D=1, H=self.ifmshape[0], W=self.ifmshape[1], J=self.maxout,
                 T=1, R=self.fshape[0], S=self.fshape[1],
