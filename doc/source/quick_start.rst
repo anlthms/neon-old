@@ -83,8 +83,9 @@ based install.
 There are several examples built-in to neon in the ``examples``
 directory for a user to get started. The YAML format is plain-text and
 can be edited to change various aspects of the model. See the
-`ANNOTATED\_EXAMPLE.yaml <examples/ANNOTATED_EXAMPLE.yaml>`__ for some
-of the definitions and possible choices.
+`ANNOTATED\_EXAMPLE.yaml
+<https://github.com/NervanaSystems/neon/blob/master/examples/ANNOTATED_EXAMPLE.yaml>`__
+for some of the definitions and possible choices.
 
 Running a simple MNIST model (on CPU)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
