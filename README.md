@@ -136,9 +136,9 @@ processor for deep learning which enables unprecedented speed and scale.
 It supports a set of linear algebra and deep learning operations called the
 [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html).
 Any end user code written in a MOP compliant manner will benefit
-from Nervana Engine's capabilities. 
-Thus, the MOP paves a way for working with existing Deep Learning frameworks
-such as [theano](https://github.com/Theano/Theano),
+from the Engine's capabilities. 
+Thus, the MOP paves a way for the Engine to work with existing Deep Learning
+frameworks such as [theano](https://github.com/Theano/Theano),
 [torch](https://github.com/torch/torch7) and
 [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of
 the box. For MOP questions please
