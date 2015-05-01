@@ -62,7 +62,7 @@ else
   endif
   ifeq ($(GPU), nervanagpu)
     INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-      'git+https://github.com/NervanaSystems/nervanagpu.git\#egg=nervanagpu>=0.2.3'
+      'git+https://github.com/NervanaSystems/nervanagpu.git\#egg=nervanagpu>=0.3.0'
   endif
 endif
 ifeq ($(DIST), 0)
