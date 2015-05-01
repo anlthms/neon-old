@@ -6,11 +6,11 @@ based Deep Learning Framework! We have designed it with the following
 functionality in mind:
 
 * YAML for easy model specification (inspired by [pylearn2](https://github.com/lisa-lab/pylearn2))
-* Python for easy model hacking and support for many data formats
+* Python for easily adding models and support for many data formats
 * Support for commonly used models: convnets, MLPs, RNNs, LSTMs, autoencoders,
   RBMs
 * Support for common learning rules, activation functions and cost functions
-* Comparing performance of alternate numeric representations with fp32 for
+* Comparing performance of alternate numeric representations with 32-bit floating point (fp32) for
   Deep Learning
 * Support for using [spearmint](https://github.com/JasperSnoek/spearmint) for hyperparameter optimization
 * Swappable hardware backends: write code once and then deploy on CPUs, GPUs,
@@ -131,16 +131,18 @@ For any bugs or feature requests please:
 
 ## Machine learning OPerations (MOP) Layer
 
-The Nervana Engine&trade; supports a set of operations called the
+The Nervana Engine is a distributed
+processor for deep learning which enables unprecedented speed and scale.
+It supports a set of linear algebra and deep learning operations called the
 [MOP](http://framework.nervanasys.com/docs/latest/ml_operational_layer.html).
-As long as end user code is written in a MOP compliant manner it will benefit
-from Nervana Engine's hardware acceleration and scaling abilities. In this
-way, we have the capability to play with other Deep Learning frameworks such as
-[theano](https://github.com/Theano/Theano),
+Any end user code written in a MOP compliant manner will benefit
+from Nervana Engine's capabilities. 
+Thus, the MOP paves a way for working with existing Deep Learning frameworks
+such as [theano](https://github.com/Theano/Theano),
 [torch](https://github.com/torch/torch7) and
 [caffe](https://github.com/BVLC/caffe). neon models are MOP compliant out of
-the box. Do not worry if your favorite function is missing! We are still adding
-MOP functions so please [email us](mailto:framework@nervanasys.com).
+the box. For MOP questions please
+[email us](mailto:framework@nervanasys.com).
 
 
 ## Upcoming libraries
