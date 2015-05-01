@@ -154,7 +154,7 @@ For any bugs or feature requests please:
    `Frequently Asked Questions (FAQ)
    <http://neon.nervanasys.com/docs/latest/faq.html>`__
 #. File a new `issue <https://github.com/NervanaSystems/neon/issues>`__ or
-   submit a new `pull request <https://github.com/NervanaSystems/neon/pulls`__
+   submit a new `pull request <https://github.com/NervanaSystems/neon/pulls>`__
    if you have some code you'd like to contribute.
 
 Machine learning OPerations (MOP) Layer
