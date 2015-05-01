@@ -160,19 +160,21 @@ For any bugs or feature requests please:
 
 Machine learning OPerations (MOP) Layer
 ---------------------------------------
+The `MOP <http://neon.nervanasys.com/docs/latest/ml_operational_layer.html>`__
+is an abstraction layer for Nervana's system software and
+hardware which includes the Nervana Engine, a custom distributed
+processor for deep learning.
 
-The Nervana Engine™ supports a set of operations called the
-`MOP <http://framework.nervanasys.com/docs/latest/ml_operational_layer.html>`__.
-As long as end user code is written in a MOP compliant manner it will
-benefit from Nervana Engine's hardware acceleration and scaling
-abilities. In this way, we have the capability to play with other Deep
-Learning frameworks such as
-`theano <https://github.com/Theano/Theano>`__,
-`torch <https://github.com/torch/torch7>`__ and
-`caffe <https://github.com/BVLC/caffe>`__. neon models are MOP compliant
-out of the box. Do not worry if your favorite function is missing! We
-are still adding MOP functions so please `email
-us <mailto:framework@nervanasys.com>`__.
+The MOP consists of linear algebra and other operations required by deep
+learning. Some MOP operations are currently exposed in neon, while others,
+such as distributed primitives, will be exposed in later versions as well as
+in other forthcoming Nervana libraries.
+
+Defining models in a MOP-compliant manner guarantees they will run on all
+provided backends. It also provides a way for existing Deep Learning frameworks
+such as `theano <https://github.com/Theano/Theano>`__,
+`torch <https://github.com/torch/torch7>`__, and
+`caffe <https://github.com/BVLC/caffe>`__ to interface with the Nervana Engine.
 
 Upcoming libraries
 ------------------
