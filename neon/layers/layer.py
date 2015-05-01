@@ -470,7 +470,8 @@ class WeightLayer(Layer):
             self.bn.initialize(kwargs)
 
     def allocate_param_bufs(self):
-        if self.params_initialized:
+        if self.params_initialized: ##########################################
+            # pass
             return
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,

@@ -77,7 +77,14 @@ class FitExperiment(Experiment):
 
         self.model.fit(self.dataset)
         if hasattr(self.model, 'serialized_path'):
-            self.model.uninitialize()
+            ''' TODO: With the line below active, get
+
+              File "/home/users/urs/code/neon/neon/layers/fully_connected.py", line 58, in bprop
+                self.backend.update_fc(out=upm[u_idx], inputs=inputs,
+            IndexError: list index out of range
+
+            when deserializing a partially trained model'''
+            # self.model.uninitialize() ##########################################
             if (hasattr(self.dataset, 'dist_flag') and
                     self.dataset.dist_flag and
                     self.dataset.dist_mode == 'datapar'):
