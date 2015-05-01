@@ -40,14 +40,14 @@ class GradientDescent(LearningRule):
                 p_list = getattr(self, p)
                 np_params[p] = []
                 for p_tensor in p_list:
-                    np_params[p].append(np.array(p_tensor.asnumpyarray(),
+                    np_params[p].append(numpy.array(p_tensor.asnumpyarray(),
                                  dtype=p_tensor.dtype).reshape(p_tensor.shape))
         return np_params
 
     def set_params(self, params_dict):
         for p in self.param_names:
             if p in params_dict:
-                for i in range(params_dict[p]):
+                for i in range(len(params_dict[p])):
                     getattr(self, p)[i][:] = params_dict[p][i]
 
     def apply_rule(self, params, updates, epoch):

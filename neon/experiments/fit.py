@@ -70,12 +70,10 @@ class FitExperiment(Experiment):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
-        if self.model.epochs_complete >= self.model.num_epochs:
-            return
-
         if hasattr(self.model, 'depickle'):
             self.model.set_params(deserialize(self.model.depickle))
-
+        if self.model.epochs_complete >= self.model.num_epochs:
+            return
         if self.live:
             return
 
