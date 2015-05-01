@@ -20,6 +20,16 @@ Installation
     implementation. Without it, neon will still be able to successfully parse
     and read your Experiment's YAML files.
 
+* When trying to install with GPU=cudanet or GPU=nervanagpu I get an
+  "nvcc: Command not found" error.  Why?
+
+  * First ensure that you actually have available a CUDA compliant graphics
+    card and that the CUDA drivers and SDK are installed correctly.  It can be
+    downloaded from: https://developer.nvidia.com/cuda-downloads
+  * Second, ensure that your PATH and/or LD_LIBRARY_PATH are updated to find
+    the CUDA installation, as described in:
+    http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-linux/#post-installation-actions
+
 
 Running
 =======
