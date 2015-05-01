@@ -45,12 +45,10 @@ class GPU(Backend):
                            cannot be serialized.
         """
         if hasattr(self, 'mem_pool') and self.mem_pool is not None:
-            print "eradicating mempool"
             self.mem_pool_pickle = {'shape': self.mem_pool.shape,
                                     'dtype': np.float32}
             self.mem_pool = None
-        else:
-            print "no mempool to eradicate"
+
         return self.__dict__
 
     def __setstate__(self, state):
@@ -62,16 +60,10 @@ class GPU(Backend):
                            except for the mem_pool which is on device and
                            cannot be serialized.
         """
-        print "gpu: DERSERIALIZING, CREATING FRESH BACKEND"
         #import pycuda.autoinit  # TODO: Only create if it does not exist
-        #self.update(state)
         self.__dict__.update(state)
         self.mem_pool = self.ng.empty(self.mem_pool_pickle['shape'],
                                       dtype=self.mem_pool_pickle['dtype'])
-
-    # def update(self, newdata):
-    #     for key, value in newdata:
-    #         setattr(self, key, value)
 
     def init_mempool(self, shape, dtype=default_dtype):
         """
@@ -780,6 +772,9 @@ class GPU(Backend):
             GPUTensor: reference to out
         """
 
+        if self.mem_pool is None:
+            self.mem_pool = self.ng.empty((1, x.shape[1]),
+                                          dtype=np.float32)
         vecbuf = self.mem_pool
         assert vecbuf.shape == (1, x.shape[1])
         self.ng.max(x, axis=0, out=vecbuf)    # reduction over classes

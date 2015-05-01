@@ -241,15 +241,14 @@ def deserialize(load_path, verbose=True):
             initialize_yaml()
         return yaml.safe_load(load_path)
     else:
-        # try:
-        print "unpicking", load_path
-        return pickle.load(load_path)
-        # except AttributeError:
-        #     msg = ("Problems deserializing: %s.  Its possible the interface "
-        #            "for this object has changed since being serialized.  You "
-        #            "may need to remove and recreate it." % load_path)
-        #     logger.error(msg)
-        #     raise AttributeError(msg)
+        try:
+            return pickle.load(load_path)
+        except AttributeError:
+            msg = ("Problems deserializing: %s.  Its possible the interface "
+                   "for this object has changed since being serialized.  You "
+                   "may need to remove and recreate it." % load_path)
+            logger.error(msg)
+            raise AttributeError(msg)
 
 
 def serialize(obj, save_path, verbose=True):
@@ -274,27 +273,7 @@ def serialize(obj, save_path, verbose=True):
     if verbose:
         logger.warn("serializing object to: %s", save_path)
     ensure_dirs_exist(save_path)
-    # ---
-    if 0:
-        import inspect
-        # bprop is an instance or something so model.bprop cannot be pickled ever.
-        test_obj = obj.class_layer # .bprop # .backend # .class_layer
-        print "---------------------------"
-        print "for object", test_obj
-        print "going through the list:", dir(test_obj)
-        #foo = obj.class_layer.bias_updates
-        import pdb; pdb.set_trace()
-        for i in dir(test_obj):
-            if (i[0:2] != '__') and (i[0:2] != 'im') and not (inspect.ismethod(getattr(test_obj, i))):
-                print "pickling", i, ":",
-                pickle.dump(getattr(test_obj, i), open(save_path, 'wb'), -1)
-                print "done!"
-            else:
-                print "skipping", i
-        print "PIKL ALL!"
-        #pickle.dump(test_obj, open(save_path, 'wb'), -1)
-        print "ALL DONE!"
-    # ---
+
     pickle.dump(obj, open(save_path, 'wb'), -1)
 
 

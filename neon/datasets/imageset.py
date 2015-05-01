@@ -135,6 +135,22 @@ class Imageset(Dataset):
         self.rgb = True if self.num_channels == 3 else False
         self.norm_factor = 128. if self.mean_norm else 256.
 
+    def __getstate__(self):
+        """
+        Defines what and how we go about serializing an instance of this class.
+
+        """
+        #import pdb; pdb.set_trace()
+        self.macro_decode_thread = None
+        return self.__dict__
+
+    def __setstate__(self, state):
+        """
+        Defines how we go about deserializing into an instance of this class.
+
+        """
+        self.__dict__.update(state)
+
     def load(self):
         bdir = os.path.expanduser(self.save_dir)
         cachefile = os.path.join(bdir, 'dataset_cache.pkl')
