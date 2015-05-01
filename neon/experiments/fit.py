@@ -71,7 +71,13 @@ class FitExperiment(Experiment):
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
         if hasattr(self.model, 'depickle'):
-            self.model.set_params(deserialize(self.model.depickle))
+            import os
+            mfile = os.path.expandvars(os.path.expanduser(self.model.depickle))
+            if os.access(mfile, os.R_OK):
+                self.model.set_params(deserialize(mfile))
+            else:
+                logger.info('Unable to find saved model %s, starting over',
+                            mfile)
         if self.model.epochs_complete >= self.model.num_epochs:
             return
         if self.live:
@@ -80,14 +86,7 @@ class FitExperiment(Experiment):
         self.model.fit(self.dataset)
 
         if hasattr(self.model, 'pickle'):
-            ''' TODO: With the line below active, get
-
-              File "/home/users/urs/code/neon/neon/layers/fully_connected.py", line 58, in bprop
-                self.backend.update_fc(out=upm[u_idx], inputs=inputs,
-            IndexError: list index out of range
-
-            when deserializing a partially trained model'''
-            self.model.uninitialize() ##########################################
+            self.model.uninitialize()
             if (hasattr(self.dataset, 'dist_flag') and
                     self.dataset.dist_flag and
                     self.dataset.dist_mode == 'datapar'):
@@ -99,7 +98,8 @@ class FitExperiment(Experiment):
         if hasattr(self.model, 'serialized_path'):
             ''' TODO: With the line below active, get
 
-              File "/home/users/urs/code/neon/neon/layers/fully_connected.py", line 58, in bprop
+              File "/home/users/urs/code/neon/neon/layers/fully_connected.py",
+              line 58, in bprop
                 self.backend.update_fc(out=upm[u_idx], inputs=inputs,
             IndexError: list index out of range
 
