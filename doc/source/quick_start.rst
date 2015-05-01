@@ -75,6 +75,11 @@ convolutional neural networks below.
     cd neon
     sudo make install
 
+The above will install neon system-wide.  If you don't have sufficient
+privileges or would prefer an isolated installation, see our `virtualenv
+<http://neon.nervanasys.com/docs/latest/installation.html#virtualenv>`__
+based install.
+
 There are several examples built-in to neon in the ``examples``
 directory for a user to get started. The YAML format is plain-text and
 can be edited to change various aspects of the model. See the
@@ -140,8 +145,17 @@ points are:
 Issues
 ~~~~~~
 
-For any bugs or feature requests please create a ticket
-`here <https://github.com/NervanaSystems/neon/issues>`__.
+For any bugs or feature requests please: 
+
+#. Search the open and closed `issues list
+   <https://github.com/NervanaSystems/neon/issues>`__ to see if we're already
+   working on what you have uncovered.
+#. Check that your issue/request has not already been addressed in our
+   `Frequently Asked Questions (FAQ)
+   <http://neon.nervanasys.com/docs/latest/faq.html>`__
+#. File a new `issue <https://github.com/NervanaSystems/neon/issues>`__ or
+   submit a new `pull request <https://github.com/NervanaSystems/neon/pulls>`__
+   if you have some code you'd like to contribute.
 
 Machine learning OPerations (MOP) Layer
 ---------------------------------------

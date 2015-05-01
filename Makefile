@@ -82,27 +82,40 @@ build: clean_pyc
 	@python setup.py neon --dev $(DEV) --cpu $(CPU) --gpu $(GPU) --dist $(DIST) \
 		build
 
+pip_check:
+ifeq (, $(shell which pip))
+  ifeq ($(shell uname -s), Darwin)
+		$(error pip command not found.  On OSX we recommend separately installing \
+			python 2.7.9 or later which includes pip. See \
+			https://www.python.org/downloads/)
+  else
+		$(error pip command not found.  Please ensure pip is installed. \
+			Ubuntu/Debian Linux: sudo apt-get install python-pip \
+			RedHat/CentOS Linux: sudo yum install python-pip)
+  endif
+endif
+
 # unfortunately there is no way to communicate custom commands into pip
 # install, hence having to specify installation requirements twice (once
 # above, and once inside setup.py). Ugly kludge, but seems like the only way
 # to support both python setup.py install and pip install.
 # Since numpy is required for building some of the other dependent packages
 # we need to separately install it first
-deps_install: clean_pyc
+deps_install: clean_pyc pip_check
 	@pip install 'numpy>=1.8.1' 'PyYAML>=3.11'
 ifdef INSTALL_REQUIRES
 	@pip install $(INSTALL_REQUIRES)
 endif
 
-develop: clean_pyc deps_install .git/hooks/pre-commit
+develop: clean_pyc pip_check deps_install .git/hooks/pre-commit
 	@echo "Running develop(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
 	@pip install -e .
 
-install: clean_pyc deps_install
+install: clean_pyc pip_check deps_install
 	@echo "Running install(DEV=$(DEV) CPU=$(CPU) GPU=$(GPU) DIST=$(DIST))..."
 	@pip install .
 
-uninstall:
+uninstall: pip_check
 	@echo "Running uninstall..."
 	@pip uninstall -y neon
 

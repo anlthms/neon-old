@@ -9,6 +9,13 @@ Datasets represent the inputs to the model training or prediction process.  In
 order to use a dataset in neon, it must conform to particular conventions so
 that it can be correctly copied to the device being used.
 
+We support loading datasets into host and device memory either all it once, or
+in chunks (one macro batch at a time), useful if your dataset is too large to
+fit in memory.  Note that macro batch loading is only supported in
+:class:`neon.datasets.imageset.Imageset` and :class:`neon.datasets.i1k.I1K`
+currently.
+
+
 Available Datasets
 ------------------
 
@@ -29,6 +36,28 @@ Available Datasets
    neon.datasets.synthetic.ToyImages
 
 .. _extending_dataset:
+
+
+Basic YAML Parameters
+---------------------
+
+* ``repo_path``: Gives the base location in which datasets are stored on disk.
+  Paths can contain environment variables, ``~`` for home directories, and be
+  absolute or relative in nature.  Each type of dataset will be a subdirectory
+  of this main repository path named according to the corresponding class name.
+* ``serialized_path``: The full location and name to a python .pkl file that we
+  will use to cache this dataset.  Speeds up subsequent use of this dataset.
+* ``deserialized_path``: Where to look for a .pkl dataset to load.  Takes
+  precedence over serialized_path when this is also present (but is optional).
+* ``overwrite_list``: Can use this to specify a list of parameter names whose
+  values should be taken from this yaml file, overwriting what may already be
+  present when de-serializing an instance of this object.  Can be useful for
+  things like forcing an updated serialization path or training for additional
+  epochs (can be applied to any object).
+* ``sample_pct``: most datasets implement this, which if given a value < 100
+  will be used to uniformly downsample dataset records to the specified
+  percentage
+
 
 Adding a new type of Dataset
 ----------------------------
@@ -51,7 +80,7 @@ To better understand the process, lets walk through adding a new dataset based
 on the Kaggle sponsored
 `National Data Science Bowl competition <https://www.kaggle.com/c/datasciencebowl/data>`_
 
-This dataset consists of images of plankton split into a labelled training 30k
+This dataset consists of images of plankton split into a labelled 30k
 example training set (organized into directories based on class), and a larger unlabelled
 test dataset.  Given this setup, this data is well suited for creating a new
 Imageset derived dataset, but for the moment let's set it up as a general
@@ -61,6 +90,7 @@ Let's begin by creating an initial template with some appropriate imports and
 stubs for the functions we will need to implement:
 
 .. code-block:: python
+   :linenos:
 
     import cPickle
     import glob
@@ -112,6 +142,7 @@ specified paths used in this example are simply for illustration.
 Let's now start stepping through the implementation of the load function:
 
 .. code-block:: python
+   :linenos:
 
         def load(self):
             if self.inputs['train'] is not None:
@@ -121,8 +152,10 @@ Let's now start stepping through the implementation of the load function:
 
             self.repo_path = os.path.expandvars(os.path.expanduser(self.repo_path))
             rootdir = os.path.join(self.repo_path, self.__class__.__name__)
-            self.inputs['train'], self.targets['train'], filetree, imgdims = self.read_images(rootdir, 'train', '*')
-            self.inputs['test'], self.targets['test'], filetree, imgdims = self.read_images(rootdir, 'test')
+            (self.inputs['train'], self.targets['train'], filetree,
+             imgdims) = self.read_images(rootdir, 'train', '*')
+            (self.inputs['test'], self.targets['test'], filetree,
+             imgdims) = self.read_images(rootdir, 'test')
             self.format()
 
 From the above, what we're doing is checking whether we even need to set
@@ -139,6 +172,7 @@ inputs to device so the actual model training can proceed.
 Finally lets look at the ``read_images`` implementation:
 
 .. code-block:: python
+   :linenos:
 
         def read_images(self, rootdir, leafdir, wildcard=''):
             logger.info('Reading images from %s', leafdir)
@@ -203,7 +237,7 @@ get loaded, and in this particular case we're utilizing some sklearn image
 reading and transformation functions.  With the ``imread`` function we can take
 the input jpeg images and convert them into (grayscale) 2D numpy matrices of
 pixel intensities that lie between 0 and 1.  These images are resized,
-inverted, flattend to 1D vectors then stored in whitened and un-whitened format
+inverted, flattened to 1D vectors then stored in whitened and un-whitened format
 (minor pre-processing found to be useful for this particular dataset, stored as
 separate channels).  Finally you can see ``inputs`` is updated where these
 flattened pixel values are stored as a row vector indexed by each image.
@@ -217,10 +251,10 @@ Working with Imageset
 ---------------------
 If you have a set of image files as input, consider using Imageset.  This
 Dataset incorporates batching and pre-processing (cropping, normalization) in
-an efficient manner.  It can also take advantage of directory subfolders to
-identify target labels.
+an efficient, multi-threaded manner.  It can also take advantage of directory
+subfolders to identify target labels.
 
-Required Imageset constructor parameters:
+Required Imageset constructor/YAML parameters:
 
 * ``batch_dir``: where to keep batched data objects and indices
 * ``image_dir``: where the raw image files live
@@ -241,3 +275,5 @@ Optional Imageset parameters (mostly BatchWriter related):
 * ``num_workers``: number of processes to spawn for batch writing
 * ``backend_type``: element value type (for each image pixel)
 
+To see an example that uses Imageset, have a look at
+:download:`ndsb_imageset.yaml <../../examples/convnet/ndsb.yaml>`
