@@ -48,7 +48,12 @@
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
     num_epochs: 5,
-    batch_size: &bs 100,
+    batch_size: &bs 128,
+    pickle: '~/data/mnist-mlp-alex.pkl',
+    # depickle: '~/data/mnist-mlp-alex.pkl',
+
+    # serialized_path: '~/data/mnist-mlp-simple-alex.pkl',
+    # deserialized_path: '~/data/mnist-mlp-simple-alex.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

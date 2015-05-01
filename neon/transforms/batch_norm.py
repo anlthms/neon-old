@@ -93,6 +93,20 @@ class BatchNorm(Activation):
         self._gamma_updates = self.backend.zeros(self.in1d, dtype=self.bigtype)
         self.layer.updates.extend([self._beta_updates, self._gamma_updates])
 
+    def get_params(self):
+        np_params = dict()
+        for p in ['_gamma', '_beta']:
+            if hasattr(self, p):
+                p_tensor = getattr(self, p)
+                np_params[p] = np.array(p_tensor.asnumpyarray(),
+                            dtype=p_tensor.dtype).reshape(p_tensor.shape)
+        return np_params
+
+    def set_params(self, params_dict):
+        for p in ['_gamma', '_beta']:
+            if p in params_dict:
+                getattr(self, p)[:] = params_dict[p]
+
     def set_inference_mode(self):
         """
         If implemented following Ioffe et al. 2015, there appears to be a bug

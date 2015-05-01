@@ -31,6 +31,24 @@ class GradientDescent(LearningRule):
             self.weight_decay = lr_params['weight_decay']
         else:
             self.weight_decay = 0.0
+        self.param_names = []
+
+    def get_params(self):
+        np_params = dict()
+        for p in self.param_names:
+            if hasattr(self, p):
+                p_list = getattr(self, p)
+                np_params[p] = []
+                for p_tensor in p_list:
+                    np_params[p].append(np.array(p_tensor.asnumpyarray(),
+                                 dtype=p_tensor.dtype).reshape(p_tensor.shape))
+        return np_params
+
+    def set_params(self, params_dict):
+        for p in self.param_names:
+            if p in params_dict:
+                for i in range(params_dict[p]):
+                    getattr(self, p)[i][:] = params_dict[p][i]
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
@@ -89,6 +107,7 @@ class GradientDescentMomentum(GradientDescent):
             self.schedule = lr_params['schedule']
         else:
             self.schedule_flag = False
+        self.param_names = ['velocity']
 
     def allocate_state(self, params):
         self.velocity = []

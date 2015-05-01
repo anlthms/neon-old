@@ -29,9 +29,6 @@ class MLP(MLP_old):
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
         opt_param(self, ['timing_plots'], False)
-        self.data_layer = self.layers[0]
-        self.cost_layer = self.layers[-1]
-        self.class_layer = self.layers[-2]
 
     def link(self, initlayer=None):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
@@ -39,6 +36,9 @@ class MLP(MLP_old):
         self.print_layers()
 
     def initialize(self, backend, initlayer=None):
+        self.data_layer = self.layers[0]
+        self.cost_layer = self.layers[-1]
+        self.class_layer = self.layers[-2]
         if self.initialized:
             return
         self.backend = backend
@@ -66,6 +66,7 @@ class MLP(MLP_old):
                                       dtype=self.layers[1].deltas_dtype)
 
     def uninitialize(self):
+        # self.backend = None
         self.initialized = False
         for ll in self.layers:
             ll.uninitialize()
@@ -222,3 +223,21 @@ class MLP(MLP_old):
     def predict_live(self):
         self.fprop()
         return self.get_classifier_output()
+
+    def get_params(self):
+        np_params = dict()
+        for i, ll in enumerate(self.layers):
+            if ll.has_params:
+                lkey = ll.name + '_' + str(i)
+                np_params[lkey] = ll.get_params()
+        np_params['epochs_complete'] = self.epochs_complete
+        return np_params
+
+    def set_params(self, params_dict):
+        for i, ll in enumerate(self.layers):
+            if ll.has_params:
+                lkey = ll.name + '_' + str(i)
+                ll.set_params(params_dict[lkey])
+        self.epochs_complete = params_dict['epochs_complete']
+
+

@@ -9,7 +9,7 @@ import logging
 
 from neon.experiments.experiment import Experiment
 from neon.util.param import req_param, opt_param
-from neon.util.persist import serialize
+from neon.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +72,32 @@ class FitExperiment(Experiment):
             self.model.epochs_complete = 0
         if self.model.epochs_complete >= self.model.num_epochs:
             return
+
+        if hasattr(self.model, 'depickle'):
+            self.model.set_params(deserialize(self.model.depickle))
+
         if self.live:
             return
 
         self.model.fit(self.dataset)
+
+        if hasattr(self.model, 'pickle'):
+            ''' TODO: With the line below active, get
+
+              File "/home/users/urs/code/neon/neon/layers/fully_connected.py", line 58, in bprop
+                self.backend.update_fc(out=upm[u_idx], inputs=inputs,
+            IndexError: list index out of range
+
+            when deserializing a partially trained model'''
+            self.model.uninitialize() ##########################################
+            if (hasattr(self.dataset, 'dist_flag') and
+                    self.dataset.dist_flag and
+                    self.dataset.dist_mode == 'datapar'):
+                if self.backend.mpi_rank == 0:
+                    serialize(self.model.get_params(), self.model.pickle)
+            else:
+                serialize(self.model.get_params(), self.model.pickle)
+
         if hasattr(self.model, 'serialized_path'):
             ''' TODO: With the line below active, get
 
@@ -84,7 +106,7 @@ class FitExperiment(Experiment):
             IndexError: list index out of range
 
             when deserializing a partially trained model'''
-            # self.model.uninitialize() ##########################################
+            self.model.uninitialize() ##########################################
             if (hasattr(self.dataset, 'dist_flag') and
                     self.dataset.dist_flag and
                     self.dataset.dist_mode == 'datapar'):

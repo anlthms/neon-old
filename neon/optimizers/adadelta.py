@@ -37,6 +37,8 @@ class AdaDelta(LearningRule):
         self.exp_deltsq = []
         self.lrates = []
         self.scratch_space = []
+        self.param_names = ['exp_gradsq', 'exp_deltsq', 'lrates',
+                            'scratch_space']
 
     def allocate_state(self, params):
         assert len(self.exp_gradsq) == 0

@@ -45,7 +45,7 @@ class GPU(Backend):
                            cannot be serialized.
         """
         if hasattr(self, 'mem_pool') and self.mem_pool is not None:
-            self.mem_pool_pickle = {'shape': self.mem_pool.shape,
+            self.mem_pool_pickle = {'shape':elf.mem_pool.shape,
                                     'dtype': np.float32}
             self.mem_pool = None
 
