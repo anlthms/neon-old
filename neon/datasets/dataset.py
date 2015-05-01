@@ -91,7 +91,8 @@ class Dataset(object):
             repo_path (str): The local path to write the fetched dataset to.
         """
         repo_path = os.path.expandvars(os.path.expanduser(repo_path))
-        logger.info("fetching: %s, saving to: %s", url, repo_path)
+        logger.info("fetching: %s, saving to: %s (this may take some time "
+                    "depending on dataset size)", url, repo_path)
         urllib.urlretrieve(url, os.path.join(repo_path,
                                              os.path.basename(url)))
 

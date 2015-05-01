@@ -50,13 +50,19 @@ information.
 
 ### Quick Install
 
-On a Mac OSX or Linux box enter the following to download and
-install neon, and use it to train your first multi-layer perceptron or convolutional neural networks below.
+On a Mac OSX or Linux box enter the following to download and install neon,
+and use it to train your first multi-layer perceptron
+or convolutional neural networks below.
 
     git clone https://github.com/NervanaSystems/neon.git
     cd neon
     sudo make install
     
+The above will install neon system-wide.  If you don't have sufficient
+privileges or would prefer an isolated installation, see our
+[virtualenv](http://neon.nervanasys.com/docs/latest/installation.htm#virtualenv)
+based install.
+
 There are several examples built-in to neon in the `examples` directory for a
 user to get started. The YAML format is plain-text and can be edited to change
 various aspects of the model. See the
@@ -111,8 +117,16 @@ The complete documentation for neon is available
 
 ### Issues
 
-For any bugs or feature requests please create a ticket
-[here](https://github.com/NervanaSystems/neon/issues).
+For any bugs or feature requests please:
+
+1. Search the open and closed
+   [issues list](https://github.com/NervanaSystems/neon/issues) to see if we're
+   already working on what you have uncovered.
+2. Check that your issue/request has already been addressed in our
+   [Frequently Asked Questions (FAQ)](http://neon.nervanasys.com/docs/latest/faq.html)
+3. File a new [issue](https://github.com/NervanaSystems/neon/issues) or submit
+   a new [pull request](https://github.com/NervanaSystems/neon/pulls) if you
+   have some code you'd like to contribute
 
 
 ## Machine learning OPerations (MOP) Layer
