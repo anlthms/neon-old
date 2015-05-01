@@ -137,16 +137,13 @@ class Imageset(Dataset):
     def __getstate__(self):
         """
         Defines what and how we go about serializing an instance of this class.
-
         """
-        #import pdb; pdb.set_trace()
         self.macro_decode_thread = None
         return self.__dict__
 
     def __setstate__(self, state):
         """
         Defines how we go about deserializing into an instance of this class.
-
         """
         self.__dict__.update(state)
 

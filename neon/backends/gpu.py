@@ -60,7 +60,6 @@ class GPU(Backend):
                            except for the mem_pool which is on device and
                            cannot be serialized.
         """
-        #import pycuda.autoinit  # TODO: Only create if it does not exist
         self.__dict__.update(state)
         self.mem_pool = self.ng.empty(self.mem_pool_pickle['shape'],
                                       dtype=self.mem_pool_pickle['dtype'])
