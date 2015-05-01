@@ -16,8 +16,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run sanity check examples')
     parser.add_argument('--cpu', default=0, help='Run CPU sanity check',
                         type=int)
-    parser.add_argument('--gpu', default=0, help='Run GPU sanity check',
-                        type=int)
+    parser.add_argument('--gpu', default="", help='Run GPU sanity check '
+                        '(specify one of cudanet or nervanagpu')
     parser.add_argument('--datapar', default=0, type=int,
                         help='Run data parallel sanity check')
     parser.add_argument('--modelpar', default=0, type=int,
@@ -48,9 +48,10 @@ if __name__ == '__main__':
     # for be in ["cpu", "gpu", "datapar", "modelpar"]:
     for be in ["cpu", "gpu", "datapar"]:
         be_args = {'rng_seed': 0}
-        if args.__dict__[be] == 1:
+        if (args.__dict__[be] != 0 and args.__dict__[be] != "" and
+                args.__dict__[be] != "0"):
             if be == "gpu":
-                be_args[be] = "cudanet"
+                be_args[be] = args.__dict__[be]
             elif be == "datapar":
                 be_args[be] = 1
             print('{} check '.format(be)),

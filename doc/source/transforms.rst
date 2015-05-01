@@ -16,13 +16,14 @@ Available Transforms
 .. autosummary::
    :toctree: generated/
 
+   neon.transforms.linear.Linear
    neon.transforms.rectified.RectLin
    neon.transforms.rectified.RectLeaky
    neon.transforms.logistic.Logistic
    neon.transforms.tanh.Tanh
+   neon.transforms.softmax.Softmax
+   neon.transforms.batch_norm.BatchNorm
 
    neon.transforms.sum_squared.SumSquaredDiffs
    neon.transforms.cross_entropy.CrossEntropy
-
-   neon.transforms.gaussian.gauss
-   neon.transforms.gaussian.gaussian_filter
+   neon.transforms.xcov.XCovariance

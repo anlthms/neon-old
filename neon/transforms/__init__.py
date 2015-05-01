@@ -1,5 +1,6 @@
 # import shortcuts
 from neon.transforms.cross_entropy import CrossEntropy  # noqa
+from neon.transforms.linear import Linear  # noqa
 from neon.transforms.logistic import Logistic  # noqa
 from neon.transforms.rectified import RectLin, RectLeaky  # noqa
 from neon.transforms.softmax import Softmax  # noqa

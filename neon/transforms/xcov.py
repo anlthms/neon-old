@@ -5,11 +5,14 @@ XCov cost functions and classes for balance networks
 from neon.transforms.cost import Cost
 
 
-def xcov_cost(backend, outputs, targets, temp, blkidx):
+def xcov_cost(backend, outputs, targets, temp, blkidx,
+              scale_by_batchsize=False):
     blk1 = outputs[0:blkidx]
     blk2 = outputs[blkidx:]
     backend.xcov(blk1, blk2, out=temp[2])
     backend.multiply(temp[2], temp[2], temp[2])
+    if scale_by_batchsize:
+        backend.divide(temp[2], temp[2].shape[1], temp[2])
     result = backend.empty((1, 1))
     backend.sum(temp[2], axes=None, out=result)
     return backend.multiply(result, 0.5, result)
@@ -76,12 +79,12 @@ class XCovariance(Cost):
     def get_deltabuf(self):
         return self.temp[3]
 
-    def apply_function(self, targets):
+    def apply_function(self, targets, scale_by_batchsize=False):
         """
         Apply the xcov cost function to the datasets passed.
         """
         result = xcov_cost(self.backend, self.outputbuf, targets, self.temp,
-                           self.blkidx)
+                           self.blkidx, scale_by_batchsize)
         return self.backend.multiply(result, self.scale, out=result)
 
     def apply_derivative(self, targets):

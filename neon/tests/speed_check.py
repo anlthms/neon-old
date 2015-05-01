@@ -18,8 +18,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run speed check examples')
     parser.add_argument('--cpu', default=0, help='Run CPU speed check',
                         type=int)
-    parser.add_argument('--gpu', default=0, help='Run GPU speed check',
-                        type=int)
+    parser.add_argument('--gpu', default="", help='Run GPU speed check '
+                        '(specify one of cudanet or nervanagpu)')
     parser.add_argument('--datapar', default=0, type=int,
                         help='Run data parallel speed check')
     parser.add_argument('--modelpar', default=0, type=int,
@@ -50,11 +50,12 @@ if __name__ == '__main__':
     # (dimensions not aligned), so skipping for the moment.
     for be, num_epochs in [("cpu", 120), ("gpu", 225), ("datapar", 120)]:
         be_args = {'rng_seed': 0}
-        if args.__dict__[be] == 1:
+        if (args.__dict__[be] != 0 and args.__dict__[be] != "" and
+                args.__dict__[be] != "0"):
             if be != "cpu":
                 be_args[be] = 1
             if be == "gpu":
-                be_args[be] = "cudanet"
+                be_args[be] = args.__dict__[be]
             if be == "datapar":
                 # temporary hack because we are not running via mpirun.
                 os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = '0'

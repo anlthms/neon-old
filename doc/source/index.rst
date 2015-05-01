@@ -1,10 +1,10 @@
 .. ---------------------------------------------------------------------------
 .. Copyright 2014 Nervana Systems Inc.  All rights reserved.
 .. ---------------------------------------------------------------------------
-.. Nervana Framework documentation master file
+.. neon documentation master file
 
-Nervana Framework: A highly configurable deep learning library
-**************************************************************
+neon: A highly configurable deep learning framework
+***************************************************
 
 :Release: |version|
 :Date: |today|
@@ -20,9 +20,12 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   using_framework
    quick_start
-   developing_framework
+   installation
+   using_neon
+   distributed
+   hyperparameter_tuning
+   developing_neon
    ml_operational_layer
    backends
    models
@@ -32,8 +35,8 @@ Contents
    learning_rules
    datasets
    experiments
-   distributed
    util
+   faq
    api
 
 

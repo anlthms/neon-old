@@ -11,7 +11,7 @@ Architecture
 ------------
 
 .. figure:: _static/framework_architecture.png
-   :alt: Nervana Framework architecture
+   :alt: neon architecture
 
 Extending the Framework
 -----------------------

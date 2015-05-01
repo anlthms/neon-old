@@ -2,10 +2,10 @@
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
 """
-neon - A highly configurable machine learning library
-=====================================================
+neon - A highly configurable deep learning framework
+====================================================
 
-Full documentation is available at: http://framework.nervanasys.com/docs/latest
+Full documentation is available at: http://neon.nervanasys.com/docs/latest
 """
 
 try:
