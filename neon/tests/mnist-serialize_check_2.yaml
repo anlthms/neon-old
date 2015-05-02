@@ -15,7 +15,6 @@
 # Train model through 10 epochs and generate results (CONTROL2).
 # Serialize MODEL_E10
 
-
 !obj:experiments.FitPredictErrorExperiment {
 
   # MNIST data
@@ -49,6 +48,7 @@
   lrules: [
     &gdm {
       type: gradient_descent_momentum,
+      backend_type: *bt,
       lr_params: {
         learning_rate: 0.01,
         momentum_params: {
@@ -59,6 +59,7 @@
     },
     &ada {
       type: adadelta,
+      backend_type: *bt,
       lr_params: {
         rho: &ro 0.95,
         epsilon: &eps 0.000001,
@@ -68,6 +69,7 @@
   # CNN model specification
   # essentially a multi-layer perceptron with convolutional and pooling layers
   model: !obj:models.MLP {
+    backend_type: *bt,
     num_epochs: 10,
     batch_size: &bs 128,
     depickle: '~/data/model10.pkl',
@@ -81,6 +83,7 @@
       },
       !obj:layers.ConvLayer {
         name: layer1,
+        backend_type: *bt,
         nofm: 16,
         batch_norm: True,
         fshape: [5, 5],
@@ -89,12 +92,14 @@
       },
       !obj:layers.PoolingLayer {
         name: layer2,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: layer3,
+        backend_type: *bt,
         nofm: 32,
         fshape: [5, 5],
         weight_init: *wt_init_1,
@@ -102,12 +107,14 @@
       },
       !obj:layers.PoolingLayer {
         name: layer4,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.FCLayer {
         name: layer5,
+        backend_type: *bt,
         nout: 100,
         activation: !obj:transforms.RectLin {},
         weight_init: *wt_init,
@@ -115,6 +122,7 @@
       },
       &lastlayer !obj:layers.FCLayer {
         name: output,
+        backend_type: *bt,
         nout: 10,
         activation: !obj:transforms.Logistic {},
         weight_init: *wt_init,
@@ -123,7 +131,9 @@
       &costlayer !obj:layers.CostLayer {
         name: cost,
         ref_layer: *datalayer,
-        cost: !obj:transforms.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {
+            backend_type: *bt,
+        },
       },
     ],
   },
