@@ -43,6 +43,20 @@ class CompositeLayer(Layer):
         for subl in self.sublayers:
             subl.set_train_mode(mode)
 
+    def get_params(self):
+        np_params = dict()
+        for i, ll in enumerate(self.sublayers):
+            if ll.has_params:
+                lkey = self.name + '_' + ll.name + '_' + str(i)
+                np_params[lkey] = ll.get_params()
+        return np_params
+
+    def set_params(self, params_dict):
+        for i, ll in enumerate(self.sublayers):
+            if ll.has_params:
+                lkey = self.name + '_' + ll.name + '_' + str(i)
+                ll.set_params(params_dict[lkey])
+
 
 class BranchLayer(CompositeLayer):
     """
