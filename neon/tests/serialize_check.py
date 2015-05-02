@@ -57,9 +57,9 @@ if __name__ == '__main__':
             os.path.join(script_dir,
                          'mnist-serialize_check_' + str(i + 1) + '.yaml'))
 
-    expected_result = 41.15585
-    expected_result_2 = 13.24119
-    expected_result_3 = 13.20112 # TODO: this shouldn't be different from #2
+    expected_result = 12.60016
+    expected_result_2 = 10.48678
+    expected_result_3 = 10.95753 # TODO: this shouldn't be different from #2
     serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
                         '~/data/model10b.pkl']
     # delete previously serialized files

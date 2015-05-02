@@ -81,6 +81,7 @@
       !obj:layers.ConvLayer {
         name: layer1,
         nofm: 16,
+        batch_norm: True,
         fshape: [5, 5],
         weight_init: *wt_init,
         lrule_init: *gdm,
