@@ -48,7 +48,7 @@ def serialize_check(conf_file, result, **be_args):
 if __name__ == '__main__':
     # setup an initial console logger (may be overridden in config)
     logging.basicConfig(level=40)  # ERROR or higher
-    res2 = 0
+    res = 0
     # args = parse_args()
     script_dir = os.path.dirname(os.path.realpath(__file__))
     check_files = []
@@ -120,4 +120,4 @@ if __name__ == '__main__':
 
     # todo: gpu -> cpu deserialization
 
-    sys.exit(res2)
+    sys.exit(res)
