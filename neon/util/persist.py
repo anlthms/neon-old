@@ -148,6 +148,12 @@ def obj_multi_constructor(loader, tag_suffix, node,
             parts.insert(0, "neon")
             module = '.'.join(parts[:-1])
             cls = __import__(module)
+            if 'datasets' in parts:
+                # clear any previous datasets loaded with a different backend
+                cls.datasets.dataset.Dataset.inputs = {
+                    'train': None, 'test': None, 'validation': None}
+                cls.datasets.dataset.Dataset.targets = {
+                    'train': None, 'test': None, 'validation': None}
         else:
             raise err
     for comp in parts[1:]:
@@ -237,8 +243,8 @@ def deserialize(load_path, verbose=True):
         logger.warn("deserializing object from:  %s", fname)
 
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
-        if not yaml_initialized:
-            initialize_yaml()
+        # if not yaml_initialized: [TODO: SCOTT IS THIS OK?]
+        initialize_yaml()
         return yaml.safe_load(load_path)
     else:
         try:
@@ -278,6 +284,7 @@ def serialize(obj, save_path, verbose=True):
 
 
 class YAMLable(yaml.YAMLObject):
+
     """
     Base class for any objects we'd like to be able to safely parse from yaml
     configuration strems (or dump suitable representation back out to such a

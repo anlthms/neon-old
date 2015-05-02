@@ -40,18 +40,16 @@ def serialize_check(conf_file, result, **be_args):
     experiment = deserialize(os.path.join(dir, conf_file))
     backend = gen_backend(model=experiment.model, **be_args)
     experiment.initialize(backend)
-    print type(backend)
     res = experiment.run()
     print(float(res['test']['MisclassPercentage_TOP_1']))
     tol = 1e-6
     assert float(res['test']['MisclassPercentage_TOP_1']) - result < tol
 
-
 if __name__ == '__main__':
     # setup an initial console logger (may be overridden in config)
     logging.basicConfig(level=40)  # ERROR or higher
-    res = 0
-    args = parse_args()
+    res2 = 0
+    # args = parse_args()
     script_dir = os.path.dirname(os.path.realpath(__file__))
     check_files = []
     for i in range(3):
@@ -61,23 +59,26 @@ if __name__ == '__main__':
 
     expected_result = 67.2275641026
     expected_result_2 = 29.2467948718
+    expected_result_3 = 29.3068910256
     serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
                         '~/data/model10b.pkl']
-
     # delete previously serialized files
     for serialized_file in serialized_files:
-        if os.path.isfile(serialized_file):
+        if os.path.isfile(os.path.expanduser(serialized_file)):
+            print "deleting:", serialized_file
             os.remove(os.path.expanduser(serialized_file))
 
     # Step 1: Run 5 epochs of MNIST model and serialize, MODEL5
     be = "cpu"
     be_args = {'rng_seed': 0}
+    print('{} check '.format(be)),
     serialize_check(check_files[0], expected_result, **be_args)
     print('OK')
 
     # Step 2: Deserialize MODEL5 and compare inference performance
     be = "cpu"
     be_args = {'rng_seed': 0}
+    print('{} check '.format(be)),
     serialize_check(check_files[0], expected_result, **be_args)
     print('OK')
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     be = "gpu"
     be_args = {'rng_seed': 0}
     be_args[be] = "cudanet"
-    print be_args
+    print('{} check '.format(be)),
     serialize_check(check_files[0], expected_result, **be_args)
     print('OK')
 
@@ -98,7 +99,8 @@ if __name__ == '__main__':
     # Step 4: Train 10 epochs of MNIST model and serialize, MODEL10
     be = "cpu"
     be_args = {'rng_seed': 0}
-    print be_args
+    print('{} check '.format(be)),
+    # should be check_files[1]
     serialize_check(check_files[1], expected_result_2, **be_args)
     print('OK')
 
@@ -112,10 +114,10 @@ if __name__ == '__main__':
     be = "gpu"
     be_args = {'rng_seed': 0}
     be_args[be] = "cudanet"
-    serialize_check(check_files[2], expected_result_2, **be_args)
+    print('{} check '.format(be)),
+    serialize_check(check_files[2], expected_result_3, **be_args)
     print('OK')
 
     # todo: gpu -> cpu deserialization
 
-    print('{} check '.format(be)),
-    sys.exit(res)
+    sys.exit(res2)

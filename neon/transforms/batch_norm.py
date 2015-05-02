@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class BatchNorm(Activation):
+
     """
     Embodiment of a Batch Normalization Transform.  Can be used in a
     WeightLayer after the linear transform but before the typical activation
@@ -37,6 +38,7 @@ class BatchNorm(Activation):
         = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
 
     """
+
     def initialize(self, kwargs):
         """
         Initialize the Batch Normalization transform. This function will be
@@ -100,7 +102,7 @@ class BatchNorm(Activation):
                 p_tensor = getattr(self, p)
                 np_params[p] = np.array(p_tensor.asnumpyarray(),
                                         dtype=p_tensor.dtype).reshape(
-                                                            p_tensor.shape)
+                    p_tensor.shape)
         return np_params
 
     def set_params(self, params_dict):
