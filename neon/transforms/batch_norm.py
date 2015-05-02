@@ -118,8 +118,8 @@ class BatchNorm(Activation):
         variance and mean statistics are computed , which seems
         to perform quite well.
         """
-        logger.error("Batch Normalization inference mode not supported. Using "
-                     "training mode.")
+        logger.warning("Batch Normalization inference mode not supported. "
+                       "Using training mode.")
         self.train_mode = True  # Set to 'False' to force inference mode
         if self.train_mode is False:
             if self._iscale is None:

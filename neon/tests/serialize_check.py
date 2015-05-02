@@ -13,6 +13,7 @@
 # limitations under the License.
 """
 Serialization check
+This has been tested for Maxwell 980 GPU
 """
 import argparse
 import logging
@@ -46,6 +47,18 @@ def serialize_check(conf_file, result, **be_args):
     # print abs(float(res['test']['MisclassPercentage_TOP_1']) - result)
     assert abs(float(res['test']['MisclassPercentage_TOP_1']) - result) < tol
 
+
+def serialize_check_alexnet(conf_file, result, **be_args):
+    experiment = deserialize(os.path.join(dir, conf_file))
+    backend = gen_backend(model=experiment.model, **be_args)
+    experiment.initialize(backend)
+    res = experiment.run()
+    print(float(res['validation']['MisclassPercentage_TOP_1']))
+    tol = .1
+    # print abs(float(res['test']['MisclassPercentage_TOP_1']) - result)
+    assert abs(
+        float(res['validation']['MisclassPercentage_TOP_1']) - result) < tol
+
 if __name__ == '__main__':
     # setup an initial console logger (may be overridden in config)
     logging.basicConfig(level=40)  # ERROR or higher
@@ -53,74 +66,136 @@ if __name__ == '__main__':
     # args = parse_args()
     script_dir = os.path.dirname(os.path.realpath(__file__))
     check_files = []
-    for i in range(3):
-        check_files.append(
-            os.path.join(script_dir,
-                         'mnist-serialize_check_' + str(i + 1) + '.yaml'))
 
-    expected_result = 12.5500801282
-    expected_result_2 = 10.4667467949
-    expected_result_3 = 10.8173076923  # TODO: this shouldn't be diff from #2
-    serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
-                        '~/data/model10b.pkl']
-    # delete previously serialized files
-    for serialized_file in serialized_files:
-        if os.path.isfile(os.path.expanduser(serialized_file)):
-            print "deleting:", serialized_file
-            os.remove(os.path.expanduser(serialized_file))
+    mnist = True
+    if mnist:
+        for i in range(3):
+            check_files.append(
+                os.path.join(script_dir,
+                             'mnist-serialize_check_' + str(i + 1) + '.yaml'))
 
-    # Step 1: Run 5 epochs of MNIST model and serialize, MODEL5
-    be = "cpu"
-    be_args = {'rng_seed': 0}
-    print('{} check '.format(be)),
-    serialize_check(check_files[0], expected_result, **be_args)
-    print('OK')
+        expected_result = 12.5500801282
+        expected_result_2 = 10.4667467949
+        expected_result_3 = 10.8173076923  # TODO: shouldn't be diff from #2
+        serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
+                            '~/data/model10b.pkl']
+        # delete previously serialized files
+        for serialized_file in serialized_files:
+            if os.path.isfile(os.path.expanduser(serialized_file)):
+                print "deleting:", serialized_file
+                os.remove(os.path.expanduser(serialized_file))
 
-    # Step 2: Deserialize MODEL5 and compare inference performance
-    be = "cpu"
-    be_args = {'rng_seed': 0}
-    print('{} check '.format(be)),
-    serialize_check(check_files[0], expected_result, **be_args)
-    print('OK')
+        # Step 1: Run 5 epochs of MNIST model and serialize, MODEL5
+        be = "cpu"
+        be_args = {'rng_seed': 0}
+        print('{} check '.format(be)),
+        serialize_check(check_files[0], expected_result, **be_args)
+        print('OK')
 
-    # Step 3a: Change backend to gpu and perform Step 2
-    be = "gpu"
-    be_args = {'rng_seed': 0}
-    be_args[be] = "cudanet"
-    print('{} check '.format(be)),
-    serialize_check(check_files[0], expected_result, **be_args)
-    print('OK')
+        # Step 2: Deserialize MODEL5 and compare inference performance
+        be = "cpu"
+        be_args = {'rng_seed': 0}
+        print('{} check '.format(be)),
+        serialize_check(check_files[0], expected_result, **be_args)
+        print('OK')
 
-    # Step 3b: Change backend to gpu (nervanagpu) and perform Step 2
-    be = "gpu"
-    be_args = {'rng_seed': 0}
-    be_args[be] = "nervanagpu"
-    print('{} check '.format(be)),
-    serialize_check(check_files[0], expected_result, **be_args)
-    print('OK')
+        # Step 3a: Change backend to gpu and perform Step 2
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check(check_files[0], expected_result, **be_args)
+        print('OK')
 
-    # Step 4: Train 10 epochs of MNIST model and serialize, MODEL10
-    be = "cpu"
-    be_args = {'rng_seed': 0}
-    print('{} check '.format(be)),
-    # should be check_files[1]
-    serialize_check(check_files[1], expected_result_2, **be_args)
-    print('OK')
+        # Step 3b: Change backend to gpu (nervanagpu) and perform Step 2
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "nervanagpu"
+        print('{} check '.format(be)),
+        serialize_check(check_files[0], expected_result, **be_args)
+        print('OK')
 
-    # Step 5: Train 5 more epochs of MODEL5
-    be = "cpu"
-    be_args = {'rng_seed': 0}
-    serialize_check(check_files[2], expected_result_2, **be_args)
-    print('OK')
+        # Step 4: Train 10 epochs of MNIST model and serialize, MODEL10
+        be = "cpu"
+        be_args = {'rng_seed': 0}
+        print('{} check '.format(be)),
+        # should be check_files[1]
+        serialize_check(check_files[1], expected_result_2, **be_args)
+        print('OK')
 
-    # Step 6: Change backends & Train 5 more epochs of MODEL5
-    be = "gpu"
-    be_args = {'rng_seed': 0}
-    be_args[be] = "cudanet"
-    print('{} check '.format(be)),
-    serialize_check(check_files[2], expected_result_3, **be_args)
-    print('OK')
+        # Step 5: Train 5 more epochs of MODEL5
+        be = "cpu"
+        be_args = {'rng_seed': 0}
+        print('{} check '.format(be)),
+        serialize_check(check_files[2], expected_result_2, **be_args)
+        print('OK')
+
+        # Step 6: Change backends & Train 5 more epochs of MODEL5
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check(check_files[2], expected_result_3, **be_args)
+        print('OK')
 
     # todo: gpu -> cpu deserialization
+
+    alexnet = False
+    if alexnet:
+        # alexnet tests
+        for i in range(1):
+            check_files.append(
+                os.path.join(script_dir,
+                             'i1k-serialize_check_' + str(i + 1) + '.yaml'))
+
+        expected_result = 99.5442708333
+        expected_result_2 = 99.18620
+        expected_result_3 = 99.21875  # TODO: this shouldn't be diff from #2
+        serialized_files = ['~/data/i1k-model2.pkl', '~/data/i1k-model4.pkl',
+                            '~/data/i1k-model4b.pkl']
+        # delete previously serialized files
+        for serialized_file in serialized_files:
+            if os.path.isfile(os.path.expanduser(serialized_file)):
+                print "deleting:", serialized_file
+                os.remove(os.path.expanduser(serialized_file))
+
+        # Step 1: Run 2 epochs of I1K model and serialize, MODEL2
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check_alexnet(check_files[0], expected_result, **be_args)
+        print('OK')
+
+        # Step 2: Deserialize MODEL2 and compare inference performance on gpu
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check_alexnet(check_files[0], expected_result, **be_args)
+        print('OK')
+
+        # Step 3: Deserialize MODEL2 and compare inference performance on cpu
+        be = "cpu"
+        be_args = {'rng_seed': 0}
+        print('{} check '.format(be)),
+        serialize_check_alexnet(check_files[0], expected_result, **be_args)
+        print('OK')
+
+        # Step 4: Run 4 epochs of I1K model and serialize, MODEL4
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check_alexnet(check_files[0], expected_result_2, **be_args)
+        print('OK')
+
+        # Step 4: Run 2 more epochs of I1K model and serialize on MODEL2
+        be = "gpu"
+        be_args = {'rng_seed': 0}
+        be_args[be] = "cudanet"
+        print('{} check '.format(be)),
+        serialize_check_alexnet(check_files[0], expected_result_3, **be_args)
+        print('OK')
 
     sys.exit(res)
