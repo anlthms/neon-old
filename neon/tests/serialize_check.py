@@ -1,0 +1,121 @@
+# Copyright 2015 Nervana Systems Inc. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Serialization check
+"""
+import argparse
+import logging
+import os
+import sys
+from neon.backends import gen_backend
+from neon.util.persist import deserialize
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Run serialize check examples')
+    parser.add_argument('--cpu', default=0, help='Run CPU serialize check',
+                        type=int)
+    parser.add_argument('--gpu', default="", help='Run GPU serialize check '
+                        '(specify one of cudanet or nervanagpu')
+    parser.add_argument('--datapar', default=0, type=int,
+                        help='Run data parallel serialize check')
+    parser.add_argument('--modelpar', default=0, type=int,
+                        help='Run model parallel serialize check')
+    return parser.parse_args()
+
+
+def serialize_check(conf_file, result, **be_args):
+    experiment = deserialize(os.path.join(dir, conf_file))
+    backend = gen_backend(model=experiment.model, **be_args)
+    experiment.initialize(backend)
+    print type(backend)
+    res = experiment.run()
+    print(float(res['test']['MisclassPercentage_TOP_1']))
+    tol = 1e-6
+    assert float(res['test']['MisclassPercentage_TOP_1']) - result < tol
+
+
+if __name__ == '__main__':
+    # setup an initial console logger (may be overridden in config)
+    logging.basicConfig(level=40)  # ERROR or higher
+    res = 0
+    args = parse_args()
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    check_files = []
+    for i in range(3):
+        check_files.append(
+            os.path.join(script_dir,
+                         'mnist-serialize_check_' + str(i + 1) + '.yaml'))
+
+    expected_result = 67.2275641026
+    expected_result_2 = 29.2467948718
+    serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
+                        '~/data/model10b.pkl']
+
+    # delete previously serialized files
+    for serialized_file in serialized_files:
+        if os.path.isfile(serialized_file):
+            os.remove(os.path.expanduser(serialized_file))
+
+    # Step 1: Run 5 epochs of MNIST model and serialize, MODEL5
+    be = "cpu"
+    be_args = {'rng_seed': 0}
+    serialize_check(check_files[0], expected_result, **be_args)
+    print('OK')
+
+    # Step 2: Deserialize MODEL5 and compare inference performance
+    be = "cpu"
+    be_args = {'rng_seed': 0}
+    serialize_check(check_files[0], expected_result, **be_args)
+    print('OK')
+
+    # Step 3a: Change backend to gpu and perform Step 2
+    be = "gpu"
+    be_args = {'rng_seed': 0}
+    be_args[be] = "cudanet"
+    print be_args
+    serialize_check(check_files[0], expected_result, **be_args)
+    print('OK')
+
+    # Step 3b: Change backend to gpu (nervanagpu) and perform Step 2
+    # be = "gpu"
+    # be_args[be] = "nervanagpu"
+    # serialize_check(check_files[0], expected_result, **be_args)
+    # print('OK')
+
+    # Step 4: Train 10 epochs of MNIST model and serialize, MODEL10
+    be = "cpu"
+    be_args = {'rng_seed': 0}
+    print be_args
+    serialize_check(check_files[1], expected_result_2, **be_args)
+    print('OK')
+
+    # Step 5: Train 5 more epochs of MODEL5
+    be = "cpu"
+    be_args = {'rng_seed': 0}
+    serialize_check(check_files[2], expected_result_2, **be_args)
+    print('OK')
+
+    # Step 6: Change backends & Train 5 more epochs of MODEL5
+    be = "gpu"
+    be_args = {'rng_seed': 0}
+    be_args[be] = "cudanet"
+    serialize_check(check_files[2], expected_result_2, **be_args)
+    print('OK')
+
+    # todo: gpu -> cpu deserialization
+
+    print('{} check '.format(be)),
+    sys.exit(res)
