@@ -476,7 +476,8 @@ class WeightLayer(Layer):
             if hasattr(self, p):
                 p_tensor = getattr(self, p)
                 np_params[p] = np.array(p_tensor.asnumpyarray(),
-                                 dtype=p_tensor.dtype).reshape(p_tensor.shape)
+                                        dtype=p_tensor.dtype).reshape(
+                                            p_tensor.shape)
 
         if self.batch_norm:
             np_params.update(self.bn.get_params())
@@ -495,8 +496,7 @@ class WeightLayer(Layer):
         self.learning_rule.set_params(params_dict)
 
     def allocate_param_bufs(self):
-        if self.params_initialized: ##########################################
-            # pass
+        if self.params_initialized:
             return
         make_ebuf = self.backend.empty
         self.weights = self.weight_init.generate(self.weight_shape,

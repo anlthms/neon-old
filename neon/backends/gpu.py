@@ -45,7 +45,7 @@ class GPU(Backend):
                            cannot be serialized.
         """
         if hasattr(self, 'mem_pool') and self.mem_pool is not None:
-            self.mem_pool_pickle = {'shape':elf.mem_pool.shape,
+            self.mem_pool_pickle = {'shape': self.mem_pool.shape,
                                     'dtype': np.float32}
             self.mem_pool = None
 
@@ -60,20 +60,6 @@ class GPU(Backend):
                            except for the mem_pool which is on device and
                            cannot be serialized.
         """
-        #import pycuda.autoinit  # TODO: Only create if it does not exist
-
-        # (TODO) previously did not need this, because tensors are deserialized
-        # first and need to bring the context
-        # if not 'ctx' in globals():
-        #     #import pdb; pdb.set_trace()
-        #     import pycuda.driver as drv
-        #     drv.init()
-        #     device_id = 0 #device_id if device_id is not None else 0
-        #     global ctx
-        #     ctx = drv.Device(device_id).make_context()
-        #     import atexit
-        #     atexit.register(ctx.pop)
-
         self.__dict__.update(state)
         self.mem_pool = self.ng.empty(self.mem_pool_pickle['shape'],
                                       dtype=self.mem_pool_pickle['dtype'])

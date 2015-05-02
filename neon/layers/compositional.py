@@ -24,6 +24,7 @@ class CompositeLayer(Layer):
     def initialize(self, kwargs):
         super(CompositeLayer, self).initialize(kwargs)
         req_param(self, ['sublayers'])
+        self.has_params = True
         for subl in self.sublayers:
             subl.initialize(kwargs)
 

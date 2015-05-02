@@ -99,7 +99,8 @@ class BatchNorm(Activation):
             if hasattr(self, p):
                 p_tensor = getattr(self, p)
                 np_params[p] = np.array(p_tensor.asnumpyarray(),
-                            dtype=p_tensor.dtype).reshape(p_tensor.shape)
+                                        dtype=p_tensor.dtype).reshape(
+                                                            p_tensor.shape)
         return np_params
 
     def set_params(self, params_dict):

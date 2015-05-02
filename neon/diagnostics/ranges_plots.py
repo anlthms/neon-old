@@ -8,8 +8,8 @@ Visualizing histograms of various parameter ranges to diagnose underflows.
 import numpy as np
 import logging
 import matplotlib
-matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+matplotlib.use('Agg')
 matplotlib.rcParams['pdf.fonttype'] = 42  # ensure true type font
 
 logger = logging.getLogger(__name__)

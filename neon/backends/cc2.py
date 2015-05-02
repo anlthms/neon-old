@@ -285,7 +285,7 @@ class GPUTensor(Tensor):
                     # form x[:] = value
                     if isinstance(value, (int, float)):
                         self._tensor.assign(value)
-                    else:                    
+                    else:
                         self._tensor.copy_from(value)
                 else:
                     self._tensor.set_row_slice(start, stop, value)

@@ -104,7 +104,7 @@ class FitExperiment(Experiment):
             IndexError: list index out of range
 
             when deserializing a partially trained model'''
-            self.model.uninitialize() ##########################################
+            self.model.uninitialize()
             if (hasattr(self.dataset, 'dist_flag') and
                     self.dataset.dist_flag and
                     self.dataset.dist_mode == 'datapar'):
