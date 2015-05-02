@@ -109,14 +109,14 @@
         nout: 100,
         activation: !obj:transforms.RectLin {},
         weight_init: *wt_init,
-        lrule_init: *gdm,
+        lrule_init: *ada,
       },
       &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 10,
         activation: !obj:transforms.Logistic {},
         weight_init: *wt_init,
-        lrule_init: *gdm,
+        lrule_init: *ada,
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Step 5 of test
-# Train 5 more epochs of MODEL_E5
+# Step 6 of test
+# Train 5 more epochs of MODEL_E5 on cudanet backend
 
 !obj:experiments.FitPredictErrorExperiment {
 
@@ -108,14 +108,14 @@
         nout: 100,
         activation: !obj:transforms.RectLin {},
         weight_init: *wt_init,
-        lrule_init: *gdm,
+        lrule_init: *ada,
       },
       &lastlayer !obj:layers.FCLayer {
         name: output,
         nout: 10,
         activation: !obj:transforms.Logistic {},
         weight_init: *wt_init,
-        lrule_init: *gdm,
+        lrule_init: *ada,
       },
       &costlayer !obj:layers.CostLayer {
         name: cost,
