@@ -22,6 +22,7 @@
   dataset: &ds !obj:datasets.MNIST {
     repo_path: '~/data',
     sample_pct: 1,
+    backend_type: &bt np.float32,
   },
 
   metrics: {
