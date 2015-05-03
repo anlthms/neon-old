@@ -32,8 +32,6 @@ class FitExperiment(Experiment):
     """
 
     def __init__(self, **kwargs):
-        self.datapar = False
-        self.modelpar = False
         self.initialized = False
         self.__dict__.update(kwargs)
         req_param(self, ['dataset', 'model'])
@@ -69,6 +67,10 @@ class FitExperiment(Experiment):
             self.model.epochs_complete = 0
         if hasattr(self.model, 'serialized_path'):
             import os
+            if self.backend.is_distributed():
+                raise NotImplementedError('Serializing models not supported '
+                                          'in distributed mode')
+
             mfile = os.path.expandvars(os.path.expanduser(self.model.serialized_path))
             if os.access(mfile, os.R_OK):
                 self.model.set_params(deserialize(mfile))
