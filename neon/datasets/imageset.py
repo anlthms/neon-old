@@ -50,6 +50,7 @@ class MacrobatchDecodeThread(Thread):
                               tgt=img_macro[:mac_sz],
                               orig_size=self.ds.output_image_size,
                               crop_size=self.ds.cropped_image_size,
+                              #center=True, flip=False,
                               center=self.ds.predict, flip=True,
                               rgb=self.ds.rgb,
                               nthreads=self.ds.num_workers)

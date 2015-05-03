@@ -240,11 +240,11 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout1,
-        backend_type: *bt,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout1,
+      #   backend_type: *bt,
+      #   keep: 0.5,
+      # },
       !obj:layers.FCLayer {
         name: fc4096b,
         backend_type: *bt,
@@ -255,11 +255,11 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout2,
-        backend_type: *bt,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout2,
+      #   backend_type: *bt,
+      #   keep: 0.5,
+      # },
       &lastlayer !obj:layers.FCLayer {
         name: fc1000,
         backend_type: *bt,
