@@ -58,7 +58,8 @@ class FitExperiment(Experiment):
         self.dataset.set_batch_size(self.model.batch_size)
         self.dataset.backend = self.backend
         self.dataset.load()
-        if self.dataset.serialized_path is not None:
+        if hasattr(self.dataset, 'serialized_path') and (
+                self.dataset.serialized_path is not None):
             logger.warning('Ability to serialize dataset has been deprecated.')
 
         # fit the model to the data, save it if specified
