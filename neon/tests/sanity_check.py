@@ -42,7 +42,7 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     check_file = os.path.join(script_dir, '..', '..', 'examples',
                               'convnet', 'synthetic-sanity_check.yaml')
-    expected_result = 0.5546875
+    expected_result = 0.5390625
     # TODO: modelpar currently broken on synthetic-sanity_check.yaml
     # (dimensions not aligned), so skipping for the moment.
     # for be in ["cpu", "gpu", "datapar", "modelpar"]:
