@@ -53,6 +53,8 @@ Available Layers
    neon.layers.normalizing.CrossMapResponseNormLayer
    neon.layers.normalizing.LocalContrastNormLayer
 
+   neon.layers.boltzmann.RBMLayer
+
    neon.layers.recurrent.RecurrentLayer
    neon.layers.recurrent.RecurrentCostLayer
    neon.layers.recurrent.RecurrentOutputLayer

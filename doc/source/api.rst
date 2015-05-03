@@ -223,6 +223,14 @@ Normalized Layers
    neon.layers.normalizing.CrossMapResponseNormLayer
    neon.layers.normalizing.LocalContrastNormLayer
 
+Boltzmann Layers
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   neon.layers.boltzmann.RBMLayer
+
 Recurrent Layers
 ----------------
 

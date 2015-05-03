@@ -26,8 +26,7 @@ from nose.plugins.attrib import attr
 from nose.tools import nottest
 import numpy as np
 
-from neon.layers.deprecated.layer import RBMLayer
-from neon.optimizers.gradient_descent import GradientDescent
+from neon.layers.boltzmann import RBMLayer
 from neon.params import GaussianValGen
 from neon.transforms.logistic import Logistic
 from neon.transforms.sum_squared import SumSquaredDiffs
@@ -52,16 +51,17 @@ class TestCudaRBM:
         conf = {'name': 'testlayer', 'num_nodes': 2,
                 'weight_init': GaussianValGen(backend=self.be, loc=0.0,
                                               scale=0.01)}
-        lr_params = {'learning_rate': 0.01, 'backend': self.be}
-        thislr = GradientDescent(name='vis2hidlr', lr_params=lr_params)
+        lr_params = {'learning_rate': 0.01}
+        thislr = {'type': 'gradient_descent', 'lr_params': lr_params}
         activation = Logistic()
-        self.layer = RBMLayer(conf['name'], backend=self.be, batch_size=100,
-                              pos=0, learning_rule=thislr,
-                              nin=nin, nout=conf['num_nodes'],
-                              activation=activation,
-                              weight_init=conf['weight_init'])
+        self.layer = RBMLayer(name=conf['name'])
         # create fake cost
         self.cost = SumSquaredDiffs(olayer=self.layer)
+        self.layer.initialize({'backend': self.be, 'batch_size': 100,
+                               'lrule_init': thislr, 'nin': nin,
+                               'nout': conf['num_nodes'],
+                               'activation': activation,
+                               'weight_init': conf['weight_init']})
 
     def test_cudanet_positive(self):
         self.layer.positive(self.inputs)
