@@ -58,7 +58,8 @@ class FitExperiment(Experiment):
         self.dataset.set_batch_size(self.model.batch_size)
         self.dataset.backend = self.backend
         self.dataset.load()
-        if self.dataset.serialized_path is not None:
+        if hasattr(self.dataset, 'serialized_path') and (
+                self.dataset.serialized_path is not None):
             logger.warning('Ability to serialize dataset has been deprecated.')
 
         # fit the model to the data, save it if specified
@@ -66,9 +67,9 @@ class FitExperiment(Experiment):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
-        if hasattr(self.model, 'depickle'):
+        if hasattr(self.model, 'serialized_path'):
             import os
-            mfile = os.path.expandvars(os.path.expanduser(self.model.depickle))
+            mfile = os.path.expandvars(os.path.expanduser(self.model.serialized_path))
             if os.access(mfile, os.R_OK):
                 self.model.set_params(deserialize(mfile))
             else:
@@ -81,20 +82,6 @@ class FitExperiment(Experiment):
 
         self.model.fit(self.dataset)
 
-        if hasattr(self.model, 'pickle'):
-            self.model.uninitialize()
-            if self.backend.rank() == 0:
-                serialize(self.model.get_params(), self.model.pickle)
-
         if hasattr(self.model, 'serialized_path'):
-            ''' TODO: With the line below active, get
-
-              File "/home/users/urs/code/neon/neon/layers/fully_connected.py",
-              line 58, in bprop
-                self.backend.update_fc(out=upm[u_idx], inputs=inputs,
-            IndexError: list index out of range
-
-            when deserializing a partially trained model'''
-            self.model.uninitialize()
             if self.backend.rank() == 0:
-                serialize(self.model, self.model.serialized_path)
+                serialize(self.model.get_params(), self.model.serialized_path)

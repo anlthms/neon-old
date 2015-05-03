@@ -95,14 +95,10 @@ def extract_child_node_vals(node, keys):
     return res
 
 
-def obj_multi_constructor(loader, tag_suffix, node,
-                          deserialize_param='deserialized_path',
-                          serialize_param='serialized_path',
-                          overwrite_param='overwrite_list'):
+def obj_multi_constructor(loader, tag_suffix, node):
     """
     Utility function used to actually import and generate a new class instance
-    from its name and parameters, potentially deserializing an already
-    serialized representation.
+    from its name and parameters
 
     Arguments:
         loader (yaml.loader.SafeLoader): carries out actual loading
@@ -112,21 +108,6 @@ def obj_multi_constructor(loader, tag_suffix, node,
         node (yaml.MappingNode): tag/value set specifying the parameters
                                  required for constructing new objects of this
                                  type
-        deserialize_param (str): Tag name of the parameter that can be
-                                 inspected to deserialize an already existing
-                                 instance, instead of constructing a new
-                                 object.  Defaults to 'deserialized_path'.
-        serialize_param (str): Tag name of the parameter that can be
-                               inspected to serialize an instance as
-                               appropriate.  As a backup we check this variable
-                               to see if we shoud deserialize instead of
-                               construct a new object.  Defaults to
-                               'serialized_path'.
-        overwrite_param (str): Tag name of the parameter that can be inspected
-                               to indicate a list of parameters whose values
-                               should be overwritten once deserialized with the
-                               values found in the original yaml file.
-                               Defaults to 'overwrite_list'.
     """
     # extract class name and import neccessary module.
     parts = tag_suffix.split('.')
@@ -151,48 +132,13 @@ def obj_multi_constructor(loader, tag_suffix, node,
     for comp in parts[1:]:
         cls = getattr(cls, comp)
 
-    # peek at the immediate parameters of this object to see if we should
-    # deserialize instead of construct a new object, MPI also requires some
-    # special handling
-    res = None
-    child_vals = extract_child_node_vals(node, [deserialize_param,
-                                                serialize_param,
-                                                overwrite_param])
-    if child_vals[overwrite_param] is None:
-        child_vals[overwrite_param] = [serialize_param]
-    if False:
-        # TODO: we want to run this if running a datapar or modelpar model,
-        # need some way to check this!
-
-        # fix up any serialized/deserialized paths to populate rank and size
-        from mpi4py import MPI
-        for param in (serialize_param, deserialize_param):
-            if child_vals[param] is not None:
-                child_vals[param] = child_vals[param].format(
-                    rank=str(MPI.COMM_WORLD.rank),
-                    size=str(MPI.COMM_WORLD.size))
-    if child_vals[deserialize_param] is not None:
-        des_path = child_vals[deserialize_param]
-        des_path = os.path.expandvars(os.path.expanduser(des_path))
-        if os.path.exists(des_path):
-            # deserialization attempt should be made
-            res = deserialize(des_path)
-    if res is None:
-        # need to create a new object
-        try:
-            res = cls(**loader.construct_mapping(node, deep=True))
-        except TypeError as e:
-            logger.warning("Unable to construct '%s' instance.  Error: %s",
-                           cls.__name__, e.message)
-            res = None
-    if res is not None and child_vals[overwrite_param] is not None:
-        # overwrite parameters needing updates from original yaml file
-        overwrite_vals = extract_child_node_vals(node, child_vals[
-                                                 overwrite_param])
-        for param in overwrite_vals:
-            logger.info("overwriting: %s, with YAML val: %s", param,
-                        str(overwrite_vals[param]))
-            res.__dict__[param] = overwrite_vals[param]
+    # need to create a new object
+    try:
+        res = cls(**loader.construct_mapping(node, deep=True))
+    except TypeError as e:
+        logger.warning("Unable to construct '%s' instance.  Error: %s",
+                       cls.__name__, e.message)
+        res = None
     return res
 
 
