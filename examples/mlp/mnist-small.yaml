@@ -54,7 +54,7 @@
   # simple MLP model specification
   model: !obj:models.MLP {
     num_epochs: 10,
-    serialized_path: '~/mnist-small.pkl',
+    serialized_path: '~/mnist-small.prm',
     batch_size: &bs 128,
     layers: [
       &datalayer !obj:layers.DataLayer {

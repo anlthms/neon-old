@@ -104,11 +104,9 @@
     num_epochs: 2, # 1 or 10 or 60
     batch_size: &bs 128,
     step_print: 24,
-    depickle: '~/data/i1k-model2.pkl',
-    pickle: '~/data/i1k-model2.pkl',
+    serialized_path: '~/data/i1k-model2.prm',
     overwrite_list: ['num_epochs'],
     
-    #serialized_path: '~/data/I1K/I1K_alexnet_fp32_model.pkl',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,

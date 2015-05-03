@@ -6,6 +6,7 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
+import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.param import req_param, opt_param
@@ -66,12 +67,12 @@ class FitExperiment(Experiment):
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
         if hasattr(self.model, 'serialized_path'):
-            import os
             if self.backend.is_distributed():
                 raise NotImplementedError('Serializing models not supported '
                                           'in distributed mode')
 
-            mfile = os.path.expandvars(os.path.expanduser(self.model.serialized_path))
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.serialized_path))
             if os.access(mfile, os.R_OK):
                 self.model.set_params(deserialize(mfile))
             else:

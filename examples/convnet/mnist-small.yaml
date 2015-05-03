@@ -49,7 +49,7 @@
   model: !obj:models.MLP {
     num_epochs: 5,
     batch_size: &bs 128,
-    depickle: '~/data/mnist-mlp-alex-traincont3.pkl',
+    depickle: '~/data/mnist-mlp-alex-traincont3.prm',
     pickle: '~/data/mnist-mlp-alex-traincont3.pkl',
     overwrite_list: ['num_epochs'],
 

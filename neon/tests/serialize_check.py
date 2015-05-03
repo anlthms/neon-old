@@ -48,7 +48,7 @@ def serialize_check(conf_file, result, **be_args):
     experiment.initialize(backend)
     res = experiment.run()
     print float(res['test']['MisclassPercentage_TOP_1']), result
-    tol = .1
+    # tol = .1
     # print abs(float(res['test']['MisclassPercentage_TOP_1']) - result)
     # assert abs(float(res['test']['MisclassPercentage_TOP_1']) - result) < tol
 
@@ -59,7 +59,7 @@ def serialize_check_alexnet(conf_file, result, **be_args):
     experiment.initialize(backend)
     res = experiment.run()
     print float(res['validation']['MisclassPercentage_TOP_1']), result
-    tol = .1
+    # tol = .1
     # print abs(float(res['test']['MisclassPercentage_TOP_1']) - result)
     # assert abs(
     #    float(res['validation']['MisclassPercentage_TOP_1']) - result) < tol
@@ -82,8 +82,8 @@ if __name__ == '__main__':
         expected_result = 28.90625
         expected_result_2 = 17.18750
         expected_result_3 = 16.40625
-        serialized_files = ['~/data/model5.pkl', '~/data/model10.pkl',
-                            '~/data/model10b.pkl']
+        serialized_files = ['~/data/model5.prm', '~/data/model10.prm',
+                            '~/data/model10b.prm']
         # delete previously serialized files
         for serialized_file in serialized_files:
             if os.path.isfile(os.path.expanduser(serialized_file)):
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
         expected_result = 99.6419270833
         expected_result_2 = 99.4791666667
-        expected_result_3 = 99.51171875 # diff from #2?
+        expected_result_3 = 99.51171875  # diff from #2?
         serialized_files = ['~/data/i1k-model2.pkl', '~/data/i1k-model4.pkl',
                             '~/data/i1k-model4b.pkl']
         # delete previously serialized files

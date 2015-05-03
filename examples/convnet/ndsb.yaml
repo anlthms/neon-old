@@ -43,7 +43,7 @@
   model: !obj:models.MLP {
     num_epochs: 20,
     batch_size: &bs 128,
-    #serialized_path: '~/data/NDSB/ndsb-model.pkl',
+    #serialized_path: '~/data/NDSB/ndsb-model.prm',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,
