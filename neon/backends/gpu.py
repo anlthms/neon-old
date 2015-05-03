@@ -35,6 +35,35 @@ class GPU(Backend):
         self.rng_init()
         self.device_id = device_id if device_id is not None else 0
 
+    def __getstate__(self):
+        """
+        Defines what and how we go about serializing an instance of this class.
+
+        Returns:
+            self.__dict__: The full contents of the backend class instance,
+                           except for the mem_pool which is on device and
+                           cannot be serialized.
+        """
+        if hasattr(self, 'mem_pool') and self.mem_pool is not None:
+            self.mem_pool_pickle = {'shape': self.mem_pool.shape,
+                                    'dtype': np.float32}
+            self.mem_pool = None
+
+        return self.__dict__
+
+    def __setstate__(self, state):
+        """
+        Defines how we go about deserializing into an instance of this class.
+
+        Arguments:
+            self.__dict__: The full contents of the backend class instance,
+                           except for the mem_pool which is on device and
+                           cannot be serialized.
+        """
+        self.__dict__.update(state)
+        self.mem_pool = self.ng.empty(self.mem_pool_pickle['shape'],
+                                      dtype=self.mem_pool_pickle['dtype'])
+
     def init_mempool(self, shape, dtype=default_dtype):
         """
         Allocates a memory pool for temporary storage
@@ -742,6 +771,9 @@ class GPU(Backend):
             GPUTensor: reference to out
         """
 
+        if self.mem_pool is None:
+            self.mem_pool = self.ng.empty((1, x.shape[1]),
+                                          dtype=np.float32)
         vecbuf = self.mem_pool
         assert vecbuf.shape == (1, x.shape[1])
         self.ng.max(x, axis=0, out=vecbuf)    # reduction over classes

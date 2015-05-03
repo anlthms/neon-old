@@ -45,7 +45,7 @@ class Layer(YAMLable):
         opt_param(self, ['activation'], Linear())
 
         opt_param(self, ['is_local', 'is_data', 'is_cost'], False)
-        opt_param(self, ['skip_act'], False)
+        opt_param(self, ['skip_act', 'has_params'], False)
         opt_param(self, ['prev_names'], [])
 
         opt_param(self, ['backend_type'], 'np.float32')
@@ -452,6 +452,7 @@ class WeightLayer(Layer):
     def __init__(self, **kwargs):
         super(WeightLayer, self).__init__(**kwargs)
         self.distributable = True
+        self.has_params = True
         self.params_initialized = False
 
     def initialize(self, kwargs):
@@ -468,6 +469,31 @@ class WeightLayer(Layer):
             self.bn = BatchNorm()
             kwargs['layer'] = self
             self.bn.initialize(kwargs)
+
+    def get_params(self):
+        np_params = dict()
+        for p in ['weights', 'biases']:
+            if hasattr(self, p):
+                p_tensor = getattr(self, p)
+                np_params[p] = np.array(p_tensor.asnumpyarray(),
+                                        dtype=p_tensor.dtype).reshape(
+                                            p_tensor.shape)
+
+        if self.batch_norm:
+            np_params.update(self.bn.get_params())
+
+        np_params.update(self.learning_rule.get_params())
+        return np_params
+
+    def set_params(self, params_dict):
+        for p in ['weights', 'biases']:
+            if p in params_dict:
+                getattr(self, p)[:] = params_dict[p]
+
+        if self.batch_norm:
+            self.bn.set_params(params_dict)
+
+        self.learning_rule.set_params(params_dict)
 
     def allocate_param_bufs(self):
         if self.params_initialized:

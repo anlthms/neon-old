@@ -41,7 +41,7 @@
 
   # simple Balance model specification
   model: !obj:models.Balance {
-    # serialized_path: './balance-simple.pkl',
+    # serialized_path: './balance-simple.prm',
     num_epochs: 20,
     batch_size: &bs 100,
     layers: [

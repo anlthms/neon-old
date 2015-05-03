@@ -80,16 +80,14 @@ definitions and possible choices.
 In [fp32](examples/convnet/i1k-alexnet-fp32.yaml):
 
 	# for nervangpu (requires Maxwell GPUs)
-	neon -g nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
+	neon --gpu nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
 	
 	# for cudanet (works with Kepler or Maxwell GPUs)
-	neon -g cudanet examples/convnet/i1k-alexnet-fp32.yaml
+	neon --gpu cudanet examples/convnet/i1k-alexnet-fp32.yaml
 	
-`-g` stands for GPU hardware backend.
-
 In [fp16](examples/convnet/i1k-alexnet-fp16.yaml):
 
-	neon -g nervanagpu examples/convnet/i1k-alexnet-fp16.yaml
+	neon --gpu nervanagpu examples/convnet/i1k-alexnet-fp16.yaml
 
 
 ### Code organization

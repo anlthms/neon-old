@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class BatchNorm(Activation):
+
     """
     Embodiment of a Batch Normalization Transform.  Can be used in a
     WeightLayer after the linear transform but before the typical activation
@@ -37,6 +38,7 @@ class BatchNorm(Activation):
         = gamma * [1*(var+eps)^-1/2 + (x-mean) * (var+eps)^-3/2 * (2x)^-1/2]
 
     """
+
     def initialize(self, kwargs):
         """
         Initialize the Batch Normalization transform. This function will be
@@ -93,6 +95,21 @@ class BatchNorm(Activation):
         self._gamma_updates = self.backend.zeros(self.in1d, dtype=self.bigtype)
         self.layer.updates.extend([self._beta_updates, self._gamma_updates])
 
+    def get_params(self):
+        np_params = dict()
+        for p in ['_gamma', '_beta']:
+            if hasattr(self, p):
+                p_tensor = getattr(self, p)
+                np_params[p] = np.array(p_tensor.asnumpyarray(),
+                                        dtype=p_tensor.dtype).reshape(
+                    p_tensor.shape)
+        return np_params
+
+    def set_params(self, params_dict):
+        for p in ['_gamma', '_beta']:
+            if p in params_dict:
+                getattr(self, p)[:] = params_dict[p]
+
     def set_inference_mode(self):
         """
         If implemented following Ioffe et al. 2015, there appears to be a bug
@@ -101,8 +118,8 @@ class BatchNorm(Activation):
         variance and mean statistics are computed , which seems
         to perform quite well.
         """
-        logger.error("Batch Normalization inference mode not supported. Using "
-                     "training mode.")
+        logger.warning("Batch Normalization inference mode not supported. "
+                       "Using training mode.")
         self.train_mode = True  # Set to 'False' to force inference mode
         if self.train_mode is False:
             if self._iscale is None:

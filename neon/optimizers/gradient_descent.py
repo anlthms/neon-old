@@ -31,6 +31,7 @@ class GradientDescent(LearningRule):
             self.weight_decay = lr_params['weight_decay']
         else:
             self.weight_decay = 0.0
+        self.param_names = []
 
     def apply_rule(self, params, updates, epoch):
         for ps_item, us_item in zip(params, updates):
@@ -89,6 +90,7 @@ class GradientDescentMomentum(GradientDescent):
             self.schedule = lr_params['schedule']
         else:
             self.schedule_flag = False
+        self.param_names = ['velocity']
 
     def allocate_state(self, params):
         self.velocity = []

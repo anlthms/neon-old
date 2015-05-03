@@ -124,17 +124,6 @@ class RectLeaky(Activation):
         """
         backend.rectleaky(inputs, self.slope, outputs)
 
-    def pre_act_buffer(self, backend, output, dtype):
-        """
-        overrides the pre_act_buffer with output to save memory
-
-        Arguments:
-            backend (Backend): The backend class to use for computation.
-            output (array_like): Output data buffer.
-            dtype: dtype for pre_act_buffer
-        """
-        return output
-
     def bprop_func(self, backend, pre_act, error, skip_act=False):
         """
         Function to perform during the bprop

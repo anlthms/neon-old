@@ -22,16 +22,12 @@ class MLP(MLP_old):
 
     def __init__(self, **kwargs):
         self.initialized = False
-        self.dist_mode = None
         self.__dict__.update(kwargs)
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)
         opt_param(self, ['accumulate'], False)
         opt_param(self, ['reuse_deltas'], True)
         opt_param(self, ['timing_plots'], False)
-        self.data_layer = self.layers[0]
-        self.cost_layer = self.layers[-1]
-        self.class_layer = self.layers[-2]
 
     def link(self, initlayer=None):
         for ll, pl in zip(self.layers, [initlayer] + self.layers[:-1]):
@@ -39,6 +35,9 @@ class MLP(MLP_old):
         self.print_layers()
 
     def initialize(self, backend, initlayer=None):
+        self.data_layer = self.layers[0]
+        self.cost_layer = self.layers[-1]
+        self.class_layer = self.layers[-2]
         if self.initialized:
             return
         self.backend = backend
@@ -66,6 +65,7 @@ class MLP(MLP_old):
                                       dtype=self.layers[1].deltas_dtype)
 
     def uninitialize(self):
+        # self.backend = None
         self.initialized = False
         for ll in self.layers:
             ll.uninitialize()
@@ -156,6 +156,37 @@ class MLP(MLP_old):
     def set_train_mode(self, mode):
         for ll in self.layers:
             ll.set_train_mode(mode)
+
+    def predict_generator(self, dataset, setname):
+        """
+        Generator that iterates over minibatches.
+        Agruments:
+            dataset: A neon dataset instance
+            setname: Which set to compute predictions for (test, train, val)
+        Outputs (yields):
+            Outputs: Model probabilities for each class
+            Reference: Either one-hot or raw label with ground truth
+        """
+        self.data_layer.init_dataset(dataset)
+        assert self.data_layer.has_set(setname)
+        self.data_layer.use_set(setname, predict=True)
+        self.data_layer.reset_counter()
+        nrecs = self.batch_size * 1
+        outputs = self.backend.empty((self.class_layer.nout, nrecs))
+        if self.data_layer.has_labels:
+            reference = self.backend.empty((1, nrecs))
+        else:
+            reference = self.backend.empty(outputs.shape)
+
+        self.set_train_mode(False)
+
+        while self.data_layer.has_more_data():
+            self.fprop()
+            outputs = self.get_classifier_output()
+            reference = self.cost_layer.get_reference()
+            yield (outputs, reference)
+
+        self.data_layer.cleanup()
 
     def predict_fullset(self, dataset, setname):
         self.data_layer.init_dataset(dataset)

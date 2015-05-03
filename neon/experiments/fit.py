@@ -6,10 +6,11 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
+import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.param import req_param, opt_param
-from neon.util.persist import serialize
+from neon.util.persist import serialize, deserialize
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,6 @@ class FitExperiment(Experiment):
     """
 
     def __init__(self, **kwargs):
-        self.dist_flag = False
-        self.datapar = False
-        self.modelpar = False
         self.initialized = False
         self.__dict__.update(kwargs)
         req_param(self, ['dataset', 'model'])
@@ -56,32 +54,39 @@ class FitExperiment(Experiment):
         """
 
         # load the dataset, save it to disk if specified
-        if (not hasattr(self.dataset, 'dist_flag') or
-                not self.dataset.dist_flag or (self.dataset.dist_mode !=
-                                               'datapar')):
-            self.dataset.set_batch_size(self.model.batch_size)
+        self.dataset.set_batch_size(self.model.batch_size)
         self.dataset.backend = self.backend
         self.dataset.load()
-        if hasattr(self.dataset, 'serialized_path'):
-            serialize(self.dataset, self.dataset.serialized_path)
+        if hasattr(self.dataset, 'serialized_path') and (
+                self.dataset.serialized_path is not None):
+            logger.warning('Ability to serialize dataset has been deprecated.')
 
         # fit the model to the data, save it if specified
         if not hasattr(self.model, 'backend'):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
+        mfile = ""
+        if hasattr(self.model, 'deserialized_path'):
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.deserialized_path))
+        elif hasattr(self.model, 'serialized_path'):
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.serialized_path))
+        if os.access(mfile, os.R_OK):
+            if self.backend.is_distributed():
+                raise NotImplementedError('Deserializing models not supported '
+                                          'in distributed mode')
+            self.model.set_params(deserialize(mfile))
+        elif mfile != "":
+            logger.info('Unable to find saved model %s, starting over', mfile)
         if self.model.epochs_complete >= self.model.num_epochs:
             return
         if self.live:
             return
 
         self.model.fit(self.dataset)
+
         if hasattr(self.model, 'serialized_path'):
-            self.model.uninitialize()
-            if (hasattr(self.dataset, 'dist_flag') and
-                    self.dataset.dist_flag and
-                    self.dataset.dist_mode == 'datapar'):
-                if self.backend.mpi_rank == 0:
-                    serialize(self.model, self.model.serialized_path)
-            else:
-                serialize(self.model, self.model.serialized_path)
+            if self.backend.rank() == 0:
+                serialize(self.model.get_params(), self.model.serialized_path)

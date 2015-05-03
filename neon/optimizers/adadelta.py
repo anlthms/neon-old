@@ -19,6 +19,8 @@ class AdaDelta(LearningRule):
     """
 
     def __init__(self, name, lr_params, param_dtype=None, gradient_dtype=None):
+        if param_dtype is not None:
+            self.param_dtype = param_dtype
         super(AdaDelta, self).__init__(name, lr_params)
         if 'rho' in lr_params:
             self.rho = lr_params['rho']
@@ -28,15 +30,17 @@ class AdaDelta(LearningRule):
             self.epsilon = lr_params['epsilon']
         else:
             raise AttributeError("Missing required parameter epsilon")
-        self.exp_gradsq_dtype = param_dtype
-        self.exp_deltsq_dtype = param_dtype
-        self.scratch_space_dtype = param_dtype
-        self.lrates_dtype = param_dtype
-        self.lrates_dtype = param_dtype
+        self.exp_gradsq_dtype = self.param_dtype
+        self.exp_deltsq_dtype = self.param_dtype
+        self.scratch_space_dtype = self.param_dtype
+        self.lrates_dtype = self.param_dtype
+        self.lrates_dtype = self.param_dtype
         self.exp_gradsq = []
         self.exp_deltsq = []
         self.lrates = []
         self.scratch_space = []
+        self.param_names = ['exp_gradsq', 'exp_deltsq', 'lrates',
+                            'scratch_space']
 
     def allocate_state(self, params):
         assert len(self.exp_gradsq) == 0

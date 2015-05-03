@@ -45,7 +45,7 @@
     num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    ntrain: 1, # Delete this line to use entire dataset for training
+    ntrain: 2,
     nval: 1,
     backend_type: &bt np.float32,
   },
@@ -82,7 +82,6 @@
 
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
-    backend_type: *bt, ######################################################
     lr_params: {
       learning_rate: 0.0001,
       weight_decay: .0005,
@@ -102,11 +101,12 @@
   model: !obj:models.MLP {
     backend_type: *bt,
     batch_norm: &bn True,
-    num_epochs: 2, # 1 or 10 or 60
-    batch_size: &bs 64,
+    num_epochs: 4, # 1 or 10 or 60
+    batch_size: &bs 128,
     step_print: 24,
+    serialized_path: '~/data/i1k-model4.prm',
     overwrite_list: ['num_epochs'],
-    serialized_path: '~/I1K_alexnet_fp16_model.prm',
+    
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,
@@ -238,11 +238,11 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout1,
-        backend_type: *bt,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout1,
+      #   backend_type: *bt,
+      #   keep: 0.5,
+      # },
       !obj:layers.FCLayer {
         name: fc4096b,
         backend_type: *bt,
@@ -253,11 +253,11 @@
         nout: 4096,
         activation: !obj:transforms.RectLin {},
       },
-      !obj:layers.DropOutLayer {
-        name: dropout2,
-        backend_type: *bt,
-        keep: 0.5,
-      },
+      # !obj:layers.DropOutLayer {
+      #   name: dropout2,
+      #   backend_type: *bt,
+      #   keep: 0.5,
+      # },
       &lastlayer !obj:layers.FCLayer {
         name: fc1000,
         backend_type: *bt,

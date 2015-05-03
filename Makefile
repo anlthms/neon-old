@@ -127,6 +127,11 @@ test_all:
 	@echo "Running test_all..."
 	@tox -- -e CPU=$(CPU) GPU=$(GPU) DIST=$(DIST)
 
+serialize: build
+	@echo "Running serialize checks..."
+	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/serialize_check.py \
+		--cpu $(CPU) --gpu $(GPU) --datapar $(DIST) --modelpar $(DIST)
+    
 sanity: build
 	@echo "Running sanity checks..."
 	@PYTHONPATH=${PYTHONPATH}:./ python neon/tests/sanity_check.py \
