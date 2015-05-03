@@ -1,5 +1,16 @@
 # ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# Copyright 2014 Nervana Systems Inc.  All rights reserved
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ----------------------------------------------------------------------------
 # Top-level control of the building/installation/cleaning of various targets
 
@@ -50,7 +61,7 @@ else
   INSTALL_REQUIRES := $(INSTALL_REQUIRES) 'nose>=1.3.0' 'Pillow>=2.5.0' \
     'flake8>=2.2.2' 'pep8-naming>=0.2.2' 'sphinx>=1.2.2' \
     'sphinxcontrib-napoleon>=0.2.8' 'scikit-learn>=0.15.2' 'matplotlib>=1.4.0' \
-    'git+https://github.com/NervanaSystems/imgworker.git\#egg=imgworker>=0.2.3'
+    'git+https://github.com/NervanaSystems/imgworker.git\#egg=imgworker>=0.2.4'
 endif
 ifeq ($(GPU), 0)
   NOSE_ATTRS := $(NOSE_ATTRS),'!cuda'
@@ -62,7 +73,7 @@ else
   endif
   ifeq ($(GPU), nervanagpu)
     INSTALL_REQUIRES := $(INSTALL_REQUIRES) \
-      'git+https://github.com/NervanaSystems/nervanagpu.git\#egg=nervanagpu>=0.2.3'
+      'git+https://github.com/NervanaSystems/nervanagpu.git\#egg=nervanagpu>=0.3.0'
   endif
 endif
 ifeq ($(DIST), 0)

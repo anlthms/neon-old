@@ -1,5 +1,16 @@
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ----------------------------------------------------------------------------
 """
 Simple multi-layer perceptron model.
@@ -8,13 +19,13 @@ Simple multi-layer perceptron model.
 import logging
 
 from neon.backends.backend import Block
-from neon.models.deprecated.mlp import MLP as MLP_old  # noqa
+from neon.models.model import Model
 from neon.util.param import opt_param, req_param
 
 logger = logging.getLogger(__name__)
 
 
-class MLP(MLP_old):
+class MLP(Model):
 
     """
     Fully connected, feed-forward, multi-layer perceptron model
@@ -160,12 +171,16 @@ class MLP(MLP_old):
     def predict_generator(self, dataset, setname):
         """
         Generator that iterates over minibatches.
+
         Agruments:
             dataset: A neon dataset instance
             setname: Which set to compute predictions for (test, train, val)
-        Outputs (yields):
-            Outputs: Model probabilities for each class
-            Reference: Either one-hot or raw label with ground truth
+
+        Returns:
+            tuple: on each call will yield a 2-tuple of outputs and references.
+                   The first item is the model probabilities for each class,
+                   and the second item is either the one-hot or raw labels with
+                   ground truth.
         """
         self.data_layer.init_dataset(dataset)
         assert self.data_layer.has_set(setname)

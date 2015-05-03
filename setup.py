@@ -1,6 +1,17 @@
 #!/usr/bin/env python
 # ----------------------------------------------------------------------------
 # Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ----------------------------------------------------------------------------
 
 import os
@@ -23,7 +34,24 @@ except:
 
 if write_version:
     txt = "# " + ("-" * 77) + "\n"
-    txt += "# " + "Copyright 2014 Nervana Systems Inc. All rights reserved.\n"
+    txt += "# Copyright 2014 Nervana Systems Inc.  All rights reserved.\n"
+    txt += "# Licensed under the Apache License, Version 2.0 "
+    txt += "(the \"License\");\n"
+    txt += "# you may not use this file except in compliance with the "
+    txt += "License.\n"
+    txt += "# You may obtain a copy of the License at\n"
+    txt += "#\n"
+    txt += "#      http://www.apache.org/licenses/LICENSE-2.0\n"
+    txt += "#\n"
+    txt += "# Unless required by applicable law or agreed to in writing, "
+    txt += "software\n"
+    txt += "# distributed under the License is distributed on an \"AS IS\" "
+    txt += "BASIS,\n"
+    txt += "# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or "
+    txt += "implied.\n"
+    txt += "# See the License for the specific language governing permissions "
+    txt += "and\n"
+    txt += "# limitations under the License.\n"
     txt += "# " + ("-" * 77) + "\n"
     txt += "\"\"\"\n%s\n\"\"\"\nVERSION = '%s'\nSHORT_VERSION = '%s'\n"
     fname = os.path.join(os.path.dirname(__file__), 'neon', 'version.py')
@@ -62,7 +90,7 @@ class NeonCommand(Command):
                                                    '>=0.2.8',
                                                    'scikit-learn>=0.15.2',
                                                    'matplotlib>=1.4.0',
-                                                   'imgworker>=0.2.3']
+                                                   'imgworker>=0.2.4']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'imgworker.git#'
@@ -75,7 +103,7 @@ class NeonCommand(Command):
                                                    'cuda-convnet2.git#'
                                                    'egg=cudanet']
         if self.gpu == "nervanagpu":
-            self.distribution.install_requires += ['nervanagpu>=0.2.3']
+            self.distribution.install_requires += ['nervanagpu>=0.3.0']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'nervanagpu.git#'
