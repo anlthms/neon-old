@@ -56,15 +56,6 @@ Basic YAML Parameters
   Paths can contain environment variables, ``~`` for home directories, and be
   absolute or relative in nature.  Each type of dataset will be a subdirectory
   of this main repository path named according to the corresponding class name.
-* ``serialized_path``: The full location and name to a python .pkl file that we
-  will use to cache this dataset.  Speeds up subsequent use of this dataset.
-* ``deserialized_path``: Where to look for a .pkl dataset to load.  Takes
-  precedence over serialized_path when this is also present (but is optional).
-* ``overwrite_list``: Can use this to specify a list of parameter names whose
-  values should be taken from this yaml file, overwriting what may already be
-  present when de-serializing an instance of this object.  Can be useful for
-  things like forcing an updated serialization path or training for additional
-  epochs (can be applied to any object).
 * ``sample_pct``: most datasets implement this, which if given a value < 100
   will be used to uniformly downsample dataset records to the specified
   percentage
@@ -92,10 +83,10 @@ on the Kaggle sponsored
 `National Data Science Bowl competition <https://www.kaggle.com/c/datasciencebowl/data>`_
 
 This dataset consists of images of plankton split into a labelled 30k
-example training set (organized into directories based on class), and a larger unlabelled
-test dataset.  Given this setup, this data is well suited for creating a new
-Imageset derived dataset, but for the moment let's set it up as a general
-Dataset subclass to get a better feel for the process.
+example training set (organized into directories based on class), and a larger
+unlabelled test dataset.  Given this setup, this data is well suited for
+creating a new Imageset derived dataset, but for the moment let's set it up as
+a general Dataset subclass to get a better feel for the process.
 
 Let's begin by creating an initial template with some appropriate imports and
 stubs for the functions we will need to implement:
@@ -267,8 +258,11 @@ subfolders to identify target labels.
 
 Required Imageset constructor/YAML parameters:
 
-* ``batch_dir``: where to keep batched data objects and indices
-* ``image_dir``: where the raw image files live
+* ``repo_path``: base path to where the raw data is kept.
+* ``imageset``: Name of the subdirectory off of ``repo_path`` where raw image
+                files live
+* ``save_dir``: where to keep batched data objects and indices.  Will greatly
+                speed up subsequent runs on this data.
 * ``macro_size``: number of images to include in each macro batch
 * ``cropped_image_size``: desired number of pixels along 1 dimension
                           (assumes square images)
@@ -277,14 +271,21 @@ Required Imageset constructor/YAML parameters:
 
 Optional Imageset parameters (mostly BatchWriter related):
 
-* ``square_crop``: make cropped image square
-* ``zero_center``: pixel intensities are divided by 128 to lie centered around 0
-               (lie in range [-1, 1]).  Otherwise will lie in range [0, 1]
+* ``dotransforms``: carry out pre-processing transforms
+* ``square_crop``: make cropped image square.  Default is False.
+* ``mean_norm``: pixel intensenties are centered by having mean pixel intensity
+                 subtracted from each value.  Note that this operation inhibits
+                 asynchronous stream copying.  Default is False
+* ``unit_norm``: pixel intensities are normalized to lie in range [0,1] (or
+                 [-1, 1] if ``mean_norm`` is also set).  Default is False.
 * ``tdims``: number of dimensions of each target.
 * ``label_list``: array of label names
-* ``num_channels``: number of image channels (ex. 3 for RGB images)
-* ``num_workers``: number of processes to spawn for batch writing
-* ``backend_type``: element value type (for each image pixel)
+* ``num_channels``: number of image channels (ex. 3 for RGB images).  Defaults
+                    to 3 if not set
+* ``num_workers``: number of processes to spawn for batch writing.  Defaults to
+                   6 if not set.
+* ``backend_type``: element value type (for each image pixel).  Defaults to
+                    ``np.float32`` if not set.
 
 To see an example that uses Imageset, have a look at
 :download:`ndsb_imageset.yaml <../../examples/convnet/ndsb.yaml>`

@@ -82,11 +82,11 @@ class MacrobatchDecodeThread(Thread):
             self.ds.img_mini_T[b_idx][mini_idx] = \
                 img_macro[s_idx:e_idx].T.astype(betype, order='C')
 
-            if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < 128:
+            if self.ds.img_mini_T[b_idx][mini_idx].shape[1] < bsz:
                 tmp = self.ds.img_mini_T[b_idx][mini_idx].shape[0]
                 mb_residual = self.ds.img_mini_T[b_idx][mini_idx].shape[1]
                 filledbatch = np.vstack((img_macro[s_idx:e_idx],
-                                         np.zeros((128-mb_residual, tmp))))
+                                         np.zeros((bsz - mb_residual, tmp))))
                 self.ds.img_mini_T[b_idx][mini_idx] = \
                     filledbatch.T.astype(betype, order='C')
             for lbl in self.ds.label_list:
@@ -116,7 +116,7 @@ class Imageset(Dataset):
     """
     def __init__(self, **kwargs):
 
-        opt_param(self, ['preprocess_done', 'dist_flag'], False)
+        opt_param(self, ['preprocess_done'], False)
         opt_param(self, ['dotransforms', 'square_crop'], False)
         opt_param(self, ['mean_norm', 'unit_norm'], False)
 
@@ -144,6 +144,19 @@ class Imageset(Dataset):
 
         self.rgb = True if self.num_channels == 3 else False
         self.norm_factor = 128. if self.mean_norm else 256.
+
+    def __getstate__(self):
+        """
+        Defines what and how we go about serializing an instance of this class.
+        """
+        self.macro_decode_thread = None
+        return self.__dict__
+
+    def __setstate__(self, state):
+        """
+        Defines how we go about deserializing into an instance of this class.
+        """
+        self.__dict__.update(state)
 
     def load(self):
         bdir = os.path.expanduser(self.save_dir)

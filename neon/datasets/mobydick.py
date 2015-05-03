@@ -47,17 +47,12 @@ class MOBYDICK(Dataset):
     raw_base_url = 'http://www.gutenberg.org/cache/epub/2701/pg2701.txt'
 
     def __init__(self, **kwargs):
-        self.dist_flag = False
-        self.dist_mode = 0  # halo/tower method
         self.macro_batched = False
         self.__dict__.update(kwargs)
 
     def initialize(self):
         # perform additional setup that can't be done at initial construction
-        if self.dist_flag:
-            self.comm = self.backend.comm
-            if self.comm.size not in [1, 4, 16]:
-                raise AttributeError('MPI.COMM_WORLD.size not compatible')
+        pass
 
     def read_txt_file(self, fname, dtype=None):
         """
@@ -71,12 +66,7 @@ class MOBYDICK(Dataset):
             for i in range(numbers.shape[0]):
                 onehots[numbers[i], i] = 1
 
-        if self.dist_flag:
-            # leaving the container but no idea what to do here.
-            pass
-        else:
-            array = onehots
-
+        array = onehots
         return array
 
     def transpose_batches(self, data):

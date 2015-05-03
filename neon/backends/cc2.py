@@ -240,7 +240,7 @@ class GPUTensor(Tensor):
         """
         if isinstance(value, GPUTensor):
             value = value._tensor
-        elif not isinstance(value, (int, float)):
+        elif not isinstance(value, (int, float, numpy.ndarray)):
             raise ValueError("can only assign GPUTensor's or numeric scalars")
         if isinstance(key, tuple):
             if len(key) > self._min_dims:
@@ -294,7 +294,10 @@ class GPUTensor(Tensor):
                 start, stop, stride = key.indices(self.shape[0])
                 if start == 0 and stop == self.shape[0]:
                     # form x[:] = value
-                    self._tensor.assign(value)
+                    if isinstance(value, numpy.ndarray):
+                        self._tensor.copy_from(value)
+                    else:
+                        self._tensor.assign(value)
                 else:
                     self._tensor.set_row_slice(start, stop, value)
             else:

@@ -113,18 +113,16 @@ In `fp32 <examples/convnet/i1k-alexnet-fp32.yaml>`__:
 ::
 
     # for nervangpu (requires Maxwell GPUs)
-    neon -g nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
+    neon --gpu nervanagpu examples/convnet/i1k-alexnet-fp32.yaml
 
     # for cudanet (works with Kepler or Maxwell GPUs)
-    neon -g cudanet examples/convnet/i1k-alexnet-fp32.yaml
-
-``-g`` stands for GPU hardware backend.
+    neon --gpu cudanet examples/convnet/i1k-alexnet-fp32.yaml
 
 In `fp16 <examples/convnet/i1k-alexnet-fp16.yaml>`__:
 
 ::
 
-    neon -g nervanagpu examples/convnet/i1k-alexnet-fp16.yaml
+    neon --gpu nervanagpu examples/convnet/i1k-alexnet-fp16.yaml
 
 Code organization
 ~~~~~~~~~~~~~~~~~

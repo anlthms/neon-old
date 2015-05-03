@@ -142,21 +142,8 @@
     #             the Iris dir directly)
     # sample_pct - if 100, full dataset will be used, otherwise we uniformly
     #              downsample records to the specified percentage
-    # serialized_path - the full location and name to a python .pkl file that
-    #                   we will use to cache this dataset.  Speeds up
-    #                   subsequent use of this dataset.
-    # deserialized_path - where to look for a .pkl dataset to load.  Takes
-    #                     precedence over serialized_path when this is also
-    #                     present (optional though).
-    # overwrite_list - can use this to specify a list of parameter names whose
-    #                  values should be taken from this yaml file, overwriting
-    #                  what may already be present when deserializing an
-    #                  instance of this object.  Can be useful for things like
-    #                  forcing an updated serialization path and so forth.
     repo_path: '~/data',
     sample_pct: 100,
-    serialized_path: '~/data/Iris/iris-CPU.pkl',
-    overwrite_list: ['serialized_path']
   },
   
   metrics: {
@@ -244,15 +231,15 @@
     #              be no larger than the size of the training dataset.
     # num_epochs - the number of iterations through the entire training set
     #              to make in training the model
-    # serialized_path - the full location and name to a python .pkl file that
-    #                   we will use to cache this model.  Speeds up
+    # serialized_path - the full location and name to a serialized .prm file
+    #                   that we will use to cache this model.  Speeds up
     #                   subsequent use of this model for inference purposes.
     # layers - list of neural network layer objects.  Models will typically
     #          have a single DataLayer, followed by 1 or more hidden layers,
     #          then a final CostLayer.
     num_epochs: 25,
     batch_size: &bs 30,
-    serialized_path: './iris-mlp-simple.pkl',
+    serialized_path: './iris-mlp-simple.prm',
     layers: [
       &datalayer !obj:layers.DataLayer {
         # DataLayer parameters

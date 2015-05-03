@@ -63,7 +63,7 @@
     backend: *be,
     num_epochs: 10,
     batch_size: &bs 100,
-    serialized_path: './logreg.pkl',
+    serialized_path: './logreg.prm',
     layers: [
       &datalayer !obj:neon.models.layer2.DataLayer {
         name: d0,

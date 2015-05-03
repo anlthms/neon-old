@@ -48,3 +48,19 @@ class Model(object):
         :type datasets: tuple of neon.datasets.Dataset objects
         """
         raise NotImplementedError()
+
+    def get_params(self):
+        np_params = dict()
+        for i, ll in enumerate(self.layers):
+            if ll.has_params:
+                lkey = ll.name + '_' + str(i)
+                np_params[lkey] = ll.get_params()
+        np_params['epochs_complete'] = self.epochs_complete
+        return np_params
+
+    def set_params(self, params_dict):
+        for i, ll in enumerate(self.layers):
+            if ll.has_params:
+                lkey = ll.name + '_' + str(i)
+                ll.set_params(params_dict[lkey])
+        self.epochs_complete = params_dict['epochs_complete']

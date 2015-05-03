@@ -41,6 +41,9 @@ class NoPar(object):
     def rank(self):
         return 0
 
+    def is_distributed(self):
+        return False
+
 
 class BasePar(object):
 
@@ -90,6 +93,9 @@ class BasePar(object):
 
     def rank(self):
         return self.mpi_rank
+
+    def is_distributed(self):
+        return True
 
 
 class ModelPar(BasePar):

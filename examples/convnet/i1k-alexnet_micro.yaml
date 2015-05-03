@@ -108,7 +108,7 @@
     num_epochs: 10,
     batch_size: &bs 128,
     step_print: 24,
-    # serialized_path: '~/data/I1K/I1K_alexnet_micro_model.pkl',
+    serialized_path: '~/data/I1K/I1K_alexnet_micro_model.prm',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,

@@ -300,7 +300,6 @@ class I1K(Dataset):
         logger.info("I1K is using data format %s", self.bdtype)
         from PIL import Image
         self.image = Image
-        self.dist_flag = False
         self.start_train_batch = -1
         self.end_train_batch = -1
         self.start_val_batch = -1
@@ -326,17 +325,10 @@ class I1K(Dataset):
 
     def initialize(self):
         # perform additional setup that can't be done at initial construction
-        if self.dist_flag:
-            self.comm = self.backend.comm
-            if self.comm.size not in [1, 4, 16]:
-                raise AttributeError('MPI.COMM_WORLD.size not compatible')
+        pass
 
     def load(self):
         if 'repo_path' in self.__dict__:
-            # todo handle dist case
-            # if self.dist_flag:
-            #    self.adjust_for_dist()
-
             self.load_path = os.path.expandvars(os.path.expanduser(
                 self.load_path))
             load_dir = os.path.join(self.load_path,

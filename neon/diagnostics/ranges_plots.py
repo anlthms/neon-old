@@ -13,15 +13,15 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 """
-Visualizing histograms of various parameter ranges to detect underflows.
+Visualizing histograms of various parameter ranges to diagnose underflows.
 """
 
 import numpy as np
 import logging
 import matplotlib
-matplotlib.use('Agg')  # not for plotting but write to file.
-from matplotlib import pyplot as plt  # with a middlefinger to pep8: # noqa
-matplotlib.rcParams['pdf.fonttype'] = 42  # TTF to be editable
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt  # noqa
+matplotlib.rcParams['pdf.fonttype'] = 42  # ensure true type font
 
 logger = logging.getLogger(__name__)
 

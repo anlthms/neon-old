@@ -13,7 +13,7 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 # MLP on CIFAR-10
-# ~10M (6M+2M) parameter network to showcase performance of pf16 kernels
+# ~10M (6M+2M) parameter network to showcase performance of fp16 kernels
 
 !obj:experiments.FitPredictErrorExperiment {
 
@@ -29,9 +29,8 @@
   },
 
   dataset: &ds !obj:datasets.CIFAR10 {
-    repo_path: '/home/users/urs/data',
+    repo_path: '~/data',
     sample_pct: 100,
-    # serialized_path: '~/data/CIFAR10/cifar10_small.pkl', # [TODO] Cannot serialize the data for gpu backend.
   },
 
   metrics: {

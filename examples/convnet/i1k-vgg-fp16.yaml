@@ -1,21 +1,12 @@
 # ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2015 Nervana Systems Inc.  All rights reserved.
 # ----------------------------------------------------------------------------
-# VGG model: 13 layer, abridged version of following link
+# VGG model B: 13 layer, abridged version of following link
 # https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-readme-md
 
 !obj:experiments.FitPredictErrorExperiment {
+
+
 
   dataset: &ds !obj:datasets.Imageset {
     repo_path: '~/data',
@@ -25,14 +16,17 @@
     output_image_size: &ois 256,
     cropped_image_size: &cis 224,
     macro_size: 3072,
-    nclass: {l_id: 1000},
     num_channels: 3,
+    num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
-    ntrain: 24,
-    nval: 4,
+    unit_norm: False, # This norms magnitude to 1
+    ntrain: 24, # Delete this line to use entire dataset for training
+    #nval: 1,
+    backend_type: &bt np.float32,  #########################################
   },
 
-  metrics: {
+
+    metrics: {
     train: [
       !obj:metrics.MisclassPercentage {error_rank: 1},
       !obj:metrics.MisclassPercentage {error_rank: 5},
@@ -44,24 +38,27 @@
   },
 
   weight_inits: [
-    &wt_init0 !obj:params.GaussianValGen {
-      scale: .01,
+    &wt_init0 !obj:params.AutoUniformValGen {
+      relu: True,
       bias_init: 0.0,
     },
-    &wt_init1 !obj:params.GaussianValGen {
-      scale: .01,
-      bias_init: 0.1,
+    # Init for the two FC layers
+    &wt_init_fc !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: 1.0,
     },
-    &wt_init_fc !obj:params.GaussianValGen {
-      scale: .005,
-      bias_init: 0.1,
+    # used for lastlayer
+    &wt_initout !obj:params.AutoUniformValGen {
+      relu: True,
+      bias_init: -7.0,
     },
   ],
 
   lrule: &gdm {
     type: gradient_descent_momentum,
+    backend_type: *bt,
     lr_params: {
-      learning_rate: 0.02,
+      learning_rate: 0.0002, ############################ 10x
       schedule: {
               type: step,
               ratio: 0.1,
@@ -76,8 +73,9 @@
 
   lrule: &gdmwd {
     type: gradient_descent_momentum_weight_decay,
+    backend_type: *bt,
     lr_params: {
-      learning_rate: 0.01,
+      learning_rate: 0.0001, ############################ 10x
       weight_decay: .0005,
       schedule: {
               type: step,
@@ -92,8 +90,10 @@
   },
 
   model: !obj:models.MLP {
-    num_epochs: 60, #74 in paper
-    batch_size: &bs 128, #256 with data parallel on 4 gpus
+    backend_type: *bt,
+    batch_norm: &bn True, ################################################
+    num_epochs: 10, #74 in paper      ############################
+    batch_size: &bs 64, ################################# 128 only fits fp16
     step_print: 24,
     reuse_deltas: True,
     serialized_path: '~/data/I1K/I1K_vgg_model.prm',
@@ -106,6 +106,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv1_1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -116,6 +118,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv1_2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -126,12 +130,15 @@
       },
       !obj:layers.PoolingLayer {
         name: pool1,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv2_1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -142,6 +149,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv2_2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -152,12 +161,15 @@
       },
       !obj:layers.PoolingLayer {
         name: pool2,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv3_1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -168,6 +180,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv3_2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -178,12 +192,15 @@
       },
       !obj:layers.PoolingLayer {
         name: pool3,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv4_1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -194,6 +211,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv4_2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -204,12 +223,15 @@
       },
       !obj:layers.PoolingLayer {
         name: pool4,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.ConvLayer {
         name: conv5_1,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -220,6 +242,8 @@
       },
       !obj:layers.ConvLayer {
         name: conv5_2,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init0,
@@ -230,39 +254,48 @@
       },
       !obj:layers.PoolingLayer {
         name: pool5,
+        backend_type: *bt,
         op: 'max',
         fshape: [2, 2],
         stride: 2,
       },
       !obj:layers.FCLayer {
         name: fc6,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 100, #4096 in original
+        nout: 4096, #4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
         name: dropout1,
+        backend_type: *bt,
         keep: 0.5,
       },
       !obj:layers.FCLayer {
         name: fc7,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
         weight_init: *wt_init_fc,
-        nout: 100, #4096 in original
+        nout: 4096, #4096 in original
         activation: !obj:transforms.RectLin {},
       },
       !obj:layers.DropOutLayer {
         name: dropout2,
+        backend_type: *bt,
         keep: 0.5,
       },
       &lastlayer !obj:layers.FCLayer {
         name: fc8,
+        backend_type: *bt,
+        batch_norm: *bn,
         lrule_init: *gdmwd,
         brule_init: *gdm,
-        weight_init: *wt_init0,
+        weight_init: *wt_initout,
         nout: 1000,
         activation: !obj:transforms.Softmax {},
       },
@@ -270,8 +303,11 @@
         name: cost,
         ref_layer: *datalayer,
         ref_label: 'labels',
-        raw_label: False,
-        cost: !obj:transforms.CrossEntropy {},
+        cost: !obj:transforms.CrossEntropy {
+          backend_type: *bt,
+          epsilon: 0.0005,
+          scale: 1000,
+        },
       },
     ],
   },

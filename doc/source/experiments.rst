@@ -58,7 +58,7 @@ If you have a trained model you'd like to use just for generating predictions
 (i.e. don't bother training from scratch), this can be accomplished as follows:
 
 * Train your model, being sure to save model parameters to disk and use an
-  Experimne of class
+  Experiment of class
   :class:`neon.experiments.fit_predict_err.FitPredictErrorExperiment`.
   This can be accomplished by adding the following to the model definition in
   your yaml file (note that you can use any model type not just MLP's):

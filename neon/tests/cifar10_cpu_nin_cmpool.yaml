@@ -22,7 +22,7 @@
   datasets: [
     !obj:neon.datasets.cifar10.CIFAR10 {
       backend: *be,
-      repo_path: '/usr/local/data',
+      repo_path: '~/data',
       sample_pct: 10,
     },
   ],
