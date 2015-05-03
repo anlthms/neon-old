@@ -40,6 +40,10 @@ Installation
   * Second, ensure that your PATH and/or LD_LIBRARY_PATH are updated to find
     the CUDA installation, as described in:
     http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-linux/#post-installation-actions
+  * if you are running on the above command as the super user via ``sudo`` on
+    Ubuntu Linux, you may need to pass PATH and LD_LIBRARY_PATH from your
+    environment like so:
+    ``sudo env “PATH=$PATH” env “LD_LIBRARY_PATH=$LD_LIBRARY_PATH” make install``
 
 
 Running
