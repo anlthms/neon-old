@@ -59,7 +59,7 @@ class FitExperiment(Experiment):
         self.dataset.backend = self.backend
         self.dataset.load()
         if hasattr(self.dataset, 'serialized_path'):
-            serialize(self.dataset, self.dataset.serialized_path)
+            logger.warning('Ability to serialize dataset has been deprecated.')
 
         # fit the model to the data, save it if specified
         if not hasattr(self.model, 'backend'):
