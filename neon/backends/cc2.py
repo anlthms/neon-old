@@ -283,10 +283,10 @@ class GPUTensor(Tensor):
                 start, stop, stride = key.indices(self.shape[0])
                 if start == 0 and stop == self.shape[0]:
                     # form x[:] = value
-                    if isinstance(value, (int, float)):
-                        self._tensor.assign(value)
-                    else:
+                    if isinstance(value, numpy.ndarray):
                         self._tensor.copy_from(value)
+                    else:
+                        self._tensor.assign(value)
                 else:
                     self._tensor.set_row_slice(start, stop, value)
             else:
