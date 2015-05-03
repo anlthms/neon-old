@@ -14,10 +14,6 @@ from neon.util.compat import pickle
 
 logger = logging.getLogger(__name__)
 
-# ensure yaml constructors and so forth get registered prior to first load
-# attempt.
-yaml_initialized = False
-
 
 def ensure_dirs_exist(path):
     """
@@ -206,10 +202,8 @@ def obj_multi_constructor(loader, tag_suffix, node,
 
 
 def initialize_yaml():
-    global yaml_initialized
     yaml.add_multi_constructor('!obj:', obj_multi_constructor,
                                yaml.loader.SafeLoader)
-    yaml_initialized = True
 
 
 def deserialize(load_path, verbose=True):
@@ -234,7 +228,6 @@ def deserialize(load_path, verbose=True):
     See Also:
         serialize
     """
-    global yaml_initialized
     if not isinstance(load_path, file):
         load_path = file(os.path.expandvars(os.path.expanduser(load_path)))
     fname = load_path.name
@@ -243,7 +236,6 @@ def deserialize(load_path, verbose=True):
         logger.warn("deserializing object from:  %s", fname)
 
     if (fname.lower().endswith('.yaml') or fname.lower().endswith('.yml')):
-        # if not yaml_initialized: [TODO: SCOTT IS THIS OK?]
         initialize_yaml()
         return yaml.safe_load(load_path)
     else:
