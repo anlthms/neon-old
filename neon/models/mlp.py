@@ -22,7 +22,6 @@ class MLP(MLP_old):
 
     def __init__(self, **kwargs):
         self.initialized = False
-        self.dist_mode = None
         self.__dict__.update(kwargs)
         req_param(self, ['layers', 'batch_size'])
         opt_param(self, ['step_print'], -1)

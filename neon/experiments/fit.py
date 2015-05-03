@@ -32,7 +32,6 @@ class FitExperiment(Experiment):
     """
 
     def __init__(self, **kwargs):
-        self.dist_flag = False
         self.datapar = False
         self.modelpar = False
         self.initialized = False
@@ -56,10 +55,7 @@ class FitExperiment(Experiment):
         """
 
         # load the dataset, save it to disk if specified
-        if (not hasattr(self.dataset, 'dist_flag') or
-                not self.dataset.dist_flag or (self.dataset.dist_mode !=
-                                               'datapar')):
-            self.dataset.set_batch_size(self.model.batch_size)
+        self.dataset.set_batch_size(self.model.batch_size)
         self.dataset.backend = self.backend
         self.dataset.load()
         if hasattr(self.dataset, 'serialized_path'):
@@ -87,12 +83,7 @@ class FitExperiment(Experiment):
 
         if hasattr(self.model, 'pickle'):
             self.model.uninitialize()
-            if (hasattr(self.dataset, 'dist_flag') and
-                    self.dataset.dist_flag and
-                    self.dataset.dist_mode == 'datapar'):
-                if self.backend.mpi_rank == 0:
-                    serialize(self.model.get_params(), self.model.pickle)
-            else:
+            if self.backend.rank() == 0:
                 serialize(self.model.get_params(), self.model.pickle)
 
         if hasattr(self.model, 'serialized_path'):
@@ -105,10 +96,5 @@ class FitExperiment(Experiment):
 
             when deserializing a partially trained model'''
             self.model.uninitialize()
-            if (hasattr(self.dataset, 'dist_flag') and
-                    self.dataset.dist_flag and
-                    self.dataset.dist_mode == 'datapar'):
-                if self.backend.mpi_rank == 0:
-                    serialize(self.model, self.model.serialized_path)
-            else:
+            if self.backend.rank() == 0:
                 serialize(self.model, self.model.serialized_path)

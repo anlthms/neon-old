@@ -98,7 +98,6 @@ def extract_child_node_vals(node, keys):
 def obj_multi_constructor(loader, tag_suffix, node,
                           deserialize_param='deserialized_path',
                           serialize_param='serialized_path',
-                          dist_param='dist_flag',
                           overwrite_param='overwrite_list'):
     """
     Utility function used to actually import and generate a new class instance
@@ -123,9 +122,6 @@ def obj_multi_constructor(loader, tag_suffix, node,
                                to see if we shoud deserialize instead of
                                construct a new object.  Defaults to
                                'serialized_path'.
-        dist_param (str): Tag name of the parameter that can be inspected to
-                          indicate the object in question is distributed.
-                          Defaults to 'dist_flag'.
         overwrite_param (str): Tag name of the parameter that can be inspected
                                to indicate a list of parameters whose values
                                should be overwritten once deserialized with the
@@ -160,11 +156,10 @@ def obj_multi_constructor(loader, tag_suffix, node,
     # special handling
     res = None
     child_vals = extract_child_node_vals(node, [deserialize_param,
-                                                serialize_param, dist_param,
+                                                serialize_param,
                                                 overwrite_param])
     if child_vals[overwrite_param] is None:
         child_vals[overwrite_param] = [serialize_param]
-    child_vals[dist_param] = (child_vals[dist_param] == 'True')
     if False:
         # TODO: we want to run this if running a datapar or modelpar model,
         # need some way to check this!
