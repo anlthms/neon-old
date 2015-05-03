@@ -6,6 +6,7 @@ Experiment in which a model is trained (parameters learned)
 """
 
 import logging
+import os
 
 from neon.experiments.experiment import Experiment
 from neon.util.param import req_param, opt_param
@@ -32,8 +33,6 @@ class FitExperiment(Experiment):
     """
 
     def __init__(self, **kwargs):
-        self.datapar = False
-        self.modelpar = False
         self.initialized = False
         self.__dict__.update(kwargs)
         req_param(self, ['dataset', 'model'])
@@ -67,14 +66,20 @@ class FitExperiment(Experiment):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
-        if hasattr(self.model, 'depickle'):
-            import os
-            mfile = os.path.expandvars(os.path.expanduser(self.model.depickle))
-            if os.access(mfile, os.R_OK):
-                self.model.set_params(deserialize(mfile))
-            else:
-                logger.info('Unable to find saved model %s, starting over',
-                            mfile)
+        mfile = ""
+        if hasattr(self.model, 'deserialized_path'):
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.deserialized_path))
+        elif hasattr(self.model, 'serialized_path'):
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.serialized_path))
+        if os.access(mfile, os.R_OK):
+            if self.backend.is_distributed():
+                raise NotImplementedError('Deserializing models not supported '
+                                          'in distributed mode')
+            self.model.set_params(deserialize(mfile))
+        elif mfile != "":
+            logger.info('Unable to find saved model %s, starting over', mfile)
         if self.model.epochs_complete >= self.model.num_epochs:
             return
         if self.live:
@@ -82,20 +87,6 @@ class FitExperiment(Experiment):
 
         self.model.fit(self.dataset)
 
-        if hasattr(self.model, 'pickle'):
-            self.model.uninitialize()
-            if self.backend.rank() == 0:
-                serialize(self.model.get_params(), self.model.pickle)
-
         if hasattr(self.model, 'serialized_path'):
-            ''' TODO: With the line below active, get
-
-              File "/home/users/urs/code/neon/neon/layers/fully_connected.py",
-              line 58, in bprop
-                self.backend.update_fc(out=upm[u_idx], inputs=inputs,
-            IndexError: list index out of range
-
-            when deserializing a partially trained model'''
-            self.model.uninitialize()
             if self.backend.rank() == 0:
-                serialize(self.model, self.model.serialized_path)
+                serialize(self.model.get_params(), self.model.serialized_path)

@@ -71,8 +71,8 @@
     backend_type: *bt,
     num_epochs: 10,
     batch_size: &bs 128,
-    depickle: '~/data/model5.pkl',
-    pickle: '~/data/model10b.pkl',
+    deserialized_path: '~/data/model5.prm',
+    serialized_path: '~/data/model10b.prm',
     overwrite_list: ['num_epochs'],
 
     layers: [

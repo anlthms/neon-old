@@ -49,12 +49,9 @@
   model: !obj:models.MLP {
     num_epochs: 5,
     batch_size: &bs 128,
-    depickle: '~/data/mnist-mlp-alex-traincont3.pkl',
-    pickle: '~/data/mnist-mlp-alex-traincont3.pkl',
+    serialized_path: '~/data/mnist-mlp-alex-traincont3.prm',
     overwrite_list: ['num_epochs'],
 
-    # serialized_path: '~/data/mnist-mlp-simple-alex.pkl',
-    # deserialized_path: '~/data/mnist-mlp-simple-alex.pkl',
     layers: [
       &datalayer !obj:layers.DataLayer {
         name: d0,

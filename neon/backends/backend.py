@@ -1149,6 +1149,9 @@ class Backend(YAMLable):
     def rank(self):
         return self.par.rank()
 
+    def is_distributed(self):
+        return self.par.is_distributed()
+
     def reduce_tensor(self, tensor):
         return self.par.reduce_tensor(tensor)
 

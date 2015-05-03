@@ -106,8 +106,7 @@
     batch_size: &bs 64,
     step_print: 24,
     overwrite_list: ['num_epochs'],
-    serialized_path: '~/I1K_alexnet_fp16_model.pkl',
-    deserialized_path: '~/I1K_alexnet_fp16_model.pkl',
+    serialized_path: '~/I1K_alexnet_fp16_model.prm',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,

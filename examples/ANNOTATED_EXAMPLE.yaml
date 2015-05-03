@@ -220,21 +220,15 @@
     #              be no larger than the size of the training dataset.
     # num_epochs - the number of iterations through the entire training set
     #              to make in training the model
-    # serialized_path - the full location and name to a python .pkl file that
-    #                   we will use to cache this model.  Speeds up
+    # serialized_path - the full location and name to a serialized .prm file
+    #                   that we will use to cache this model.  Speeds up
     #                   subsequent use of this model for inference purposes.
-    # overwrite_list - can use this to specify a list of parameter names whose
-    #                  values should be taken from this yaml file, overwriting
-    #                  what may already be present when deserializing an
-    #                  instance of this object.  Can be useful for things like
-    #                  forcing an updated serialization path and so forth.
     # layers - list of neural network layer objects.  Models will typically
     #          have a single DataLayer, followed by 1 or more hidden layers,
     #          then a final CostLayer.
     num_epochs: 25,
     batch_size: &bs 30,
-    serialized_path: './iris-mlp-simple.pkl',
-    overwrite_list: ['serialized_path'],
+    serialized_path: './iris-mlp-simple.prm',
     layers: [
       &datalayer !obj:layers.DataLayer {
         # DataLayer parameters
