@@ -120,7 +120,7 @@ if __name__ == '__main__':
         serialize_check(check_files[0], expected_result, **be_args)
         print('OK')
 
-        # Step 4: Train 10 epochs of ToyImages model and serialize, MODEL10
+        # Step 5: Train 10 epochs of ToyImages model and serialize, MODEL10
         be = "cpu"
         be_args = {'rng_seed': 0}
         print('{} check '.format(be))

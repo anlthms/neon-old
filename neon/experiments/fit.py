@@ -66,18 +66,20 @@ class FitExperiment(Experiment):
             self.model.backend = self.backend
         if not hasattr(self.model, 'epochs_complete'):
             self.model.epochs_complete = 0
-        if hasattr(self.model, 'serialized_path'):
-            if self.backend.is_distributed():
-                raise NotImplementedError('Serializing models not supported '
-                                          'in distributed mode')
-
+        mfile = ""
+        if hasattr(self.model, 'deserialized_path'):
+            mfile = os.path.expandvars(os.path.expanduser(
+                self.model.deserialized_path))
+        elif hasattr(self.model, 'serialized_path'):
             mfile = os.path.expandvars(os.path.expanduser(
                 self.model.serialized_path))
-            if os.access(mfile, os.R_OK):
-                self.model.set_params(deserialize(mfile))
-            else:
-                logger.info('Unable to find saved model %s, starting over',
-                            mfile)
+        if os.access(mfile, os.R_OK):
+            if self.backend.is_distributed():
+                raise NotImplementedError('Deserializing models not supported '
+                                          'in distributed mode')
+            self.model.set_params(deserialize(mfile))
+        elif mfile != "":
+            logger.info('Unable to find saved model %s, starting over', mfile)
         if self.model.epochs_complete >= self.model.num_epochs:
             return
         if self.live:
