@@ -49,8 +49,6 @@
   model: !obj:models.MLP {
     num_epochs: 5,
     batch_size: &bs 128,
-    serialized_path: '~/data/mnist-mlp-alex-traincont3.prm',
-    overwrite_list: ['num_epochs'],
 
     layers: [
       &datalayer !obj:layers.DataLayer {
