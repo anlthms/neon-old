@@ -131,11 +131,6 @@
     #             the Iris dir directly)
     # sample_pct - if 100, full dataset will be used, otherwise we uniformly
     #              downsample records to the specified percentage
-    # overwrite_list - can use this to specify a list of parameter names whose
-    #                  values should be taken from this yaml file, overwriting
-    #                  what may already be present when deserializing an
-    #                  instance of this object.  Can be useful for things like
-    #                  forcing an updated serialization path and so forth.
     repo_path: '~/data',
     sample_pct: 100,
   },
