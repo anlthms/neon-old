@@ -41,7 +41,7 @@ via:
 .. code-block:: bash
 
     git clone https://github.com/NervanaSystems/spearmint
-    cd spearmint
+    cd spearmint/spearmint/spearmint
     python setup.py install
 
 
