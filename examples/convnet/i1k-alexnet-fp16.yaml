@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
-# Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
-
+# Experiment settings to train/test the AlexNet CNN on ImageNet.
+# 16-bit floating point (fp-16) is used in this model.
+# Batch norm and scaling are used in addition to standard AlexNet
 
 
 !obj:experiments.FitPredictErrorExperiment {
@@ -56,8 +56,8 @@
     num_workers: 12,
     mean_norm: True, # This just subtracts the mean, but doesn't divide by 128
     unit_norm: False, # This norms magnitude to 1
-    ntrain: 1, # Delete this line to use entire dataset for training
-    nval: 1,
+    # ntrain: 1, # Commenting this line uses entire dataset
+    # nval: 1,
     backend_type: &bt np.float32,
   },
 
@@ -113,11 +113,11 @@
   model: !obj:models.MLP {
     backend_type: *bt,
     batch_norm: &bn True,
-    num_epochs: 2, # 1 or 10 or 60
+    num_epochs: 60,
     batch_size: &bs 64,
     step_print: 24,
     overwrite_list: ['num_epochs'],
-    serialized_path: '~/I1K_alexnet_fp16_model.prm',
+    serialized_path: '~/data/I1K/I1K_alexnet_fp16_model.prm',
     layers: [
       &datalayer !obj:layers.ImageDataLayer {
         name: d0,

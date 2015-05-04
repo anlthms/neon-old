@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
+# *** This example should be run with the hyperopt executable ***
 # Experiment settings to train/test a 1 hidden layer Neural Net on full
 # Iris dataset.  Simple network meant more as a sanity check.
 

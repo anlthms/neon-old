@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
-# MLP on CIFAR-10
+# MLP on CIFAR-10, a quick+small network
 
 !obj:experiments.FitPredictErrorExperiment {
 
   dataset: &ds !obj:datasets.CIFAR10 {
     repo_path: '~/data',
-    sample_pct: 10,
+    sample_pct: 10, # set to 100 to sample full dataset
   },
 
   metrics: {

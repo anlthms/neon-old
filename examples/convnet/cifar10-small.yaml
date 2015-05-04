@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test a CNN on CIFAR10.
+# Experiment settings to train/test a quick CNN on CIFAR10.
+# (This is not going to be a very accurate CNN.)
 
 !obj:experiments.FitPredictErrorExperiment {
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
+# (This is a quick run on the subset of the data.)
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
 
 !obj:experiments.FitPredictErrorExperiment {

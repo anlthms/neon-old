@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
-# Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
-# Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
-
+# Experiment settings to train/test the AlexNet CNN on ImageNet.
+# 32-bit floating point (fp-32) is used in this model.
+# Batch norm is used in addition to standard AlexNet
 
 
 !obj:experiments.FitPredictErrorExperiment {

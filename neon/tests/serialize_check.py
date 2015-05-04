@@ -14,6 +14,9 @@
 """
 Serialization check
 This has been tested for Maxwell Titan X GPU
+Pending: Diff CPUs currently give slightly different results so tol is
+not enforced.
+
 For AlexNet have to manually set:
 center=True, flip=False,
 #center=self.ds.predict, flip=True,
