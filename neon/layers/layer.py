@@ -94,15 +94,6 @@ class Layer(YAMLable):
         self.deltas = None
         self.initialized = True
 
-    def uninitialize(self):
-        self.initialized = False
-        self.delattr('out_shape')
-        self.delattr('delta_shape')
-
-    def delattr(self, attr):
-        if hasattr(self, attr):
-            delattr(self, attr)
-
     def set_weight_shape(self):
         pass
 

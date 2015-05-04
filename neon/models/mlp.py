@@ -75,12 +75,6 @@ class MLP(Model):
             self.backend.init_mempool((1, self.batch_size),
                                       dtype=self.layers[1].deltas_dtype)
 
-    def uninitialize(self):
-        # self.backend = None
-        self.initialized = False
-        for ll in self.layers:
-            ll.uninitialize()
-
     def fprop(self):
         for ll, pl in zip(self.layers, [None] + self.layers[:-1]):
             y = None if pl is None else pl.output
