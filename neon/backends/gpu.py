@@ -781,17 +781,10 @@ class GPU(Backend):
         Returns:
             GPUTensor: reference to out
         """
-
-        if self.mem_pool is None:
-            self.mem_pool = self.ng.empty((1, x.shape[1]),
-                                          dtype=np.float32)
-        vecbuf = self.mem_pool
-        assert vecbuf.shape == (1, x.shape[1])
-        self.ng.max(x, axis=0, out=vecbuf)    # reduction over classes
-        self.ng.exp(x - vecbuf, out=out)      # followed by ew
-        self.ng.sum(out, axis=0, out=vecbuf)  # reduction over classes
-        out[:] = out / vecbuf                 # followed by ew
-
+        out[:] = self.ng.reciprocal(
+                    self.ng.sum(
+                        self.ng.exp(x - self.ng.max(x, axis=0)), axis=0)) *\
+            self.ng.exp(x - self.ng.max(x, axis=0))
         return out
 
     def softmax_gradient(self, y, err, out):
@@ -877,7 +870,7 @@ class GPU(Backend):
 
         # Calculate Updates
         ls_item[:] = self.ng.sqrt((ds_item + epsilon) / (gs_item + epsilon))\
-                     * (-1.0) * us_item
+            * (-1.0) * us_item
 
         # Accumulate E[Delt^2]
         ds_item[:] = ds_item * rho + (1.0 - rho) * ls_item * ls_item
