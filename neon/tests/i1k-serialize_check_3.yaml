@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------
-# Copyright 2014 Nervana Systems Inc.  All rights reserved.
+# Copyright 2014 Nervana Systems Inc.
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test the micro version of AlexNet CNN on ImageNet.
 # Compare to Caffe: https://github.com/BVLC/caffe/blob/master/models/bvlc_alexnet/train_val.prototxt
