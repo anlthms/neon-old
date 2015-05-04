@@ -103,7 +103,7 @@ class NeonCommand(Command):
                                                    'cuda-convnet2.git#'
                                                    'egg=cudanet']
         if self.gpu == "nervanagpu":
-            self.distribution.install_requires += ['nervanagpu>=0.3.0']
+            self.distribution.install_requires += ['nervanagpu>=0.3.1']
             self.distribution.dependency_links += ['git+https://github.com/'
                                                    'NervanaSystems/'
                                                    'nervanagpu.git#'
