@@ -14,6 +14,7 @@
 # ----------------------------------------------------------------------------
 # Experiment settings to train/test a Balance Neural Net on full
 # MNIST.
+# See: http://arxiv.org/pdf/1412.6583.pdf for details
 
  !obj:experiments.FitPredictErrorExperiment {
 
