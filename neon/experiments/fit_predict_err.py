@@ -127,9 +127,8 @@ class FitPredictErrorExperiment(FitExperiment):
             if metric_set not in result:
                 result[metric_set] = dict()
             if metric_set not in self.predictions:
-                for i in self.model.predict_generator(self.dataset,
-                                                      metric_set):
-                    outputs, targets = i
+                for outputs, targets in self.model.predict_generator(
+                        self.dataset, metric_set):
                     # update metrics for this set while we have this info
                     for m in self.metrics[metric_set]:
                         m.add(targets, outputs)

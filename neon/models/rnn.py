@@ -341,21 +341,34 @@ class RNN(MLP):
         logger.debug("RNN grad_checker: ratio %e", 1./(numerical/analytical))
         logger.debug("---------------------------------------------")
 
-    def predict_fullset(self, dataset, setname, misclass_sum=None,
-                        logloss_sum=None):
+    def predict_generator(self, dataset, setname):
+        """
+        Generate flattened predicitons and true labels for the given dataset,
+        one mini-batch at a time.
+
+        Agruments:
+            dataset: A neon dataset instance
+            setname: Which set to compute predictions for (test, train, val)
+
+        Returns:
+            tuple: on each call will yield a 2-tuple of outputs and references.
+                   The first item is the model probabilities for each class,
+                   and the second item is either the one-hot or raw labels with
+                   ground truth.
+
+        See Also:
+            predict_fullset
+        """
         self.data_layer.init_dataset(dataset)
         assert self.data_layer.has_set(setname)
         self.data_layer.use_set(setname, predict=True)
         self.data_layer.reset_counter()
-        if misclass_sum is not None:
-            misclass = self.backend.empty((1, self.batch_size))
-            batch_sum = self.backend.empty((1, 1))
-            misclass_sum.fill(0.0)
-        if logloss_sum is not None:
-            batch_sum = self.backend.empty((1, 1))
-            logloss_sum.fill(0.0)
+
         predlabels = self.backend.empty((1, self.batch_size))
         labels = self.backend.empty((1, self.batch_size))
+
+        # TODO: find some alternate way of re-assembling data that doesn't
+        # require allocating space for the entire dataset.
         outputs_pred = self.backend.zeros((self.data_layer.num_batches *
                                            self.unrolls, self.batch_size))
         outputs_targ = self.backend.zeros((self.data_layer.num_batches *
@@ -374,14 +387,6 @@ class RNN(MLP):
                 targets = self.data_layer.targets[tau]
                 self.backend.argmax(targets, axis=0, out=labels)
                 self.backend.argmax(probs, axis=0, out=predlabels)
-                if misclass_sum is not None:
-                    self.backend.not_equal(predlabels, labels, misclass)
-                    self.backend.sum(misclass, axes=None, out=batch_sum)
-                    self.backend.add(misclass_sum, batch_sum, misclass_sum)
-                if logloss_sum is not None:
-                    self.backend.sum(self.cost_layer.cost.apply_logloss(
-                                     targets), axes=None, out=batch_sum)
-                    self.backend.add(logloss_sum, batch_sum, logloss_sum)
 
                 # collect batches to re-assemble continuous data
                 idx = self.unrolls * (mb_id - 1) + tau
@@ -394,42 +399,10 @@ class RNN(MLP):
         pred_flat = outputs_pred.transpose().reshape((1, -1))
         targ_flat = outputs_targ.transpose().reshape((1, -1))
 
-        return pred_flat, targ_flat
-
-    # adapted from MLP, added time unrolling
-    def predict_and_report(self, dataset=None):
-        """
-        todo: take the outputs[idx, :] = letters
-        stuff from predict_set and use it to descramble the predictions
-        like we had before
-        """
-        if dataset is not None:
-            self.data_layer.init_dataset(dataset)
-        logloss_sum = self.backend.empty((1, 1))
-        misclass_sum = self.backend.empty((1, 1))
-        nrecs = self.batch_size * self.data_layer.num_batches
-
-        return_err = dict()
-
-        for setname in ['train', 'test', 'validation']:
-            if self.data_layer.has_set(setname) is False:
-                continue
-            outputs_pred, outputs_targ = self.predict_fullset(dataset, setname,
-                                                              misclass_sum,
-                                                              logloss_sum)
-
-            self.write_string(outputs_pred, outputs_targ, setname)
-            self.result = misclass_sum.asnumpyarray()[0, 0] / (nrecs *
-                                                               self.unrolls)
-            return_err[setname] = self.result
-            logging.info("%s set misclass rate: %0.5f%% logloss %0.5f" % (
-                setname, 100 * misclass_sum.asnumpyarray() / nrecs /
-                self.unrolls, logloss_sum.asnumpyarray() / nrecs /
-                self.unrolls))
-        if self.make_plots is True:
-            from ipdb import set_trace as trace
-            trace()  # stop to look at plots
-        return return_err
+        for i in range(self.data_layer.num_batches):
+            start = i * self.unrolls * self.batch_size
+            end = start + (self.unrolls * self.batch_size)
+            yield (pred_flat[start:end], targ_flat[start:end])
 
     def write_string(self, pred, targ, setname):
             """ For text prediction, reassemble the batches and print out a

@@ -164,7 +164,8 @@ class MLP(Model):
 
     def predict_generator(self, dataset, setname):
         """
-        Generator that iterates over minibatches.
+        Generate predicitons and true labels for the given dataset, one
+        mini-batch at a time.
 
         Agruments:
             dataset: A neon dataset instance
@@ -175,6 +176,9 @@ class MLP(Model):
                    The first item is the model probabilities for each class,
                    and the second item is either the one-hot or raw labels with
                    ground truth.
+
+        See Also:
+            predict_fullset
         """
         self.data_layer.init_dataset(dataset)
         assert self.data_layer.has_set(setname)
@@ -198,10 +202,25 @@ class MLP(Model):
         self.data_layer.cleanup()
 
     def predict_fullset(self, dataset, setname):
-        self.data_layer.init_dataset(dataset)
-        assert self.data_layer.has_set(setname)
-        self.data_layer.use_set(setname, predict=True)
-        self.data_layer.reset_counter()
+        """
+        Generate predicitons and true labels for the given dataset.
+        Note that this requires enough memory to house the predictions and
+        labels for the entire dataset at one time (not recommended for large
+        datasets, see predict_generator instead).
+
+        Agruments:
+            dataset: A neon dataset instance
+            setname: Which set to compute predictions for (test, train, val)
+
+        Returns:
+            tuple: on each call will yield a 2-tuple of outputs and references.
+                   The first item is the model probabilities for each class,
+                   and the second item is either the one-hot or raw labels with
+                   ground truth.
+
+        See Also:
+            predict_generator
+        """
         nrecs = self.batch_size * self.data_layer.num_batches
         outputs = self.backend.empty((self.class_layer.nout, nrecs))
         if self.data_layer.has_labels:
@@ -210,17 +229,14 @@ class MLP(Model):
             reference = self.backend.empty(outputs.shape)
 
         batch = 0
-        self.set_train_mode(False)
-
-        while self.data_layer.has_more_data():
-            self.fprop()
+        for batch_preds, batch_refs in self.predict_generator(dataset,
+                                                              setname):
             start = batch * self.batch_size
             end = start + self.batch_size
             outputs[:, start:end] = self.get_classifier_output()
             reference[:, start:end] = self.cost_layer.get_reference()
             batch += 1
 
-        self.data_layer.cleanup()
         return outputs, reference
 
     def predict_live_init(self, dataset):

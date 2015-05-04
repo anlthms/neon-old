@@ -876,8 +876,8 @@ class GPU(Backend):
         gs_item[:] = gs_item * rho + (1.0 - rho) * us_item * us_item
 
         # Calculate Updates
-        ls_item[:] = self.ng.sqrt((ds_item + epsilon) / (gs_item + epsilon))\
-                     * (-1.0) * us_item
+        ls_item[:] = self.ng.sqrt((ds_item + epsilon) /
+                                  (gs_item + epsilon)) * (-1.0) * us_item
 
         # Accumulate E[Delt^2]
         ds_item[:] = ds_item * rho + (1.0 - rho) * ls_item * ls_item
