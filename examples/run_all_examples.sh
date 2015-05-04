@@ -27,7 +27,7 @@ CMP_OPTS=""
 mkdir -p "$(dirname $OUT_FILE)"
 mkdir -p "$(dirname $LOG_FILE)"
 make -C ${THIS_DIR}/.. build > /dev/null 2>&1  # ensure build is up to date
-for dir in autoencoder balance convnet mlp recurrent
+for dir in autoencoder convnet mlp recurrent
 do
   for f in "${THIS_DIR}/${dir}"/*.yaml
   do
